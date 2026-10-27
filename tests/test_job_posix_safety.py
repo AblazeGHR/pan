@@ -1,7 +1,7 @@
 """CP-X2 real public POSIX successors. Windows skips are explicit, never success.
 
-The Linux suite uses production canonical HTTP, executor HTTP, real child tree,
-and original supervisor. macOS has a separate public fail-closed successor.
+The Linux/macOS suite uses production canonical HTTP, executor HTTP, real child
+tree and original supervisor. macOS additionally verifies its native birth kind.
 No success/cleanup proof is injected; only the first identity probe can deny.
 """
 import asyncio
@@ -35,7 +35,7 @@ def cold(c, expected):
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='CP-X2 real Linux kernel/public HTTP path; macOS ownership explicitly unsupported')
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='CP-X2 real Linux/macOS kernel and public HTTP path')
 def test_public_unknown_query_explicit_recheck_and_lost_response_identity(canonical):
     c, o = (canonical, canonical.owned)
     o.evidence['label'] = 'public-default-unknown-recheck'
@@ -93,10 +93,11 @@ def test_public_unknown_query_explicit_recheck_and_lost_response_identity(canoni
     assert duplicate.status_code == 200 and duplicate.json()['operationId'] == second_id
     assert o.client.get_execution(o.identity)['cleanupRequest']['revision'] == 2
     assert len((o.root / 'kills.jsonl').read_text().splitlines()) == 1
+    assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
     assert o.effects.read_text().splitlines() == ['effect'] and len(o.children) == 1
     o.evidence.update(publicUnknownPersisted=True, lostResponseQuerySameOperation=True, replayNoCleanup=True, explicitPublicRecheck=True, casRejected=True, anonymousRejected=True, cleanupRevision=2, effects=1, cleanupCalls=1, originalAttemptPreserved=True, runState='cancelled')
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='CP-X2 real Linux kernel/public HTTP path; macOS ownership explicitly unsupported')
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='CP-X2 real Linux/macOS kernel and public HTTP path')
 def test_public_cancel_waits_for_original_supervisor_exit(canonical):
     c, o = (canonical, canonical.owned)
     o.evidence['label'] = 'public-supervisor-exit-gate'
@@ -118,9 +119,11 @@ def test_public_cancel_waits_for_original_supervisor_exit(canonical):
     o.children[0].wait(5)
     assert refresh(c)['state'] == 'cancelled'
     assert c.client.get('/api/operations/' + op).json()['status'] == 'completed'
+    assert len((o.root / 'kills.jsonl').read_text().splitlines()) == 1
+    assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
     o.evidence.update(supervisorAliveBlockedCompletion=True, supervisorExitConfirmed=True, effects=1, cleanupCalls=1)
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='CP-X2 real Linux kernel/public HTTP path; macOS ownership explicitly unsupported')
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='CP-X2 real Linux/macOS kernel and public HTTP path')
 def test_public_queued_cancel_does_not_create_attempt_or_process(canonical):
     c, o = (canonical, canonical.owned)
     o.evidence['label'] = 'public-queued-cancel'
@@ -135,7 +138,7 @@ def test_public_queued_cancel_does_not_create_attempt_or_process(canonical):
     assert o.children == [] and (not o.effects.exists())
     o.evidence.update(queuedCancelled=True, attempts=0, effects=0, supervisors=0)
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='CP-X2 real Linux kernel/public HTTP path; macOS ownership explicitly unsupported')
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='CP-X2 real Linux/macOS kernel and public HTTP path')
 def test_original_uncertain_reconcile_rejects_old_epoch_generation_and_lease(canonical):
     c, o = (canonical, canonical.owned)
     o.evidence['label'] = 'public-original-fence'
@@ -156,25 +159,25 @@ def test_original_uncertain_reconcile_rejects_old_epoch_generation_and_lease(can
     with pytest.raises(fc.ContractError, match='active Attempt'):
         c.service.final.store.mutate(c.job['id'], lambda job: c.service.final.ledger.finish_attempt(job, c.service.root, o.attempt['attemptId'], 'completed', expected_epoch=o.attempt['ownerEpoch'], expected_generation=o.attempt['generation']))
     assert c.service.final.store.get(c.job['id']) == before
-    assert doc['result']['outcome'] == 'unknown'
-    assert refresh(c)['state'] == 'uncertain'
+    assert doc['result']['outcome'] == 'succeeded'
+    assert refresh(c)['state'] == 'completed'
     assert c.service.final.store.get(c.job['id'])['finalRuntime']['plans'][c.run_id]['frozen'] == frozen
     assert len(o.children) == 1 and o.effects.read_text().splitlines() == ['effect']
     o.evidence.update(oldFrozenPlanUnchanged=True, newReleaseImmutable=True, staleFencesRejected=4, finishAttemptStillRejectsUncertain=True, originalAttemptReconciled=True, effects=1)
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Requires real Linux ProcessOwner and public HTTP')
-def test_late_unknown_terminal_does_not_rebuild_retired_parent(canonical):
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='Requires real Linux/macOS ProcessOwner and public HTTP')
+def test_late_success_terminal_does_not_rebuild_retired_parent(canonical):
     c, o = canonical, canonical.owned
-    o.evidence['label'] = 'posix-late-unknown-terminal'
+    o.evidence['label'] = 'posix-late-success-terminal'
     launch(c)
-    # A normal leader exit is not retained-tree proof on POSIX. The dedicated
-    # effect reaps its child cooperatively; the product still must keep unknown.
+    # Cooperative child exit plus retained root wait and read-only absence
+    # permits success; no dead leader is authorized to signal the old group.
     o.release.touch()
     doc = wait_for(lambda: o.client.get_execution(o.identity), lambda d: d['result'] is not None)
-    assert doc['result']['outcome'] == 'unknown'
-    assert doc['result']['cleanupProof']['confirmed'] is False
+    assert doc['result']['outcome'] == 'succeeded'
+    assert doc['result']['cleanupProof']['confirmed'] is True
     o.children[0].wait(5)
-    response = delete(c, 'retire-before-late-unknown')
+    response = delete(c, 'retire-before-late-success')
     assert response.status_code == 200, response.text
     retired = c.client.get('/api/jobs/' + c.job['id']).json()
     assert retired['state'] == 'retired'
@@ -187,35 +190,35 @@ def test_late_unknown_terminal_does_not_rebuild_retired_parent(canonical):
     assert c.client.get('/api/jobs/' + c.job['id']).json() == retired
     state = c.service.final.store.get(c.job['id'])['finalRuntime']
     assert len(state['runs']) == len(state['attempts']) == len(state['effects']) == 1
-    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'uncertain'
+    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'completed'
     assert o.effects.read_text().splitlines() == ['effect'] and len(o.children) == 1
     assert not (o.root / 'kills.jsonl').exists()
-    # Platform refused before signalling. No terminal replay can turn unknown into confirmed cleanup.
+    assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
     assert not remaining(o.identities)
 
 
-@pytest.mark.skipif(sys.platform != 'darwin', reason='Requires real macOS public fail-closed admission')
-def test_macos_public_execution_refuses_weak_birth_before_effect(canonical):
+@pytest.mark.skipif(sys.platform != 'darwin', reason='Requires real macOS native libproc identity/public success')
+def test_macos_public_native_identity_and_original_success(canonical):
     c, o = canonical, canonical.owned
-    o.evidence['label'] = 'macos-public-weak-identity-refused'
-    launch(c, default_pending=True, queued=True)
-    asyncio.run(c.service.dispatch_once())
-    state = c.service.final.store.get(c.job['id'])['finalRuntime']
-    effect, = state['effects']
-    from packages.jobs.independent_executor import effect_id
-    o.identity = effect_id(effect['effectKey'])
+    o.evidence['label'] = 'macos-public-native-success'
+    launch(c, default_pending=True)
+    assert all(record['kind'] == 'proc_uniqueid' for record in o.identities)
+    assert len({record['boot_id'] for record in o.identities}) == 1
+    o.release.touch()
     doc = wait_for(lambda: o.client.get_execution(o.identity), lambda d: d['result'] is not None)
-    assert doc['result']['outcome'] == 'unknown'
-    assert doc['result']['cleanupProof']['confirmed'] is False
-    assert not o.effects.exists() and not o.ready.exists()
-    assert not (o.root / 'kills.jsonl').exists()
+    assert doc['result']['outcome'] == 'succeeded'
+    assert doc['result']['cleanupProof']['confirmed'] is True
+    assert doc['result']['cleanupProof']['ownedTree']['remaining'] == []
     o.children[0].wait(5)
-    refresh(c)
-    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'uncertain'
-    assert len(o.children) == 1
+    assert refresh(c)['state'] == 'completed'
+    assert cold(c, 'completed')['attempts'] == [o.attempt['attemptId']]
+    assert not remaining(o.identities)
+    assert not (o.root / 'kills.jsonl').exists()
+    assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
+    assert o.effects.read_text().splitlines() == ['effect'] and len(o.children) == 1
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Requires real Linux detached executor')
-def test_product_default_detached_executor_keeps_original_unknown_receipt(canonical):
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='Requires real Linux/macOS detached executor')
+def test_product_default_detached_executor_keeps_original_success_receipt(canonical):
     from packages.jobs.independent_executor import ExecutionStore, effect_id
     from packages.core.platform.execution_host import supervisor_exit_evidence
     c, o = canonical, canonical.owned
@@ -231,8 +234,8 @@ def test_product_default_detached_executor_keeps_original_unknown_receipt(canoni
     identity = effect_id(effect['effectKey'])
     doc = wait_for(lambda: host.get(identity), lambda d: d['result'] is not None)
     assert doc['attempt']['attemptId'] == aid
-    assert doc['result']['outcome'] == 'unknown'
-    assert doc['result']['cleanupProof']['confirmed'] is False
+    assert doc['result']['outcome'] == 'succeeded'
+    assert doc['result']['cleanupProof']['confirmed'] is True
     assert doc['bootstrapReceipt']['exited'] is True
     wait_for(lambda: supervisor_exit_evidence(doc['supervisorIdentity']), lambda p: p['confirmed'])
     for _ in range(2):
@@ -240,14 +243,14 @@ def test_product_default_detached_executor_keeps_original_unknown_receipt(canoni
         asyncio.run(c.service.dispatch_once())
     after = c.service.final.store.get(c.job['id'])['finalRuntime']
     assert list(after['attempts']) == [aid] and len(after['effects']) == 1
-    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'uncertain'
+    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'completed'
     assert o.effects.read_text().splitlines() == ['effect']
     assert not (c.service.root / 'executions' / 'jobs.sqlite3').exists()
     import psutil
     for pid in {*json.loads(o.ready.read_text()).values(), doc['supervisorIdentity']['pid']}:
         assert not psutil.pid_exists(pid), 'owned detached process remains'
 
-@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Requires real Linux leader-exit subtree/public HTTP')
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='Requires real Linux/macOS leader-exit subtree/public HTTP')
 def test_public_leader_exit_keeps_live_subtree_unknown_and_queryable(canonical):
     c, o = canonical, canonical.owned
     o.evidence['label'] = 'posix-leader-exit-subtree-unknown'
@@ -280,3 +283,32 @@ def test_public_leader_exit_keeps_live_subtree_unknown_and_queryable(canonical):
         # to signal an old pgid after its original leader exited.
         o.release.touch()
         wait_for(lambda: remaining(o.identities), lambda pids: not pids)
+
+@pytest.mark.skipif(not (sys.platform.startswith('linux') or sys.platform == 'darwin'), reason='Requires real POSIX public success/cold reopen')
+def test_public_success_cold_reopen_preserves_original_attempt_once(canonical):
+    c, o = canonical, canonical.owned
+    o.evidence['label'] = 'posix-public-success-cold-original'
+    launch(c, default_pending=True)
+    before = copy.deepcopy(c.service.final.store.get(c.job['id'])['finalRuntime'])
+    assert c.client.get('/api/job-runs/' + c.run_id).json()['state'] == 'uncertain'
+    assert cold(c, 'uncertain')['attempts'] == list(before['attempts'])
+    o.release.touch()
+    doc = wait_for(lambda: o.client.get_execution(o.identity), lambda d: d['result'] is not None)
+    assert doc['result']['outcome'] == 'succeeded'
+    assert doc['result']['cleanupProof']['confirmed'] is True
+    o.children[0].wait(5)
+    for _ in range(2):
+        result = cold(c, 'completed')
+        assert result['attempts'] == list(before['attempts']) and result['runs'] == [c.run_id]
+        refresh(c)
+        asyncio.run(c.service.dispatch_once())
+    state = c.service.final.store.get(c.job['id'])['finalRuntime']
+    attempt, = state['attempts'].values()
+    assert fence(attempt) == fence(o.attempt)
+    assert len(state['effects']) == 1
+    assert len(state['receiptReconciliations'][attempt['attemptId']]) == 1
+    assert c.client.get('/api/operations/' + c.run_operation_id).json()['status'] == 'completed'
+    assert o.effects.read_text().splitlines() == ['effect'] and len(o.children) == 1
+    assert not (o.root / 'kills.jsonl').exists()
+    assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
+    assert not remaining(o.identities)

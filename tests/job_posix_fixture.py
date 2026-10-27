@@ -35,7 +35,15 @@ from packages.core.platform.process import IdentityCheck, ProcessStatus
 from packages.jobs.independent_execution_runner import run
 import time
 original = process.default_process_owner
+from packages.core.platform import process_posix
+original_killpg = process_posix._killpg
 root = Path(sys.argv[1])
+def observed_signal(pgid, sig):
+    result = original_killpg(pgid, sig)
+    if sig:
+        with (root/'kills.jsonl').open('a') as out: out.write(json.dumps({'pgid':pgid,'signal':sig})+'\\n')
+    return result
+process_posix._killpg = observed_signal
 class ObservedOwner:
     def __init__(self): self.owner = original()
     def __getattr__(self, name): return getattr(self.owner, name)
@@ -45,7 +53,7 @@ class ObservedOwner:
         return self.owner.verify(record)
     def kill_tree(self, handle, **kwargs):
         tree = self.owner.kill_tree(handle, **kwargs)
-        with (root/'kills.jsonl').open('a') as out: out.write(json.dumps({'pid':handle.pid})+'\\n')
+        with (root/'cleanups.jsonl').open('a') as out: out.write(json.dumps({'pid':handle.pid,'confirmed':tree.confirmed})+'\\n')
         return tree
 process.default_process_owner = ObservedOwner
 code = run(root, sys.argv[2])
@@ -95,7 +103,8 @@ from pathlib import Path
 ready,release,effects=map(Path,sys.argv[1:])
 with effects.open('a') as f: f.write('effect\\n')
 child=subprocess.Popen([sys.executable,str(Path(__file__).with_name('child.py')),str(release)])
-ready.write_text(json.dumps({'parent':os.getpid(),'child':child.pid}))
+ready.with_suffix('.tmp').write_text(json.dumps({'parent':os.getpid(),'child':child.pid}))
+ready.with_suffix('.tmp').replace(ready)
 while not release.exists():
     if ready.with_name('leader-exit').exists(): sys.exit(0)
     time.sleep(.02)
@@ -165,7 +174,7 @@ child.wait(5)
         item.evidence.update(portReleased=True, ownedProcessesRemaining=[], supervisorsReaped=len(children))
         interpreter = "venv" if sys.prefix != sys.base_prefix else "native"
         item.evidence["interpreter"] = interpreter
-        out = Path("artifacts/cp-x2") / interpreter / (item.evidence.get("label", "owned") + ".json")
+        out = Path("artifacts/cp-x2/revision") / interpreter / (item.evidence.get("label", "owned") + ".json")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(item.evidence, indent=2), encoding="utf-8")
 
@@ -191,10 +200,10 @@ def submit(owned):
     if supervisor_pid != owned.children[0].pid:
         assert owned.children[0].pid in [p.pid for p in psutil.Process(supervisor_pid).parents()]
     assert all(owner.verify(record).verified_alive for record in owned.identities)
-    assert all(record["kind"] == "starttime" and record["boot_id"] for record in owned.identities)
+    assert all(record["kind"] == ("proc_uniqueid" if sys.platform == "darwin" else "starttime") and record["boot_id"] for record in owned.identities)
     assert doc["evidence"]["processIdentity"]["birth"] == owned.identities[0]["birth"]
     assert doc["supervisorIdentity"]["birth"] == owned.supervisor_identities[0]["birth"]
-    owned.evidence.update(originalIdentityVerified=True, identityKind="starttime", ownedProcessCount=len(owned.identities),
+    owned.evidence.update(originalIdentityVerified=True, identityKind=owned.identities[0]["kind"], ownedProcessCount=len(owned.identities),
         launcherIsSupervisor=supervisor_pid == owned.children[0].pid, ownershipRootIsScript=root_pid == pids["parent"])
     return doc, request
 

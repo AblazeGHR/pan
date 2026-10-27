@@ -469,8 +469,14 @@ def test_handle_never_signals_stale_group(owner, monkeypatch, operation, state):
         popen.returncode = 0
     install(monkeypatch, identity=observed, state="Z" if state == "zombie" else "S",
             group=group, pid_exists=False if state == "absent" else None)
-    with pytest.raises(OwnershipUnknownError):
-        getattr(owner, operation)(handle)
+    if state == "absent":
+        result = getattr(owner, operation)(handle)
+        assert result.remaining == (handle.pgid,)
+        if operation == "kill_tree":
+            assert result.confirmed is False
+    else:
+        with pytest.raises(OwnershipUnknownError):
+            getattr(owner, operation)(handle)
     assert group.calls == []
 
 
@@ -514,14 +520,15 @@ def test_observed_weak_fallback_is_unknown(owner, monkeypatch):
     assert owner.check(identity).status is ProcessStatus.UNKNOWN
 
 
-def test_macos_spawn_fails_before_effect(owner, monkeypatch):
+def test_macos_missing_native_identity_fails_before_effect(owner, monkeypatch):
     monkeypatch.setattr(posix.sys, "platform", "darwin")
     calls = []
     def forbidden_spawn(*args, **kwargs):
         calls.append(args)
         raise AssertionError("Popen reached before rejecting weak birth")
     monkeypatch.setattr(posix.subprocess, "Popen", forbidden_spawn)
-    with pytest.raises(UnsupportedPlatformError, match="strong birth"):
+    monkeypatch.setattr(posix, "read_posix_identity", lambda pid: (None, None))
+    with pytest.raises(OwnershipUnknownError, match="strong native identity"):
         owner.spawn(["effect"])
     assert calls == []
 
@@ -567,3 +574,258 @@ def test_spawn_abort_permission_denial_never_falls_back_to_pid(owner, monkeypatc
     monkeypatch.setattr(posix, "_kill", lambda *args: pytest.fail("bare PID signal"))
     with pytest.raises(OwnershipUnknownError, match="cleanup unconfirmed"):
         owner._abort_spawn(popen)
+
+@pytest.mark.parametrize('operation', ['terminate', 'kill_tree'])
+def test_readonly_empty_tree_after_natural_exit_is_idempotent(owner, monkeypatch, operation):
+    handle, popen, identity = make_handle(owner)
+    popen.returncode = 0
+    group = FakeGroup(die_on=set(), popen=popen)
+    group.alive = False
+    install(monkeypatch, identity=None, state=None, group=group, pid_exists=False)
+    for _ in range(2):
+        result = getattr(owner, operation)(handle)
+        assert result.remaining == ()
+        if operation == 'terminate':
+            assert result.exited and not result.requested
+        else:
+            assert result.confirmed
+    assert group.calls == []
+
+
+def test_dead_recovery_can_prove_absence_without_signal(owner, monkeypatch):
+    _, _, identity = make_handle(owner)
+    group = FakeGroup(die_on=set())
+    group.alive = False
+    install(monkeypatch, identity=None, state=None, group=group, pid_exists=False)
+    result = owner.recover(_record(identity))
+    assert result.action == 'already_dead' and result.remaining == ()
+    assert not result.terminated and group.calls == []
+
+
+def test_empty_group_does_not_erase_observed_escaped_member(owner, monkeypatch):
+    handle, popen, identity = make_handle(owner)
+    escaped = dataclasses.replace(identity, pid=9999, pgid=9999)
+    handle.members[escaped.pid] = escaped
+    popen.returncode = 0
+    monkeypatch.setattr(posix, '_group_exists', lambda pgid: False)
+    monkeypatch.setattr(posix, 'read_posix_identity', lambda pid: (escaped, 'S') if pid == 9999 else (None, None))
+    monkeypatch.setattr(posix, '_pid_exists', lambda pid: pid == 9999)
+    monkeypatch.setattr(posix, '_killpg', lambda *args: pytest.fail('read-only path signalled'))
+    result = owner.kill_tree(handle)
+    assert not result.confirmed and result.remaining == (9999,)
+
+
+def test_unknown_membership_cannot_be_cleared_by_empty_group(owner, monkeypatch):
+    handle, popen, identity = make_handle(owner)
+    handle.membership_unknown = True
+    popen.returncode = 0
+    monkeypatch.setattr(posix, '_group_exists', lambda pgid: False)
+    monkeypatch.setattr(posix, 'read_posix_identity', lambda pid: (None, None))
+    monkeypatch.setattr(posix, '_pid_exists', lambda pid: False)
+    result = owner.kill_tree(handle)
+    assert not result.confirmed and result.remaining == (handle.pgid,)
+
+
+# Native ABI tests exercise the exact ctypes boundary with copyout faults;
+# they do not claim to execute Apple's kernel or libproc on Windows.
+def native_copyout(monkeypatch, *, copied=192, mutation=None, boots=None):
+    import ctypes
+    from packages.core.platform import process_darwin as darwin
+    info = darwin.BsdInfoWithUniqueId()
+    info.bsd.pid, info.bsd.pgid, info.bsd.status = 4321, 4321, 2
+    info.bsd.start_sec, info.bsd.start_usec = 1700000000, 123456
+    info.unique.uniqueid, info.unique.idversion = 9123456789, 19
+    if mutation:
+        mutation(info)
+    calls = []
+    class Library:
+        def proc_pidinfo(self, pid, flavor, arg, buffer, size):
+            calls.append((pid, flavor, arg, size))
+            ctypes.memmove(buffer, ctypes.byref(info), ctypes.sizeof(info))
+            return copied
+    monkeypatch.setattr(darwin, '_libraries', lambda: (Library(), object()))
+    boot = 'a1234567-1234-1234-1234-123456789abc'
+    sequence = iter(boots or [boot, boot])
+    monkeypatch.setattr(darwin, '_boot_uuid', lambda system: next(sequence))
+    return darwin, calls
+
+
+def test_darwin_native_abi_layout_and_single_generation_copyout(monkeypatch):
+    darwin, calls = native_copyout(monkeypatch)
+    assert darwin.abi_valid()
+    identity, state = darwin.read_darwin_identity(4321)
+    assert identity.kind == 'proc_uniqueid' and identity.birth == '9123456789:19:1700000000:123456'
+    assert identity.boot_id == 'a1234567-1234-1234-1234-123456789abc'
+    assert identity.pgid == 4321 and state == 'S'
+    assert calls == [(4321, 18, 1, 192)]
+
+
+@pytest.mark.parametrize('copied', [-1, 0, 56, 136, 191, 193])
+def test_darwin_rejects_failed_short_or_oversized_copyout(monkeypatch, copied):
+    darwin, calls = native_copyout(monkeypatch, copied=copied)
+    assert darwin.read_darwin_identity(4321) == (None, None)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('field,value', [('pid', 4322), ('pgid', 0), ('status', 0),
+                                        ('start_sec', 0), ('start_usec', 1000000)])
+def test_darwin_rejects_malformed_bsd_copyout(monkeypatch, field, value):
+    darwin, _ = native_copyout(monkeypatch, mutation=lambda info: setattr(info.bsd, field, value))
+    assert darwin.read_darwin_identity(4321) == (None, None)
+
+
+def test_darwin_boot_transition_and_zero_uniqueid_are_unknown(monkeypatch):
+    darwin, _ = native_copyout(monkeypatch, boots=['boot-a', 'boot-b'])
+    assert darwin.read_darwin_identity(4321) == (None, None)
+    darwin, _ = native_copyout(monkeypatch, mutation=lambda info: setattr(info.unique, 'uniqueid', 0))
+    assert darwin.read_darwin_identity(4321) == (None, None)
+
+
+@pytest.mark.parametrize('error', [OSError('denied'), AttributeError('missing symbol'), ValueError('bad UUID')])
+def test_darwin_unavailable_native_boundary_is_unknown(monkeypatch, error):
+    from packages.core.platform import process_darwin as darwin
+    def fail():
+        raise error
+    monkeypatch.setattr(darwin, '_libraries', fail)
+    assert darwin.read_darwin_identity(4321) == (None, None)
+
+
+def test_darwin_native_zombie_is_resource_not_alive(monkeypatch):
+    darwin, _ = native_copyout(monkeypatch, mutation=lambda info: setattr(info.bsd, 'status', 5))
+    identity, state = darwin.read_darwin_identity(4321)
+    assert identity is not None and state == 'Z'
+
+
+@pytest.mark.parametrize('changed', ['boot_id', 'birth'])
+def test_darwin_strong_identity_fences_stale_generation(owner, monkeypatch, changed):
+    darwin, _ = native_copyout(monkeypatch)
+    identity, _ = darwin.read_darwin_identity(4321)
+    install(monkeypatch, identity=identity)
+    assert owner.check(identity).verified_alive
+    stale = dataclasses.replace(identity, **{changed: getattr(identity, changed) + '-old'})
+    assert owner.check(stale).ours is False
+    group = FakeGroup(die_on=set())
+    install(monkeypatch, identity=identity, group=group)
+    result = owner.recover(_record(stale))
+    assert result.action == 'refused_identity' and not result.terminated
+    assert group.calls == []
+
+
+def test_recovery_uses_exact_original_retained_popen_and_is_idempotent(owner, monkeypatch):
+    handle, popen, identity = make_handle(owner)
+    group = FakeGroup(die_on={SIGTERM}, popen=popen)
+    install(monkeypatch, identity=identity, group=group)
+    restarted = posix.PosixProcessOwner()
+    first = restarted.recover(_record(identity), grace=0)
+    assert first.action == 'terminated' and first.verified and first.terminated
+    assert first.remaining == ()
+    second = restarted.recover(_record(identity), grace=0)
+    assert second.action == 'already_dead' and not second.terminated and second.remaining == ()
+    assert group.calls == [SIGTERM]
+
+
+@pytest.mark.parametrize('raw,size,rc', [
+    (b'a1234567-1234-1234-1234-123456789abc\0', 37, 0),
+    (b'a1234567-1234-1234-1234-123456789abc\0', 36, 0),
+    (b'00000000-0000-0000-0000-000000000000\0', 37, 0),
+    (b'not-a-uuid\0', 11, 0), (b'', 0, -1)])
+def test_darwin_boot_uuid_native_size_and_parse_boundary(raw, size, rc):
+    import ctypes
+    from packages.core.platform import process_darwin as darwin
+    class System:
+        def sysctlbyname(self, name, buffer, length, new, new_length):
+            assert name == b'kern.bootsessionuuid' and new is None and new_length == 0
+            ctypes.memmove(buffer, raw, len(raw))
+            ctypes.cast(length, ctypes.POINTER(ctypes.c_size_t))[0] = size
+            return rc
+    if size == 37 and raw.startswith(b'a123') and rc == 0:
+        assert darwin._boot_uuid(System()) == raw[:-1].decode('ascii')
+    else:
+        with pytest.raises((OSError, ValueError)):
+            darwin._boot_uuid(System())
+
+
+def test_darwin_exec_version_change_is_unknown_not_pid_reuse_or_exit(owner, monkeypatch):
+    from packages.core.platform import execution_host, process
+    import psutil
+    darwin, _ = native_copyout(monkeypatch)
+    identity, _ = darwin.read_darwin_identity(4321)
+    values = identity.birth.split(':')
+    values[1] = str(int(values[1]) + 1)
+    executed = dataclasses.replace(identity, birth=':'.join(values))
+    install(monkeypatch, identity=executed)
+    check = owner.check(identity)
+    assert check.status is ProcessStatus.UNKNOWN and check.ours is None
+    assert owner._member_remaining((identity,)) == (identity.pid,)
+    monkeypatch.setattr(process, 'default_process_owner', lambda: owner)
+    monkeypatch.setattr(psutil, 'Process', lambda pid: object())
+    proof = execution_host.supervisor_exit_evidence(_record(identity))
+    assert proof['confirmed'] is False
+
+
+def test_darwin_dispatch_never_falls_back_to_weak_ps(owner, monkeypatch):
+    from packages.core.platform import process_darwin as darwin
+    monkeypatch.setattr(posix.sys, 'platform', 'darwin')
+    monkeypatch.setattr(darwin, 'read_darwin_identity', lambda pid: (None, None))
+    monkeypatch.setattr(posix, 'read_ps_identity', lambda pid: pytest.fail('weak ps fallback'))
+    assert posix.read_posix_identity(4321) == (None, None)
+
+
+@pytest.mark.parametrize('surviving_group', [False, True])
+def test_typed_process_receipt_uses_readonly_clearance_without_replaying(owner, monkeypatch, tmp_path, surviving_group):
+    # Product executor control-flow regression only. Real public HTTP success
+    # and cancellation remain separate target-platform tests, never replaced.
+    import asyncio
+    from packages.actions.typed_executor import TypedExecutor
+    from packages.core.platform.process import WaitResult
+    handle, popen, identity = make_handle(owner)
+    group = FakeGroup(die_on=set(), popen=popen)
+    install(monkeypatch, identity=identity, group=group)
+    spawns = []
+    def spawn(*args, **kwargs):
+        spawns.append(args)
+        return handle
+    def wait(handle, *, timeout):
+        popen.returncode = 0
+        group.alive = surviving_group
+        monkeypatch.setattr(posix, 'read_posix_identity', lambda pid: (None, None))
+        monkeypatch.setattr(posix, '_pid_exists', lambda pid: False)
+        return WaitResult(exited=True, exit_code=0, timed_out=False, seconds=0)
+    monkeypatch.setattr(owner, 'spawn', spawn)
+    monkeypatch.setattr(owner, 'wait', wait)
+    executor = TypedExecutor(process_owner=owner)
+    key = {'runId': 'run', 'stepId': 'step', 'targetId': 'original', 'operationOrdinal': 0}
+    attempt = {'runId': 'run', 'stepId': 'step', 'ownerEpoch': 1, 'generation': 1, 'state': 'running'}
+    plan = {'operation': 'process', 'effect': 'write_local', 'arguments': {'argv': ['owned-probe'], 'cwd': str(tmp_path)}}
+    first = asyncio.run(executor.execute(attempt=attempt, effect_key=key, frozen_plan=plan))
+    assert first['outcome'] == ('unknown' if surviving_group else 'succeeded')
+    assert first['cleanupProof']['confirmed'] is (not surviving_group)
+    assert first['cleanupProof']['ownedTree']['remaining'] == ([handle.pgid] if surviving_group else [])
+    second = asyncio.run(executor.execute(attempt=attempt, effect_key=key, frozen_plan=plan))
+    assert second == first and len(spawns) == 1 and group.calls == []
+
+
+def test_darwin_abi_mismatch_fails_before_library_load(monkeypatch):
+    from packages.core.platform import process_darwin as darwin
+    monkeypatch.setattr(darwin.sys, 'platform', 'darwin')
+    monkeypatch.setattr(darwin, 'abi_valid', lambda: False)
+    monkeypatch.setattr(darwin.ctypes, 'CDLL', lambda *a, **k: pytest.fail('loaded invalid ABI'))
+    assert darwin.read_darwin_identity(4321) == (None, None)
+
+
+def test_macos_native_spawn_path_admits_only_strong_bound_identity(owner, monkeypatch):
+    darwin, _ = native_copyout(monkeypatch)
+    identity, _ = darwin.read_darwin_identity(4321)
+    monkeypatch.setattr(posix.sys, 'platform', 'darwin')
+    monkeypatch.setattr(posix, 'read_posix_identity', lambda pid: (
+        dataclasses.replace(identity, pid=pid, pgid=pid), 'S'))
+    calls = []
+    def spawn(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return FakePopen(4321)
+    monkeypatch.setattr(posix.subprocess, 'Popen', spawn)
+    handle = owner.spawn(['owned-native-probe'])
+    assert handle.identity.kind == 'proc_uniqueid' and handle.identity.birth == identity.birth
+    assert handle.identity.boot_id == identity.boot_id and handle.pgid == handle.pid == 4321
+    assert len(calls) == 1 and calls[0][1]['start_new_session'] is True
+    handle.close()

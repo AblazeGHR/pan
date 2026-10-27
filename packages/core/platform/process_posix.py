@@ -7,9 +7,8 @@
   ``SIGINT`` 不会再打到它。
 - **终止**：对**进程组**发信号（``killpg``）：``SIGTERM`` → ``grace`` 宽限 →
   ``SIGKILL``；残留用 ``killpg(pgid, 0)`` 核对（不按 PID 裸杀）。
-- **身份**：``pid + 出生标记``。Linux 读 ``/proc/<pid>/stat`` 字段 22（starttime）
-  并附 ``boot_id``；macOS 用 ``ps -o lstart= -o pgid= -o stat=``（``LC_ALL=C``，
-  **1 秒分辨率**，仅供诊断，不授予终止权限）。
+- **身份**：Linux 使用 /proc starttime + boot_id；Darwin 使用一次原生 libproc
+  查询的 uniqueid/idversion/start timeval + boot session UUID。ps 秒级 lstart 仅供诊断。
 - **崩溃后回收**：``recoverable_identity`` 产出 JSON 安全记录；``verify`` 重新
   校验；``recover`` 只在“leader 身份成立且存活”时按**记录里校验过的 pgid**
   终止。leader 已退出时**拒绝**按 pgid 回收——此时无法证明该 pgid 仍属于本树，
@@ -36,6 +35,7 @@ import subprocess
 import sys
 import threading
 import time
+import weakref
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -69,6 +69,9 @@ __all__ = [
 MAX_KILL_CONFIRM_TIMEOUT = 5.0
 #: 轮询间隔（与 guard / panel_builds 的现状一致）。
 POLL_INTERVAL = 0.02
+
+_RETAINED = weakref.WeakValueDictionary()
+_RETAINED_LOCK = threading.Lock()
 
 _BOOT_ID: str | None = None
 _BOOT_ID_READ = False
@@ -252,13 +255,33 @@ def read_ps_identity(pid: int) -> tuple[ProcessIdentity | None, str | None]:
 
 
 def read_posix_identity(pid: int) -> tuple[ProcessIdentity | None, str | None]:
-    """按平台选择身份来源：Linux 优先 ``/proc``，其余/回退用 ``ps``。"""
+    """Linux reads /proc; Darwin reads native libproc. No weak fallback."""
     _require_posix()
     if sys.platform.startswith("linux"):
         identity, state = read_linux_identity(pid)
         if identity is not None:
             return identity, state
-    return read_ps_identity(pid)
+    if sys.platform == "darwin":
+        from packages.core.platform.process_darwin import read_darwin_identity
+        return read_darwin_identity(pid)
+    return None, None
+
+
+def _strong_identity(identity: ProcessIdentity | None) -> bool:
+    return (identity is not None and identity.kind in {"starttime", "proc_uniqueid"}
+            and bool(identity.boot_id))
+
+
+def _same_darwin_process(expected: ProcessIdentity, observed: ProcessIdentity) -> bool:
+    if (expected.kind != "proc_uniqueid" or observed.kind != "proc_uniqueid"
+            or expected.pid != observed.pid or expected.boot_id != observed.boot_id):
+        return False
+    try:
+        first = [int(value) for value in expected.birth.split(":")]
+        second = [int(value) for value in observed.birth.split(":")]
+        return len(first) == len(second) == 4 and first[0] == second[0]
+    except ValueError:
+        return False
 
 
 def _tree_members(pid: int, pgid: int) -> tuple[ProcessIdentity, ...]:
@@ -275,9 +298,11 @@ def _tree_members(pid: int, pgid: int) -> tuple[ProcessIdentity, ...]:
         records = []
         for process in processes:
             identity, state = read_posix_identity(process.pid)
-            if (identity is None or identity.kind != "starttime" or not identity.boot_id
-                    or identity.pgid != pgid or state == "Z"):
-                raise OwnershipUnknownError("Tree member missing, zombie, or outside original group")
+            if identity is None and _pid_exists(process.pid) is False:
+                continue  # Proven disappearance during a read-only snapshot.
+            if (not _strong_identity(identity)
+                    or identity.pgid != pgid):
+                raise OwnershipUnknownError("Tree member unreadable or outside original group")
             records.append(identity)
         return tuple(records)
     except (psutil.Error, OSError) as exc:
@@ -304,6 +329,10 @@ class PosixOwnedProcess(OwnedProcess):
         super().__init__(owner, int(popen.pid), identity)
         self.popen = popen
         self.pgid = int(pgid)
+        self.members = {identity.pid: identity}
+        self.membership_unknown = False
+        with _RETAINED_LOCK:
+            _RETAINED[(identity.pid, identity.kind, identity.birth, identity.boot_id)] = self
 
     def close(self) -> None:
         """释放句柄（POSIX 无内核句柄可关；幂等，仅标记关闭）。"""
@@ -337,13 +366,16 @@ class PosixProcessOwner(ProcessOwner):
         hide_window: bool = True,  # POSIX 无窗口语义；保留参数以便同签名
     ) -> PosixOwnedProcess:
         _require_posix()
-        if not sys.platform.startswith("linux"):
-            raise UnsupportedPlatformError(
-                "POSIX process ownership requires a strong birth identity; "
-                "ps lstart is diagnostic only (macOS execution unsupported)"
-            )
-        if not read_boot_id():
-            raise OwnershipUnknownError("Linux boot identity unavailable: no effect admitted")
+        if sys.platform.startswith("linux"):
+            if not read_boot_id():
+                raise OwnershipUnknownError("Linux boot identity unavailable: no effect admitted")
+        elif sys.platform == "darwin":
+            # Probe before admitting an effect; never fall back to weak ps.
+            mine, _ = read_posix_identity(os.getpid())
+            if not _strong_identity(mine):
+                raise OwnershipUnknownError("Darwin strong native identity unavailable: no effect admitted")
+        else:
+            raise UnsupportedPlatformError("No strong POSIX process identity backend")
         args = [str(a) for a in argv]
         if not args:
             raise ValueError("argv 不能为空：拒绝无命令的 spawn")
@@ -358,7 +390,7 @@ class PosixProcessOwner(ProcessOwner):
             close_fds=True,
         )
         identity, _state = read_posix_identity(popen.pid)
-        if identity is None or identity.kind != "starttime" or not identity.boot_id:
+        if not _strong_identity(identity):
             self._abort_spawn(popen)
             raise OwnershipUnknownError(
                 "spawn 后读不到子进程身份（/proc 与 ps 均失败）："
@@ -416,7 +448,7 @@ class PosixProcessOwner(ProcessOwner):
                 expected=identity,
                 detail=f"身份记录属于 {identity.platform!r}，不能在 POSIX 复核",
             )
-        if identity.kind != "starttime" or not identity.boot_id:
+        if not _strong_identity(identity):
             return IdentityCheck(
                 status=ProcessStatus.UNKNOWN,
                 ours=None,
@@ -439,11 +471,18 @@ class PosixProcessOwner(ProcessOwner):
                 expected=identity,
                 detail="PID 存在但读不到身份：无结论（fail-closed）",
             )
-        if observed.kind != "starttime" or not observed.boot_id:
+        if not _strong_identity(observed):
             return IdentityCheck(
                 status=ProcessStatus.UNKNOWN, ours=None, expected=identity,
                 observed=observed, detail="Observed birth identity is weak: fail-closed",
             )
+        if (_same_darwin_process(identity, observed)
+                and not observed.matches(identity)):
+            # pidversion can change on exec without process exit. This is not
+            # PID reuse and must never become supervisor-exit evidence.
+            return IdentityCheck(status=ProcessStatus.UNKNOWN, ours=None,
+                expected=identity, observed=observed,
+                detail="Darwin execution generation changed within original process; no signal/exit authority")
         if state == "Z":
             return IdentityCheck(
                 status=ProcessStatus.DEAD,
@@ -484,24 +523,49 @@ class PosixProcessOwner(ProcessOwner):
                 or check.observed is None or check.observed.pgid != pgid):
             raise OwnershipUnknownError("Process group changed or missing: refusing group signal")
 
+    def _observe_members(self, owned: PosixOwnedProcess, *, strict=False):
+        if owned.popen.returncode is None:
+            try:
+                members = _tree_members(owned.pid, owned.pgid)
+                owned.members.update((member.pid, member) for member in members)
+            except OwnershipUnknownError:
+                if self.check(owned.identity).status is not ProcessStatus.DEAD:
+                    owned.membership_unknown = True
+                if strict:
+                    raise
+        return tuple(owned.members.values())
+
+    def _exited_tree(self, owned: PosixOwnedProcess) -> TreeTerminationResult | None:
+        """Read-only clearance never grants signal authority to a dead leader."""
+        self._reap(owned)
+        if owned.popen.returncode is None:
+            return None
+        remaining = self._member_remaining(tuple(owned.members.values()),
+                                           (owned.pgid,) if _group_exists(owned.pgid) else ())
+        if owned.membership_unknown:
+            remaining = tuple(sorted(set(remaining) | {owned.pgid}))
+        return TreeTerminationResult(owned=tuple(sorted(owned.members)), remaining=remaining,
+            confirmed=not remaining, detail="Retained root exit + read-only group/member absence"
+            if not remaining else "Root exited; tree resources remain unknown (no signal authorized)")
+
     def wait(
         self, handle: PosixOwnedProcess, *, timeout: float | None = None
     ) -> WaitResult:
         _require_posix()
         owned = self._require_handle(handle)
         started = time.monotonic()
-        try:
-            code = owned.popen.wait(
-                timeout=None if timeout is None else max(0.0, float(timeout))
-            )
-        except subprocess.TimeoutExpired:
-            return WaitResult(
-                exited=False,
-                exit_code=None,
-                timed_out=True,
-                seconds=round(time.monotonic() - started, 4),
-                detail="等待超时：进程仍在运行（未终止）",
-            )
+        deadline = None if timeout is None else started + max(0.0, float(timeout))
+        while True:
+            self._observe_members(owned)
+            try:
+                budget = POLL_INTERVAL if deadline is None else max(0.0, min(POLL_INTERVAL, deadline - time.monotonic()))
+                code = owned.popen.wait(timeout=budget)
+                break
+            except subprocess.TimeoutExpired:
+                if deadline is not None and time.monotonic() >= deadline:
+                    return WaitResult(exited=False, exit_code=None, timed_out=True,
+                                      seconds=round(time.monotonic() - started, 4),
+                                      detail="等待超时：进程仍在运行（未终止）")
         return WaitResult(
             exited=True,
             exit_code=None if code is None else int(code),
@@ -519,59 +583,49 @@ class PosixProcessOwner(ProcessOwner):
         started = time.monotonic()
         pgid = owned.pgid
 
-        self._reap(owned)
+        settled = self._exited_tree(owned)
+        if settled is not None:
+            return TerminateResult(requested=False, exited=True, escalated=False,
+                                   signal_sent=None, exit_code=owned.popen.returncode,
+                                   remaining=settled.remaining, detail=settled.detail)
         self._signal_authority(owned.identity, pgid)
-        members = _tree_members(owned.pid, pgid)
-        root_exited = owned.popen.returncode is not None
-        if not root_exited:
-            check = self.check(owned.identity)
-            if check.status is ProcessStatus.ALIVE and check.ours is False:
-                raise IdentityMismatchError(
-                    "出生标记不匹配：拒绝终止（PID 可能已被复用）"
-                )
-            if check.status is ProcessStatus.UNKNOWN:
-                raise OwnershipUnknownError(
-                    f"身份/存活不可确认：{check.detail}"
-                )
-            if check.status is ProcessStatus.DEAD:
-                root_exited = True
-
-        requested = False
+        members = self._observe_members(owned, strict=True)
+        requested = True
         escalated = False
         signal_sent: str | None = None
-        if not root_exited or _group_exists(pgid):
+        self._signal_authority(owned.identity, pgid)
+        signal_sent = _signal_name(_sigterm())
+        try:
+            _killpg(pgid, _sigterm())
+        except ProcessLookupError:
+            pass
+        deadline = started + grace
+        while time.monotonic() < deadline:
+            self._reap(owned)
+            if owned.popen.returncode is not None and not _group_exists(pgid):
+                break
+            time.sleep(POLL_INTERVAL)
+        if _group_exists(pgid):
             self._signal_authority(owned.identity, pgid)
-            requested = True
-            signal_sent = _signal_name(_sigterm())
+            escalated = True
+            signal_sent = _signal_name(_sigkill())
             try:
-                _killpg(pgid, _sigterm())
+                _killpg(pgid, _sigkill())
             except ProcessLookupError:
                 pass
-            deadline = started + grace
-            while time.monotonic() < deadline:
+            kill_deadline = time.monotonic() + min(
+                MAX_KILL_CONFIRM_TIMEOUT, max(0.5, grace)
+            )
+            while time.monotonic() < kill_deadline:
                 self._reap(owned)
-                if owned.popen.returncode is not None and not _group_exists(pgid):
+                if not _group_exists(pgid):
                     break
                 time.sleep(POLL_INTERVAL)
-            if _group_exists(pgid):
-                self._signal_authority(owned.identity, pgid)
-                escalated = True
-                signal_sent = _signal_name(_sigkill())
-                try:
-                    _killpg(pgid, _sigkill())
-                except ProcessLookupError:
-                    pass
-                kill_deadline = time.monotonic() + min(
-                    MAX_KILL_CONFIRM_TIMEOUT, max(0.5, grace)
-                )
-                while time.monotonic() < kill_deadline:
-                    self._reap(owned)
-                    if not _group_exists(pgid):
-                        break
-                    time.sleep(POLL_INTERVAL)
 
         self._reap(owned)
         remaining = self._member_remaining(members, self._remaining(owned, pgid))
+        if owned.membership_unknown:
+            remaining = tuple(sorted(set(remaining) | {pgid}))
         code = owned.popen.returncode
         return TerminateResult(
             requested=requested,
@@ -593,17 +647,11 @@ class PosixProcessOwner(ProcessOwner):
         _require_posix()
         owned = self._require_handle(handle)
         pgid = owned.pgid
-        self._reap(owned)
+        settled = self._exited_tree(owned)
+        if settled is not None:
+            return settled
         self._signal_authority(owned.identity, pgid)
-        members = _tree_members(owned.pid, pgid)
-        if owned.popen.returncode is None:
-            check = self.check(owned.identity)
-            if check.status is ProcessStatus.ALIVE and check.ours is False:
-                raise IdentityMismatchError(
-                    "出生标记不匹配：拒绝终止（PID 可能已被复用）"
-                )
-            if check.status is ProcessStatus.UNKNOWN:
-                raise OwnershipUnknownError(f"身份/存活不可确认：{check.detail}")
+        members = self._observe_members(owned, strict=True)
         try:
             self._signal_authority(owned.identity, pgid)
             _killpg(pgid, _sigkill())
@@ -620,6 +668,8 @@ class PosixProcessOwner(ProcessOwner):
         # A zombie is still a resource, and a live escaped snapshot member is
         # not erased by killpg(pgid, 0) returning ESRCH.
         remaining = self._member_remaining(members, remaining)
+        if owned.membership_unknown:
+            remaining = tuple(sorted(set(remaining) | {pgid}))
         return TreeTerminationResult(
             owned=tuple(sorted(member.pid for member in members)),
             remaining=remaining,
@@ -641,8 +691,8 @@ class PosixProcessOwner(ProcessOwner):
             if observed is None:
                 if _pid_exists(member.pid) is not False:
                     unresolved.add(member.pid)
-            elif (observed.kind != "starttime" or not observed.boot_id
-                  or observed.matches(member)):
+            elif (not _strong_identity(observed)
+                  or observed.matches(member) or _same_darwin_process(member, observed)):
                 unresolved.add(member.pid)
         return tuple(sorted(unresolved))
 
@@ -683,19 +733,36 @@ class PosixProcessOwner(ProcessOwner):
                 terminated=False,
                 detail=f"身份记录不可用：{exc}",
             )
+        if _strong_identity(expected) and expected.pgid == expected.pid:
+            with _RETAINED_LOCK:
+                retained = _RETAINED.get((expected.pid, expected.kind, expected.birth, expected.boot_id))
+            if retained is not None and not retained.closed and retained.pgid == expected.pgid and terminate:
+                check = self.check(expected)
+                try:
+                    result = retained.owner.terminate(retained, grace=grace)
+                    clear = result.exited and not result.remaining
+                    return RecoveryResult(action=("terminated" if result.requested else "already_dead") if clear else "unknown",
+                        verified=True, terminated=clear and result.requested,
+                        remaining=result.remaining, check=check, exit_code=result.exit_code,
+                        detail="Original retained Popen + group/member evidence; no fresh PID wait")
+                except (OSError, OwnershipUnknownError, IdentityMismatchError) as exc:
+                    return RecoveryResult(action="unknown", verified=False, terminated=False,
+                        remaining=(expected.pgid,), check=check, detail=str(exc))
         check = self.check(expected)
         if check.status is ProcessStatus.DEAD:
-            return RecoveryResult(
-                action="unknown",
-                verified=check.ours is True,
-                terminated=False,
-                check=check,
-                remaining=(expected.pgid or expected.pid,),
-                detail=(
-                    "leader 已退出；进程组可能有残留，但 pgid 已无法再验证为本树所有，"
-                    "拒绝按 pgid 回收（fail-closed）"
-                ),
-            )
+            # No destructive action. Only proven PID absence and group absence
+            # may report already_dead; a zombie or live subtree stays unknown.
+            absent = False
+            if expected.pgid == expected.pid and _pid_exists(expected.pid) is False:
+                try:
+                    absent = not _group_exists(expected.pgid)
+                except (OSError, OwnershipUnknownError):
+                    pass
+            return RecoveryResult(action="already_dead" if absent else "unknown",
+                verified=check.ours is True, terminated=False, check=check,
+                remaining=() if absent else (expected.pgid or expected.pid,),
+                detail="Read-only PID/group absence" if absent else
+                "Leader exited; tree resources unknown, no stale pgid signal authorized")
         if check.status is ProcessStatus.ALIVE and check.ours is False:
             return RecoveryResult(
                 action="refused_identity",

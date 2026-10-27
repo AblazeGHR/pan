@@ -129,9 +129,10 @@ class ProcessIdentity:
 
     - ``"filetime"``：Windows 原始 64 位 FILETIME（100ns，字符串保存）；
     - ``"starttime"``：Linux ``/proc/<pid>/stat`` 字段 22（开机后 clock ticks）；
-    - ``"lstart"``：macOS ``ps -o lstart=''``（**1 秒分辨率**，弱于前两者）。
+    - ``"proc_uniqueid"``：Darwin 原生 kernel uniqueid/idversion/start timeval（boot UUID 域）；
+    - ``"lstart"``：macOS ``ps -o lstart=''``（**1 秒分辨率**，仅供诊断，不授权终止）。
 
-    ``boot_id`` 只有 Linux 提供（``/proc/sys/kernel/random/boot_id``）：跨重启
+    ``boot_id`` 使用 Linux boot_id 或 Darwin boot session UUID：跨重启
     后 starttime 会从头计数，boot_id 让身份在重启后仍然不可混淆。比较时严格
     相等（``None`` 只与 ``None`` 相等）。
 
