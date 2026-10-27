@@ -86,7 +86,7 @@ class ProcessOwnerContract:
             assert handle.pid > 0
             assert handle.identity.pid == handle.pid
             assert handle.identity.platform == owner.platform
-            assert handle.identity.kind in {"filetime", "starttime", "lstart"}
+            assert handle.identity.kind in {"filetime", "starttime", "lstart", "proc_uniqueid"}
             assert handle.identity.birth
             assert owner.is_alive(handle) is ProcessStatus.ALIVE
             check = owner.check(handle.identity)

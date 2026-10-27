@@ -1,0 +1,131 @@
+{
+  "repository": "apple-oss-distributions/xnu",
+  "commit": "f6217f891ac0bb64f3d375211650a4c1ff8ca1ea",
+  "commitDate": "2025-10-16T22:36:30Z",
+  "sources": [
+    {
+      "path": "bsd/sys/proc_info.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/proc_info.h",
+      "sha256": "f898ba1f6acecf128f6bb960bf07c7029fdd936620e03b6206419834cf2941fa",
+      "lines": {
+        "struct proc_bsdinfo {": [
+          59
+        ]
+      }
+    },
+    {
+      "path": "bsd/sys/proc_info_private.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/proc_info_private.h",
+      "sha256": "ccc01e88d5bf47bc9c3f5ba3a25c3e6202bbcd7b86aa967af31d714657571c3b",
+      "lines": {
+        "struct proc_uniqidentifierinfo {": [
+          45
+        ],
+        "PROC_PIDT_BSDINFOWITHUNIQID": [
+          149,
+          150
+        ]
+      }
+    },
+    {
+      "path": "libsyscall/wrappers/libproc/libproc.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/libsyscall/wrappers/libproc/libproc.h",
+      "sha256": "37c7629819a18c5ef10d19a9bea00eb7e0bd31e0b127ecd2ae108c74f47c39e2",
+      "lines": {
+        "int proc_pidinfo(": [
+          96
+        ]
+      }
+    },
+    {
+      "path": "bsd/kern/proc_info.c",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/proc_info.c",
+      "sha256": "557092f14fbad3341100f59e0391d2e812c54b79a7404c89b2af97471ad67082",
+      "lines": {
+        "PROC_PIDT_BSDINFOWITHUNIQID": [
+          2092,
+          2093,
+          2167,
+          2238,
+          2244
+        ],
+        "p_uniqueid = proc_uniqueid": [
+          1509
+        ]
+      }
+    },
+    {
+      "path": "bsd/kern/kern_sysctl.c",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_sysctl.c",
+      "sha256": "1cc5d1e7b46df0b2fad33449eb7df948207b7bc4c760119ed33624e7d2750df8",
+      "lines": {
+        "bootsessionuuid,": [
+          2921
+        ]
+      }
+    },
+    {
+      "path": "bsd/kern/kern_proc.c",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/kern_proc.c",
+      "sha256": "34f745a213769ffa47b4edace6e3e158f654075def1b0fe50edf97f9bf53589d",
+      "lines": {
+        "p_uniqueid = proc_uniqueid": [
+          431
+        ],
+        "proc_find_ident_validated(": [
+          485,
+          532
+        ]
+      }
+    },
+    {
+      "path": "bsd/sys/param.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/param.h",
+      "sha256": "ee6024c8fee1eb9bcd280203532cba183fb015c5549eebcd8f45f4667529ad4a",
+      "lines": {
+        "MAXCOMLEN": [
+          90,
+          95
+        ]
+      }
+    },
+    {
+      "path": "bsd/sys/_types/_uid_t.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/_types/_uid_t.h",
+      "sha256": "d2140a65a17943a857381757c0b73a920f35ade41dc9809437c168be457c276a",
+      "lines": {
+        "uid_t": [
+          30,
+          31
+        ]
+      }
+    },
+    {
+      "path": "bsd/sys/_types/_gid_t.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/_types/_gid_t.h",
+      "sha256": "e687ad58c03701c132a02ebf20699c8cacfd34c3a67271bd2a415a5a8e4a9ea7",
+      "lines": {
+        "gid_t": [
+          30,
+          31
+        ]
+      }
+    },
+    {
+      "path": "bsd/sys/_types.h",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/_types.h",
+      "sha256": "508393c2752392fb306f3f9540f848e766f9bb4b52a5f616739a9cc63006f9ec",
+      "lines": {
+        "uid_t": [
+          84,
+          98,
+          101
+        ],
+        "gid_t": [
+          83,
+          84
+        ]
+      }
+    }
+  ]
+}
