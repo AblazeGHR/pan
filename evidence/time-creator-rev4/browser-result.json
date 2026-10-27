@@ -1,0 +1,13 @@
+{
+  "productionBundle": true,
+  "authenticated": true,
+  "chromiumVersion": "153.0.8010.12",
+  "hostDefault": true,
+  "override": true,
+  "offsetOnceFullFraction": true,
+  "explicitOffsetOncePreserved": true,
+  "passiveTemplateNativeFields": true,
+  "nativePublishAndInstantiateDisabledGraph": true,
+  "pageErrors": [],
+  "ownedServerStoppedInFinally": true
+}
