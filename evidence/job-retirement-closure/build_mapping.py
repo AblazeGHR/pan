@@ -126,6 +126,7 @@ assert set(reviews) == {r['id'] for r in items}
 for row in items:
     row['currentObservation'], row['currentEvidence'], row['remaining'] = reviews[row['id']]
 strict = {
+    'tests/test_jobs_api.py::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged': ['tests/test_job_retirement_remaining_successors.py::test_scheduled_fire_without_matching_candidates_is_noop_and_not_backlogged'],
     'tests/test_jobs_api.py::test_structured_identity_new_records': ['tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload'],
     'tests/test_jobs_api.py::test_patch_enable_disable_stops_entries': ['tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect', 'tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run'],
     'tests/test_jobs_api.py::test_action_template_default_assign': ['tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]'],
@@ -142,6 +143,7 @@ strict = {
     'tests/test_jobs_api.py::test_patch_schedule_replaces_entries': ['tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition'],
     'tests/test_jobs_api.py::test_patch_target_clear_enters_undeliverable': ['tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent'],
     'tests/test_jobs_api.py::test_run_records_carry_entry_id': ['tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history'],
+    'tests/test_jobs_api.py::test_patch_schedule_rejects_bad_spec': ['tests/test_job_retirement_remaining_successors.py::test_invalid_schedule_spec_is_rejected_before_creator_persistence'],
 }
 for row in nodes:
     if row['node'] in strict:
