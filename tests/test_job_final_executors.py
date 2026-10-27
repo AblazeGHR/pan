@@ -8,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from packages.actions.typed_executor import InMemoryReceiptStore, TypedExecutor, WorkerSessionProvider
+from packages.actions.typed_executor import (
+    InMemoryReceiptStore, TypedExecutor, WorkerAssignProvider, WorkerSessionProvider,
+)
 from packages.jobs.final_contracts import ContractError
 
 
@@ -50,6 +52,19 @@ class SessionProvider:
         if isinstance(value, BaseException):
             raise value
         return {"status": value, "queueItemId": "q-" + session_id}
+
+
+class AssignProvider:
+    def __init__(self, results=None):
+        self.results = results or {}
+        self.calls = []
+
+    async def assign(self, session_id, text, **kwargs):
+        self.calls.append((session_id, text, kwargs))
+        result = self.results.get(session_id, {"status": "queued", "taskId": kwargs["task_id"]})
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
 
 class ChannelProvider:
@@ -149,6 +164,71 @@ def test_m04_broadcast_uses_per_target_provider_receipts_without_extra_store_row
     assert provider.calls[0][2]["source_session_id"] == "ses_source"
     # Only the parent effect is persisted; fan-out rows are receipts in it.
     assert len(store._items) == 1
+
+
+def test_m04_broadcast_target_effect_keys_are_stable_and_parent_scoped():
+    provider = SessionProvider({"a": "queued", "b": "queued"})
+    executor = TypedExecutor(session_provider=provider)
+    plan = {"operation": "session-broadcast", "sessionIds": ["b", "a", "b"], "text": "broadcast"}
+    first = run(executor.execute(attempt=attempt(), effect_key=key(target="fanout"), frozen_plan=plan))
+    second = run(TypedExecutor(session_provider=SessionProvider({"a": "queued", "b": "queued"})).execute(
+        attempt=attempt(), effect_key=key(target="fanout"), frozen_plan=plan))
+    first_rows, second_rows = first["receipt"]["targets"], second["receipt"]["targets"]
+    assert [row["effectKey"]["targetId"] for row in first_rows] == ["b", "a"]
+    assert [row["effectKey"] for row in first_rows] == [row["effectKey"] for row in second_rows]
+    assert all(row["effectKey"]["runId"] == "run_1" for row in first_rows)
+
+
+def test_m05_assign_reuses_task_and_source_identity():
+    provider = AssignProvider()
+    effect = key(target="assign")
+    result = run(TypedExecutor(assign_provider=provider).execute(
+        attempt=attempt(), effect_key=effect,
+        frozen_plan={"operation": "assign", "sessionId": "target", "text": "run",
+                     "taskId": "task-1", "source": "agent", "sourceSessionId": "ses_source"},
+    ))
+    assert result["outcome"] == "succeeded"
+    assert provider.calls[0][2]["task_id"] == "task-1"
+    assert provider.calls[0][2]["source"] == "agent"
+    assert provider.calls[0][2]["source_session_id"] == "ses_source"
+    assert result["targetSelection"]["taskId"] == "task-1"
+
+
+def test_m05_assign_reuses_effect_derived_task_id_on_replay():
+    provider = AssignProvider()
+    executor = TypedExecutor(assign_provider=provider)
+    args = dict(attempt=attempt(), effect_key=key(target="assign"),
+                frozen_plan={"operation": "assign", "sessionId": "target", "text": "run"})
+    first = run(executor.execute(**args))
+    second = run(executor.execute(**args, retry=True))
+    assert first == second
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.parametrize("status,outcome", [("error", "rejected"), ("unknown", "unknown")])
+def test_m05_assign_preserves_rejection_and_unknown(status, outcome):
+    provider = AssignProvider({"target": {"status": status, "result": "fixture"}})
+    result = run(TypedExecutor(assign_provider=provider).execute(
+        attempt=attempt(), effect_key=key(target="assign"),
+        frozen_plan={"operation": "assign", "sessionId": "target", "text": "run"},
+    ))
+    assert result["outcome"] == outcome
+
+
+def test_m05_assign_missing_session_is_rejected_by_original_worker_boundary(monkeypatch):
+    from packages.core import worker
+
+    async def should_not_spawn(*args, **kwargs):
+        raise AssertionError("missing Session must be rejected before worker creation")
+
+    monkeypatch.setattr(worker, "_get_session_shallow", lambda _sid: None)
+    monkeypatch.setattr(worker, "create_worker", should_not_spawn)
+    result = run(TypedExecutor(assign_provider=WorkerAssignProvider()).execute(
+        attempt=attempt(), effect_key=key(target="assign"),
+        frozen_plan={"operation": "assign", "sessionId": "target", "text": "run"},
+    ))
+    assert result["outcome"] == "rejected"
+    assert result["receipt"]["result"] == "Session target not found"
 
 
 def test_fe04_qq_typed_error_and_timeout_are_distinct():
