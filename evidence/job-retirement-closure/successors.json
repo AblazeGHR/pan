@@ -22,9 +22,12 @@
       "followup": "旧 kind 双写已退役；改验 native Job ID + frozen Action/target provenance，同时保留旧扁平 ID 只读投影的独立覆盖。",
       "successorEvidence": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "旧 kind 双写已退役；改验 native Job ID + frozen Action/target provenance，同时保留旧扁平 ID 只读投影的独立覆盖。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_rename_and_description",
@@ -72,9 +75,13 @@
       "followup": "迁为 native lifecycle config/state CAS；已准入 Run 与 future Creator events 分开验证，不能恢复旧 entries 驱动。",
       "successorEvidence": "tests/test_scheduler_management_browser.py; tests/test_job_final_creators.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "迁为 native lifecycle config/state CAS；已准入 Run 与 future Creator events 分开验证，不能恢复旧 entries 驱动。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+        "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_action_template_default_assign",
@@ -83,9 +90,12 @@
       "followup": "删除旧默认 assign 期望的执行含义；显式 Action ref 与 typed args 在统一 Run 路径验收。",
       "successorEvidence": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "删除旧默认 assign 期望的执行含义；显式 Action ref 与 typed args 在统一 Run 路径验收。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_action_template_send_session",
@@ -94,9 +104,12 @@
       "followup": "用 product_session_message + frozen Step 替代 run_due_scheduled_tasks，保留一次效果及原 effectKey 收据断言。",
       "successorEvidence": "tests/test_job_attempt_epoch.py; evidence/r6i-repair/candidate-epoch-green.json",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "用 product_session_message + frozen Step 替代 run_due_scheduled_tasks，保留一次效果及原 effectKey 收据断言。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_action_template_unknown_falls_back_to_assign",
@@ -105,9 +118,12 @@
       "followup": "此正向 fallback 与终局明确冲突；后继必须拒绝未知 Action/legacy 字段，不能迁回默认 assign。",
       "successorEvidence": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "此正向 fallback 与终局明确冲突；后继必须拒绝未知 Action/legacy 字段，不能迁回默认 assign。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates",
@@ -149,9 +165,12 @@
       "followup": "改 native Step 的显式 query/fixed text；保留动态 target，不借 metadata flat 字段重建 legacy dispatcher。",
       "successorEvidence": "未验证精确后继",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "改 native Step 的显式 query/fixed text；保留动态 target，不借 metadata flat 字段重建 legacy dispatcher。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_resume_legal_running_keeps_per_fire_client_message_id_stable",
@@ -160,9 +179,12 @@
       "followup": "不再调用已退役 _execute_job_action；保留同 Run/Step/target effectKey 和 provider 去重键断言。",
       "successorEvidence": "tests/test_scheduler_source_migration.py::test_explicit_host_adoption_continues_same_grid_and_effect_keys (相关 identity)",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "不再调用已退役 _execute_job_action；保留同 Run/Step/target effectKey 和 provider 去重键断言。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_runs_and_next_and_run_now",
@@ -171,9 +193,12 @@
       "followup": "拆为 readonly 原 ID/runs 与 native manual admission/Creator nextFire；旧 run-now URL 应保持 410。",
       "successorEvidence": "tests/test_scheduler_history_read.py; tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "拆为 readonly 原 ID/runs 与 native manual admission/Creator nextFire；旧 run-now URL 应保持 410。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_partial_failed_event_emitted",
@@ -182,9 +207,13 @@
       "followup": "以 native partial/uncertain effect + 唯一 outbox 验收，不恢复 start_broadcast 或重复 terminal notice。",
       "successorEvidence": "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup; tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "以 native partial/uncertain effect + 唯一 outbox 验收，不恢复 start_broadcast 或重复 terminal notice。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts",
+        "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[unknown-uncertain]"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_post_creates_scheduled_task_multi_entry",
@@ -193,9 +222,12 @@
       "followup": "用独立 Creator 多规则 + Job/Trigger 显式定义；保留各 ruleId/occurrence，旧 scheduled-task POST 不再合法。",
       "successorEvidence": "tests/test_job_final_creators.py; tests/test_scheduler_creator_management.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "用独立 Creator 多规则 + Job/Trigger 显式定义；保留各 ruleId/occurrence，旧 scheduled-task POST 不再合法。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner",
@@ -204,9 +236,13 @@
       "followup": "用 product_process native Action 参数和 independent execution intent；保留未执行前不分配实际 runner 的断言。",
       "successorEvidence": "tests/test_job_final_independent_execution.py::test_fe02_concurrent_admission_never_calls_legacy_create_retry",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "用 product_process native Action 参数和 independent execution intent；保留未执行前不分配实际 runner 的断言。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+        "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields",
@@ -237,9 +273,12 @@
       "followup": "通过 typed channel executor 保留明确成功/离线拒绝，不用 legacy kind dispatcher；精确 bot 业务效果需 provider 专项后继。",
       "successorEvidence": "tests/test_job_final_independent_execution.py (仅 typed receipt 相关)",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "通过 typed channel executor 保留明确成功/离线拒绝，不用 legacy kind dispatcher；精确 bot 业务效果需 provider 专项后继。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure",
@@ -270,9 +309,12 @@
       "followup": "旧 kind POST 不合法；native Job 手动可无时间来源，Creator 空 rules 另行严格拒绝，不能照搬旧 combined schema。",
       "successorEvidence": "tests/test_job_final_contracts.py; tests/test_job_final_creators.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "旧 kind POST 不合法；native Job 手动可无时间来源，Creator 空 rules 另行严格拒绝，不能照搬旧 combined schema。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_post_requires_existing_session",
@@ -292,9 +334,12 @@
       "followup": "时间配置归 Creator，不在 Job PATCH 替换 schedule；Creator revision/CAS/anchor/cursor 回归继续验。",
       "successorEvidence": "tests/test_job_final_creators.py; tests/test_scheduler_creator_management.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "时间配置归 Creator，不在 Job PATCH 替换 schedule；Creator revision/CAS/anchor/cursor 回归继续验。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_schedule_rejects_bad_spec",
@@ -314,9 +359,12 @@
       "followup": "旧 undeliverable/backlog 不再作为新执行状态；native 定义/入场严格拒绝无效必要参数，不能猜目标。",
       "successorEvidence": "tests/test_job_final_contracts.py",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "旧 undeliverable/backlog 不再作为新执行状态；native 定义/入场严格拒绝无效必要参数，不能猜目标。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_patch_text_updates_dispatch_body",
@@ -338,9 +386,12 @@
       "followup": "旧 entryId 只读历史必须保留；新来源用 creatorId/occurrenceKey/driveId，不伪造旧执行记录。",
       "successorEvidence": "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
       "originalNode": "retained-failed",
-      "status": "gap",
-      "strictSuccessors": [],
-      "boundary": "旧 entryId 只读历史必须保留；新来源用 creatorId/occurrenceKey/driveId，不伪造旧执行记录。"
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history"
+      ],
+      "boundary": "Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.",
+      "currentExecution": "revision3 strict matrix"
     },
     {
       "node": "tests/test_jobs_api.py::test_pin_failure_keeps_disk_and_emits_nothing",

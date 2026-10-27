@@ -125,5 +125,29 @@ reviews = {
 assert set(reviews) == {r['id'] for r in items}
 for row in items:
     row['currentObservation'], row['currentEvidence'], row['remaining'] = reviews[row['id']]
+strict = {
+    'tests/test_jobs_api.py::test_structured_identity_new_records': ['tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload'],
+    'tests/test_jobs_api.py::test_patch_enable_disable_stops_entries': ['tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect', 'tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run'],
+    'tests/test_jobs_api.py::test_action_template_default_assign': ['tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]'],
+    'tests/test_jobs_api.py::test_action_template_send_session': ['tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities'],
+    'tests/test_jobs_api.py::test_action_template_unknown_falls_back_to_assign': ['tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]'],
+    'tests/test_jobs_api.py::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text': ['tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs'],
+    'tests/test_jobs_api.py::test_resume_legal_running_keeps_per_fire_client_message_id_stable': ['tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice'],
+    'tests/test_jobs_api.py::test_runs_and_next_and_run_now': ['tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage'],
+    'tests/test_jobs_api.py::test_partial_failed_event_emitted': ['tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts', 'tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[unknown-uncertain]'],
+    'tests/test_jobs_api.py::test_post_creates_scheduled_task_multi_entry': ['tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage'],
+    'tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner': ['tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof', 'tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused'],
+    'tests/test_jobs_api.py::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error': ['tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct'],
+    'tests/test_jobs_api.py::test_post_accepts_session_message_and_rejects_empty_schedule': ['tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]'],
+    'tests/test_jobs_api.py::test_patch_schedule_replaces_entries': ['tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition'],
+    'tests/test_jobs_api.py::test_patch_target_clear_enters_undeliverable': ['tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent'],
+    'tests/test_jobs_api.py::test_run_records_carry_entry_id': ['tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history'],
+}
+for row in nodes:
+    if row['node'] in strict:
+        row['status'] = 'strict-successor'
+        row['strictSuccessors'] = strict[row['node']]
+        row['currentExecution'] = 'revision3 strict matrix'
+        row['boundary'] = 'Canonical successor preserves the decisive identity/state/effect assertion; provider-specific or real-cohort layers remain separate.'
 (OUT / 'successors.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 print(json.dumps({'originalNodes': len(nodes), 'retirementItems': len(items)}))
