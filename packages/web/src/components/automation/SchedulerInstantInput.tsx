@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { canonicalJobs, type TimeInputResolution } from '@/services/canonicalJobs';
 import { fieldClass } from './fields';
 
-const explicit = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
+const explicit = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
 
 /** Local input is a draft only; the rule receives one resolved instant. */
 export function SchedulerInstantInput({

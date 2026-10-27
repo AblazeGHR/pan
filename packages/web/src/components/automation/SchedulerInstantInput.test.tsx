@@ -69,10 +69,10 @@ it('keeps a gap invalid and requires choosing either actual instant for a fold',
   expect(input().checkValidity()).toBe(true);
 });
 
-it('preserves an existing offset timestamp and accepts explicit edits without host resolution', () => {
+it.each(['2027-01-01T09:00:12.123456789+05:30', '2027-01-01t09:00:12.123456789z'])('preserves explicit timestamp %s without host resolution', (initial) => {
   const resolve = vi.spyOn(canonicalJobs, 'resolveTimeInput');
-  render(<Input initial="2027-01-01T09:00:12.123456789+05:30" />);
-  expect(input().value).toBe('2027-01-01T09:00:12.123456789+05:30');
+  render(<Input initial={initial} />);
+  expect(input().value).toBe(initial);
   expect(at()).toBe(input().value);
   fireEvent.change(input(), { target: { value: '2027-01-01T09:00:13.123456789+05:30' } });
   expect(at()).toBe('2027-01-01T09:00:13.123456789+05:30');
