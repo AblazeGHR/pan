@@ -1,0 +1,302 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+...................................................FF.F.FFFFFFFFFFFF...F [ 62%]
+..FFFFFFFF.FFFFFFF.....F..FFFFFF.......F..F                              [100%]
+================================== FAILURES ===================================
+________________ test_run_now_does_not_move_periodic_next_fire ________________
+tests\test_scheduler_legacy_bridge.py:90: in test_run_now_does_not_move_periodic_next_fire
+    monkeypatch.setattr(system_actions, 'execute', completed)
+E   AttributeError: <module 'packages.jobs.system_actions' from 'D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\packages\\jobs\\system_actions.py'> has no attribute 'execute'
+___________________ test_list_jobs_mixed_kinds_and_filters ____________________
+tests\test_jobs_api.py:157: in test_list_jobs_mixed_kinds_and_filters
+    msg = _make_message_job(monkeypatch, tmp_path, name="��Ϣ��")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_jobs_api.py:147: in _make_message_job
+    return jobs.start_message("ses_m1", "hello",
+           ^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+____________________ test_structured_identity_new_records _____________________
+tests\test_jobs_api.py:183: in test_structured_identity_new_records
+    msg = _make_message_job(monkeypatch, tmp_path)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_jobs_api.py:147: in _make_message_job
+    return jobs.start_message("ses_m1", "hello",
+           ^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+______________________ test_patch_rename_and_description ______________________
+tests\test_jobs_api.py:216: in test_patch_rename_and_description
+    assert body["ok"] is True
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+_______________________ test_patch_blank_name_rejected ________________________
+tests\test_jobs_api.py:227: in test_patch_blank_name_rejected
+    assert body["ok"] is False
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+______________ test_patch_target_switch_updates_flat_and_struct _______________
+tests\test_jobs_api.py:238: in test_patch_target_switch_updates_flat_and_struct
+    assert body["ok"] is True
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+___________________ test_patch_enable_disable_stops_entries ___________________
+tests\test_jobs_api.py:249: in test_patch_enable_disable_stops_entries
+    assert body["ok"] is True
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+_____________________ test_action_template_default_assign _____________________
+tests\test_jobs_api.py:268: in test_action_template_default_assign
+    asyncio.run(jobs.run_due_scheduled_tasks())
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?
+______________________ test_action_template_send_session ______________________
+tests\test_jobs_api.py:282: in test_action_template_send_session
+    asyncio.run(jobs.run_due_scheduled_tasks())
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?
+______________ test_action_template_unknown_falls_back_to_assign ______________
+tests\test_jobs_api.py:296: in test_action_template_unknown_falls_back_to_assign
+    assert rejected["ok"] is False
+           ^^^^^^^^^^^^^^
+E   KeyError: 'ok'
+_ test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates _
+tests\test_jobs_api.py:317: in test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+___________ test_resume_legal_running_empty_scan_is_successful_noop ___________
+tests\test_jobs_api.py:373: in test_resume_legal_running_empty_scan_is_successful_noop
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+_ test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged _
+tests\test_jobs_api.py:396: in test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+___ test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text ___
+tests\test_jobs_api.py:422: in test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+______ test_resume_legal_running_keeps_per_fire_client_message_id_stable ______
+tests\test_jobs_api.py:463: in test_resume_legal_running_keeps_per_fire_client_message_id_stable
+    first = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+_______________________ test_runs_and_next_and_run_now ________________________
+tests\test_jobs_api.py:519: in test_runs_and_next_and_run_now
+    assert run_body["ok"] is True
+           ^^^^^^^^^^^^^^
+E   KeyError: 'ok'
+______________________ test_partial_failed_event_emitted ______________________
+tests\test_jobs_api.py:572: in test_partial_failed_event_emitted
+    job = jobs.start_broadcast(["ses_pa", "ses_pb"], "Ⱥ��",
+          ^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+________________ test_post_creates_scheduled_task_multi_entry _________________
+tests\test_jobs_api.py:606: in test_post_creates_scheduled_task_multi_entry
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+______ test_post_creates_scheduled_shell_action_without_target_or_runner ______
+tests\test_jobs_api.py:637: in test_post_creates_scheduled_shell_action_without_target_or_runner
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+_ test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields __
+tests\test_jobs_api.py:676: in test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields
+    assert created["ok"] is True, created
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+____________ test_patch_scheduled_qq_action_is_strict_and_editable ____________
+tests\test_jobs_api.py:715: in test_patch_scheduled_qq_action_is_strict_and_editable
+    assert created["ok"] is True, created
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+_ test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error _
+tests\test_jobs_api.py:772: in test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error
+    assert success["ok"] and offline["ok"]
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+_____ test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure ______
+tests\test_jobs_api.py:821: in test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure
+    assert success["ok"] and offline["ok"]
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+_________ test_scheduled_qq_backlog_retry_runs_without_session_target _________
+tests\test_jobs_api.py:851: in test_scheduled_qq_backlog_retry_runs_without_session_target
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'
+________ test_post_accepts_session_message_and_rejects_empty_schedule _________
+tests\test_jobs_api.py:919: in test_post_accepts_session_message_and_rejects_empty_schedule
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+_____________________ test_post_requires_existing_session _____________________
+tests\test_jobs_api.py:942: in test_post_requires_existing_session
+    assert body["ok"] is False
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+____________________ test_patch_schedule_replaces_entries _____________________
+tests\test_jobs_api.py:957: in test_patch_schedule_replaces_entries
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+____________________ test_patch_schedule_rejects_bad_spec _____________________
+tests\test_jobs_api.py:971: in test_patch_schedule_rejects_bad_spec
+    assert body["ok"] is False
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+________________ test_patch_target_clear_enters_undeliverable _________________
+tests\test_jobs_api.py:984: in test_patch_target_clear_enters_undeliverable
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+____________________ test_patch_text_updates_dispatch_body ____________________
+tests\test_jobs_api.py:1005: in test_patch_text_updates_dispatch_body
+    assert body["ok"] is True, body
+           ^^^^^^^^^^
+E   KeyError: 'ok'
+_______________________ test_run_records_carry_entry_id _______________________
+tests\test_jobs_api.py:1024: in test_run_records_carry_entry_id
+    asyncio.run(jobs.run_due_scheduled_tasks())
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?
+________________ test_pin_failure_keeps_disk_and_emits_nothing ________________
+tests\test_jobs_api.py:1054: in test_pin_failure_keeps_disk_and_emits_nothing
+    assert result["error"]["code"] == "persistence_failed"
+           ^^^^^^^^^^^^^^^
+E   KeyError: 'error'
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt _
+packages\jobs\system_actions.py:209: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+The above exception was the direct cause of the following exception:
+tests\test_authorization_runtime.py:136: in test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+    monkeypatch.setattr('packages.jobs.system_actions.execute',no_signal)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:109: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:97: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'
+____ test_quota_policy_owned_http_default_unavailable_is_unknown_real_http ____
+tests\test_quota_policy_http.py:45: in test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
+    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+    ^^^^^^^^^^^^^^^^^^^
+E   NameError: name 'monkeypatcreal_http' is not defined
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_legacy_bridge.py::test_run_now_does_not_move_periodic_next_fire
+FAILED tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters - packa...
+FAILED tests/test_jobs_api.py::test_structured_identity_new_records - package...
+FAILED tests/test_jobs_api.py::test_patch_rename_and_description - KeyError: ...
+FAILED tests/test_jobs_api.py::test_patch_blank_name_rejected - KeyError: 'ok'
+FAILED tests/test_jobs_api.py::test_patch_target_switch_updates_flat_and_struct
+FAILED tests/test_jobs_api.py::test_patch_enable_disable_stops_entries - KeyE...
+FAILED tests/test_jobs_api.py::test_action_template_default_assign - packages...
+FAILED tests/test_jobs_api.py::test_action_template_send_session - packages.j...
+FAILED tests/test_jobs_api.py::test_action_template_unknown_falls_back_to_assign
+FAILED tests/test_jobs_api.py::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates
+FAILED tests/test_jobs_api.py::test_resume_legal_running_empty_scan_is_successful_noop
+FAILED tests/test_jobs_api.py::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged
+FAILED tests/test_jobs_api.py::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text
+FAILED tests/test_jobs_api.py::test_resume_legal_running_keeps_per_fire_client_message_id_stable
+FAILED tests/test_jobs_api.py::test_runs_and_next_and_run_now - KeyError: 'ok'
+FAILED tests/test_jobs_api.py::test_partial_failed_event_emitted - packages.j...
+FAILED tests/test_jobs_api.py::test_post_creates_scheduled_task_multi_entry
+FAILED tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner
+FAILED tests/test_jobs_api.py::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields
+FAILED tests/test_jobs_api.py::test_patch_scheduled_qq_action_is_strict_and_editable
+FAILED tests/test_jobs_api.py::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error
+FAILED tests/test_jobs_api.py::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure
+FAILED tests/test_jobs_api.py::test_scheduled_qq_backlog_retry_runs_without_session_target
+FAILED tests/test_jobs_api.py::test_post_accepts_session_message_and_rejects_empty_schedule
+FAILED tests/test_jobs_api.py::test_post_requires_existing_session - KeyError...
+FAILED tests/test_jobs_api.py::test_patch_schedule_replaces_entries - KeyErro...
+FAILED tests/test_jobs_api.py::test_patch_schedule_rejects_bad_spec - KeyErro...
+FAILED tests/test_jobs_api.py::test_patch_target_clear_enters_undeliverable
+FAILED tests/test_jobs_api.py::test_patch_text_updates_dispatch_body - KeyErr...
+FAILED tests/test_jobs_api.py::test_run_records_carry_entry_id - packages.job...
+FAILED tests/test_jobs_api.py::test_pin_failure_keeps_disk_and_emits_nothing
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]
+FAILED tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+FAILED tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http

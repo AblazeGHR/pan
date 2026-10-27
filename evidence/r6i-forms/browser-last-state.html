@@ -1,0 +1,393 @@
+<!DOCTYPE html><html lang="zh" class="dark" data-theme="dark"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="color-scheme" content="dark light">
+    <title>Pan</title>
+    <!-- Inter is a third-party font: preconnect early, then load its stylesheet
+         without blocking CSSOM. When the network cannot reach it, the UI keeps
+         rendering with the fallback stack instead of waiting for a timeout. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" media="all" onload="this.media='all'">
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      />
+    </noscript>
+    <script type="module" crossorigin="" src="/react/assets/index-KcKzNkJZ-pc2.js"></script>
+    <link rel="modulepreload" crossorigin="" href="/react/assets/react-vendor-DNy7vAOG.js">
+    <link rel="stylesheet" crossorigin="" href="/react/assets/index-BkkqpThq.css">
+  <link rel="modulepreload" as="script" crossorigin="" href="/react/assets/AutomationView-Dn8JRQgQ.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/CanonicalJobsView-CG5LLY1p.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/JobUserAuthorization-CyBUHToi.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/ScheduleListEditor-BnTjbT_r.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/SessionOperationFields-CWgmY12U.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/check-CIhtMdIr.js"><link rel="modulepreload" as="script" crossorigin="" href="/react/assets/copy-B4sl-HTP.js"></head>
+  <body class="bg-bg-primary text-text-primary">
+    <div id="root"><div class="h-screen supports-[height:100dvh]:h-dvh bg-bg-primary text-text-primary overflow-hidden" style="height: 1100px; display: grid; grid-template-columns: auto 0px minmax(0px, 1fr) 0px auto; grid-template-rows: minmax(0px, 1fr);"><div class="relative z-30 flex" style="grid-column: 1;"><aside class="relative flex min-w-0 flex-col h-full border-r border-border-default bg-bg-secondary" style="width: min(280px, 100vw); min-width: min(280px, 100vw);"><div class="px-3 py-2 border-b border-border-muted"><div class="flex items-center justify-between mb-2"><h1 class="text-lg font-bold text-text-primary">Pan</h1><div class="flex items-center gap-0.5"><button class="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors" title="App settings"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg></button><button class="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors" title="Switch to light theme"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></button><button class="text-text-tertiary hover:text-text-primary p-0.5 rounded transition-colors" title="Collapse sidebar" aria-label="Collapse sidebar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></button></div></div><div class="mb-2"><nav aria-label="界面入口" class="flex min-w-0 items-center gap-1"><button type="button" aria-label="上一组界面入口" class="shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30"><span class="relative"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-left" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></span></button><div class="min-w-0 flex-1 overflow-hidden" tabindex="0" aria-label="界面入口，第 2 组，共 2 组" style="touch-action: pan-y pinch-zoom;"><div class="flex transition-transform duration-200 ease-out motion-reduce:transition-none" style="transform: translateX(-100%);"><div inert="" aria-hidden="true" class="grid w-full min-w-0 shrink-0 grid-cols-3"><a aria-label="Chat" draggable="false" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover" href="/react" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-square shrink-0" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"></path></svg><span class="truncate">Chat</span></span></a><a aria-label="Editor" draggable="false" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover" href="/react/editor" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-code shrink-0" aria-hidden="true"><path d="m16 18 6-6-6-6"></path><path d="m8 6-6 6 6 6"></path></svg><span class="truncate">Editor</span></span></a><a aria-label="Terminal" draggable="false" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover" href="/react/terminals" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-square-terminal shrink-0" aria-hidden="true"><path d="m7 11 2-2-2-2"></path><path d="M11 13h4"></path><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect></svg><span class="truncate">Terminal</span></span></a></div><div aria-hidden="false" class="grid w-full min-w-0 shrink-0 grid-cols-3"><a aria-label="Locker" draggable="false" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover" href="/react/locker" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left shrink-0" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span class="truncate">Locker</span></span></a><a aria-label="Actions" draggable="false" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors text-text-tertiary hover:text-text-secondary hover:bg-bg-hover" href="/react/actions" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panels-top-left shrink-0" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg><span class="truncate">Actions</span></span></a><a aria-label="Automation" draggable="false" aria-current="page" class="relative min-w-0 flex flex-col items-center justify-center gap-0.5 py-1 text-xs rounded transition-colors bg-accent/20 text-accent font-medium" href="/react/automation" data-discover="true"><span class="flex min-w-0 items-center justify-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-checks shrink-0" aria-hidden="true"><path d="M13 5h8"></path><path d="M13 12h8"></path><path d="M13 19h8"></path><path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path></svg><span class="truncate">Automation</span></span></a></div></div></div><button type="button" aria-label="下一组界面入口" disabled="" class="shrink-0 w-4 flex justify-center text-text-tertiary disabled:opacity-30"><span class="relative"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></span></button></nav></div><div class="flex gap-1"><div class="flex flex-[3] min-w-0 overflow-hidden rounded border border-transparent bg-accent"><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-2 py-1 text-xs min-w-0 flex-1 rounded-none border-0" title="Quick new session"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>New</button><span aria-hidden="true" class="w-px shrink-0 bg-white/30"></span><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-accent text-white hover:bg-accent-hover border-transparent px-2 py-1 text-xs rounded-none border-0" title="New with settings"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs flex-[2] min-w-0 justify-center" title="Import session"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-import" aria-hidden="true"><path d="M12 3v12"></path><path d="m8 11 4 4 4-4"></path><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"></path></svg>Import</button></div></div><div class="flex items-center gap-1 px-3 py-1.5 border-b border-border-muted bg-bg-secondary"><div class="relative min-w-0 flex-1"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg><input placeholder="Filter..." aria-label="Search sessions" class="w-full bg-bg-tertiary border border-border-default rounded text-xs py-1 pl-6 pr-6 text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/50" type="text" value="" style=""></div><div class="relative"><button class="flex items-center gap-1 p-1 rounded transition-colors text-text-tertiary hover:text-text-primary" title="Special filters" aria-haspopup="menu" aria-expanded="false" data-testid="session-filter-trigger"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-filter" aria-hidden="true"><path d="M2 5h20"></path><path d="M6 12h12"></path><path d="M9 19h6"></path></svg></button></div><div class="relative"><button aria-expanded="false" aria-label="Sort sessions: recent" class="flex items-center gap-1 p-1 rounded transition-colors text-text-tertiary hover:text-text-primary" title="Sort: recent (click to cycle recent → name → custom)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-down" aria-hidden="true"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg><span class="text-[10px] leading-none">recent</span></button></div><button class="p-1 rounded transition-colors text-text-tertiary hover:text-text-primary" title="Collapse all groups"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></div><div class="flex-1 overflow-y-auto"><div class="flex flex-col items-center justify-center py-12 px-4 gap-3"><div class="text-text-tertiary opacity-50"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg></div><p class="text-sm text-text-tertiary">No sessions yet</p><p class="text-xs text-text-tertiary text-center">Click <span class="text-accent">+ New</span> to create your first session</p></div></div><div class="absolute top-0 right-0 h-full w-[4px] cursor-col-resize z-10 hover:bg-accent/30 transition-colors group"><div class="absolute top-0 right-0 w-[2px] h-full bg-border-default/70 group-hover:bg-accent/40 transition-colors"></div></div></aside><div class="relative z-30 flex-none self-stretch transition-[width] duration-200 ease-out" style="width: 0px;"><div class="absolute inset-y-0 right-0 flex w-[172px] flex-col overflow-hidden border-r border-border-default bg-bg-secondary transition-opacity duration-150" aria-hidden="true" style="opacity: 0; pointer-events: none;"><div class="flex items-center gap-1 border-b border-border-muted px-2 py-2"><span class="flex-1 text-xs tracking-wide text-text-secondary">工作区</span><button type="button" class="rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary" title="收起"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevrons-left" aria-hidden="true"><path d="m11 17-5-5 5-5"></path><path d="m18 17-5-5 5-5"></path></svg></button></div><div data-testid="workspace-tab-scroll" class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [&amp;::-webkit-scrollbar]:hidden"><div data-workspace-tab-id="all" role="button" tabindex="0" class="group relative flex min-w-0 cursor-pointer items-center rounded-md border transition-colors gap-1.5 px-2 py-1.5 text-xs border-accent/30 bg-accent/10 text-accent   " title="全部会话（虚拟工作区，不产生归属）"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers shrink-0" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg><span class="min-w-0 flex-1 truncate">全部</span><span class="flex w-2 shrink-0 items-center justify-center"></span><span class="shrink-0 rounded-full border border-border-muted bg-bg-tertiary px-1.5 text-[10px] leading-4 text-text-tertiary">0</span></div><div data-workspace-tab-id="ungrouped" data-testid="workspace-tab-ungrouped" role="button" tabindex="0" class="group relative flex min-w-0 cursor-pointer items-center rounded-md border transition-colors gap-1.5 px-2 py-1.5 text-xs border-transparent text-text-secondary hover:bg-bg-hover hover:text-text-primary   " title="没有归属任何工作区的会话（虚拟视图，不产生归属）"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layers shrink-0" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"></path><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"></path><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"></path></svg><span class="min-w-0 flex-1 truncate">无工作区</span><span class="flex w-2 shrink-0 items-center justify-center"></span><span data-testid="workspace-count-ungrouped" class="shrink-0 rounded-full border border-border-muted bg-bg-tertiary px-1.5 text-[10px] leading-4 text-text-tertiary">0</span></div><button type="button" data-workspace-tab-id="__create_workspace__" class="mt-1 flex w-full items-center gap-1 rounded-md border border-dashed border-border-default px-1.5 py-1 text-left text-xs text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary "><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>新建工作区</button></div></div><button type="button" data-testid="sidebar-collapse-handle" class="absolute right-0 z-40 flex translate-x-full items-center justify-center rounded-r-md border border-l-0 border-border-default bg-bg-tertiary py-2 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" aria-label="收起侧边栏" title="收起侧边栏" style="width: 16px; bottom: calc(50% + 49px);"><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-close" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></button><button type="button" data-testid="workspace-rail-handle" class="absolute right-0 top-1/2 z-40 flex -translate-y-1/2 translate-x-full flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-border-default bg-bg-tertiary px-0.5 py-2.5 text-text-secondary shadow-lg transition-colors hover:bg-bg-hover hover:text-text-primary" title="当前：全部 — 点击展开工作区" style="width: 20px;"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevrons-right" aria-hidden="true"><path d="m6 17 5-5-5-5"></path><path d="m13 17 5-5-5-5"></path></svg><span class="max-h-[52vh] overflow-hidden text-ellipsis whitespace-nowrap text-xs tracking-wide [text-orientation:mixed] [writing-mode:vertical-rl]">全部</span></button></div></div><main class="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden " style="grid-column: 3;"><section aria-label="Automation management" class="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"><div class="mx-auto max-w-6xl space-y-5"><header class="flex flex-wrap justify-between gap-3"><div><h1 class="text-2xl font-semibold">Automation</h1><p>Jobs, event subscriptions and reusable time sources</p></div><div class="flex gap-3"><a href="/react/automation/canonical" data-discover="true">Canonical Jobs</a><a href="/react/actions" data-discover="true">Manage Actions</a></div></header><section aria-label="Job user authorization" class="rounded border border-border-default p-3 text-xs space-y-2"><p>User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.</p><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Log out</button></section><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Refresh</button><div role="tablist" aria-label="Automation subpages" class="grid grid-cols-3 gap-1"><button role="tab" aria-selected="false" tabindex="-1">Job</button><button role="tab" aria-selected="false" tabindex="-1">Trigger</button><button role="tab" aria-selected="true" tabindex="0">Event Register</button></div><section hidden=""><button>Pause Everything template</button></section><div><section hidden=""><div class="min-w-0 space-y-4"><div class="flex flex-wrap items-center gap-2"><h2 class="mr-auto text-lg font-semibold">Canonical Jobs</h2><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">刷新列表</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">创建 Jobs</button></div><section aria-label="操作回执" class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 break-all text-sm"><p role="status">操作状态：completed</p><p>requestKey: operation_1eb215af0d454643a7a6e4295a55fb6d</p><p>operationId: op_fb04cd3cdd324da59a210666</p><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">查询原操作</button></section><div class="grid min-w-0 gap-3 md:grid-cols-2"><article id="job_6ec52afe7280447c9ad8cd1d" aria-label="Jobs Form Job" class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 "><h3 class="break-words font-medium">Form Job</h3><p class="break-all text-xs">job_6ec52afe7280447c9ad8cd1d</p><p class="break-words text-sm">enabled · 定义版本 2 · 状态版本 1</p><div class="flex flex-wrap gap-2"><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Pause Form Job</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Disable Form Job</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="编辑 Form Job">编辑</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="retire Form Job">retire</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="Runs Form Job">Runs</button></div></article></div></div></section><section hidden=""><div class="min-w-0 space-y-4"><div class="flex flex-wrap items-center gap-2"><h2 class="mr-auto text-lg font-semibold">Canonical Triggers</h2><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">刷新列表</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">创建 Triggers</button></div><section aria-label="操作回执" class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 break-all text-sm"><p role="status">操作状态：completed</p><p>requestKey: operation_3c488dfc32134c34a874bd2bce6f1bff</p><p>operationId: op_90c3b12cf5b74cd09fb12d52</p><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">查询原操作</button></section><div class="grid min-w-0 gap-3 md:grid-cols-2"><article id="trigger_a1e3bd3980a340a4b04472de" aria-label="Triggers Form subscription A" class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 "><h3 class="break-words font-medium">Form subscription A</h3><p class="break-all text-xs">trigger_a1e3bd3980a340a4b04472de</p><p class="break-words text-sm">draft · 定义版本 2 · 状态版本 0</p><div class="flex flex-wrap gap-2"><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Enable Form subscription A</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="编辑 Form subscription A">编辑</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="retire Form subscription A">retire</button></div></article><article id="trigger_ec80383d271f4ff58a390b7b" aria-label="Triggers Form subscription B" class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 "><h3 class="break-words font-medium">Form subscription B</h3><p class="break-all text-xs">trigger_ec80383d271f4ff58a390b7b</p><p class="break-words text-sm">draft · 定义版本 1 · 状态版本 0</p><div class="flex flex-wrap gap-2"><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Enable Form subscription B</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="编辑 Form subscription B">编辑</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all" type="button" aria-label="retire Form subscription B">retire</button></div></article></div></div></section><section><div class="min-w-0 space-y-5"><header class="flex flex-wrap justify-between gap-3"><div><h2 class="text-lg font-semibold">Event Register</h2><p>Reusable canonical Event Creators. Each Scheduler keeps its own rules and cursor.</p></div><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " disabled="">New Scheduler</button></header><section aria-label="Scheduler editor" class="min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 space-y-4"><header class="flex justify-between gap-2"><h3>Edit Scheduler</h3><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm ">Close Scheduler editor</button></header><form><fieldset class="min-w-0 space-y-4"><label class="block">Scheduler name<input required="" maxlength="200" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" value="Form interval" style=""></label><label class="block">Description<textarea class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" style=""></textarea></label><section aria-label="Time rules" class="space-y-4"><fieldset aria-label="Time rule 1" class="min-w-0 space-y-3 rounded border border-border-default p-3"><legend>Time rule 1</legend><p class="break-all text-xs">Rule ID: interval</p><label class="block text-sm">Time rule type<select aria-label="Time rule type" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50"><option value="interval">interval</option><option value="once">once</option><option value="weekly">weekly</option><option value="cron">cron</option></select></label><label class="block text-sm">Interval seconds<input required="" pattern="(?:0|[1-9][0-9]*)(?:\.[0-9]+)?" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" placeholder="0.125" value="0.250000000000000001" style=""></label><label class="block text-sm">Anchor (RFC3339)<input required="" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" placeholder="2026-11-01T09:00:00.125+08:00" value="2027-11-01T00:00:12.123456789+08:00" style=""></label><label class="block text-sm">Interval advance mode<select aria-label="Interval advance mode" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50"><option value="grid">Keep the anchored grid</option><option value="afterPublication">After publication</option></select></label><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">Remove time rule 1</button></fieldset><fieldset aria-label="Time rule 2" class="min-w-0 space-y-3 rounded border border-border-default p-3"><legend>Time rule 2</legend><p class="break-all text-xs">Rule ID: rule_e9f1542cae724026b8fe94d1d66308bd</p><label class="block text-sm">Time rule type<select aria-label="Time rule type" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50"><option value="interval">interval</option><option value="once">once</option><option value="weekly">weekly</option><option value="cron">cron</option></select></label><label class="block text-sm">Scheduled time (RFC3339)<input required="" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" placeholder="2026-11-01T09:00:12.125+08:00" value="2027-11-02T00:00:12.123456789Z" style=""></label><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">Remove time rule 2</button></fieldset><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button">Add time rule</button><p class="text-xs text-text-secondary">Timestamps retain seconds, fractional digits and explicit UTC offsets. Editing a field keeps the other rules and their IDs.</p><label class="block text-sm">Missed trigger policy<select aria-label="Missed trigger policy" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50"><option value="fire_now">Fire once after downtime</option><option value="skip">Skip missed times</option></select></label><label class="block text-sm">Grace period (seconds)<input required="" pattern="(?:0|[1-9][0-9]*)(?:\.[0-9]+)?" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" value="2.125" style=""></label><label class="block text-sm">Pause policy<select aria-label="Pause policy" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50"><option>advance</option></select></label><label class="block text-sm"><input type="checkbox" checked="" style="">Limit produced events</label><label class="block text-sm">Maximum events<input required="" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" min="1" step="1" type="number" value="17" style=""></label><label class="block text-sm">Initial produced count<input required="" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" min="0" step="1" type="number" value="0" style=""></label></section><details><summary>Advanced Scheduler JSON</summary><label class="block">Scheduler config JSON<textarea spellcheck="false" rows="18" class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50 font-mono" style="">{
+  "rules": [
+    {
+      "ruleId": "interval",
+      "type": "interval",
+      "seconds": "0.250000000000000001",
+      "anchor": "2027-11-01T00:00:12.123456789+08:00",
+      "advanceMode": "afterPublication"
+    },
+    {
+      "ruleId": "rule_e9f1542cae724026b8fe94d1d66308bd",
+      "type": "once",
+      "at": "2027-11-02T00:00:12.123456789Z"
+    }
+  ],
+  "misfirePolicy": "fire_now",
+  "graceSeconds": "2.125",
+  "pausePolicy": "advance",
+  "driveLimit": {
+    "maxEvents": 17,
+    "initialProducedCount": 0
+  }
+}</textarea></label><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Scheduler config schema</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "title": "Scheduler provider config",
+  "description": "Time provider config consumed by Event Creator instances (design §10.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "once"
+              },
+              "at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "at"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "interval"
+              },
+              "seconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+              },
+              "anchor": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+              },
+              "advanceMode": {
+                "enum": [
+                  "grid",
+                  "afterPublication"
+                ]
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "seconds",
+              "anchor",
+              "advanceMode"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "weekly"
+              },
+              "weekday": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "dstPolicy": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "weekday",
+              "time",
+              "timezone",
+              "dstPolicy"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "cron"
+              },
+              "expression": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "dstPolicy": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "expression",
+              "timezone",
+              "dstPolicy"
+            ]
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "misfirePolicy": {
+      "enum": [
+        "skip",
+        "fire_now"
+      ]
+    },
+    "graceSeconds": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
+    },
+    "pausePolicy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_-]*$"
+    },
+    "driveLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxEvents": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "initialProducedCount": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "maxEvents",
+        "initialProducedCount"
+      ]
+    }
+  },
+  "required": [
+    "rules",
+    "misfirePolicy",
+    "graceSeconds",
+    "pausePolicy"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/scheduler_config.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}</pre></details></details><label><input type="checkbox" style="">Scheduler enabled</label><section aria-label="Scheduler impact"><h4>2 referencing subscribers</h4><p>Form subscription A · Form Job</p><p>Form subscription B · Form Job</p><p>Disabling stops future time events. Already admitted Runs continue. Shared sources outlive their Jobs.</p><label><input type="checkbox" style="">I reviewed the affected subscribers.</label></section><div class="flex flex-wrap gap-2"><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="submit">Save Scheduler</button><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " type="button" disabled="">Delete Scheduler</button></div></fieldset></form></section><label class="block text-sm">Search event sources<input class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50" type="search" value="" style=""></label><div class="grid min-w-0 gap-3 lg:grid-cols-2"><article id="creator_94f1d1d8074cd1e66a51b6bf" aria-label="Scheduler Form once" class="min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3 "><h3>Form once</h3><p>draft · Revision 2 · State revision 0</p><p class="break-all text-xs">creator_94f1d1d8074cd1e66a51b6bf</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Time rules for Form once</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "rules": [
+    {
+      "ruleId": "interval",
+      "type": "once",
+      "at": "2027-11-01T00:00:14.123456789+05:30"
+    }
+  ],
+  "misfirePolicy": "fire_now",
+  "graceSeconds": "300",
+  "pausePolicy": "advance"
+}</pre></details><h4>0 referencing subscribers</h4><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " disabled="">Edit Form once</button></article><article id="creator_a6ce8e700905b8904f4726c6" aria-label="Scheduler Form weekly" class="min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3 "><h3>Form weekly</h3><p>draft · Revision 2 · State revision 0</p><p class="break-all text-xs">creator_a6ce8e700905b8904f4726c6</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Time rules for Form weekly</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "rules": [
+    {
+      "ruleId": "interval",
+      "type": "weekly",
+      "weekday": 6,
+      "time": "01:30:13",
+      "timezone": "America/New_York",
+      "dstPolicy": "gap-skip-fold-second"
+    }
+  ],
+  "misfirePolicy": "fire_now",
+  "graceSeconds": "300",
+  "pausePolicy": "advance"
+}</pre></details><h4>0 referencing subscribers</h4><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " disabled="">Edit Form weekly</button></article><article id="creator_d73a5302494091d7a01bd185" aria-label="Scheduler Form cron" class="min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3 "><h3>Form cron</h3><p>draft · Revision 2 · State revision 0</p><p class="break-all text-xs">creator_d73a5302494091d7a01bd185</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Time rules for Form cron</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "rules": [
+    {
+      "ruleId": "interval",
+      "type": "cron",
+      "expression": "16 9 * * 1",
+      "timezone": "Asia/Shanghai",
+      "dstPolicy": "gap-shift-fold-first"
+    }
+  ],
+  "misfirePolicy": "fire_now",
+  "graceSeconds": "300",
+  "pausePolicy": "advance"
+}</pre></details><h4>0 referencing subscribers</h4><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " disabled="">Edit Form cron</button></article><article id="creator_fe43683f8d72adb489f91338" aria-label="Scheduler Form interval" class="min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4 space-y-3 "><h3>Form interval</h3><p>draft · Revision 5 · State revision 0</p><p class="break-all text-xs">creator_fe43683f8d72adb489f91338</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Time rules for Form interval</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "rules": [
+    {
+      "ruleId": "interval",
+      "type": "interval",
+      "seconds": "0.250000000000000001",
+      "anchor": "2027-11-01T00:00:12.123456789+08:00",
+      "advanceMode": "afterPublication"
+    },
+    {
+      "ruleId": "rule_e9f1542cae724026b8fe94d1d66308bd",
+      "type": "once",
+      "at": "2027-11-02T00:00:12.123456789Z"
+    }
+  ],
+  "misfirePolicy": "fire_now",
+  "graceSeconds": "2.125",
+  "pausePolicy": "advance",
+  "driveLimit": {
+    "maxEvents": 17,
+    "initialProducedCount": 0
+  }
+}</pre></details><h4>2 referencing subscribers</h4><div class="flex flex-wrap gap-2 text-sm"><button>Form subscription A</button><button>Form Job</button><span>Disabled</span></div><div class="flex flex-wrap gap-2 text-sm"><button>Form subscription B</button><button>Form Job</button><span>Disabled</span></div><button class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm " disabled="">Edit Form interval</button></article></div><section><h3>System and plugin event types</h3><div><p>workers.all_idle · Available</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Schema workers.all_idle</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "type": "object",
+  "properties": {
+    "runningCount": {
+      "const": 0
+    }
+  },
+  "required": [
+    "runningCount"
+  ],
+  "additionalProperties": false
+}</pre></details></div><div><p>runtime.issue.v1 · Available</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Schema runtime.issue.v1</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "issueId",
+    "adapter",
+    "classification",
+    "confidence",
+    "observation",
+    "correlation",
+    "delivery"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "issueId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "adapter": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 64
+    },
+    "classification": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "confidence": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "observation": {
+      "type": "object"
+    },
+    "correlation": {
+      "type": "object"
+    },
+    "delivery": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}</pre></details></div><div><p>scheduler.time.v1 · Available</p><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Schema scheduler.time.v1</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scheduleId",
+    "scheduleRevision",
+    "scheduledAt",
+    "emittedAt",
+    "eventId"
+  ],
+  "properties": {
+    "scheduleId": {
+      "type": "string"
+    },
+    "scheduleRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scheduledAt": {
+      "type": "string"
+    },
+    "emittedAt": {
+      "type": "string"
+    },
+    "eventId": {
+      "type": "string"
+    }
+  }
+}</pre></details></div></section></div></section><details><summary>Runtime diagnostics</summary><details class="min-w-0 text-sm"><summary class="cursor-pointer break-all">Runtime diagnostics</summary><pre class="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">[]</pre></details></details></div></div></section></main><aside class="w-0 overflow-hidden border-l-0"></aside></div></div>
+
+
+
+</body></html>

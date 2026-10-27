@@ -87,6 +87,12 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 
 ## 能力矩阵（Phase A 初版，2026-10-25）
 
+R6-I（2026-10-27）将 Job 根路径解析归入 `packages/core/platform/data_paths.py`。
+这是三平台共用的纯路径策略，不新增 capability 或平台私有行为；Scheduler、handoff、
+FinalService 与 Job facade 共用环境变量优先级，解析不创建目录或初始化旧 store。
+本轮 Windows 隔离 import/startup 与路径/消费者回归有证据；macOS/Linux 仍需对应 CI，
+不能把纯代码可导入视为三平台实机验收。
+
 唯一事实来源是 `packages/core/platform/__init__.py` 的 `CAPABILITIES`；本表是它的
 可读投影。`GET /api/platform` 返回同样的键与布尔值（只含平台名与能力，不含路径/账号）。
 

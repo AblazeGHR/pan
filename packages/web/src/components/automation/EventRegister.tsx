@@ -1,56 +1,101 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { automationRequest } from '@/stores/automationStore';
-import type { AutomationSnapshot } from '@/types/automation';
-import { defaultSource, newId, scheduleSummary, type ActionJob, type SchedulerConfig, type SchedulerSource } from '@/types/automationJobs';
+import { ApiRequestError } from '@/services/api';
+import { canonicalError, canonicalJobs, definitionOf } from '@/services/canonicalJobs';
+import { newId, type CreatorReferences, type EventCreator, type SchedulerProvider } from '@/types/automationJobs';
+import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
 import { cardClass, fieldClass, JsonDetail } from './fields';
-import { SchedulerFields } from './SchedulerFields';
 import { useAutomationDraft } from './DraftBoundary';
+import type { AutomationSnapshot } from '@/types/automation';
+import { CanonicalSchedulerFields } from './CanonicalSchedulerFields';
 
-export function EventRegister({ sources, definitions, schema, jobs, focusId, refresh, jump }: { sources: SchedulerSource[]; definitions: AutomationSnapshot['definitions']; schema: unknown; jobs: ActionJob[]; focusId?: string; refresh: () => Promise<void>; jump: (tab: 'Job' | 'Trigger' | 'Event Register', id: string) => void }) {
+const emptyRefs: CreatorReferences = { references: [], referenceDigest: '' };
+function receiptObject(receipt: CanonicalReceipt): EventCreator {
+  if (receipt.status !== 'completed' || !receipt.result?.object) throw new Error('Operation not completed; query the original operation.');
+  return receipt.result.object as EventCreator;
+}
+export function EventRegister({ sources, providers, references, definitions = [], focusId, refresh, jump }: {
+  sources: EventCreator[]; providers: SchedulerProvider[]; references: Record<string, CreatorReferences>; focusId?: string;
+  refresh: () => Promise<void>; jump: (tab: 'Job' | 'Trigger' | 'Event Register', id: string) => void;
+  definitions?: AutomationSnapshot['definitions'];
+}) {
   const [search, setSearch] = useState('');
-  const [editor, setEditor] = useState<{ key: string; source: SchedulerSource | null } | null>(null);
-  return <div className="min-w-0 space-y-5"><header className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-semibold">Event Register</h2><p className="mt-1 text-sm text-text-secondary">Reusable event sources. Scheduler is the only source you can create.</p></div><Button disabled={!!editor} variant="primary" onClick={() => setEditor({ key: newId('source'), source: null })}>New Scheduler</Button></header>
-    {editor && <SourceEditor key={editor.key} creationKey={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} jobs={jobs} onClose={() => setEditor(null)} onSaved={refresh} />}
-    <label className="block text-sm">Search event sources<input type="search" className={fieldClass} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, rule or timezone" /></label>
-    {!sources.length && <p className={cardClass}>No Scheduler sources yet. Create one here or while adding a time trigger to a Job.</p>}
-    <div className="grid min-w-0 gap-3 lg:grid-cols-2">{sources.filter((s) => `${s.name} ${scheduleSummary(s)}`.toLowerCase().includes(search.toLowerCase())).map((source) => <article key={source.id} id={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} space-y-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
-      <header className="flex flex-wrap items-center justify-between gap-2"><h3 className="min-w-0 break-words font-semibold">{source.name}</h3><span className={`rounded-full px-2 py-1 text-xs ${source.enabled ? 'bg-accent/15 text-accent' : 'bg-bg-tertiary text-text-secondary'}`}>{source.enabled ? 'Enabled' : 'Disabled'}</span></header>
-      <p className="break-words text-sm">{scheduleSummary(source)}</p><dl className="grid grid-cols-2 gap-2 text-xs"><div><dt className="text-text-secondary">Next fire (host local)</dt><dd className="mt-1 break-words">{source.nextFireAt?.replace('T', ' ') ?? 'No upcoming fire'}</dd></div><div><dt className="text-text-secondary">Revision</dt><dd className="mt-1">{source.revision}</dd></div></dl>
-      <p className="break-all font-mono text-[11px] text-text-secondary">{source.id}</p>
-      <div className="space-y-2 border-t border-border-default pt-3"><h4 className="text-xs font-semibold">{source.references?.length ?? 0} referencing subscribers</h4>{source.references?.map((ref) => <div key={ref.triggerId} className="flex min-w-0 flex-wrap items-center gap-2 text-xs"><button type="button" className="break-all text-left text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => jump('Trigger', ref.triggerId)}>{ref.name}</button>{ref.jobId && <button type="button" className="break-all text-left text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent" onClick={() => jump('Job', ref.jobId!)}>Job: {jobs.find((j) => j.jobId === ref.jobId)?.name ?? ref.jobId}</button>}<span className="text-text-secondary">{ref.enabled ? 'Enabled' : 'Disabled'}</span></div>)}</div>
-      <div className="flex flex-wrap gap-2"><Button disabled={!!editor} size="sm" onClick={() => setEditor({ key: newId('source'), source })}>Edit {source.name}</Button><JsonDetail label={`Schema for ${source.name}`} value={schema} /></div>
+  const [editor, setEditor] = useState<{ key: string; source: EventCreator | null } | null>(null);
+  const timeProvider = providers.find((p) => p.providerRef.type === 'time' && p.providerRef.id === 'scheduler');
+  return <div className="min-w-0 space-y-5"><header className="flex flex-wrap justify-between gap-3"><div><h2 className="text-lg font-semibold">Event Register</h2><p>Reusable canonical Event Creators. Each Scheduler keeps its own rules and cursor.</p></div><Button disabled={!!editor || !timeProvider} onClick={() => setEditor({ key: newId('creator'), source: null })}>New Scheduler</Button></header>
+    {editor && <SourceEditor key={editor.key} initial={editor.source} latest={sources.find((s) => s.id === editor.source?.id)} provider={timeProvider} refs={editor.source ? references[editor.source.id] ?? emptyRefs : emptyRefs} refresh={refresh} close={() => setEditor(null)} />}
+    <label className="block text-sm">Search event sources<input className={fieldClass} type="search" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+    {!sources.length && <p>No Scheduler sources yet.</p>}
+    <div className="grid min-w-0 gap-3 lg:grid-cols-2">{sources.filter((s) => `${s.name} ${JSON.stringify(s.config)}`.toLowerCase().includes(search.toLowerCase())).map((source) => <article id={source.id} key={source.id} aria-label={`Scheduler ${source.name}`} className={`${cardClass} space-y-3 ${focusId === source.id ? 'ring-2 ring-accent' : ''}`}>
+      <h3>{source.name}</h3><p>{source.state} · Revision {source.revision} · State revision {source.stateRevision}</p><p className="break-all text-xs">{source.id}</p>
+      <JsonDetail label={`Time rules for ${source.name}`} value={source.config} />
+      <h4>{references[source.id]?.references.length ?? 0} referencing subscribers</h4>{references[source.id]?.references.map((ref) => <div key={ref.triggerId} className="flex flex-wrap gap-2 text-sm"><button onClick={() => jump('Trigger', ref.triggerId)}>{ref.name}</button><button onClick={() => jump('Job', ref.jobId)}>{ref.jobName}</button><span>{ref.enabled ? 'Enabled' : 'Disabled'}</span></div>)}
+      <Button disabled={!!editor} onClick={() => setEditor({ key: newId('edit'), source })}>Edit {source.name}</Button>
     </article>)}</div>
-    <section className="space-y-3 border-t border-border-default pt-5"><h3 className="font-semibold">System and plugin event types</h3><p className="text-xs text-text-secondary">Registered by their owning runtime. These definitions are read only here.</p><div className="grid min-w-0 gap-3 lg:grid-cols-2">{definitions.map((definition) => <article key={definition.type} className={`${cardClass} space-y-2`}><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="break-all text-sm font-medium">{definition.type}</h4><span className="text-xs text-text-secondary">{definition.available ? 'Available' : 'Unavailable'}</span></div><p className="text-xs text-text-secondary">Schema v{definition.schemaVersion} · Read only</p><JsonDetail label={`Schema ${definition.type}`} value={definition.schema} /></article>)}</div></section>
+    <section><h3>System and plugin event types</h3>{definitions.map((definition) => <div key={definition.type}><p>{definition.type} · {definition.available ? 'Available' : 'Unavailable'}</p><JsonDetail label={`Schema ${definition.type}`} value={definition.schema} /></div>)}</section>
   </div>;
 }
-
-function SourceEditor({ initial, latest, creationKey, jobs, onSaved, onClose }: { initial: SchedulerSource | null; latest?: SchedulerSource; creationKey: string; jobs: ActionJob[]; onSaved: () => Promise<void>; onClose: () => void }) {
-  const [basis, setBasis] = useState(initial);
-  const [draft, setDraft] = useState<SchedulerConfig>(() => initial ? { name: initial.name, schedule: initial.schedule, enabled: initial.enabled, misfirePolicy: initial.misfirePolicy, graceSec: initial.graceSec } : defaultSource());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [ack, setAck] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  useAutomationDraft(dirty,busy);
-  const references = basis?.references ?? [];
-  const changed = !!initial && (!latest || latest.revision !== basis?.revision || latest.referencesVersion !== basis?.referencesVersion);
-  async function save() {
-    if (busy) return;
-    setBusy(true); setError('');
-    try { await automationRequest(`scheduler/event-sources${initial ? '/' + initial.id : ''}`, initial ? 'PUT' : 'POST', { config: draft, expectedRevision: basis?.revision ?? 0, ...(!initial ? { creationKey } : basis?.referencesVersion ? { expectedReferences: basis.referencesVersion } : {}) }); await onSaved(); onClose(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Save failed. Draft retained.'); await onSaved(); }
-    finally { setBusy(false); }
+function SourceEditor({ initial, latest, provider, refs, refresh, close }: { initial: EventCreator | null; latest?: EventCreator; provider?: SchedulerProvider; refs: CreatorReferences; refresh: () => Promise<void>; close: () => void }) {
+  const [basis, setBasis] = useState(initial), [referenceBasis, setReferenceBasis] = useState(refs);
+  const [name, setName] = useState(initial?.name ?? '');
+  const [description, setDescription] = useState(String(initial?.description ?? ''));
+  const [config, setConfig] = useState(() => JSON.stringify(initial?.config ?? { rules: [{ ruleId: 'interval', type: 'interval', seconds: '3600', anchor: new Date().toISOString(), advanceMode: 'grid' }], misfirePolicy: 'fire_now', graceSeconds: '300', pausePolicy: 'advance' }, null, 2));
+  const [enabled, setEnabled] = useState(initial?.state === 'enabled');
+  const [busy, setBusy] = useState(false), [dirty, setDirty] = useState(false), [reviewed, setReviewed] = useState(false), [error, setError] = useState('');
+  const [pending, setPending] = useState<{ operation: string; key: string; receipt?: CanonicalReceipt } | null>(null);
+  const busyRef = useRef(false);
+  useAutomationDraft(dirty, busy || !!pending);
+  const changed = !!initial && (!latest || latest.revision !== basis?.revision || latest.stateRevision !== basis?.stateRevision || refs.referenceDigest !== referenceBasis.referenceDigest);
+  async function operation(op: string, task: (key: string) => Promise<CanonicalReceipt>) {
+    const key = newId(op); setPending({ operation: op, key });
+    try {
+      const receipt = await task(key);
+      setPending(receipt.status === 'completed' ? null : { operation: op, key, receipt });
+      return receiptObject(receipt);
+    } catch (e) {
+      if (e instanceof ApiRequestError && e.status < 500) setPending(null);
+      throw e;
+    }
   }
-  return <section aria-label="Scheduler editor" className={`${cardClass} space-y-4`}><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold">{initial ? 'Edit Scheduler' : 'New Scheduler source'}</h3><Button disabled={busy} onClick={() => { if (!dirty || window.confirm('Discard Scheduler changes?')) onClose(); }}>Close Scheduler editor</Button></div>
-    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-    {changed && <div role="alert" className="space-y-2 rounded-lg border border-border-default p-3 text-sm"><p>The source or its subscribers changed. Your draft is retained; compare before saving.</p><JsonDetail label="Compare server Scheduler" value={latest ?? 'Deleted source'} />{latest && <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={() => { setDraft({ name: latest.name, schedule: latest.schedule, enabled: latest.enabled, misfirePolicy: latest.misfirePolicy, graceSec: latest.graceSec }); setBasis(latest); setAck(false); setDirty(false); setError(''); }}>Load server Scheduler</Button><Button disabled={busy} onClick={() => { setBasis(latest); setAck(false); setDirty(true); setError(''); }}>Keep draft against latest source revision</Button></div>}</div>}
-    <form onSubmit={(e) => { e.preventDefault(); void save(); }}><fieldset disabled={busy} className="min-w-0 space-y-4">
-      <SchedulerFields value={draft} onChange={(value) => { setDraft(value); setDirty(true); }} />
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={(e) => { setDraft({ ...draft, enabled: e.target.checked }); setDirty(true); }} />Scheduler enabled</label>
-      <section aria-label="Scheduler impact" className="min-w-0 space-y-2 rounded-lg border border-border-default p-3 text-sm"><h4 className="font-medium">{references.length ? `Changes affect ${references.length} subscribers` : 'No referencing subscribers'}</h4>{references.map((ref) => <p key={ref.triggerId} className="break-words text-xs">{ref.name}{ref.jobId ? ` · Job: ${jobs.find((j) => j.jobId === ref.jobId)?.name ?? ref.jobId}` : ''}</p>)}<p className="text-xs text-text-secondary">Disabling stops future time events. Already admitted runs continue. Deleting a Job keeps this shared source.</p>{references.length > 0 && <label className="flex items-start gap-2 text-xs"><input type="checkbox" required checked={ack} onChange={(e) => setAck(e.target.checked)} /><span>I reviewed the affected subscribers.</span></label>}</section>
-      <div className="flex flex-wrap gap-2"><Button type="submit" variant="primary" disabled={changed || references.length > 0 && !ack}>Save Scheduler</Button>{initial && <Button type="button" variant="danger" disabled={changed || basis?.enabled || references.length > 0} onClick={() => { if (!window.confirm('Delete this unreferenced Scheduler?')) return; setBusy(true); setError(''); void automationRequest(`scheduler/event-sources/${initial.id}?expectedRevision=${basis?.revision}`, 'DELETE').then(onSaved).then(onClose).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Delete failed')).finally(() => setBusy(false)); }}>Delete Scheduler</Button>}</div>
-      {initial && (initial.enabled || references.length > 0) && <p className="text-xs text-text-secondary">Disable this source and detach its references before deleting it.</p>}
+  async function save() {
+    if (busyRef.current || pending) return;
+    busyRef.current = true; setBusy(true); setError('');
+    try {
+      const parsed: unknown = JSON.parse(config);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Scheduler config must be a JSON object.');
+      const definition: JsonObject = basis ? definitionOf('event-creators', basis) : { ...provider, description: '' };
+      delete definition.configSchema;
+      const updated = await operation(basis ? 'update' : 'create', (key) => canonicalJobs.write('event-creators', basis, { ...definition, name, description, config: parsed }, key, basis ? referenceBasis.referenceDigest : undefined));
+      setBasis(updated);
+      let current = updated;
+      if (enabled !== (updated.state === 'enabled')) {
+        const op = enabled ? updated.state === 'paused' ? 'resume' : 'enable' : 'disable';
+        current = await operation(op, (key) => canonicalJobs.controlDefinition('event-creators', updated, op, key, basis ? referenceBasis.referenceDigest : undefined));
+      }
+      setBasis(current); setDirty(false); await refresh(); close();
+    } catch (e) { setError(canonicalError(e)); await refresh(); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function retire() {
+    if (!basis || pending || busyRef.current || !window.confirm('Retire this unreferenced Scheduler? Event history is retained.')) return;
+    busyRef.current = true; setBusy(true); setError('');
+    try { await operation('retire', (key) => canonicalJobs.retire('event-creators', basis, key, referenceBasis.referenceDigest)); await refresh(); close(); }
+    catch (e) { setError(canonicalError(e)); await refresh(); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  return <section aria-label="Scheduler editor" className={`${cardClass} space-y-4`}>
+    <header className="flex justify-between gap-2"><h3>{initial ? 'Edit Scheduler' : 'New Scheduler source'}</h3><Button disabled={busy || !!pending} onClick={() => { if (!dirty || window.confirm('Discard Scheduler changes?')) close(); }}>Close Scheduler editor</Button></header>
+    {error && <p role="alert">{error}</p>}
+    {pending && <section aria-label="Pending source operation"><p>Outcome unconfirmed. Query the original operation before continuing.</p><p className="break-all">{pending.key}</p><Button disabled={busy} onClick={() => { setBusy(true); void canonicalJobs.lookup(pending.operation, pending.key, pending.receipt?.operationId).then(async (receipt) => { if (receipt.status === 'completed') { setBasis(receiptObject(receipt)); setPending(null); setError(''); await refresh(); } else setPending({ ...pending, receipt }); }).catch((e: unknown) => setError(canonicalError(e))).finally(() => setBusy(false)); }}>Query original operation</Button></section>}
+    {changed && <div role="alert"><p>The source or its subscribers changed. Your draft is retained; compare before saving.</p><JsonDetail label="Compare server Scheduler" value={latest ?? 'Retired source'} />{latest && <><Button disabled={busy || !!pending} onClick={() => { setBasis(latest); setReferenceBasis(refs); setReviewed(false); setError(''); }}>Keep draft against latest source revision</Button><Button disabled={busy || !!pending} onClick={() => { setName(latest.name); setDescription(String(latest.description ?? '')); setConfig(JSON.stringify(latest.config, null, 2)); setEnabled(latest.state === 'enabled'); setBasis(latest); setReferenceBasis(refs); setReviewed(false); setDirty(false); setError(''); }}>Load server Scheduler</Button></>}</div>}
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }} onChange={() => setDirty(true)}><fieldset disabled={busy || !!pending} className="min-w-0 space-y-4">
+      <label className="block">Scheduler name<input required maxLength={200} className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="block">Description<textarea className={fieldClass} value={description} onChange={(e) => setDescription(e.target.value)} /></label>
+      {(() => { try { const value: unknown = JSON.parse(config); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(); return <CanonicalSchedulerFields value={value as JsonObject} onChange={(next) => { setConfig(JSON.stringify(next, null, 2)); setDirty(true); }} />; } catch { return <p role="status">Fix the advanced configuration before using the time-rule form. Your text is retained.</p>; } })()}
+      <details><summary>Advanced Scheduler JSON</summary><label className="block">Scheduler config JSON<textarea spellCheck={false} rows={18} className={`${fieldClass} font-mono`} value={config} onChange={(e) => setConfig(e.target.value)} /></label><JsonDetail label="Scheduler config schema" value={provider?.configSchema} /></details>
+      <label><input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />Scheduler enabled</label>
+      <section aria-label="Scheduler impact"><h4>{referenceBasis.references.length} referencing subscribers</h4>{referenceBasis.references.map((ref) => <p key={ref.triggerId}>{ref.name} · {ref.jobName}</p>)}<p>Disabling stops future time events. Already admitted Runs continue. Shared sources outlive their Jobs.</p>{referenceBasis.references.length > 0 && <label><input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />I reviewed the affected subscribers.</label>}</section>
+      <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy || !!pending || changed || (referenceBasis.references.length > 0 && !reviewed)}>Save Scheduler</Button>{initial && <Button type="button" disabled={busy || !!pending || changed || basis?.state === 'enabled' || referenceBasis.references.length > 0} onClick={() => void retire()}>Delete Scheduler</Button>}</div>
     </fieldset></form>
   </section>;
 }

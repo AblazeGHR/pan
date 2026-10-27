@@ -1,0 +1,189 @@
+{
+  "files": 359,
+  "staticLegacyHostImports": [],
+  "dynamicCandidates": [
+    {
+      "path": "packages/core/adapters/opencode/sessions.py",
+      "line": 311,
+      "literal": "time",
+      "code": "__import__(\"time\")"
+    },
+    {
+      "path": "packages/jobs/independent_runner.py",
+      "line": 290,
+      "literal": "signal",
+      "code": "__import__(\"signal\")"
+    },
+    {
+      "path": "packages/web/e2e/automation.server.py",
+      "line": 10,
+      "literal": "automation_browser_fixture",
+      "code": "importlib.util.spec_from_file_location('automation_browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/automation.server.py",
+      "line": 12,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/composerUrlNodeHttp.e2e.py",
+      "line": 57,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location(\n    \"browser_fixture\", ROOT / \"packages/web/e2e/server.py\"\n)"
+    },
+    {
+      "path": "packages/web/e2e/composerUrlNodeHttp.e2e.py",
+      "line": 62,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/frontend-full.server.py",
+      "line": 10,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/frontend-full.server.py",
+      "line": 12,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/historySearchServer.py",
+      "line": 12,
+      "literal": "search_fixture",
+      "code": "importlib.util.spec_from_file_location('search_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/historySearchServer.py",
+      "line": 14,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/jobs-badge-retry.server.py",
+      "line": 24,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/jobs-badge-retry.server.py",
+      "line": 26,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/jobs-badge.server.py",
+      "line": 15,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/jobs-badge.server.py",
+      "line": 17,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.server.py",
+      "line": 6,
+      "literal": "live_fixture",
+      "code": "importlib.util.spec_from_file_location(\"live_fixture\", Path(__file__).with_name(\"server.py\"))"
+    },
+    {
+      "path": "packages/web/e2e/live-indicators.server.py",
+      "line": 8,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/navigationServer.py",
+      "line": 6,
+      "literal": "nav_fixture",
+      "code": "importlib.util.spec_from_file_location('nav_fixture', Path(os.environ.get('PAN_NAV_CHECKOUT', Path(__file__).resolve().parents[3])) / 'packages/web/e2e/server.py')"
+    },
+    {
+      "path": "packages/web/e2e/navigationServer.py",
+      "line": 8,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/network-list.server.py",
+      "line": 6,
+      "literal": "network_fixture",
+      "code": "importlib.util.spec_from_file_location(\"network_fixture\", Path(__file__).with_name(\"server.py\"))"
+    },
+    {
+      "path": "packages/web/e2e/network-list.server.py",
+      "line": 8,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/notification-deeplink.server.py",
+      "line": 18,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/notification-deeplink.server.py",
+      "line": 20,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/notification-workspace-jump.server.py",
+      "line": 20,
+      "literal": "browser_fixture",
+      "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))"
+    },
+    {
+      "path": "packages/web/e2e/notification-workspace-jump.server.py",
+      "line": 22,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/queueDraftAttachments.http.py",
+      "line": 30,
+      "literal": "fixture",
+      "code": "importlib.util.spec_from_file_location(\"fixture\", WEB / \"e2e/server.py\")"
+    },
+    {
+      "path": "packages/web/e2e/queueDraftAttachments.http.py",
+      "line": 32,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/queueDraftAttachmentsRoute.http.py",
+      "line": 33,
+      "literal": "fixture",
+      "code": "importlib.util.spec_from_file_location(\"fixture\", WEB / \"e2e/server.py\")"
+    },
+    {
+      "path": "packages/web/e2e/queueDraftAttachmentsRoute.http.py",
+      "line": 35,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    },
+    {
+      "path": "packages/web/e2e/session-summary.server.py",
+      "line": 6,
+      "literal": "summary_fixture",
+      "code": "importlib.util.spec_from_file_location(\"summary_fixture\", Path(__file__).with_name(\"server.py\"))"
+    },
+    {
+      "path": "packages/web/e2e/session-summary.server.py",
+      "line": 8,
+      "literal": null,
+      "code": "spec.loader.exec_module(fixture)"
+    }
+  ],
+  "literalDynamicLegacyHostImports": [],
+  "unreviewedProductionDynamicImports": [],
+  "pythonParseErrors": []
+}

@@ -286,7 +286,11 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     pairs = Counter((method, route.path) for route in routes if hasattr(route, "methods") for method in route.methods)
     assert max(pairs.values()) == 1
     canonical = [route for route in routes if "canonical-jobs" in getattr(route, "tags", []) and not route.deprecated]
-    assert len(canonical) == 31
+    assert len(canonical) == 33
+    # Source management adds metadata and reference reads before the generic
+    # object route. Keep the exact count and registration ownership assertions.
+    for path in ("/api/event-creators/providers", "/api/event-creators/{creator_id}/references"):
+        assert pairs[("GET", path)] == 1
     assert pairs[("POST", "/api/final/jobs")] == 1
     assert pairs[("POST", "/api/jobs")] == 1
     assert pairs[("POST", "/api/jobs/action-jobs")] == 1

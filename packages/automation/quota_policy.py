@@ -549,7 +549,7 @@ class Runtime:
         return self._ensure_job(state,purpose,at,account,wake_target)
 
     def _ensure_job(self,state,purpose,at,account=None,wake_target=None):
-        from packages.scheduler.store import _job_from_payload
+        from packages.jobs.scheduled_records import build_record
         jid='job_'+fingerprint([str(self.root),state['epoch'],purpose,account])[:24]
         existing=jobs.get(jid,self.root)
         if existing:
@@ -563,7 +563,7 @@ class Runtime:
                     jobs._update(old['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root)
         from datetime import datetime
         specs=[{'kind':'interval','intervalSec':60}] if at is None else [{'kind':'once','at':datetime.fromtimestamp(at).isoformat()}]
-        job=_job_from_payload({'name':'Quota '+purpose,'enabled':True,'action':{'api':'quota_query'},'_schedule_specs':specs,'_misfire':'fire_now','_max_runs':None})
+        job=build_record({'name':'Quota '+purpose,'enabled':True,'action':{'api':'quota_query'},'_schedule_specs':specs,'_misfire':'fire_now','_max_runs':None}, root=self.root)
         job.update(jobId=jid,quotaPolicy={'contractVersion':CONTRACT_VERSION,'epoch':state['epoch'],'purpose':purpose,'maSessionId':state['maSessionId'],'expectedAccountId':account,'wakeTarget':wake_target})
         try:jobs._create(job,self.root)
         except ValueError:

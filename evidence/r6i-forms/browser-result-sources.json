@@ -1,0 +1,91 @@
+{
+  "port": 60872,
+  "ownedRoot": true,
+  "productionBundle": true,
+  "actionReferenceMetadataPresent": true,
+  "chromiumVersion": "153.0.8010.12",
+  "pageErrors": [],
+  "ordinaryJSONFills": 0,
+  "kindsCreatedEdited": [
+    "interval",
+    "once",
+    "weekly",
+    "cron"
+  ],
+  "multiRuleStableIds": true,
+  "jobCreatedWithForm": false,
+  "jobStepsStableIds": false,
+  "jobRetentionDefinitionPin": false,
+  "typedBindingAndMoveValidation": false,
+  "nativeSubscriptions": 2,
+  "triggerEditedWithForm": true,
+  "sharedConflictDraftRebase": true,
+  "unknownCommittedOriginalQuery": true,
+  "unknownPutCalls": 1,
+  "legacySourceRequests": 0,
+  "providerCalls": 0,
+  "writeRequests": [
+    [
+      "POST",
+      "/api/main/startup-recovery/claim"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_0836cc758ebf40a4eb078f3b"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_e668bb910a2b22c11ab45806"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_412f70b30bcdb7e57c51bad3"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_1c679674e1b93d457d65454a"
+    ],
+    [
+      "POST",
+      "/api/triggers"
+    ],
+    [
+      "POST",
+      "/api/triggers"
+    ],
+    [
+      "PUT",
+      "/api/triggers/trigger_87d1e893f08e4b858e8ee98d"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_1c679674e1b93d457d65454a"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_1c679674e1b93d457d65454a"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_1c679674e1b93d457d65454a"
+    ]
+  ],
+  "invalidFields": [],
+  "portReleased": true
+}

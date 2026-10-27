@@ -1,0 +1,33 @@
+Isolated test child: inherited PAN_* removed; cwd=C:\Users\14709\AppData\Local\Temp\pan-r6i-extra-baseline-8tnius9a
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_ test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt _
+packages\jobs\system_actions.py:209: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+The above exception was the direct cause of the following exception:
+tests\test_authorization_runtime.py:136: in test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+    monkeypatch.setattr('packages.jobs.system_actions.execute',no_signal)
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:109: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:97: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'
+____ test_quota_policy_owned_http_default_unavailable_is_unknown_real_http ____
+tests\test_quota_policy_http.py:45: in test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
+    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+    ^^^^^^^^^^^^^^^^^^^
+E   NameError: name 'monkeypatcreal_http' is not defined
+============================== warnings summary ===============================
+..\..\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+FAILED tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http

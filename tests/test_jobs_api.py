@@ -27,6 +27,7 @@ from packages.core import worker as core_worker
 from packages.jobs import api as jobs_api
 from packages.jobs import templates as job_templates
 from packages.scheduler import store as scheduler_store
+from packages.core.platform import data_paths
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +36,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.delenv("PAN_BACKGROUND_JOBS_DIR", raising=False)
     monkeypatch.setattr(jobs, "DEFAULT_ROOT", tmp_path / "bg_jobs")
     monkeypatch.setattr(scheduler_store, "DEFAULT_ROOT", tmp_path / "bg_jobs")
+    monkeypatch.setattr(data_paths, "DEFAULT_ROOT", tmp_path / "bg_jobs")
     monkeypatch.setattr(jobs, "_scheduled_task_hooks",
                         {"root_resolver": None, "config_resolver": None,
                          "on_event": None, "qq_send": None})

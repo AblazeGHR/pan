@@ -4,6 +4,19 @@ export type ScheduleRule = { kind: 'once' | 'interval' | 'cron'; at?: string; in
 export type SchedulerConfig = { name: string; schedule: ScheduleRule; enabled: boolean; misfirePolicy: 'fire_now' | 'skip'; graceSec: number };
 export type SourceReference = { triggerId: string; name: string; jobId?: string; enabled: boolean };
 export type SchedulerSource = SchedulerConfig & { id: string; revision: number; owner: string; nextFireAt: string | null; publishCursor?: unknown; references?: SourceReference[]; referencesVersion?: string; lastOutcome?: string };
+// Canonical source definitions retain the entire provider config, including
+// multiple rules, decimal durations, anchors, explicit zones/DST and driveLimit.
+import type { CanonicalObject, JsonObject } from './canonicalJobs';
+export interface EventCreator extends CanonicalObject {
+  revision: number;
+  providerRef: JsonObject;
+  configSchemaRef: JsonObject;
+  config: JsonObject;
+  eventTypes: string[];
+  requiredCapabilities: string[];
+}
+export type CreatorReferences = { references: { triggerId: string; name: string; jobId: string; jobName: string; revision: number; stateRevision: number; enabled: boolean }[]; referenceDigest: string };
+export type SchedulerProvider = Pick<EventCreator, 'providerRef' | 'configSchemaRef' | 'eventTypes' | 'requiredCapabilities'> & { configSchema: unknown };
 export type TimeLink = { linkId: string; mode: 'existing'; sourceId: string; sourceRevision: number } | { linkId: string; mode: 'new'; config: SchedulerConfig };
 export type JobConfig = {
   name: string; description: string; enabled: boolean; actionId: string; arguments: Record<string, unknown>; steps?: ChainStep[];
@@ -23,5 +36,5 @@ export function normalizeChainSteps(steps: { stepId: string; actionId: string; a
 export const defaultJob = (): JobConfig => ({ name: '', description: '', enabled: false, actionId: '', arguments: {}, steps: [], trigger: { kind: 'manual' }, schedule: [], overlap: { mode: 'forbid', parallelLimit: 3 }, recovery: { enabled: false, monitoring: false, maxAttempts: 3, backoffSec: [5, 15, 60], stableResetSec: 300 }, completion: { kind: 'ordinary' }, notification: { on: ['completed', 'failed', 'cancelled', 'uncertain'], target: 'job' } });
 export function scheduleSummary(source: SchedulerConfig) {
   const s = source.schedule;
-  return `${s.kind === 'interval' ? `Every ${s.intervalSec ?? s.interval_sec} seconds` : s.kind === 'cron' ? `Cron ${s.cron}` : `Once ${s.at}`} · ${s.timezone || 'Host local timezone'}`;
+  return `${s.kind === 'interval' ? `Every ${s.intervalSec ?? s.interval_sec} seconds` : s.kind === 'cron' ? `Cron ${s.cron}` : `Once ${s.at}`} 路 ${s.timezone || 'Host local timezone'}`;
 }

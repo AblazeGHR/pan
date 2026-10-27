@@ -726,8 +726,8 @@ def retarget_legacy_jobs(registry, old_session_id: str, new_session_id: str, reg
         candidate_roots.append(Path(registry_root).expanduser())
     else:
         try:
-            from packages.scheduler import store as scheduler_store
-            candidate_roots.append(scheduler_store.data_root())
+            from packages.core.platform.data_paths import job_root
+            candidate_roots.append(job_root())
         except Exception as exc:
             summary['errors'].append({'root': None, 'jobId': None, 'error': f'scheduler registry resolution failed: {type(exc).__name__}: {exc}'})
         background_root_hint = Path(registry.os.environ.get('PAN_BACKGROUND_JOBS_DIR') or registry.DEFAULT_ROOT).expanduser()

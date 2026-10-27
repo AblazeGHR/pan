@@ -251,15 +251,74 @@ class FinalService:
         with self.transaction(readonly=True) as db:
             return self._object(db, kind, object_id)
 
+    def creator_providers(self, *, actor):
+        self._permit(actor, "event_creator", "read")
+        provider = self.creators.registry.providers[("time", "scheduler")]
+        return {"items": [{"providerRef": {"type": provider.provider_type, "id": provider.provider_id,
+            "generation": provider.generation, "releaseDigest": provider.release_digest},
+            "configSchemaRef": provider.config_schema_ref, "requiredCapabilities": list(provider.capabilities),
+            "eventTypes": ["scheduler.time.v2"], "configSchema": fc.schema_artifacts()["scheduler_config.schema.json"]}]}
+
+    def _creator_references(self, db, creator_id):
+        creator = self.creators.get(creator_id)
+        if creator is None:
+            raise KeyError(creator_id)
+        references = []
+        for trigger in self._all(db, "trigger"):
+            selector = trigger["creatorSelector"]
+            selected = (creator_id in selector.get("ids", []) if selector["mode"] == "ids" else
+                selector.get("providerType") == creator["providerRef"]["type"] and
+                bool(set(trigger["eventTypes"]) & set(creator["eventTypes"])))
+            if not selected or trigger["state"] == "retired":
+                continue
+            job = self._get(db, "job", trigger["targetJobId"])["canonical"]
+            references.append({"triggerId": trigger["id"], "name": trigger["name"],
+                "revision": trigger["revision"], "stateRevision": trigger["stateRevision"],
+                "jobId": job["id"], "jobName": job["name"], "jobRevision": job["configRevision"],
+                "enabled": trigger["state"] == "enabled", "selector": copy.deepcopy(selector)})
+        references.sort(key=lambda value: value["triggerId"])
+        return {"references": references, "referenceDigest": fc.digest(references)}
+
+    def creator_references(self, creator_id, *, actor):
+        self._permit(actor, "event_creator", "read")
+        self._permit(actor, "trigger", "read")
+        self._permit(actor, "job", "read")
+        with self.transaction(readonly=True) as db:
+            return self._creator_references(db, creator_id)
+
+    def _check_creator_references(self, db, creator_id, expected):
+        if not isinstance(expected, str) or expected != self._creator_references(db, creator_id)["referenceDigest"]:
+            error("reference_conflict", "Source subscribers changed; review references again")
+
     def write(self, kind, object_id, body, *, actor):
         self._permit(actor, kind, "create" if object_id is None else "updateConfig")
-        if set(body) - {"definition", "expectedRevision", "requestKey", "requestDigest"}:
+        allowed = {"definition", "expectedRevision", "requestKey", "requestDigest"}
+        if kind == "event_creator":
+            allowed.add("expectedReferences")
+        if kind == "trigger":
+            allowed.add("expectedCreatorRevisions")
+        if set(body) - allowed:
             error("invalid_schema", "Unknown write fields")
         value = fc.validate_write(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+        if "expectedReferences" in body:
+            value["expectedReferences"] = body["expectedReferences"]
+        if "expectedCreatorRevisions" in body:
+            value["expectedCreatorRevisions"] = body["expectedCreatorRevisions"]
         with self.transaction() as db:
             def mutate(operation_id):
+                if kind == "trigger" and "expectedCreatorRevisions" in body:
+                    expected = body["expectedCreatorRevisions"]
+                    selector = value["definition"]["creatorSelector"]
+                    if not isinstance(expected, dict) or set(expected) != set(selector.get("ids", [])):
+                        error("reference_conflict", "Review every selected Creator revision")
+                    for cid, revision in expected.items():
+                        creator = self.creators.get(cid)
+                        if creator is None or type(revision) is not int or creator["revision"] != revision:
+                            error("reference_conflict", "Selected Creator revision changed")
                 old = self._object(db, kind, object_id) if object_id is not None else None
                 if old:
+                    if kind == "event_creator" and "expectedReferences" in body:
+                        self._check_creator_references(db, object_id, body["expectedReferences"])
                     fc.check_revision(old[fc.VERSION_FIELD[kind]], value["expectedRevision"])
                     if old["state"] == "retired" or (kind == "template" and old["state"] == "published"):
                         error("reference_conflict", "Immutable or retired definition")
@@ -301,11 +360,23 @@ class FinalService:
                 fc.check_revision(item[fc.VERSION_FIELD[kind]], body["expectedRevision"])
                 fc.check_revision(item["stateRevision"], body["expectedStateRevision"])
                 transition = fc.check_definition_operation(kind, item["state"], op)
-                if body["parameters"]:
+                parameters = dict(body["parameters"])
+                if kind == "event_creator" and "expectedReferences" in parameters:
+                    self._check_creator_references(db, object_id, parameters.pop("expectedReferences"))
+                    if op == "retire" and (item["state"] == "enabled" or self._creator_references(db, object_id)["references"]):
+                        error("reference_conflict", "Disable source and detach subscribers before retirement")
+                if parameters:
                     error("invalid_schema", "Operation has no supported parameters")
                 if op == "transfer-owner":
                     error("unsupported_operation", "Owner transfer needs its explicit composition contract")
                 if transition["state"] == "enabled":
+                    if kind == "event_creator":
+                        source = self.creators.get(object_id)
+                        adoption = source.get("pendingAdoption")
+                        if adoption and not adoption["publicationSettled"]:
+                            error("pending_publication", "Explicitly settle source publication before activation")
+                        from packages.scheduler.source_migration import validate_successors
+                        validate_successors(self, source)
                     self._references(db, kind, definition(kind, item), object_id=object_id, enabled=True)
                     db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, object_id, fc.canonical_json(actor)))
                 if kind == "event_creator":
@@ -594,7 +665,9 @@ class FinalService:
     def actions(self, *, actor):
         self._permit(actor, "action", "read")
         with self.transaction(readonly=True) as db:
-            return {"items": self._all(db, "action"), "nextCursor": None}
+            items = self._all(db, "action")
+            return {"items": items, "nextCursor": None,
+                    "references": {item["id"]: object_ref("action", item) for item in items}}
 
     def _guard_effect(self, db, job, run_id, frozen, action):
         self._permit(frozen["authority"], "job", "execute", execution=True)
@@ -691,8 +764,10 @@ class FinalService:
                     self.final.ledger.transition_run(job, self.root, run_id, "failed")
                     self._settle(db, job, run_id, failure=getattr(exc, "code", "invalid_schema"))
                     return
-                attempt = self.final.ledger.begin_attempt(job, self.root, run_id, step["stepId"])
-                attempt["ownerEpoch"] = self.owner.token[0] if self.owner.token else attempt["ownerEpoch"]
+                attempt = self.final.ledger.begin_attempt(
+                    job, self.root, run_id, step["stepId"],
+                    owner_epoch=self.owner.token[0] if self.owner.token else 1,
+                )
                 for row in db.execute("SELECT id,document FROM final_operations").fetchall():
                     op = json.loads(row[1])
                     if op["operation"] == "retry" and op["response"].get("runId") == run_id and op["response"]["status"] == "accepted":
@@ -898,10 +973,18 @@ class FinalService:
         result = await evaluate(target.get("condition"), self.state_reader, {})
         return await asyncio.to_thread(self.admit_event, event, target, condition_result=result)
 
-    async def tick(self):
+    def refresh_subscriptions(self):
         with self.transaction() as db:
             self.bus.subscriptions = {item["id"]: {**item, "subscriptionId": item["id"],
                 "creatorIds": item["creatorSelector"].get("ids", [])} for item in self._all(db, "trigger")}
+
+    def scheduler_migration(self, legacy_events):
+        """Explicit reviewed handoff port; never instantiated by startup scans."""
+        from packages.scheduler.source_migration import SourceMigration
+        return SourceMigration(self, legacy_events)
+
+    async def tick(self):
+        self.refresh_subscriptions()
         await self.creator_runtime.tick()
         for event in await asyncio.to_thread(self.events.page):
             snapshot = await asyncio.to_thread(self.events.get, event["eventId"])
@@ -958,6 +1041,8 @@ class FinalService:
                     self._save(db, "job", job_id, job)
 
     def _guard_creator(self, item):
+        from packages.scheduler.source_migration import validate_successors
+        validate_successors(self, item)
         with self.transaction(readonly=True) as db:
             row = db.execute("SELECT document FROM final_authorities WHERE kind='event_creator' AND id=?", (item["id"],)).fetchone()
             if row is None:
@@ -1027,7 +1112,7 @@ def bind(app, automation, root, *, owner=None):
     service = FinalService(root, automation.auth, automation_ledger=automation.ledger, owner=owner)
     import os
     from packages.core import background_jobs
-    from packages.scheduler.store import data_root
+    from packages.core.platform.data_paths import job_root as data_root
     service.legacy_roots = [Path(os.environ.get("PAN_BACKGROUND_JOBS_DIR") or background_jobs.DEFAULT_ROOT), data_root()]
     service.state_reader = automation.engine.state_reader
     automation.events.owner_fence = service.owner

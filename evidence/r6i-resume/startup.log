@@ -1,0 +1,52 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+.F.                                                                      [100%]
+================================== FAILURES ===================================
+_ test_web_import_and_canonical_startup_reopen_without_loading_either_legacy_host _
+tests\test_scheduler_dependency_cutover.py:81: in test_web_import_and_canonical_startup_reopen_without_loading_either_legacy_host
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<string>", line 59, in <module>
+E         asyncio.run(run())
+E         ~~~~~~~~~~~^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 203, in run
+E         with Runner(debug=debug, loop_factory=loop_factory) as runner:
+E              ~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 59, in __enter__
+E         self._lazy_init()
+E         ~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 146, in _lazy_init
+E         self._loop = events.new_event_loop()
+E                      ~~~~~~~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\events.py", line 844, in new_event_loop
+E         return _get_event_loop_policy().new_event_loop()
+E                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\events.py", line 732, in new_event_loop
+E         return self._loop_factory()
+E                ~~~~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\windows_events.py", line 316, in __init__
+E         super().__init__(proactor)
+E         ~~~~~~~~~~~~~~~~^^^^^^^^^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py", line 639, in __init__
+E         self._make_self_pipe()
+E         ~~~~~~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py", line 786, in _make_self_pipe
+E         self._ssock, self._csock = socket.socketpair()
+E                                    ~~~~~~~~~~~~~~~~~^^
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\socket.py", line 621, in _fallback_socketpair
+E         lsock.bind((host, 0))
+E         ~~~~~~~~~~^^^^^^^^^^^
+E       File "<string>", line 14, in audit
+E         raise AssertionError('Unexpected network/process effect: ' + event)
+E     AssertionError: Unexpected network/process effect: socket.bind
+E     <sys>:0: RuntimeWarning: coroutine 'run' was never awaited
+E     Exception ignored while calling deallocator <function BaseEventLoop.__del__ at 0x000002A88950F270>:
+E     Traceback (most recent call last):
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 760, in __del__
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py", line 696, in close
+E       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py", line 778, in _close_self_pipe
+E     AttributeError: 'ProactorEventLoop' object has no attribute '_ssock'
+E
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe', '-c', "\nimport as...events.py", line 778, in _close_self_pipe\nAttributeError: \'ProactorEventLoop\' object has no attribute \'_ssock\'\n').returncode
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_dependency_cutover.py::test_web_import_and_canonical_startup_reopen_without_loading_either_legacy_host

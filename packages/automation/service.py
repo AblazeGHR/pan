@@ -25,7 +25,7 @@ class Service:
         self.bus.register(self.core, 'workers.all_idle', {'type': 'object', 'properties': {'runningCount': {'const': 0}}, 'required': ['runningCount'], 'additionalProperties': False})
         self.issue_runtime = self.bus.activate('core', 'runtime')
         self.bus.register(self.issue_runtime, 'runtime.issue.v1', runtime_issue_event_schema())
-        from packages.scheduler.time_events import EVENT_TYPE, PAYLOAD_SCHEMA
+        from packages.scheduler.time_contract import EVENT_TYPE, PAYLOAD_SCHEMA
         self.scheduler_handle=self.bus.activate('core','scheduler')
         self.bus.register(self.scheduler_handle,EVENT_TYPE,PAYLOAD_SCHEMA)
         async def state_reader(key):

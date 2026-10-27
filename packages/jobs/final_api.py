@@ -282,6 +282,18 @@ router = APIRouter(route_class=ContractRoute, tags=["canonical-jobs"])
 
 
 def definition_routes(base, kind):
+    def write_body(raw, *, create=False):
+        extra = "expectedReferences" if kind == "event_creator" else "expectedCreatorRevisions" if kind == "trigger" else None
+        extras = {extra: raw.pop(extra)} if extra and extra in raw else {}
+        value = contracts.validate_write(kind, raw, create=create)
+        if "expectedReferences" in extras:
+            if not isinstance(extras["expectedReferences"], str):
+                reject("invalid_schema", "expectedReferences must be a digest")
+        if "expectedCreatorRevisions" in extras and not isinstance(extras["expectedCreatorRevisions"], dict):
+            reject("invalid_schema", "expectedCreatorRevisions must be an object")
+        value.update(extras)
+        return value
+
     async def listing(request: Request):
         who = await actor(request, kind, "read")
         return page_result(kind, await invoke(request, "list", kind, actor=who, **page(request)))
@@ -292,12 +304,12 @@ def definition_routes(base, kind):
 
     async def create(request: Request):
         who = await actor(request, kind, "create")
-        value = contracts.validate_write(kind, await body(request), create=True)
+        value = write_body(await body(request), create=True)
         return write_result(await invoke(request, "write", kind, None, value, actor=who), created=True)
 
     async def update(object_id: str, request: Request):
         who = await actor(request, kind, "updateConfig")
-        value = contracts.validate_write(kind, await body(request))
+        value = write_body(await body(request))
         return write_result(await invoke(request, "write", kind, object_id, value, actor=who))
 
     async def control(object_id: str, request: Request):
@@ -319,13 +331,13 @@ def definition_routes(base, kind):
     async def delete(object_id: str, request: Request):
         who = await actor(request, kind, "delete")
         value = await body(request)
-        fields(value, {"expectedRevision", "expectedStateRevision", "requestKey"},
+        fields(value, {"expectedRevision", "expectedStateRevision", "requestKey"} | ({"expectedReferences"} if kind == "event_creator" else set()),
                {"expectedRevision", "expectedStateRevision", "requestKey"})
         revision(value["expectedRevision"])
         revision(value["expectedStateRevision"], "expectedStateRevision")
         contracts.check_request_key(value["requestKey"])
         # DELETE means retirement. Physical resource purge is never implicit.
-        value.update(operation="retire", parameters={})
+        value.update(operation="retire", parameters={"expectedReferences": value.pop("expectedReferences")} if "expectedReferences" in value else {})
         return write_result(await invoke(request, "retire", kind, object_id, value, actor=who))
 
     for suffix, method, function in [("", "GET", listing), ("", "POST", create),
@@ -339,6 +351,18 @@ def definition_routes(base, kind):
 async def action_catalog(request: Request):
     who = await actor(request)
     return await invoke(request, "actions", actor=who)
+
+
+@router.get("/event-creators/providers")
+async def creator_providers(request: Request):
+    who = await actor(request, "event_creator", "read")
+    return await invoke(request, "creator_providers", actor=who)
+
+
+@router.get("/event-creators/{creator_id}/references")
+async def creator_references(creator_id: str, request: Request):
+    who = await actor(request, "event_creator", "read")
+    return await invoke(request, "creator_references", creator_id, actor=who)
 
 
 for _path, _kind in KINDS.items():

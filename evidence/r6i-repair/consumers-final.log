@@ -1,0 +1,3 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+
+ERROR: file or directory not found: tests/test_automation_composition.py

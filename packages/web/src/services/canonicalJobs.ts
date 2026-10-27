@@ -76,17 +76,22 @@ export const canonicalJobs = {
     item: CanonicalObject | null,
     definition: JsonObject,
     requestKey: string,
+    expectedReferences?: string,
+    expectedCreatorRevisions?: Record<string, number>,
   ) =>
     canonicalRequest<CanonicalReceipt>(
       item ? `${kind}/${part(item.id)}` : kind,
       item ? 'PUT' : 'POST',
-      { definition, expectedRevision: item ? revisionOf(item) : 0, requestKey },
+      { definition, expectedRevision: item ? revisionOf(item) : 0, requestKey,
+        ...(expectedReferences === undefined ? {} : { expectedReferences }),
+        ...(expectedCreatorRevisions === undefined ? {} : { expectedCreatorRevisions }) },
     ),
-  retire: (kind: CanonicalKind, item: CanonicalObject, requestKey: string) =>
+  retire: (kind: CanonicalKind, item: CanonicalObject, requestKey: string, expectedReferences?: string) =>
     canonicalRequest<CanonicalReceipt>(`${kind}/${part(item.id)}`, 'DELETE', {
       expectedRevision: revisionOf(item),
       expectedStateRevision: item.stateRevision,
       requestKey,
+      ...(expectedReferences === undefined ? {} : { expectedReferences }),
     }),
   runs: (jobId: string, cursor?: string | null, signal?: AbortSignal) =>
     canonicalRequest<CanonicalPage<CanonicalRun>>(
@@ -118,5 +123,12 @@ export const canonicalJobs = {
         ? `operations/${part(operationId)}`
         : `operations?operation=${part(operation)}&requestKey=${part(requestKey)}`,
     ),
-  actions: () => canonicalRequest<CanonicalPage<JsonObject>>('actions'),
+  actions: () => canonicalRequest<CanonicalPage<JsonObject> & { references?: Record<string, JsonObject> }>('actions'),
+  creatorReferences: (id: string) => canonicalRequest<import('@/types/automationJobs').CreatorReferences>(`event-creators/${part(id)}/references`),
+  creatorProviders: () => canonicalRequest<{ items: import('@/types/automationJobs').SchedulerProvider[] }>('event-creators/providers'),
+  controlDefinition: (kind: CanonicalKind, item: CanonicalObject, operation: string, requestKey: string, expectedReferences?: string) =>
+    canonicalRequest<CanonicalReceipt>(`${kind}/${part(item.id)}/operations`, 'POST', {
+      operation, requestKey, expectedRevision: revisionOf(item), expectedStateRevision: item.stateRevision,
+      parameters: expectedReferences === undefined ? {} : { expectedReferences },
+    }),
 };

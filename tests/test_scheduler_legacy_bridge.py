@@ -10,6 +10,7 @@ from packages.automation.service import Service
 from packages.jobs.action_runtime import Runtime
 from packages.jobs import system_actions
 from packages.scheduler import store
+from packages.core.platform import data_paths
 from packages.jobs import cron
 from packages.scheduler.legacy_bridge import LegacySchedulerBridge
 from packages.scheduler.time_events import Sources, Runtime as TimeRuntime, EVENT_TYPE
@@ -26,6 +27,7 @@ def payload(tmp_path, task_id='sch_phase4b'):
 
 async def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(store, 'DEFAULT_ROOT', tmp_path / 'jobs')
+    monkeypatch.setattr(data_paths, 'DEFAULT_ROOT', tmp_path / 'jobs')
     monkeypatch.setattr(store, 'LEGACY_TASKS_ROOT', tmp_path / 'legacy')
     worker = SimpleNamespace(workers={})
     svc = Service(tmp_path / 'automation', worker, None)

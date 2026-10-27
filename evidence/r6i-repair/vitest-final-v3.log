@@ -1,0 +1,84 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p21-r6-time-events-20261025/packages/web/src
+
+ ✓ services/canonicalJobs.test.ts > sends canonical JSON with the current in-memory Bearer including DELETE
+ ✓ services/canonicalJobs.test.ts > maps WP01 invalid_schema without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 invalid_condition without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 unsupported_operation without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 unauthenticated without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 authorization_denied without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 not_found without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 revision_conflict without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 idempotency_conflict without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 reference_conflict without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 pending_publication without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 reconciliation_required without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 not_retryable without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 cancellation_window_closed without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 capability_unsupported without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 unsupported_schema_version without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 capacity_exceeded without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 provider_unavailable without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > maps WP01 storage_unavailable without echoing untrusted error text
+ ✓ services/canonicalJobs.test.ts > expires the shared Bearer and clears only the matching 401 credential
+ ✓ services/canonicalJobs.test.ts > encodes page cursors and operation identities
+ ✓ services/canonicalJobs.test.ts > extracts the complete definition without server state
+ ✓ router.retirement.test.tsx > retired Jobs route > explains migration and links to canonical management
+ ✓ components/automation/fields.test.tsx > keeps the surviving literal display equal to the condition after deleting its predecessor
+ ✓ components/automation/fields.test.tsx > syncs an external literal and clears obsolete custom validity
+ ✓ components/automation/fields.test.tsx > retains unfinished invalid text on the surviving condition and on unrelated rerenders
+ ✓ components/automation/fields.test.tsx > preserves a valid unnormalized lexeme through its own edit and a sibling edit
+ ✓ components/automation/fields.test.tsx > replacing the condition structure resets obsolete literal buffers and validity
+ ✓ stores/automationSession.test.tsx > restores the shared login on startup without a Bearer and renders logout instead of a required key
+ ✓ stores/automationSession.test.tsx > uses Cookie credentials without a Bearer and lets the server decide sliding expiry (0)
+ ✓ stores/automationSession.test.tsx > uses Cookie credentials without a Bearer and lets the server decide sliding expiry (1)
+ ✓ stores/automationSession.test.tsx > clears restored Cookie login on 401 (0)
+ ✓ stores/automationSession.test.tsx > clears restored Cookie login on 401 (1)
+ ✓ stores/automationSession.test.tsx > does not revive login when a pending startup probe finishes after logout
+ ✓ stores/automationSession.test.tsx > logs out through the Cookie and clears the login form state
+ ✓ stores/automationSession.test.tsx > saves the global duration and reloads it from the server after remount
+ ✓ views/AutomationView.test.tsx > deduplicates refresh and rejects an old read after mutation invalidation
+ ✓ views/AutomationView.test.tsx > sends Bearer for cancel and never retries rejected effects
+ ✓ views/CanonicalJobsView.test.tsx > lists, creates, edits and retires jobs with canonical CAS envelopes
+ ✓ views/AutomationView.test.tsx > creates the Event target template as a normal Action using the registry revision
+ ✓ views/AutomationView.test.tsx > a late unauthorized response cannot clear a newer login
+ ✓ views/AutomationView.test.tsx > shares Action loads, adopts template mutation without extra reads, and fences late registry replies
+ ✓ views/AutomationWorkspace.test.tsx > navigates exactly three tabs and follows canonical Job/Trigger/source references
+ ✓ views/CanonicalJobsView.test.tsx > lists, creates, edits and retires triggers with canonical CAS envelopes
+ ✓ views/AutomationWorkspace.test.tsx > round trips every rule, fraction, timezone, DST, anchor, limit and provider identity
+ ✓ views/CanonicalJobsView.test.tsx > lists, creates, edits and retires event-creators with canonical CAS envelopes
+ ✓ views/AutomationWorkspace.test.tsx > reviews shared source impact and preserves a conflicting local draft
+ ✓ views/AutomationWorkspace.test.tsx > explicitly rebases changed references and requires impact review again
+ ✓ views/CanonicalJobsView.test.tsx > lists, creates, edits and retires job-templates with canonical CAS envelopes
+ ✓ views/AutomationWorkspace.test.tsx > disables only the source through lifecycle CAS and blocks deleting a shared source
+ ✓ views/AutomationWorkspace.test.tsx > retires only unreferenced disabled sources and preserves history semantics
+ ✓ views/CanonicalJobsView.test.tsx > performs retry using Run state revision and current Job config
+ ✓ views/AutomationWorkspace.test.tsx > creates a separate Creator with server-supplied provider metadata and explicit enable
+ ✓ views/CanonicalJobsView.test.tsx > performs run-again using Run state revision and current Job config
+ ✓ views/AutomationWorkspace.test.tsx > queries an unconfirmed original key and never automatically resends
+ ✓ views/CanonicalJobsView.test.tsx > performs clone-and-run using Run state revision and current Job config
+ ✓ views/AutomationWorkspace.test.tsx > keeps multiple rule JSON intact on denial and does not send enabled state in definitions
+ ✓ views/AutomationWorkspace.test.tsx > rejects invalid JSON locally without losing the draft or sending a write
+ ✓ views/CanonicalJobsView.test.tsx > performs cancel using Run state revision and current Job config
+ ✓ views/AutomationWorkspace.test.tsx > selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger
+ ✓ views/CanonicalJobsView.test.tsx > performs pause using Run state revision and current Job config
+ ✓ views/CanonicalJobsView.test.tsx > performs resume using Run state revision and current Job config
+ ✓ views/AutomationWorkspace.test.tsx > preserves simultaneous Job and source drafts behind one navigation guard
+ ✓ views/AutomationWorkspace.test.tsx > keeps stable random request IDs without randomUUID on remote HTTP contexts
+ ✓ views/CanonicalJobsView.test.tsx > shows readable 422 rejection for run operations
+ ✓ views/AutomationWorkspace.test.tsx > preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job
+ ✓ views/AutomationWorkspace.test.tsx > keeps OR events, nested OR/NOT conditions and Event arguments while editing a canonical subscription
+ ✓ views/CanonicalJobsView.test.tsx > shows readable 403 rejection for run operations
+ ✓ views/CanonicalJobsView.test.tsx > keeps an edit draft on conflict and close does not submit
+ ✓ views/CanonicalJobsView.test.tsx > does not resend an unconfirmed request and queries its original identity
+ ✓ views/AutomationWorkspace.test.tsx > retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server
+ ✓ views/CanonicalJobsView.test.tsx > shows accepted as pending effect and queries by operationId
+ ✓ views/CanonicalJobsView.test.tsx > renders loading and list errors with a retry
+ ✓ views/CanonicalJobsView.test.tsx > keeps canonical navigation and performs no legacy transport requests
+ ✓ views/CanonicalJobsView.test.tsx > clears canonical data on logout and blocks unauthenticated reads
+ ✓ views/AutomationWorkspace.test.tsx > blocks duplicate submits and departure while the canonical definition receipt is pending
+
+ Test Files  7 passed (7)
+      Tests  76 passed (76)
+   Start at  01:24:41
+   Duration  3.75s (transform 470ms, setup 72ms, collect 2.88s, tests 3.17s, environment 5.02s, prepare 1.07s)

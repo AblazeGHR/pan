@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.836" timestamp="2026-10-27T11:00:59.983540+08:00" hostname="ablaze"><testcase classname="tests.test_canonical_form_metadata" name="test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job" time="0.196"><failure message="KeyError: 'references'">tests\test_canonical_form_metadata.py:11: in test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job
+    ref = page['references'][item['id']]
+          ^^^^^^^^^^^^^^^^^^
+E   KeyError: 'references'</failure></testcase><testcase classname="tests.test_canonical_form_metadata" name="test_action_reference_metadata_uses_existing_read_authorization" time="0.162" /></testsuite></testsuites>

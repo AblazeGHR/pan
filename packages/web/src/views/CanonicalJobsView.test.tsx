@@ -64,6 +64,7 @@ beforeEach(() => {
       }
       if (failure) return response({ error: { code: 'authorization_denied' } }, failure);
       if (url.includes('operations')) return response(receipt());
+      if (url === '/api/jobs/actions') return response({ items: [], references: {}, nextCursor: null });
       if (url.includes('/runs?'))
         return response({
           items: [
@@ -84,6 +85,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   useAutomationAuth.getState().clear();
 });
@@ -193,7 +195,12 @@ it('keeps an edit draft on conflict and close does not submit', async () => {
   click('保存定义');
   expect((await screen.findByRole('alert')).textContent).toContain('版本冲突');
   expect((screen.getByLabelText('名称') as HTMLInputElement).value).toBe('My draft');
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   click('关闭编辑');
+  expect(screen.getByRole('form')).toBeTruthy();
+  confirm.mockReturnValue(true);
+  click('关闭编辑');
+  expect(screen.queryByRole('form')).toBeNull();
   expect(writes.length).toBe(1);
 });
 it('does not resend an unconfirmed request and queries its original identity', async () => {

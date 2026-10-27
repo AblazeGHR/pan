@@ -1,0 +1,26 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser _
+tests\test_scheduler_management_browser.py:48: in test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser
+    browser=playwright.chromium.launch(headless=True)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.validation\r6i-venv\Lib\site-packages\playwright\sync_api\_generated.py:4103: in launch
+    self._sync(
+.validation\r6i-venv\Lib\site-packages\playwright\_impl\_browser_type.py:101: in launch
+    await self._channel.send(
+.validation\r6i-venv\Lib\site-packages\playwright\_impl\_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+.validation\r6i-venv\Lib\site-packages\playwright\_impl\_connection.py:636: in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E   playwright._impl._errors.Error: BrowserType.launch: Executable doesn't exist at C:\Users\14709\AppData\Local\ms-playwright\chromium_headless_shell-1248\chrome-headless-shell-win64\chrome-headless-shell.exe
+E   �X�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�[
+E   �U Looks like Playwright was just installed or updated.       �U
+E   �U Please run the following command to download new browsers: �U
+E   �U                                                            �U
+E   �U     playwright install                                     �U
+E   �U                                                            �U
+E   �U <3 Playwright Team                                         �U
+E   �^�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�a
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_management_browser.py::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser

@@ -17,8 +17,8 @@ def references_version(refs):
 
 async def access(request):
     if await require(request)!='user':raise HTTPException(403,'Time Event source management requires user Bearer')
-    from .time_events import Sources
-    return Sources(data_root())
+    from .source_history import SourceHistory
+    return SourceHistory(data_root())
 
 
 async def invoke(fn,*args,**kwargs):
@@ -31,12 +31,12 @@ async def invoke(fn,*args,**kwargs):
 
 @router.get('')
 async def listing(request:Request):
-    from .time_events import EVENT_TYPE, PAYLOAD_SCHEMA
+    from .time_contract import EVENT_TYPE, PAYLOAD_SCHEMA
     sources=await access(request)
     links=getattr(request.app.state.automation,'links',None)
     rows=[sources.public(s) for s in await invoke(sources.list)]
     for row in rows:
-        row['references']=await io(links.references,row['id']) if links else []
+        row['references']=await io(links.references,row['id']) if links else await io(sources.references,row['id'])
         row['referencesVersion']=references_version(row['references'])
         if row.get('setupOperation') and links and not await io(links.source_ready,row['setupOperation']):
             row.update(enabled=False,setupPending=True)
@@ -44,31 +44,18 @@ async def listing(request:Request):
 
 
 @router.post('')
-async def create(data:dict,request:Request):
-    sources=await access(request)
-    if set(data)-{'config','expectedRevision','creationKey'} or not {'config','expectedRevision'}<=set(data):raise HTTPException(400,'Expected config and expectedRevision')
-    key=data.get('creationKey')
-    if key is not None and (not isinstance(key,str) or not 8<=len(key)<=100):raise HTTPException(400,'Invalid creation key')
-    return {'source':await invoke(sources.put,data['config'],data['expectedRevision'],creation_key='event-register:'+key if key else None)}
+async def create(request: Request):
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.put('/{sid}')
-async def update(sid:str,data:dict,request:Request):
-    sources=await access(request)
-    if set(data)-{'config','expectedRevision','expectedReferences'} or not {'config','expectedRevision'}<=set(data):raise HTTPException(400,'Expected config and expectedRevision')
-    links=getattr(request.app.state.automation,'links',None)
-    current=next((s for s in await invoke(sources.list) if s['id']==sid),None)
-    if current and current.get('setupOperation') and links and not await io(links.source_ready,current['setupOperation']):raise HTTPException(409,'Resume or close the owning Job setup before editing this source')
-    if 'expectedReferences' in data:
-        refs=await io(links.references,sid) if links else []
-        if data['expectedReferences']!=references_version(refs):raise HTTPException(409,'Subscriber references changed; review source impact again')
-    return {'source':await invoke(sources.put,data['config'],data['expectedRevision'],sid)}
+async def update(sid: str, request: Request):
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.delete('/{sid}')
-async def delete(sid:str,expectedRevision:int,request:Request):
-    sources=await access(request)
-    links=getattr(request.app.state.automation,'links',None)
-    if links and await io(links.references,sid):raise HTTPException(409,'Detach referencing Triggers / Jobs before deleting this source')
-    await invoke(sources.delete,sid,expectedRevision)
-    return {'deleted':True}
+async def delete(sid: str, request: Request):
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)

@@ -34,6 +34,13 @@ from packages.core import background_jobs
 from packages.jobs import cron
 from packages.jobs.actions import normalize_scheduled_qq_action
 from packages.jobs.runtime_owner import legacy_writer
+from packages.jobs.schedule_calculations import (
+    MISFIRE_POLICIES, ENTRY_ID_PREFIX, iso, _now, _new_entry_id,
+    _epoch_to_iso, _normalize_schedule, _schedule_from_entry,
+    _entry_from_schedule, effective_spec, _spec_to_entry,
+    _entries_next_fire, compute_next_fire,
+)
+from packages.jobs.scheduled_records import task_from_job as _task_from_job
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,12 +52,6 @@ LEGACY_TASKS_ROOT = PROJECT_ROOT / "data" / "scheduler"
 
 #: 任务 id 前缀 + 12 位 hex（对外主键，兼容层保持不变）
 TASK_ID_PREFIX = "sch_"
-
-#: schedule entry id 前缀
-ENTRY_ID_PREFIX = "sce_"
-
-#: 可选 misfire 策略
-MISFIRE_POLICIES = ("fire_now", "skip")
 
 #: runs.jsonl 的滚动上限（background_jobs.append_run_record 同值）
 RUNS_MAX_ENTRIES = 500
@@ -67,8 +68,8 @@ def data_root() -> Path:
     ``PAN_SCHEDULER_DIR`` > ``PAN_BACKGROUND_JOBS_DIR`` > ``DEFAULT_ROOT``。
     生产环境两个 env 都缺省时与 message/process job 共用 ``data/background_jobs``。
     """
-    env = os.environ.get("PAN_SCHEDULER_DIR") or os.environ.get("PAN_BACKGROUND_JOBS_DIR")
-    return Path(env) if env else Path(DEFAULT_ROOT)
+    from packages.core.platform.data_paths import job_root
+    return job_root(DEFAULT_ROOT)
 
 
 def legacy_root() -> Path:
@@ -82,266 +83,16 @@ def sanitize(value) -> str:
     return _SAFE_RE.sub("_", str(value))[:128] or "_"
 
 
-def iso(value: datetime | None) -> str | None:
-    """本地朴素 datetime → ISO-8601 字符串（秒精度）。"""
-    if value is None:
-        return None
-    return value.replace(microsecond=0).isoformat()
-
-
-def _now() -> datetime:
-    return datetime.now().replace(microsecond=0)
-
-
 def _new_task_id() -> str:
     return TASK_ID_PREFIX + secrets.token_hex(6)
-
-
-def _new_entry_id() -> str:
-    return ENTRY_ID_PREFIX + secrets.token_hex(4)
-
-
-def _epoch_to_iso(value) -> str | None:
-    """注册表 epoch 时间戳 → 本地朴素 ISO（task dict 出口用）。"""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    try:
-        return iso(datetime.fromtimestamp(float(value)))
-    except (TypeError, ValueError, OSError, OverflowError):
-        return None
-
-
-# ── schedule 校验（单条 entry 视角，逻辑照抄 PR store）──
-
-
-def _normalize_schedule(raw) -> dict:
-    """校验并清洗 schedule；非法一律 ValueError（API 层映射 invalid_schedule）。
-
-    ``interval_sec`` 与 ``intervalSec`` 同时接受，落盘两个键都写。
-    """
-    if not isinstance(raw, dict):
-        raise ValueError("schedule 必须是对象")
-    kind = str(raw.get("kind") or "").strip().lower()
-    if kind not in ("once", "interval", "cron"):
-        raise ValueError("schedule.kind 必须是 once / interval / cron")
-
-    out: dict = {"kind": kind}
-    tz = raw.get("timezone")
-    if tz:
-        tz = str(tz).strip()
-        if tz:
-            out["timezone"] = tz
-
-    if kind == "once":
-        at = cron.parse_datetime(raw.get("at"))
-        if at is None:
-            raise ValueError("kind=once 需要合法的 at（ISO-8601 本地时间）")
-        out["at"] = iso(at)
-    elif kind == "interval":
-        raw_sec = raw.get("interval_sec", raw.get("intervalSec"))
-        try:
-            sec = float(raw_sec)
-        except (TypeError, ValueError):
-            raise ValueError("kind=interval 需要 interval_sec（> 0）") from None
-        if sec <= 0:
-            raise ValueError(f"interval_sec 必须 > 0，收到 {raw_sec!r}")
-        sec = int(sec) if float(sec).is_integer() else sec
-        out["interval_sec"] = sec
-        out["intervalSec"] = sec
-        anchor = cron.parse_datetime(raw.get("anchor"))
-        if anchor is not None:
-            out["anchor"] = iso(anchor)
-    else:
-        expr = str(raw.get("cron") or "").strip()
-        cron.parse_cron(expr)  # 非法表达式 -> ValueError
-        out["cron"] = expr
-    return out
-
-
-def _schedule_from_entry(entry: dict) -> dict:
-    """entry → PR 归一化 schedule dict（task dict 出口）。"""
-    schedule = dict(entry or {})
-    for key in ("id", "enabled", "nextFireAt", "lastFireAt", "misfirePolicy", "graceSec"):
-        schedule.pop(key, None)
-    return schedule
-
-
-def _entry_from_schedule(schedule: dict, *, misfire_policy: str,
-                         next_fire_at: str | None = None,
-                         last_fire_at: str | None = None) -> dict:
-    """归一化 schedule dict → job 记录里的 entry。"""
-    return {
-        "id": _new_entry_id(),
-        "misfirePolicy": misfire_policy,
-        "enabled": True,
-        "nextFireAt": next_fire_at,
-        "lastFireAt": last_fire_at,
-        **dict(schedule),
-    }
-
-
-def effective_spec(task: dict) -> dict:
-    """给 cron 求值时用的 spec：补上 interval 缺失的 anchor（= created_at）。"""
-    schedule = dict(task.get("schedule") or {})
-    if schedule.get("kind") == "interval" and not schedule.get("anchor"):
-        created = cron.parse_datetime(task.get("created_at"))
-        if created is not None:
-            schedule["anchor"] = iso(created)
-    return schedule
-
-
-#: 客户端不得经由 spec 注入的 entry 控制键（id/时间戳/启停/策略一律服务端定）
-_ENTRY_CONTROL_KEYS = ("id", "nextFireAt", "lastFireAt", "enabled",
-                       "misfirePolicy")
-
-
-def _spec_to_entry(raw: dict, *, default_misfire: str,
-                   created_iso: str) -> dict:
-    """单个客户端 schedule spec → job 记录 entry（含校验与 nextFireAt 计算）。
-
-    spec 里可选 ``misfirePolicy``（覆盖 job 级默认）与 ``enabled``（默认 True，
-    entry 级启停）；``id``/``nextFireAt``/``lastFireAt`` 等控制键一律剥离。
-    """
-    if not isinstance(raw, dict):
-        raise ValueError("schedule 列表的每一项都必须是对象")
-    spec = _normalize_schedule(raw)
-    if spec["kind"] == "interval" and not spec.get("anchor"):
-        spec["anchor"] = created_iso
-    misfire = str(raw.get("misfirePolicy") or default_misfire)
-    if misfire not in MISFIRE_POLICIES:
-        raise ValueError("misfirePolicy 必须是 fire_now / skip")
-    clean = {k: v for k, v in spec.items() if k not in _ENTRY_CONTROL_KEYS}
-    task_view = {"id": "spec", "enabled": True, "schedule": clean,
-                 "created_at": created_iso}
-    next_fire = compute_next_fire(task_view, _now())
-    entry = _entry_from_schedule(clean, misfire_policy=misfire,
-                                 next_fire_at=next_fire)
-    entry["enabled"] = bool(raw.get("enabled", True))
-    if "graceSec" in raw:
-        grace = raw.get("graceSec")
-        if isinstance(grace, bool) or not isinstance(grace, (int, float)):
-            raise ValueError("graceSec must be a non-negative number")
-        if not 0 <= float(grace) <= 86400:
-            raise ValueError("graceSec must be between 0 and 86400")
-        entry["graceSec"] = float(grace)
-    return entry
-
-
-def _entries_next_fire(entries: list[dict]) -> str | None:
-    """全部 enabled entries 的最早 nextFireAt（无则 None）。"""
-    points = [cron.parse_datetime(e.get("nextFireAt"))
-              for e in entries if e.get("enabled", True)]
-    points = [p for p in points if p is not None]
-    return iso(min(points)) if points else None
-
-
-def compute_next_fire(task: dict, after: datetime | None = None) -> str | None:
-    """按锚点算出 next_fire_at（ISO 字符串或 None）。disabled 恒为 None。"""
-    if not task.get("enabled"):
-        return None
-    when = after or _now()
-    spec = effective_spec(task)
-    tz = (task.get("schedule") or {}).get("timezone")
-    try:
-        point = cron.next_fire_after(spec, when, tz_name=tz)
-    except ValueError:
-        return None
-    return iso(point)
 
 
 # ── job 记录 ↔ task dict ──
 
 
-def _task_from_job(job: dict | None) -> dict | None:
-    if not isinstance(job, dict):
-        return None
-    entries = job.get("schedule") or []
-    entry = dict(entries[0]) if entries and isinstance(entries[0], dict) else {}
-    misfire = (entry.get("misfirePolicy") or job.get("misfirePolicy") or "fire_now")
-    return {
-        "id": job.get("taskId") or job.get("jobId"),
-        "name": job.get("name") or "",
-        "description": job.get("description") or "",
-        "target_session_id": job.get("targetSessionId"),
-        "text": job.get("text") or "",
-        "enabled": bool(job.get("enabled")),
-        "paused": bool(job.get("paused")),
-        "schedule": _schedule_from_entry(entry),
-        "next_fire_at": job.get("nextFireAt"),
-        "last_fire_at": job.get("lastFireAt"),
-        "last_status": job.get("lastStatus"),
-        "last_error": job.get("lastError"),
-        "run_count": int(job.get("runCount") or 0),
-        "max_runs": job.get("maxRuns"),
-        "misfire_policy": misfire,
-        "created_at": _epoch_to_iso(job.get("createdAt")),
-        "updated_at": _epoch_to_iso(job.get("updatedAt")),
-    }
-
-
-def _job_from_payload(payload: dict) -> dict:
-    """create_task 的 payload（已过校验，带 ``_normalized_schedule`` 等内参）→ job 记录。"""
-    now_ts = time.time()
-    created_iso = payload.get("created_at") or iso(_now())
-    specs = payload.get("_schedule_specs")
-    if specs is not None:
-        # 多 entry 路径（/api/jobs POST）：列表里每项一个 entry
-        entries = [_spec_to_entry(raw, default_misfire=payload["_misfire"],
-                                  created_iso=created_iso) for raw in specs]
-        next_fire = _entries_next_fire(entries)
-    else:
-        # 单 spec 路径（PR 契约 /api/scheduler/tasks）
-        schedule = payload["_normalized_schedule"]
-        if schedule["kind"] == "interval" and not schedule.get("anchor"):
-            anchor = cron.parse_datetime(created_iso) or _now()
-            schedule["anchor"] = iso(anchor)
-        task_view = {"id": str(payload.get("id") or _new_task_id()).strip(),
-                     "enabled": bool(payload.get("enabled", True)),
-                     "schedule": schedule, "created_at": created_iso}
-        next_fire = compute_next_fire(task_view, _now())
-        entries = [_entry_from_schedule(schedule,
-                                        misfire_policy=payload["_misfire"],
-                                        next_fire_at=next_fire)]
-    task_id = str(payload.get("id") or _new_task_id()).strip()
-    enabled = bool(payload.get("enabled", True))
-    created_dt = cron.parse_datetime(created_iso)
-    status = "scheduled" if (enabled and next_fire) else "pending"
-    if not enabled:
-        status = "completed"
-    target = payload.get("target_session_id")
-    action = payload.get("action") or {"api": "assign"}
-    return {
-        "jobId": "job_" + secrets.token_hex(6),
-        "kind": background_jobs.SCHEDULED_TASK_KIND,
-        "taskId": task_id,
-        "name": (background_jobs.normalize_name(payload.get("name"))
-                 or background_jobs.default_job_name(data_root())),
-        "description": background_jobs.normalize_description(payload.get("description")),
-        "targetSessionId": target,
-        "sourceStruct": background_jobs.normalize_source({"type": "system"}),
-        "targetStruct": background_jobs.normalize_target(target),
-        "text": payload.get("text", ""),
-        "action": action,
-        "source": "automation",
-        "creatorSessionId": None,
-        "enabled": enabled,
-        "paused": bool(payload.get("paused", False)),
-        "schedule": entries,
-        "misfirePolicy": payload["_misfire"],
-        "nextFireAt": next_fire,
-        "lastFireAt": None,
-        "lastStatus": None,
-        "lastError": None,
-        "runCount": int(payload.get("run_count") or 0),
-        "maxRuns": payload["_max_runs"],
-        "status": status,
-        "runStartedAt": None,
-        "undeliveredFires": [],
-        "createdAt": created_dt.timestamp() if created_dt else now_ts,
-        "updatedAt": now_ts,
-    }
+def _job_from_payload(payload):
+    from packages.jobs.scheduled_records import build_record
+    return build_record(payload, root=data_root())
 
 
 def _job_for_task(task_id: str, registry_root: Path | None = None) -> dict | None:

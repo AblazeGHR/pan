@@ -1,0 +1,11 @@
+{
+  "gate": "blocked",
+  "code": "revision_conflict",
+  "message": "Attempt ownerEpoch fence rejected the receipt",
+  "runtimeEpoch": 2,
+  "persistedAttemptEpochs": [
+    1
+  ],
+  "providerCalls": 1,
+  "sourceMigrationUsed": false
+}

@@ -11,6 +11,7 @@
 | `process.py` | `ProcessOwner` 契约 + Windows 实现（包装 `terminal.guard` / `terminal.identity`） |
 | `process_posix.py` | POSIX 实现（`start_new_session` + `killpg` + 持久身份） |
 | `runtime_lock.py` | `job.runtimeOwner` 进程存活互斥；Windows 懒加载 msvcrt，Linux/macOS 懒加载 flock；锁文件不删除 |
+| `data_paths.py` | 无 I/O 的 Job 根路径策略；保留 Scheduler env > Background env > 默认路径优先级，不导入旧 store |
 | `README.md` | 本文件 |
 
 > `__init__.py` 由 A 流（平台骨架 / capability registry）负责，本流不修改。

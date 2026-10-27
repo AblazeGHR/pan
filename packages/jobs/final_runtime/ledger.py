@@ -202,8 +202,16 @@ class Ledger:
         attempt_id: str | None = None,
         lease_id: str | None = None,
         retry: bool = False,
+        owner_epoch: int = 1,
     ) -> dict[str, Any]:
+        # The canonical host supplies its currently held epoch inside its
+        # writer transaction. Standalone/legacy aggregates retain epoch 1.
+        # Validate before changing the Step or allocating an execution identity.
+        if type(owner_epoch) is not int or owner_epoch < 1:
+            raise contracts.ContractError("revision_conflict", "Attempt requires a positive owner epoch")
         ledger = aggregate(job, root)
+        if attempt_id is not None and attempt_id in ledger["attempts"]:
+            raise contracts.ContractError("revision_conflict", "Attempt identity already exists; never rebind its owner")
         run = self.run(job, root, run_id)
         if run["state"] != "running":
             raise contracts.ContractError("unsupported_operation", "Run is not accepting an Attempt")
@@ -226,7 +234,7 @@ class Ledger:
             "runId": run_id,
             "stepId": step_id,
             "state": "preparing",
-            "ownerEpoch": 1,
+            "ownerEpoch": owner_epoch,
             "generation": step["attemptCount"],
             "leaseId": lease_id or new_id("lease_"),
             "startedAt": now(),

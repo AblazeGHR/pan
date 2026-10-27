@@ -48,9 +48,8 @@ def for_root(root):
 
 
 def config_job(root, intent):
-    # Action Jobs own their record construction. Scheduler retains only the
-    # temporary entry-calculator adapter; S04's Job builder is not used here.
-    from packages.scheduler.store import _entries_next_fire, _spec_to_entry
+    # Action Jobs own record construction and use storage-free calculations.
+    from packages.jobs.schedule_calculations import _entries_next_fire, _spec_to_entry
     cfg=conservative_config(intent['config']);created_iso=datetime.now().astimezone().isoformat();now_ts=time.time()
     specs=cfg['schedule'] or [{'kind':'interval','intervalSec':3600}]
     entries=[_spec_to_entry(raw,default_misfire=cfg['misfirePolicy'],created_iso=created_iso) for raw in specs]
@@ -858,7 +857,7 @@ class Runtime:
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def tick(self,cfg):
         if self.closed:return
-        if getattr(self,'time_events',None):await self.time_events.tick(cfg)
+        # Time sources are driven only by the canonical CreatorRuntime host.
         policy=getattr(self,'quota_policy',None)
         if policy is not None:
             try:await policy.tick()

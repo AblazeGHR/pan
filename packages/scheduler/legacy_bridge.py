@@ -15,8 +15,10 @@ from packages.jobs.action_runtime import is_action_job
 from packages.jobs.runtime_owner import legacy_writer
 from packages.jobs import system_actions
 from packages.automation.events import now
-from . import store
-from .time_events import EVENT_TYPE
+from packages.core.platform.data_paths import job_root as data_root
+from packages.jobs import schedule_calculations as calculator
+from packages.jobs import scheduled_records as records
+from .time_contract import EVENT_TYPE
 
 
 class LegacySchedulerBridge:
@@ -44,7 +46,7 @@ class LegacySchedulerBridge:
         return self.service.time_sources
 
     def _job(self, task_id):
-        return store._job_for_task(task_id)
+        return records.find_task(task_id)
 
     @staticmethod
     def _action_args(job):
@@ -105,7 +107,7 @@ class LegacySchedulerBridge:
                 'completion': {'kind': 'ordinary'}}
 
     def _write_job(self, job, config, *, enabled, source_id, trigger_id, state):
-        root = store.data_root()
+        root = data_root()
         with background_jobs._lock, background_jobs._job_lock(job['jobId'], root):
             current = background_jobs._load_path(background_jobs._job_path(job['jobId'], root))
             if not current: raise KeyError(job['jobId'])
@@ -127,12 +129,12 @@ class LegacySchedulerBridge:
             background_jobs._write_job(background_jobs._job_path(job['jobId'], root), current)
             return current
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent)
     async def switch(self, task_id):
         async with self.lock:
             return await asyncio.to_thread(self._switch, task_id)
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
     def _switch(self, task_id):
         job = self._job(task_id)
         if not job: raise KeyError(task_id)
@@ -176,12 +178,12 @@ class LegacySchedulerBridge:
         else:
             self._write_job(self._job(job['jobId']), config, enabled=False,
                             source_id=source_id, trigger_id=trigger_id, state='complete')
-        return background_jobs.get(job['jobId'], registry_root=store.data_root())
+        return background_jobs.get(job['jobId'], registry_root=data_root())
 
     def _task_view(self, job):
-        return store._task_from_job(job)
+        return records.task_from_job(job)
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent, reservation=True)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
     def project_cursor(self, source_id):
         """Repairable legacy read projection; the source remains the sole owner."""
         source = self.sources.get(source_id)
@@ -189,7 +191,7 @@ class LegacySchedulerBridge:
             return
         for ref in self.sources.references(source_id):
             jid = ref.get('jobId') or ref.get('job_id')
-            with background_jobs._lock, background_jobs._job_lock(jid, store.data_root()):
+            with background_jobs._lock, background_jobs._job_lock(jid, data_root()):
                 job = self._job(jid)
                 if not job or not job.get('legacySchedulerCompat') or job.get('legacySourceId') != source_id:
                     continue
@@ -202,9 +204,9 @@ class LegacySchedulerBridge:
                 if cursor:
                     changes['lastFireAt'] = cursor['scheduledAt']
                 if any(job.get(key) != value for key, value in changes.items()):
-                    background_jobs._update(jid, changes, registry_root=store.data_root())
+                    background_jobs._update(jid, changes, registry_root=data_root())
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent)
     async def update(self, task_id, patch):
         async with self.lock:
             return await asyncio.to_thread(self._update, task_id, patch)
@@ -218,16 +220,16 @@ class LegacySchedulerBridge:
         merged.update(copy.deepcopy(patch))
         # Reuse legacy validation/calculation in a temporary pure projection.
         if 'schedule' in patch:
-            merged['schedule'] = store._normalize_schedule(patch['schedule'])
+            merged['schedule'] = calculator._normalize_schedule(patch['schedule'])
         if 'enabled' in patch: merged['enabled'] = bool(patch['enabled'])
         if 'paused' in patch: merged['paused'] = bool(patch['paused'])
-        if 'misfire_policy' in patch and patch['misfire_policy'] not in store.MISFIRE_POLICIES:
+        if 'misfire_policy' in patch and patch['misfire_policy'] not in calculator.MISFIRE_POLICIES:
             raise ValueError('misfire_policy must be fire_now / skip')
         entry = self._entry(job)
         if 'schedule' in patch:
             spec = merged['schedule']
             entry = {**spec, 'id': entry['id'], 'enabled': True,
-                     'nextFireAt': store.iso(background_jobs._entry_next_fire(spec, datetime.now().replace(microsecond=0)))}
+                     'nextFireAt': calculator.iso(calculator.entry_next_fire(spec, datetime.now().replace(microsecond=0)))}
         args = self._action_args({**job, 'targetSessionId': merged.get('target_session_id', job.get('targetSessionId')),
                                   'text': merged.get('text', job.get('text')), 'action': merged.get('action', job.get('action'))})
         config = self._config({**job, 'name': merged.get('name', job.get('name')), 'description': merged.get('description', job.get('description')),
@@ -241,7 +243,7 @@ class LegacySchedulerBridge:
                    'enabled': bool(merged.get('enabled', job.get('enabled'))),
                    'paused': bool(merged.get('paused', job.get('paused'))), 'maxRuns': merged.get('max_runs', job.get('maxRuns')),
                    'misfirePolicy': merged.get('misfire_policy', job.get('misfirePolicy')), 'legacySchedulerCompat': True}
-        updated = background_jobs._update(job['jobId'], changes, registry_root=store.data_root())
+        updated = background_jobs._update(job['jobId'], changes, registry_root=data_root())
         source_current = self.sources.get(updated['legacySourceId'])
         self.sources.put(self._source_config(updated, entry, enabled=changes['enabled'] and not changes['paused']),
                          source_current['revision'], sid=updated['legacySourceId'])
@@ -249,20 +251,20 @@ class LegacySchedulerBridge:
             self.sources.set_next_fire(updated['legacySourceId'], updated['nextFireAt'])
         return self._task_view(updated)
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent)
     async def run_now(self, task_id):
         async with self.lock:
             job = self._job(task_id)
             if not job or not job.get('legacySchedulerCompat'): raise KeyError(task_id)
             view = await self.jobs.launch(job['jobId'], expected=job['configRevision'], authority={'type': 'user'})
             dispatch = view.get('execution', {}).get('id') or 'manual'
-            record = {'run_id': dispatch, 'task_id': task_id, 'fire_at': store.iso(datetime.now().replace(microsecond=0)),
-                      'actual_at': store.iso(datetime.now().replace(microsecond=0)), 'dispatch_key': dispatch,
+            record = {'run_id': dispatch, 'task_id': task_id, 'fire_at': calculator.iso(datetime.now().replace(microsecond=0)),
+                      'actual_at': calculator.iso(datetime.now().replace(microsecond=0)), 'dispatch_key': dispatch,
                       'status': 'dispatched', 'session_id': job.get('targetSessionId'), 'error': None, 'result': {'status': 'dispatched'}}
-            store.append_run(record)
+            records.append_run(record)
             return {'ok': True, 'taskId': task_id, 'dispatchKey': dispatch, 'status': 'dispatched', 'run': record}
 
-    @legacy_writer(lambda *a, **kw: store.data_root().resolve().parent)
+    @legacy_writer(lambda *a, **kw: data_root().resolve().parent)
     async def delete(self, task_id):
         async with self.lock:
             job = self._job(task_id)

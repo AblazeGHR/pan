@@ -1,0 +1,140 @@
+{
+  "sourceSha": "f0970e23df5108eabd7580847346129d1714ba14",
+  "counts": {
+    "tests": 99,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 99
+  },
+  "retainedFileSha256": {
+    "packages/scheduler/time_events.py": "676fb0a46265b19909b51f785c7ffc69f7f90a07e54661de9d6c12cdc8a758ad",
+    "packages/scheduler/store.py": "6cd795bef243a142c3028232d1aaf5c07041714af24b458bbbfb2edf030e0ede",
+    "packages/scheduler/legacy_bridge.py": "9c9d7c94270cbab4e9d28a9f47d9d38c28c9163c5cb2d14cf02980f386a75311",
+    "packages/jobs/api.py": "72c24a3c1baa05146300c4bf257d6889f79a55555bff38f5722fe801f8cb5f0d"
+  },
+  "deleted": [],
+  "sameIdentityGate": "blocked",
+  "productionEdits": [],
+  "staticPackageImports": [
+    {
+      "file": "packages/automation/job_links.py",
+      "line": 23,
+      "module": "packages.scheduler.time_events",
+      "names": [
+        "EVENT_TYPE"
+      ]
+    },
+    {
+      "file": "packages/automation/quota_policy.py",
+      "line": 552,
+      "module": "packages.scheduler.store",
+      "names": [
+        "_job_from_payload"
+      ]
+    },
+    {
+      "file": "packages/automation/service.py",
+      "line": 28,
+      "module": "packages.scheduler.time_events",
+      "names": [
+        "EVENT_TYPE",
+        "PAYLOAD_SCHEMA"
+      ]
+    },
+    {
+      "file": "packages/jobs/action_runtime.py",
+      "line": 53,
+      "module": "packages.scheduler.store",
+      "names": [
+        "_entries_next_fire",
+        "_spec_to_entry"
+      ]
+    },
+    {
+      "file": "packages/jobs/api.py",
+      "line": 76,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    },
+    {
+      "file": "packages/jobs/api.py",
+      "line": 668,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    },
+    {
+      "file": "packages/jobs/final_runtime/coordinator.py",
+      "line": 729,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    },
+    {
+      "file": "packages/jobs/final_service.py",
+      "line": 1030,
+      "module": "packages.scheduler.store",
+      "names": [
+        "data_root"
+      ]
+    },
+    {
+      "file": "packages/scheduler/event_api.py",
+      "line": 20,
+      "module": "packages.scheduler.time_events",
+      "names": [
+        "Sources"
+      ]
+    },
+    {
+      "file": "packages/scheduler/event_api.py",
+      "line": 34,
+      "module": "packages.scheduler.time_events",
+      "names": [
+        "EVENT_TYPE",
+        "PAYLOAD_SCHEMA"
+      ]
+    },
+    {
+      "file": "packages/scheduler/legacy_bridge.py",
+      "line": 18,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    },
+    {
+      "file": "packages/scheduler/legacy_bridge.py",
+      "line": 19,
+      "module": "packages.scheduler.time_events",
+      "names": [
+        "EVENT_TYPE"
+      ]
+    },
+    {
+      "file": "packages/scheduler/time_events.py",
+      "line": 21,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    },
+    {
+      "file": "packages/web/e2e/job-pin-server.py",
+      "line": 9,
+      "module": "packages.scheduler",
+      "names": [
+        "store"
+      ]
+    }
+  ],
+  "staticImportCounts": {
+    "productionStatements": 13,
+    "e2eHelperStatements": 1
+  }
+}

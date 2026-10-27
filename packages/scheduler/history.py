@@ -7,7 +7,6 @@ import base64
 from datetime import datetime
 import hashlib
 import json
-import os
 from pathlib import Path
 
 from packages.jobs.migration_history import Archive
@@ -16,7 +15,8 @@ DEFAULT_ROOT = Path(__file__).resolve().parents[2] / 'data' / 'background_jobs'
 
 
 def data_root():
-    return Path(os.environ.get('PAN_SCHEDULER_DIR') or os.environ.get('PAN_BACKGROUND_JOBS_DIR') or DEFAULT_ROOT)
+    from packages.core.platform.data_paths import job_root
+    return job_root(DEFAULT_ROOT)
 
 
 def _epoch(value):
