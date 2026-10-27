@@ -54,6 +54,19 @@ class SessionProvider(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
+class AssignProvider(Protocol):
+    async def assign(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        task_id: str,
+        effect_key: Mapping[str, Any],
+        source: str,
+        source_session_id: str | None = None,
+    ) -> Mapping[str, Any]: ...
+
+
 class ChannelProvider(Protocol):
     """Typed external-channel provider (for example QQ)."""
 
@@ -121,6 +134,30 @@ class WorkerSessionProvider:
             source=source,
             source_session_id=source_session_id,
             client_message_id="effect_" + contracts.digest(dict(effect_key))[:40],
+        )
+
+
+class WorkerAssignProvider:
+    """Adapter over the existing formal ``worker.assign`` boundary."""
+
+    async def assign(
+        self,
+        session_id: str,
+        text: str,
+        *,
+        task_id: str,
+        effect_key: Mapping[str, Any],
+        source: str = "agent",
+        source_session_id: str | None = None,
+    ) -> Mapping[str, Any]:
+        from packages.core import worker
+
+        return await worker.assign(
+            session_id,
+            text,
+            source=source,
+            task_id=task_id,
+            source_session_id=source_session_id,
         )
 
 
@@ -230,6 +267,7 @@ class TypedExecutor:
         *,
         process_owner: ProcessOwner | None = None,
         session_provider: SessionProvider | Any | None = None,
+        assign_provider: AssignProvider | Any | None = None,
         channel_provider: ChannelProvider | Any | None = None,
         receipt_store: ReceiptStore | MutableMapping[str, Mapping[str, Any]] | None = None,
         independent_executor: Any | None = None,
@@ -241,6 +279,7 @@ class TypedExecutor:
         self.independent_executor = independent_executor
         self.lifecycle_executor = lifecycle_executor
         self.session_provider = session_provider
+        self.assign_provider = assign_provider
         self.channel_provider = channel_provider
         self.receipt_store = receipt_store if receipt_store is not None else InMemoryReceiptStore()
         self.process_timeout = max(0.0, float(process_timeout))
@@ -314,8 +353,10 @@ class TypedExecutor:
             operation = plan.get("operation") or plan.get("executor") or plan.get("kind")
             if plan.get("effect") == "high_risk" or operation in {"main-lifecycle", "service.restart", "service.exit"}:
                 result = EffectReceipt(key, "rejected", {"code": "authorization_denied", "message": "Lifecycle/high-risk effects require the protected supervisor"}).as_dict()
-            elif operation in {"shell", "assign", "send_session", "send_qq_dispatch"}:
+            elif operation in {"shell", "send_session", "send_qq_dispatch"}:
                 result = EffectReceipt(key, "rejected", {"code": "unsupported_operation", "message": "Legacy shell/API dispatcher is not a typed effect"}).as_dict()
+            elif operation == "assign":
+                result = await self._assign(key, plan)
             elif isinstance(plan.get("action"), Mapping) and plan["action"].get("api") == "send_qq":
                 operation = "channel"
                 result = await self._channel(key, plan)
@@ -448,6 +489,35 @@ class TypedExecutor:
             detail["sessionId"] = session_id
             return EffectReceipt(dict(key), outcome, detail, target_selection={"sessionIds": [session_id]}).as_dict()
 
+    async def _assign(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        arguments = plan.get("arguments") if isinstance(plan.get("arguments"), Mapping) else plan
+        session_id = _non_empty_string(arguments.get("sessionId", arguments.get("session_id")), "sessionId")
+        text = _non_empty_string(arguments.get("text"), "text")
+        if self.assign_provider is None:
+            return EffectReceipt(dict(key), "rejected", {"code": "provider_unavailable", "sessionId": session_id}).as_dict()
+        method = getattr(self.assign_provider, "assign", None)
+        if method is None:
+            return EffectReceipt(dict(key), "rejected", {"code": "provider_unavailable", "sessionId": session_id}).as_dict()
+        task_id = arguments.get("taskId", arguments.get("task_id"))
+        if task_id is None:
+            task_id = "effect_" + contracts.digest(dict(key))[:40]
+        task_id = _non_empty_string(task_id, "taskId")
+        source = arguments.get("source", "agent")
+        source_session_id = arguments.get("sourceSessionId", arguments.get("source_session_id"))
+        try:
+            result = await _invoke_provider(method, session_id, text, task_id=task_id,
+                                            effect_key=key, source=source,
+                                            source_session_id=source_session_id)
+            outcome = _status(result)
+            return EffectReceipt(dict(key), outcome,
+                                 dict(result) if isinstance(result, Mapping) else {"value": result},
+                                 target_selection={"sessionIds": [session_id], "taskId": task_id}).as_dict()
+        except BaseException as exc:
+            outcome, detail = _provider_error(exc)
+            detail.update(sessionId=session_id, taskId=task_id)
+            return EffectReceipt(dict(key), outcome, detail,
+                                 target_selection={"sessionIds": [session_id], "taskId": task_id}).as_dict()
+
     @staticmethod
     def _session_args(plan: Mapping[str, Any]) -> tuple[str, str]:
         arguments = plan.get("arguments") if isinstance(plan.get("arguments"), Mapping) else plan
@@ -539,6 +609,7 @@ SystemExecutor = TypedExecutor
 
 __all__ = [
     "ChannelProvider",
+    "AssignProvider",
     "EffectExecutor",
     "EffectReceipt",
     "InMemoryReceiptStore",
@@ -547,4 +618,5 @@ __all__ = [
     "SystemExecutor",
     "TypedExecutor",
     "WorkerSessionProvider",
+    "WorkerAssignProvider",
 ]
