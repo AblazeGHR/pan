@@ -106,6 +106,11 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 
+CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
+Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
+启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回
+`unsupported_platform`，探测异常保持为错误；未知能力探测不自动隐藏全部 UI，普通 stream Worker 不受影响。
+
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
 
 - 能力查询：`GET /api/platform` → `{"platform": "...", "capabilities": {...}}`；

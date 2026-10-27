@@ -7,6 +7,7 @@ import time
 
 from fastapi import APIRouter, Request
 from packages.core import session, worker
+from packages.core import platform as platform_layer
 from packages.core.adapters import adapter_supports_native_control
 from packages.web.terminal_api import _enter, read_json_object, fail, ok, BodyError
 
@@ -17,6 +18,8 @@ def _target(request, session_id, *, require_enabled=True):
     _, rejected = _enter(request)
     if rejected is not None:
         return None, rejected
+    if not platform_layer.supports("terminal.native"):
+        return None, fail(501, "unsupported_platform")
     s = session.get(session_id, load_history=False)
     if s is None:
         return None, fail(404, "session-not-found")
