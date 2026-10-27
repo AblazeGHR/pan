@@ -316,6 +316,8 @@ def test_runtime_internal_publish_and_ack_cannot_bypass_explicit_adoption(tmp_pa
 
 @pytest.mark.parametrize("phase", PHASES)
 def test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor(tmp_path, phase):
+    from packages.core import session
+    session.save(session.Session(id="owned-session", name="Owned pending migration target"))
     from types import SimpleNamespace
     from packages.jobs.final_api import CanonicalUserAuth
     from packages.jobs.final_service import FinalService, object_ref

@@ -266,6 +266,8 @@ def test_ft01_revoke_between_steps_prevents_next_effect(h):
 
 
 def test_ft01_system_grant_and_high_risk_remain_separate(h):
+    from packages.core import session
+    session.save(session.Session(id="owned-test-session", name="Owned authorization target"))
     grants = h.automation.auth._default_permissions()
     grants["job"]["execute"] = True
     h.automation.auth.change_permissions(grants, 0)
