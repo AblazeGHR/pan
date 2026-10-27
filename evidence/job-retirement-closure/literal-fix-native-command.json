@@ -1,0 +1,930 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_provider_boundaries.py",
+    "tests/test_job_retirement_literal_validation.py",
+    "tests/test_job_final_contracts.py",
+    "tests/test_job_retirement_closure_successors.py",
+    "tests/test_job_final_http_service.py",
+    "tests/test_job_final_creators.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\literal-fix-native.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 31.168,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[invalid1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[123]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[input]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[event]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_custom_session_parameter_name_does_not_acquire_product_business_validation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_resolved_immutable_action_schema_is_used_after_reference_checks",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[botUin-untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[text-]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[endpoint-http://untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[sessionId-untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_empty_literal_object_is_validated_against_required_action_fields",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_event_publish_envelope_is_valid_and_has_no_editable_definition",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[action-effectClass]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[trigger-targetJobId]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[event_creator-configSchemaRef]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[job-steps]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[template-composition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[action-effect-class]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-overlap-mode]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[creator-provider-type]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-binding-source]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-contract-type]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[empty-contracts]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[selector-mode]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[literal-extra-key]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_condition_errors_use_the_condition_error_code",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_object_envelopes_validate_for_all_six_objects",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_runtime_records_use_the_declared_state_vocabulary",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_capacity_limits_are_explicit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_committed_schema_artifacts_match_the_generator",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_design_document_job_example_parses_and_validates",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc01_json_input_rejects_duplicate_keys_and_non_finite_numbers",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[2]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_expected_revision_rules_for_create_and_update",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_revision_conflict_reports_current_revision",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_content_and_publish_increment_revision_state_ops_do_not",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_idempotent_replay_for_same_key_and_content",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_idempotency_conflict_for_same_key_different_content",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_idempotency_scope_is_per_principal_and_pending_records_are_not_purged",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[empty]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[too-long]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[control-character]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[surrounding-space]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc02_event_receipts_replay_or_conflict_on_the_fact_digest",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_tagged_union_accepts_the_five_declared_forms",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[forward-step]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[literal-extra-key]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[missing-path]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_self_reference",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_undeclared_input_paths_and_unknown_system_fields",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_trigger_bindings_reject_step_and_input_sources[step-source]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_trigger_bindings_reject_step_and_input_sources[input-source]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_action_reference_requires_published_exact_revision_and_digest",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_disabled_action_blocks_admission_but_not_definition_editing",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_step_completion_contract_must_be_declared_and_parameters_validated",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_template_composition_requires_unique_and_resolvable_local_keys",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_template_cannot_embed_trigger_links_or_unfilled_parameter_holes",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[event]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-pause]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-resume]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-retry]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-cancel]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[trigger-retry]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[trigger-cancel]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-pause]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-resume]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-enable]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[job-publish]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event_creator-publish]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-enable]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-pause]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-retire]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[run-publish]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_definition_transition_violations_are_explicit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_run_layer_transitions_require_the_declared_operation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-legacyCompat]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-enabled]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-actionId]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-steps]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-retry]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-maxConcurrency]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[action-input_schema]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[template-enabled]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-producedCount]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_event_wire_names_are_rejected",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_error_codes_are_a_closed_set_with_http_mapping",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_operation_result_requires_the_documented_envelope",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_rename_description_roundtrip_cas_and_original_operation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[ ]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[\\t\\n]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_run_request_key_replays_after_restart_without_new_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_revoke_between_steps_prevents_next_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[kind-background-process]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[source-user]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[enabled-True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[authorization-value3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[configRevision-999]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_http_401_403_404_409_and_cookie_same_origin",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_concurrent_cas_allows_exactly_one_writer",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_failed_creator_or_cross_reference_rolls_back_every_table",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft03_old_facade_retires_writes_and_keeps_reads",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_new_trigger_never_consumes_old_wp04_event",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_forbid_is_durable_skipped_admission_not_a_second_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_creator_runtime_rechecks_lifecycle_grant_before_new_publication",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_real_agent_http_uses_existing_matrix_and_scoped_operations",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_bound_background_driver_survives_reload_without_resend",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_unbound_automatic_recovery_is_explicit_unsupported",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_recovery_never_reports_lost_cancelling_effect_as_cancelled",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_queue_keeps_admission_order_after_sorted_json_reload",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_unknown_effect_holds_queue_capacity_but_queued_cancel_can_settle",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_decimal_grid_weekly_seconds_once_and_cron",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_multiple_rules_and_after_publication_have_independent_cursors",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_iana_zone_matrix_keeps_offsets_and_fold_ordinals",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_cron_dst_gap_and_impossible_search_have_explicit_results",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_utc_and_fixed_offset_do_not_require_zoneinfo",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_named_zone_without_tzdata_is_explicitly_unavailable",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_explicit_dst_gap_fold_and_unavailable_zone",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs02_skip_and_backfill_are_distinct_instances_with_actual_drive_time",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs02_pause_advances_without_business_event_or_resume_backfill",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs03_event_commit_cursor_crash_and_restart_replay_same_envelope_once",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs03_publish_failure_ack_failure_and_concurrent_contenders_are_idempotent",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs03_old_provider_generation_can_settle_but_not_reserve",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs04_partial_activation_is_fenced_and_cancel_is_terminal",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs05_trusted_job_settlement_rearms_next_timer_without_action",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs05_settlement_between_event_commit_and_cursor_advance_is_not_lost",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 224,
+    "failure": 1,
+    "error": 0,
+    "skipped": 0
+  }
+}

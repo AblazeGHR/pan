@@ -1849,7 +1849,7 @@ def _validation_error(name: str, error: jsonschema.ValidationError) -> ContractE
 
 
 def _validate_document(name: str, instance: Any) -> None:
-    _validate_name_semantics(instance)
+    _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
     validator = _validators().get(name)
     if validator is None:
         raise ValueError(f"Unknown contract document: {name}")
@@ -1858,22 +1858,33 @@ def _validate_document(name: str, instance: Any) -> None:
         raise _validation_error(name, errors[0])
 
 
-def _validate_name_semantics(value: Any, *, path: str = "") -> None:
-    """Reject whitespace-only canonical names without rewriting valid input."""
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}" if path else str(key)
-            if key == "name" and isinstance(child, str) and not child.strip():
-                raise ContractError(
-                    "invalid_schema",
-                    "name must contain at least one non-whitespace character",
-                    path=child_path,
-                    details={"reason": "blank_name"},
-                )
-            _validate_name_semantics(child, path=child_path)
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
+def _validate_name_semantics(value: Any, *, kind: str, path: str = "") -> None:
+    """Check declared canonical names, never names inside business JSON."""
+    if kind not in DEFINITION_KINDS or not isinstance(value, dict):
+        return
+    name = value.get("name")
+    if isinstance(name, str) and not name.strip():
+        raise ContractError(
+            "invalid_schema",
+            "name must contain at least one non-whitespace character",
+            path=f"{path}.name" if path else "name",
+            details={"reason": "blank_name"},
+        )
+    if kind != "template":
+        return
+    prefix = f"{path}." if path else ""
+    _validate_name_semantics(value.get("jobDefinition"), kind="job", path=prefix + "jobDefinition")
+    composition = value.get("composition")
+    if not isinstance(composition, dict):
+        return
+    for key, child_kind in (("creators", "event_creator"), ("triggers", "trigger")):
+        specs = composition.get(key, [])
+        if not isinstance(specs, list):
+            continue
+        for index, spec in enumerate(specs):
+            if isinstance(spec, dict) and (key == "triggers" or spec.get("mode") == "create"):
+                _validate_name_semantics(spec.get("definition"), kind=child_kind,
+                    path=f"{prefix}composition.{key}.{index}.definition")
 
 
 def _validate_condition(condition: Any, *, path: str, depth: int = 0, counter: list[int] | None = None) -> None:
@@ -2216,7 +2227,7 @@ def normalize_definition(kind: str, definition: Any) -> dict[str, Any]:
     if not isinstance(definition, dict):
         raise ContractError("invalid_schema", "definition must be an object", path="definition")
     value = copy.deepcopy(definition)
-    _validate_name_semantics(value, path="definition")
+    _validate_name_semantics(value, kind=kind, path="definition")
     value.setdefault("description", "")
     if kind == "trigger":
         value.setdefault("eventFilter", {})
@@ -2684,16 +2695,24 @@ def _check_job_references(
     checked: list[Mapping[str, Any]] = []
     owner_job_id = job_id or job.get("id")
     for index, step in enumerate(job["steps"]):
-        checked.append(
-            _check_action_ref(
-                step["actionRef"],
-                path=f"{path}.steps.{index}.actionRef",
-                completion=step["completion"],
-                completion_path=f"{path}.steps.{index}.completion",
-                resolver=resolver,
-                require_enabled=require_enabled,
-            )
+        action = _check_action_ref(
+            step["actionRef"],
+            path=f"{path}.steps.{index}.actionRef",
+            completion=step["completion"],
+            completion_path=f"{path}.steps.{index}.completion",
+            resolver=resolver,
+            require_enabled=require_enabled,
         )
+        checked.append(action)
+        arguments = step["arguments"]
+        # Only complete literal objects can be checked before binding resolution.
+        # Mixed input/Event/step mappings retain their admission/Step validation.
+        if all(binding["from"] == "literal" for binding in arguments.values()):
+            _validate_instance(
+                (action.get("definition") or {}).get("inputSchema", {}),
+                {name: binding["value"] for name, binding in arguments.items()},
+                path=f"{path}.steps.{index}.arguments",
+            )
     for index, link in enumerate(job["triggerLinks"]):
         record = _resolve(resolver, "trigger", link["triggerId"], path=f"{path}.triggerLinks.{index}.triggerId")
         if record.get("state") == "retired":

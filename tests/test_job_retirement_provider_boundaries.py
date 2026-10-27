@@ -71,16 +71,20 @@ def test_missing_session_must_be_rejected_before_job_definition_commit(h):
 
 def test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning(h):
     h.service.executor = TypedExecutor(session_provider=WorkerSessionProvider())
+    existing = session.create('owned disappears after admission')
     value = job_def(h)
-    value['steps'][0]['arguments']['sessionId']['value'] = 'ses_owned_missing'
+    value['steps'][0]['arguments']['sessionId']['value'] = existing.id
     item = create(h, value=value)
     item = control(h, 'jobs', item, 'enable').json()['result']['object']
+    receipt = launch(h, item)
+    # The new write-time check cannot replace the real provider's race check.
+    # Delete only this test's Session after admission, before actual dispatch.
+    session.delete(existing.id)
     sessions_before = {p: p.read_bytes() for p in session.SESSION_DIR.rglob('*') if p.is_file()}
     workers_before = set(worker.workers)
-    receipt = launch(h, item)
     asyncio.run(h.service.dispatch_once())
     assert h.client.get('/api/job-runs/' + receipt['runId']).json()['state'] == 'failed'
-    assert session.get('ses_owned_missing') is None
+    assert session.get(existing.id) is None
     assert set(worker.workers) == workers_before
     assert {p: p.read_bytes() for p in session.SESSION_DIR.rglob('*') if p.is_file()} == sessions_before
 
