@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="5.192" timestamp="2026-10-27T16:42:19.458970+08:00" hostname="ablaze"><testcase classname="tests.test_notification_http" name="test_notification_settings_live_and_background_delivery" time="4.713"><failure message="AssertionError: {'error': 'Session name cannot contain spaces'}&#10;assert 'id' in {'error': 'Session name cannot contain spaces'}">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5495/test_notification_settings_liv0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E39D150770&gt;
+
+    def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'data')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        evidence = {'port': h.PORT, 'realQQ': False, 'realSystem': False}
+        fixture = {'x-notification-fixture': nonce}
+        def records(): return rt.request('GET', '/__test/notification/records', headers=fixture)
+        def emit(kind, identity):
+            return rt.request('POST', '/__test/notification/emit', headers=fixture,
+                              json={'owner': owner['id'], 'kind': kind, 'id': identity})
+        try:
+            rt.start()
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['sessions']).parent == rt.data_root
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
+            auth = {'Authorization': 'Bearer ' + token}
+            owner = rt.request('POST', '/api/sessions', json={'name': 'Notification owned source', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+&gt;           assert 'id' in owner, owner
+E           AssertionError: {'error': 'Session name cannot contain spaces'}
+E           assert 'id' in {'error': 'Session name cannot contain spaces'}
+
+tests\test_notification_http.py:37: AssertionError</failure></testcase></testsuite></testsuites>
