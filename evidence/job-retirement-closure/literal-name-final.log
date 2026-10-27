@@ -1,0 +1,45 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+F.....F................................................................. [ 29%]
+........................................................................ [ 59%]
+........................................................................ [ 88%]
+............................                                             [100%]
+================================== FAILURES ===================================
+__ test_business_json_blank_name_is_validated_only_by_its_schema[arguments] ___
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2394: in validate_definition
+    _check_job_definition(value)
+packages\jobs\final_contracts.py:2051: in _check_job_definition
+    _check_step_bindings(job, path=path, reject_sources=reject_sources)
+packages\jobs\final_contracts.py:2029: in _check_step_bindings
+    _validate_instance(input_schema, job["arguments"], path=f"{path}.arguments")
+packages\jobs\final_contracts.py:1964: in _validate_instance
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: Value does not satisfy its JSON Schema: Additional properties are not allowed ('name', 'nested' were unexpected)
+_ test_business_json_blank_name_is_validated_only_by_its_schema[template-payload] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2400: in validate_definition
+    _check_job_definition(value["jobDefinition"], path="jobDefinition")
+packages\jobs\final_contracts.py:2051: in _check_job_definition
+    _check_step_bindings(job, path=path, reject_sources=reject_sources)
+packages\jobs\final_contracts.py:2029: in _check_step_bindings
+    _validate_instance(input_schema, job["arguments"], path=f"{path}.arguments")
+packages\jobs\final_contracts.py:1964: in _validate_instance
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: Value does not satisfy its JSON Schema: Additional properties are not allowed ('name', 'nested' were unexpected)
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[arguments]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]

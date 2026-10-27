@@ -1,0 +1,193 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_name_scope.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\name-scope-red.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 1.391,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[arguments]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[literal]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[schema-default]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-config]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-schema]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[creator-config]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_event_payload_business_name_is_not_a_canonical_name",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -trigger]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 34,
+    "failure": 8,
+    "error": 0,
+    "skipped": 0
+  }
+}

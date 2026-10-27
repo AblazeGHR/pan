@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="42" time="0.861" timestamp="2026-10-28T00:17:47.382571+08:00" hostname="ablaze"><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[arguments]" time="0.008"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[literal]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1876: in _validate_name_semantics
+    _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1876: in _validate_name_semantics
+    _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[schema-default]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[action-config]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[action-schema]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[creator-config]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]" time="0.003"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_event_payload_business_name_is_not_a_canonical_name" time="0.005"><failure message="packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character">tests\test_job_retirement_name_scope.py:47: in test_event_payload_business_name_is_not_a_canonical_name
+    assert fc.validate_event_publish(event)['payload'] == event['payload']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2577: in validate_event_publish
+    _validate_document("event_publish", envelope)
+packages\jobs\final_contracts.py:1852: in _validate_document
+    _validate_name_semantics(instance)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character</failure></testcase><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[English name-action]" time="0.006" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[English name-trigger]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[English name-event_creator]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[English name-job]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[English name-template]" time="0.005" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[\u4e2d\u6587\u540d\u79f0-action]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[\u4e2d\u6587\u540d\u79f0-trigger]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[\u4e2d\u6587\u540d\u79f0-event_creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[\u4e2d\u6587\u540d\u79f0-job]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[\u4e2d\u6587\u540d\u79f0-template]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[  \u4e2d English  -action]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[  \u4e2d English  -trigger]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[  \u4e2d English  -event_creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[  \u4e2d English  -job]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_keep_legal_original_text[  \u4e2d English  -template]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[ -action]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[ -trigger]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[ -event_creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[ -job]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[ -template]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[\t\n-action]" time="0.003" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[\t\n-trigger]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[\t\n-event_creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[\t\n-job]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_canonical_definition_and_document_names_still_reject_blank[\t\n-template]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[ -jobDefinition]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[ -creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[ -trigger]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[\t\n-jobDefinition]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[\t\n-creator]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[\t\n-trigger]" time="0.002" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[  \u5408\u6cd5 template  -jobDefinition]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[  \u5408\u6cd5 template  -creator]" time="0.004" /><testcase classname="tests.test_job_retirement_name_scope" name="test_template_embedded_canonical_names_have_the_same_scope[  \u5408\u6cd5 template  -trigger]" time="0.004" /></testsuite></testsuites>

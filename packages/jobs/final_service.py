@@ -186,6 +186,8 @@ class FinalService:
         if kind == "job" and value.get("recovery", {}).get("automatic"):
             error("capability_unsupported", "Automatic recovery requires a separately bound recovery policy")
         checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
+        if kind == "job":
+            self._check_literal_product_sessions(value, checked)
         if kind == "trigger":
             selector = value["creatorSelector"]
             if selector["mode"] == "ids":
@@ -194,6 +196,36 @@ class FinalService:
                     if item is None or item["state"] == "retired":
                         error("reference_conflict", "Creator unavailable")
         return checked
+
+    @staticmethod
+    def _check_literal_product_sessions(value, checked):
+        # Reference validation returns step Actions first, in step order.
+        # Restrict business lookup to known product operations, never argument
+        # names on arbitrary custom Actions. No Worker or history is needed.
+        products = {"product_session_message": ("session-message", "sessionId"),
+                    "product_session_broadcast": ("session-broadcast", "sessionIds")}
+        for index, (step, action) in enumerate(zip(value["steps"], checked)):
+            product = products.get(action["id"])
+            config = action.get("definition") or {}
+            if product is None or config.get("system") is not True:
+                continue
+            operation, target = product
+            if config.get("execution", {}).get("operation") != operation:
+                continue
+            binding = step["arguments"].get(target, {})
+            if binding.get("from") != "literal":
+                continue
+            path = f"definition.steps.{index}.arguments.{target}"
+            # Validate this fixed target only; dynamic text is not a complete
+            # arguments object. Reuse the same schema validator as contracts.
+            fc._validate_instance(config["inputSchema"]["properties"][target], binding["value"], path=path)
+            ids = binding["value"] if target == "sessionIds" else [binding["value"]]
+            from packages.core import session
+            for sid in ids:
+                if session.get(sid, load_history=False) is None:
+                    raise fc.ContractError("invalid_schema", "Session target does not exist",
+                        path=path,
+                        details={"reason": "session_not_found", "id": sid})
 
     def _scope(self, actor, operation):
         return fc.idempotency_scope(principal(actor), self.profile_id, "create" if operation == "run-again" else operation)
