@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="32" failures="0" errors="0" time="1.447">
+    <testsuite name="stores/sessionStore.terminalTransient.test.ts" timestamp="2026-10-27T08:47:50.484Z" hostname="ablaze" tests="32" failures="0" errors="0" skipped="0" time="0.0221274">
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate diff at DONE even when old task history is outside the loaded page" time="0.0045167">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate plan at DONE even when old task history is outside the loaded page" time="0.0007">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes interrupted live fragments on restart while preserving canonical rows and local input" time="0.0010082">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=false)" time="0.0006685">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=true)" time="0.0004273">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=false)" time="0.0006404">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=true)" time="0.0003556">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains transient rows while terminal history coverage is stale or incomplete" time="0.000443">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains a completed scope when its loaded tail has no identifiable task boundary" time="0.0017292">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=false)" time="0.0009198">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=true)" time="0.0007436">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=later-completed)" time="0.0005252">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps canonical thinking and tools even when their final text differs from live progress" time="0.0006134">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="clears the empty orphan without discarding nonempty runtime outside the loaded task region" time="0.0006794">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not discard live progress for a legacy result without authoritative coverage" time="0.0002681">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves a newer running task while converging the completed task" time="0.0004334">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges consecutive completed tasks even when the first history response was delayed" time="0.0007075">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=false)" time="0.001215">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=true)" time="0.0004227">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=false)" time="0.0003664">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=true)" time="0.0003483">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=false)" time="0.0002824">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=true)" time="0.0005313">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=false)" time="0.0003727">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=true)" time="0.0003277">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=false)" time="0.0002389">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=true)" time="0.0002822">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=false)" time="0.0002804">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=true)" time="0.0003506">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps missed-result provisional rows until newer history covers their whole region" time="0.0003422">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not retire same-execution Steer when taskSeq changes" time="0.0002374">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a background superseded task without touching the selected Session" time="0.0004099">
+        </testcase>
+    </testsuite>
+</testsuites>

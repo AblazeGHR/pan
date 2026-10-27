@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="23.211" timestamp="2026-10-27T16:56:51.619614+08:00" hostname="ablaze"><testcase classname="tests.test_history_terminal_http" name="test_history_terminal_production_browser" time="22.779"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  ExpectError: expect(received).toBe(expected) // Object.is equality&#10;  &#10;  Expected: 1&#10;  Received: 0&#10;  &#10;  Call Log:&#10;  - Timeout 15000ms exceeded while waiting on the predicate&#10;      at captureRawStack (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)&#10;      at callMatcherAsStep (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)&#10;      at Object.toBe (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)&#10;      at D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\e2e\history-terminal-live.mjs:119:26 {&#10;    matcherResult: {&#10;      pass: false,&#10;      message: 'expect(received).toBe(expected) // Object.is equality\n' +&#10;        '\n' +&#10;        'Expected: 1\n' +&#10;        'Received: 0\n' +&#10;        '\n' +&#10;        'Call Log:\n' +&#10;        '- Timeout 15000ms exceeded while waiting on the predicate',&#10;      name: 'toBe'&#10;    }&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/history-terminal-live.mjs', 'http://127.0.0.1:55783', 'D:\\project\\p...+\n      '- Timeout 15000ms exceeded while waiting on the predicate',\n    name: 'toBe'\n  }\n}\n\nNode.js v24.22.1\n&quot;).returncode">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5509/test_history_terminal_producti0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001E3A130A190&gt;
+
+    def test_history_terminal_production_browser(tmp_path, monkeypatch):
+        assert base.PORT not in {8767, 8768}, "Use scripts/run_tests_isolated.py"
+        monkeypatch.setattr(base, "FAKE_CLI", Path(__file__).parent / "support/history_terminal_fake_cli.py")
+        monkeypatch.setattr(base, "SERVER_LAUNCHER", Path(__file__).parent / "support/automation_http_server.py")
+        rt = base._PanRuntime(tmp_path / "owned-history-profile")
+        rt.data_root.mkdir()
+        (rt.data_root / "config.json").write_text(json.dumps({"plugin_manifests": [],
+            "scheduler": {"enabled": False}, "memory": {"enabled": False}}), encoding="utf-8")
+        out = Path("artifacts/history-terminal/http").resolve()
+        out.mkdir(parents=True, exist_ok=True)
+        evidence = {"port": base.PORT, "ownedProfile": str(rt.data_root)}
+        try:
+            rt.start()
+            env = {**os.environ, "PAN_TEST_HISTORY_KEY": (
+                rt.data_root / "automation/user.key").read_text(encoding="utf-8")}
+            result = subprocess.run(["node", "packages/web/e2e/history-terminal-live.mjs", rt.base_url, str(out)],
+                cwd=base.ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=150,
+                **command_window_options())
+            (out / "browser.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+            evidence["browserExit"] = result.returncode
+&gt;           assert result.returncode == 0, result.stdout + result.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E
+E             ExpectError: expect(received).toBe(expected) // Object.is equality
+E
+E             Expected: 1
+E             Received: 0
+E
+E             Call Log:
+E             - Timeout 15000ms exceeded while waiting on the predicate
+E                 at captureRawStack (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+E                 at callMatcherAsStep (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+E                 at Object.toBe (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+E                 at D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\e2e\history-terminal-live.mjs:119:26 {
+E               matcherResult: {
+E                 pass: false,
+E                 message: 'expect(received).toBe(expected) // Object.is equality\n' +
+E                   '\n' +
+E                   'Expected: 1\n' +
+E                   'Received: 0\n' +
+E                   '\n' +
+E                   'Call Log:\n' +
+E                   '- Timeout 15000ms exceeded while waiting on the predicate',
+E                 name: 'toBe'
+E               }
+E             }
+E
+E             Node.js v24.22.1
+E
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/history-terminal-live.mjs', 'http://127.0.0.1:55783', 'D:\\project\\p...+\n      '- Timeout 15000ms exceeded while waiting on the predicate',\n    name: 'toBe'\n  }\n}\n\nNode.js v24.22.1\n").returncode
+
+tests\test_history_terminal_http.py:31: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,364 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/history-terminal-events-20261027/packages/web/src
+
+ ✓ components/chat/manualTaskReport.test.ts (27 tests) 8ms
+ ✓ stores/sessionStore.historyTerminal.test.ts (5 tests) 6ms
+ ✓ stores/sessionStore.terminalTransient.test.ts (32 tests) 27ms
+ ✓ stores/reaudit.history.test.ts (14 tests) 18ms
+ ✓ stores/sessionStore.interleaving.test.ts (23 tests) 19ms
+ ✓ components/chat/HistoryTerminal.test.tsx (1 test) 49ms
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates the unified job store on open and routes job lifecycle events into it
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > reconnects a stale socket and lets the open path refresh state
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > forces a new transport after a hidden-to-visible resume even when the socket looks fresh
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > requests pending native interactions when the singleton is already open
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > sends sync_interactive at most once for one socket generation during open/mount race
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps two hook mounts on one socket generation to one interactive replay frame
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > does not resync native interactions after the authoritative snapshot callback
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > lets resync_required send a snapshot without another interactive replay
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > applies session rename/update payloads before the debounced snapshot
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > refreshes selected history when its summary advances without a result frame
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > refreshes selected history when its summary advances without a result frame
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates codex history even when an earlier summary already has the same native revision
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates cbc history even when an earlier summary already has the same native revision
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates cbc history even when an earlier summary already has the same native revision
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > hydrates an empty canonical window despite an equal summary revision
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > does not refresh the wrong history after selection changes during coalescing
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > applies shared pin snapshots immediately and ignores stale revisions
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > routes Claude permission requests and removes them after resolution
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps native Codex waiting status available to the active worker
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps a native system error status and its summary visible to the toolbar
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps the latest native Codex token usage available to the active worker
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps native Codex account rate limits available to the active worker
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > renders and replaces native Codex turn plans and aggregate diffs
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > retires aggregate plan/diff across two DONE boundaries and rejects their late replay
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > surfaces native Codex turn errors immediately without adding a fake chat message
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > suppresses Codex warning Toasts when the notification setting is disabled
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > surfaces Codex MCP startup failures without surfacing ready notifications
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > appends a re-authorization hint to Codex MCP auth failures
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps non-notion MCP auth failures free of the re-authorization hint
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps the stdio notion variant free of the OAuth re-auth hint
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > surfaces native Codex model reroutes on the active session
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > updates a background session card in-place on worker.result
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > constructs a browser Notification from a granted Pan completion payload without requesting permission
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > late import/navigation completion never overrides a user selection made while the lazy import was pending
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > a second notification click wins over an earlier click whose navigation is still settling
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > a second notification click wins over an earlier click whose navigation is still settling
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > user re-selecting the starting session during the navigation window still counts as a take-over
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > aborts when the user routes away while the navigation is settling
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > clicking a completion notification selects its session and navigates to chat
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > reports deletion only after an authoritative list without the session
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > never reports a failed list load as deletion
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > lets a later user selection win over a slow notification lookup
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > applies only the latest of two rapid notification clicks
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > surfaces a router failure instead of swallowing it
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > appends the [DONE] notice for the current session without duplicating history
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > labels a native cancelled turn separately from an error
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > keeps the dot settled when the idle worker.status follows worker.result
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > settles runtime and legal state atomically from the terminal event summary
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > accepts a newer-generation result when the replacement spawn was missed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > ignores an out-of-order running status from an older worker generation
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > clears the card status on worker crash and keeps history intact
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > refreshes the durable agent queue after a worker crash
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > renders streamed tool content with backend-compatible ASCII escaping
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > renders unknown native Codex items through the generic tool fallback
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > replaces a running command item as native output deltas arrive
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > updates interleaved native tools by item id
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > surfaces native terminal interaction and clears it on result
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.result wiring > drops stale native interaction prompts when a worker is restarted
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > merges the agent-injected user message into currentMessages on running + source=agent
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > reconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > reconciles a late agent queue handoff across DONE, history refresh and A/B/A
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > retries when the first history snapshot races the injected message persistence
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > continues streaming system/report turns after a completed numbered task
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > does not sync for user-originated tasks
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > refreshes the durable queue when receipt transitions to running
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > applies a consecutive external queue item without a redundant snapshot GET
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > repairs a queue revision gap once and keeps legacy event reconciliation
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > uses a complete queue snapshot without a GET and repairs missing event payloads
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > renders a delivered queue message immediately and keeps it across a stale refresh
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > syncs injected report history for a background Session without changing the selected Session
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > keeps in-flight streamed blocks when the server snapshot lags (diverged tail)
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > does not duplicate streamed blocks already persisted on the server
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket agent-injected message sync > is idempotent across repeated running events for the same task
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > updates a background session card lastMessage on stream text
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > truncates the card preview to 200 chars
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > updates every accepted background preview synchronously without a timer
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > skips stream events without text content
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > result remains authoritative after earlier stream previews
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > merges native app-server deltas and replaces them with the final item
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps the same display identity across id-less streaming deltas
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > gives separate display identities to blocks from one native item
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > updates compound thinking/text/tool blocks by role without collapsing them
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps old task deltas out of the new task watermark window
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > rejects a foreign taskId at the same taskSeq before native alias lookup
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > converges a delta that arrives after its turn item completed under another native id
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > reconciles id-less Claude deltas with its multi-block final in canonical order
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > does not reuse a transient turn alias after the worker is restarted
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > does not retain an unfinished assistant prefix after restart and a later result
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > does not carry missed-result items or aliases into the next execution (running=false)
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > does not carry missed-result items or aliases into the next execution (running=true)
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps separate completed assistant items with distinct native ids in one turn
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > ignores a late cumulative echo without absorbing the next distinct item
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > streams a new cumulative Codex body after a completed body and intervening tool
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps one selected-session assistant message across an interleaved turn, result, and history refresh
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > renders each selected-session delta through Markdown and keeps the sidebar preview
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps interleaved native items in event order while each item streams
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > keeps thinking, tools, and content in arrival order across interleaved stream updates
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > does not append background-session stream or result messages to the selected chat
+[sessionStore] loadSessions failed
+
+stderr | hooks/useWebSocket.test.tsx > useWebSocket worker.stream lastMessage preview > reloads persisted app settings when another client saves them
+[sessionStore] loadSessions failed
+
+ ✓ hooks/useWebSocket.test.tsx (111 tests) 1526ms
+
+ Test Files  7 passed (7)
+      Tests  213 passed (213)
+   Start at  16:57:25
+   Duration  5.55s (transform 991ms, setup 71ms, collect 5.64s, tests 1.65s, environment 3.09s, prepare 1.30s)
+
+JUNIT report written to D:/project/pan-worktrees/history-terminal-events-20261027/artifacts/history-terminal/react-all.xml

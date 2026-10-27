@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="75" failures="0" errors="0" time="3.571">
+    <testsuite name="stores/reaudit.history.test.ts" timestamp="2026-10-27T08:50:16.752Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="0.0192718">
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R1 · tail refresh keeps the loaded window start (does not reset it to the page start)" time="0.0028139">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R2 · scrolling up after a tail refresh never duplicates or reorders loaded rows" time="0.0013199">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R3 · an older historyEpoch/historyRevision page must not be applied" time="0.000369">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · live → result → history identity rebuild &gt; R4 · a tool block that streamed before the assistant keeps its position through result" time="0.002077">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · live → result → history identity rebuild &gt; R5 · a history refresh after result must not leave a duplicate tool row" time="0.0007043">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · legitimate same-text history rows &gt; R6 · identical text with distinct identities is never text-deduped" time="0.0006449">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R7 · [user, analysis, tool, final] keeps its order through result" time="0.0005739">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R8 · consecutive DONE rounds preserve every earlier block and its position" time="0.0017997">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R9 · a stale cached projection index must not overwrite a different-role row" time="0.0004839">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R10 · an id-less new reply with identical text must not merge into the old row" time="0.0003081">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R11 · an id-less provider result keeps [interim, tool, final] without a duplicate" time="0.0003327">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R11a · a canonical tail arriving after result stays after the completed turn" time="0.0006023">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R12 · a historyEpoch change must drop the stale old-epoch tail" time="0.0018023">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · background history recovery never adopts selected rows &gt; R13 · applying Session B history while Session A is selected cannot copy A runtime rows" time="0.0046246">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.historyTerminal.test.ts" timestamp="2026-10-27T08:50:16.758Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0053621">
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="anchors delayed error before the newer turn, deduplicates events, orders by cursor" time="0.0011472">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="keeps no-body and paged-out anchors independent without inventing an attachment" time="0.0001837">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="converges delayed canonical pages, refresh duplicates and pagination to the same display" time="0.001324">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="late older error cannot overwrite a new turn or another selected Session" time="0.0014407">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="error terminal never replaces its live assistant body with diagnosis text" time="0.0007259">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.interleaving.test.ts" timestamp="2026-10-27T08:50:16.759Z" hostname="ablaze" tests="23" failures="0" errors="0" skipped="0" time="0.0177235">
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="places a late handoff receipt before its own live blocks without blocking native reorder" time="0.0034995">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps a different execution receipt and Steer after the blocks already emitted" time="0.0005655">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="repairs the display when the queue projection has consumed the same receipt before its execution scope" time="0.0003831">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="repairs a pending receipt while streaming in the background and ignores duplicate delivery" time="0.0007422">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="history refresh between deltas never adopts the displayed clone as a second runtime row" time="0.0009785">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a Steer user row inserted ahead of an unfinished tool by its message id" time="0.0006334">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps a canonical Pan Steer row when its optimistic alias arrives later" time="0.0002465">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a legacy id-less Steer row only within its local history boundary" time="0.0002624">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="does not duplicate a queued user row reordered ahead of a live tool" time="0.0002484">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="matches a queued user row to canonical history by its persisted queue item id" time="0.0002531">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="retains queued user identity through delivery before an id-less history refresh" time="0.0002924">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges an assistant item moved ahead of an interleaved tool by native id" time="0.0002475">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges an id-less canonical assistant after a Session switch and tool reorder" time="0.0004066">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="switching away and back invalidates cached displayed clones without duplicating the next delta" time="0.0003165">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="completed runtime rows remain anchored when history is refreshed repeatedly then another task starts" time="0.001831">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="moves a delivered queue user from after DONE onto its canonical task boundary across A/B/A" time="0.0012649">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a real Codex terminal reorder before the next same-text turn" time="0.0015529">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps same-body deliveries with distinct delivery keys as two canonical rows" time="0.0007172">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="a queued second user row keeps its position after the first completed turn" time="0.0007954">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="editing and removing pending messages also updates the background transcript" time="0.0007023">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="background delivery replaces the pending row and survives repeated delivery" time="0.0003382">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="unchanged live blocks keep their rendered object references" time="0.0002251">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps versioned canonical offsets when a delayed summary reports fewer rows" time="0.0005075">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.terminalTransient.test.ts" timestamp="2026-10-27T08:50:16.762Z" hostname="ablaze" tests="32" failures="0" errors="0" skipped="0" time="0.024427">
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate diff at DONE even when old task history is outside the loaded page" time="0.0049838">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate plan at DONE even when old task history is outside the loaded page" time="0.0008033">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes interrupted live fragments on restart while preserving canonical rows and local input" time="0.0009123">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=false)" time="0.0007583">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=true)" time="0.0004928">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=false)" time="0.0005313">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=true)" time="0.0003992">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains transient rows while terminal history coverage is stale or incomplete" time="0.0005392">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains a completed scope when its loaded tail has no identifiable task boundary" time="0.0018777">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=false)" time="0.0008476">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=true)" time="0.000701">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=later-completed)" time="0.0005907">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps canonical thinking and tools even when their final text differs from live progress" time="0.0007691">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="clears the empty orphan without discarding nonempty runtime outside the loaded task region" time="0.0009042">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not discard live progress for a legacy result without authoritative coverage" time="0.0003287">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves a newer running task while converging the completed task" time="0.0006453">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges consecutive completed tasks even when the first history response was delayed" time="0.0007761">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=false)" time="0.0010915">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=true)" time="0.0005132">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=false)" time="0.0004519">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=true)" time="0.0004038">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=false)" time="0.0003767">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=true)" time="0.0004605">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=false)" time="0.0003707">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=true)" time="0.0003812">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=false)" time="0.0003026">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=true)" time="0.0003856">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=false)" time="0.0003574">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=true)" time="0.0004009">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps missed-result provisional rows until newer history covers their whole region" time="0.0003936">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not retire same-execution Steer when taskSeq changes" time="0.0003005">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a background superseded task without touching the selected Session" time="0.0005377">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/HistoryTerminal.test.tsx" timestamp="2026-10-27T08:50:16.769Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0295114">
+        <testcase classname="components/chat/HistoryTerminal.test.tsx" name="renders errors outside assistant/Markdown bubbles with expandable plain diagnostics" time="0.0290525">
+        </testcase>
+    </testsuite>
+</testsuites>
