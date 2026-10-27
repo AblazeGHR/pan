@@ -1849,12 +1849,31 @@ def _validation_error(name: str, error: jsonschema.ValidationError) -> ContractE
 
 
 def _validate_document(name: str, instance: Any) -> None:
+    _validate_name_semantics(instance)
     validator = _validators().get(name)
     if validator is None:
         raise ValueError(f"Unknown contract document: {name}")
     errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
     if errors:
         raise _validation_error(name, errors[0])
+
+
+def _validate_name_semantics(value: Any, *, path: str = "") -> None:
+    """Reject whitespace-only canonical names without rewriting valid input."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key == "name" and isinstance(child, str) and not child.strip():
+                raise ContractError(
+                    "invalid_schema",
+                    "name must contain at least one non-whitespace character",
+                    path=child_path,
+                    details={"reason": "blank_name"},
+                )
+            _validate_name_semantics(child, path=child_path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
 
 
 def _validate_condition(condition: Any, *, path: str, depth: int = 0, counter: list[int] | None = None) -> None:
@@ -2197,6 +2216,7 @@ def normalize_definition(kind: str, definition: Any) -> dict[str, Any]:
     if not isinstance(definition, dict):
         raise ContractError("invalid_schema", "definition must be an object", path="definition")
     value = copy.deepcopy(definition)
+    _validate_name_semantics(value, path="definition")
     value.setdefault("description", "")
     if kind == "trigger":
         value.setdefault("eventFilter", {})

@@ -5,9 +5,11 @@ import copy
 import pytest
 
 from packages.jobs.final_service import FinalService
+from packages.jobs import final_contracts as fc
 from tests.test_job_final_http_service import (  # noqa: F401
     h, USER, create, enabled, job_def, launch,
 )
+from tests.test_job_final_contracts import DEFINITION_FIXTURES
 
 
 def test_rename_description_roundtrip_cas_and_original_operation(h):
@@ -86,3 +88,12 @@ def test_target_and_text_edit_only_changes_future_frozen_runs(h):
         assert h.client.get('/api/operations/' + receipt['operationId']).json()['status'] == 'completed'
     asyncio.run(h.service.dispatch_once())
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize('kind', fc.DEFINITION_KINDS)
+def test_name_semantics_are_consistent_for_every_canonical_kind(kind):
+    definition = DEFINITION_FIXTURES[kind](name='  合法名称  ')
+    normalized = fc.normalize_definition(kind, definition)
+    assert normalized['name'] == '  合法名称  '
+    with pytest.raises(fc.ContractError, match='non-whitespace'):
+        fc.normalize_definition(kind, {**definition, 'name': '\t\n'})

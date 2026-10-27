@@ -26,3 +26,17 @@
 MA 下一步应先处理两个 whitespace-name 红，然后按 [node-review.md](../../evidence/job-retirement-closure/node-review.md) 补 G2 owner 身份/资源结算、G3 真实迁移分类与历史索引、G4 完整通知/管理能力和三平台/部署/人工验收。任何 unknown owner、未 ack outbox、活进程或缺失动态入口证据都继续阻止宿主删除；不得自动重投 unknown。
 
 没有 push、merge、main/practical 操作、保护端口操作、WSL 启动、依赖安装或真实服务重启。
+
+## revision3 名称语义修复
+
+MA 已复现原后继 8 pass/2 fail 后，本候选仅修改 `packages/jobs/final_contracts.py`：
+`_validate_name_semantics`、`normalize_definition` 和 `_validate_document`。纯 whitespace
+名称在写入/文档验证前返回 `ContractError(invalid_schema, details.reason=blank_name)`；合法
+中英文名称（包括前后空白）保持原文，不自动 strip 或改写。递归检查覆盖五个 canonical kind
+及 template 的嵌套 job/creator/trigger 定义。JSON Schema 结构没有需要重新生成的变化，
+因此没有伪造或修改生成工件。
+
+revision3 focused 命令见 [revision3-focused.xml](../../evidence/job-retirement-closure/revision3-focused.xml)：
+**145 passed，0 failed/error/skip，exit 0**，包含两条原 whitespace 红后继、五 kind 一致性、
+完整 FC01–FC04 schema/contract、CAS/idempotency 与 invalid-definition no-write。原始
+`final-gate.xml` 的 8 pass/2 fail 仍保留，未重写旧证据。
