@@ -1,0 +1,13 @@
+{
+  "executorPort": 52306,
+  "label": "public-queued-cancel",
+  "queuedCancelled": true,
+  "attempts": 0,
+  "effects": 0,
+  "supervisors": 0,
+  "canonicalPort": 52307,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 0
+}

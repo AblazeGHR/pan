@@ -1,0 +1,21 @@
+{
+  "label": "venv-delivery",
+  "argv": [
+    "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retained_safety_protocol.py",
+    "tests/test_job_retained_safety_owned.py",
+    "tests/test_job_retained_safety_canonical.py",
+    "tests/test_job_retained_safety_public.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=evidence/p23-retained-safety/public-resume/venv-delivery.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+  "exit": 0,
+  "seconds": 118.305
+}

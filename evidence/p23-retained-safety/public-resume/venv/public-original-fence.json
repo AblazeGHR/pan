@@ -1,0 +1,21 @@
+{
+  "executorPort": 62023,
+  "label": "public-original-fence",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 5,
+  "launcherIsSupervisor": false,
+  "ownershipRootIsScript": false,
+  "oldFrozenPlanUnchanged": true,
+  "newReleaseImmutable": true,
+  "staleFencesRejected": 4,
+  "finishAttemptStillRejectsUncertain": true,
+  "originalAttemptReconciled": true,
+  "effects": 1,
+  "canonicalPort": 62024,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "venv"
+}
