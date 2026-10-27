@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.976" timestamp="2026-10-27T10:45:16.039544+08:00" hostname="ablaze"><testcase classname="tests.test_job_retained_history_bridge" name="test_run_now_does_not_move_periodic_next_fire_retained_successor" time="0.244"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_job_retained_history_bridge.py:28: in test_run_now_does_not_move_periodic_next_fire_retained_successor
+    legacy.subscription(eid, "old-trigger", "completed", runId="original-run")
+packages\automation\event_store.py:132: in subscription
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase></testsuite></testsuites>

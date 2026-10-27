@@ -1,0 +1,65 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p24-retained-history-20261027
+FFFFFFFF.                                                                [100%]
+================================== FAILURES ===================================
+___________________ test_list_jobs_mixed_kinds_and_filters ____________________
+tests\test_jobs_api.py:157: in test_list_jobs_mixed_kinds_and_filters
+    msg = _make_message_job(monkeypatch, tmp_path, name="œ˚œ¢““")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_jobs_api.py:147: in _make_message_job
+    return jobs.start_message("ses_m1", "hello",
+           ^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_ test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read] _
+tests\test_jobs_api.py:1106: in test_pin_metadata_failure_does_not_fail_committed_operations
+    assert response.status_code == 200
+E   assert 503 == 200
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+________________ test_run_now_does_not_move_periodic_next_fire ________________
+tests\test_scheduler_legacy_bridge.py:90: in test_run_now_does_not_move_periodic_next_fire
+    monkeypatch.setattr(system_actions, 'execute', completed)
+E   AttributeError: <module 'packages.jobs.system_actions' from 'D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\packages\\jobs\\system_actions.py'> has no attribute 'execute'
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters - packa...
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]
+FAILED tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]
+FAILED tests/test_scheduler_legacy_bridge.py::test_run_now_does_not_move_periodic_next_fire
