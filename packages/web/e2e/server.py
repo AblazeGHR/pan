@@ -66,6 +66,7 @@ def _stream_markdown() -> str:
         [
             "## Browser file-link fixtures",
             "[relative file](notes.md#L42)",
+            "[relative range](notes.md#L42-L48)",
             f"[windows server path]({windows_path}#L42-L48)",
             f"[file URI]({file_uri})",
             "[http link](https://example.com/pan-e2e)",

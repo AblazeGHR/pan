@@ -51,10 +51,15 @@ export function CodeEditor({ path, content }: CodeEditorProps) {
   const pendingLocation = useEditorStore((s) => s.pendingLocation);
   const consumePendingLocation = useEditorStore((s) => s.consumePendingLocation);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  // `@monaco-editor/react` remounts its inner editor when `path` changes, but
+  // the new instance mounts asynchronously. Until then editorRef still points
+  // at the previous file's editor; applying (and consuming) a location there
+  // would drop the request for the file actually being opened.
+  const mountedPathRef = useRef<string | null>(null);
 
   const applyLocation = useCallback(
     (editor: Parameters<OnMount>[0], location: EditorLocation | null) => {
-      if (!location || location.path !== path) return;
+      if (!location || location.path !== path || mountedPathRef.current !== path) return;
       const model = editor.getModel();
       const lineCount = model?.getLineCount() ?? location.line;
       const line = Math.min(Math.max(1, location.line), lineCount);
@@ -88,6 +93,7 @@ export function CodeEditor({ path, content }: CodeEditorProps) {
     (editor, monaco) => {
       setMonacoRef(monaco);
       editorRef.current = editor;
+      mountedPathRef.current = path;
       applyLocation(editor, useEditorStore.getState().pendingLocation);
 
       // Register Ctrl+S

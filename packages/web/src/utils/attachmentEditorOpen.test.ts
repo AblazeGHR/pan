@@ -67,3 +67,23 @@ it.each(['success', 'failure', 'switch'] as const)(
     if (outcome === 'switch') expect(stores.openFile).not.toHaveBeenCalled();
   },
 );
+
+it('forwards the attachment line location to the resolved editor path', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => ({ path: '/fixture/notes.md' }) })),
+  );
+  const navigate = vi.fn();
+
+  await openComposerAttachmentInEditor(
+    { serverAttachmentId: 'att_fixture', location: { line: 42, endLine: 48 } },
+    { sessionId: 'ses_selected', workdir: '/fixture', navigate },
+  );
+
+  expect(stores.openFile).toHaveBeenCalledWith('/fixture/notes.md', {
+    path: '/fixture/notes.md',
+    line: 42,
+    endLine: 48,
+  });
+  expect(navigate).toHaveBeenCalledWith('/editor');
+});
