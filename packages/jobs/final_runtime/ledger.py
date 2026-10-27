@@ -294,6 +294,42 @@ class Ledger:
         ledger["steps"][run_id][step_id] = contracts.validate_record("step", step)
         return step
 
+    def reconcile_attempt(self, job, root, *, expected_attempt, effect_key, receipt):
+        """Resolve ONLY an original uncertain Attempt from a trusted lookup.
+
+        This is not finish_attempt and cannot admit or reactivate execution.
+        The original fence, effect, and latest Step generation must all match.
+        """
+        from packages.jobs.independent_executor import fence
+        state = aggregate(job, root)
+        aid = expected_attempt["attemptId"]
+        current = state["attempts"][aid]
+        step = state["steps"][current["runId"]][current["stepId"]]
+        rows = [row for row in state["effects"] if row["attemptId"] == aid]
+        if (fence(current) != fence(expected_attempt) or current["state"] != "uncertain"
+                or step["state"] != "uncertain" or step["attemptCount"] != current["generation"]
+                or len(rows) != 1 or rows[0]["effectKey"] != dict(effect_key)
+                or rows[0]["outcome"] not in {"unknown", "partial"}
+                or receipt.get("effectKey") != dict(effect_key)
+                or receipt.get("outcome") not in {"succeeded", "rejected"}
+                or any(a["attemptId"] != aid and a["runId"] == current["runId"]
+                       and a["stepId"] == current["stepId"] and a["generation"] >= current["generation"]
+                       for a in state["attempts"].values())):
+            raise contracts.ContractError("revision_conflict", "Original uncertain Attempt reconciliation fence rejected")
+        target = "completed" if receipt["outcome"] == "succeeded" else "failed"
+        contracts.check_transition("step", step["state"], target, operation="reconcile")
+        resolved_attempt = contracts.validate_record("attempt", {**current,
+            "state": "succeeded" if target == "completed" else "failed", "endedAt": now()})
+        resolved_step = contracts.validate_record("step", {**step, "state": target,
+            "stateRevision": step["stateRevision"] + 1, "finishedAt": now()})
+        resolved_effect = contracts.validate_record("effect", {**rows[0], "outcome": receipt["outcome"],
+            "receipt": copy.deepcopy(receipt), "updatedAt": now()})
+        state.setdefault("receiptReconciliations", {}).setdefault(aid, []).append(copy.deepcopy(rows[0]))
+        state["attempts"][aid] = resolved_attempt
+        state["steps"][current["runId"]][current["stepId"]] = resolved_step
+        rows[0].update(resolved_effect)
+        return resolved_attempt
+
     def effect_key(self, run_id: str, step_id: str, target_id: str, operation_ordinal: int = 0) -> dict[str, Any]:
         return {"runId": run_id, "stepId": step_id, "targetId": target_id, "operationOrdinal": operation_ordinal}
 

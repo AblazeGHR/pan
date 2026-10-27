@@ -1,8 +1,4 @@
-"""Exact canonical successors: real HTTP, real independent intent/owned tree.
-
-The two DELETE successors deliberately stay red until MA's shared control is
-integrated. Backend cleanup evidence is collected before reporting that red.
-"""
+"""Exact canonical successors: public controls and original owned resources."""
 import asyncio
 import json
 import os
@@ -53,6 +49,20 @@ def canonical(owned):
         owned.release.touch()
         state.release_receipt.set()
         if state.dispatch:
+            if state.dispatch.is_alive() and owned.children:
+                # Failure-only teardown: reap only our retained supervisors.
+                # Their Job handles clean the owned children; settle host loss
+                # as unknown so a waiting test transport can return and close.
+                for child in owned.children:
+                    for record in getattr(owned, "supervisor_identities", []):
+                        from packages.core.platform.process import default_process_owner
+                        owner = default_process_owner()
+                        if owner.verify(record).verified_alive:
+                            assert owner.recover(record, terminate=True).terminated
+                    if child.poll() is None:
+                        child.kill()
+                        child.wait(5)
+                owned.store.recover(lambda _: False)
             state.dispatch.join(15)
             assert not state.dispatch.is_alive()
         client.close()
@@ -66,9 +76,9 @@ def canonical(owned):
         owned.evidence.update(canonicalPort=port, canonicalPortReleased=True)
 
 
-def launch(c):
+def launch(c, *, default_pending=False, action_id="product_process_cleanup_v1", queued=False):
     o = c.owned
-    action = next(item for item in c.service.actions(actor=USER)["items"] if item["id"] == "product_process")
+    action = next(item for item in c.service.actions(actor=USER)["items"] if item["id"] == action_id)
     definition = {"name": "retained safety canonical parent", "steps": [{"stepId": "owned",
         "actionRef": object_ref("action", action),
         "arguments": {key: {"from": "literal", "value": value} for key, value in o.plan["arguments"].items()},
@@ -91,6 +101,10 @@ def launch(c):
         Holding terminal delivery models an in-flight network callback. This
         does not claim default execution_pending recovery is already wired.
         """
+        cleanup_execution = adapter.cleanup_execution
+        lookup_execution = adapter.lookup_execution
+        lookup_receipt = adapter.lookup_receipt
+
         async def execute(self, *, attempt, effect_key, frozen_plan, retry=False):
             o.attempt, o.key, o.plan = attempt, effect_key, frozen_plan
             pending = await adapter.execute(attempt=attempt, effect_key=effect_key, frozen_plan=frozen_plan, retry=retry)
@@ -104,11 +118,18 @@ def launch(c):
                     return doc["result"]
                 await asyncio.sleep(.02)
 
-    c.service.executor = AwaitOriginalReceipt()
+    if default_pending:
+        from packages.actions.typed_executor import TypedExecutor
+        c.service.executor = TypedExecutor(independent_executor=adapter)
+    else:
+        c.service.executor = AwaitOriginalReceipt()
     response = c.client.post("/api/jobs/" + job["id"] + "/runs", json={"expectedRevision": job["configRevision"],
         "requestKey": "run", "input": {}, "cause": {"type": "manual"}})
     assert response.status_code == 202, response.text
     c.run_id = response.json()["runId"]
+    c.run_operation_id = response.json()["operationId"]
+    if queued:
+        return job
 
     def dispatch():
         try:
@@ -117,7 +138,18 @@ def launch(c):
             c.dispatch_errors.append(repr(exc))
     c.dispatch = threading.Thread(target=dispatch, daemon=True)
     c.dispatch.start()
-    wait_for(lambda: getattr(o, "identity", None), bool)
+    if default_pending:
+        c.dispatch.join(10)
+        assert not c.dispatch.is_alive() and c.dispatch_errors == []
+        state = c.service.final.store.get(job["id"])["finalRuntime"]
+        effect, = state["effects"]
+        o.attempt, o.key = state["attempts"][effect["attemptId"]], effect["effectKey"]
+        # The host's original Attempt remains running; only canonical's copy
+        # became uncertain after execution_pending.
+        o.attempt = {**o.attempt, "state": "running"}
+        o.identity = effect_id(o.key)
+    else:
+        wait_for(lambda: getattr(o, "identity", None), bool)
     # Idempotent duplicate admission must query the same executor identity.
     doc, request = submit(o)
     assert doc["jobId"] == job["id"] and doc["attempt"]["runId"] == c.run_id
@@ -137,41 +169,38 @@ def test_real_owned_tree_delete_http_successor(canonical, first_unknown):
     c, o = canonical, canonical.owned
     o.evidence["label"] = "canonical-delete-unknown-" + str(first_unknown).lower()
     launch(c)
-    wired = []
+    operations = []
 
-    def canonical_cleanup():
+    def canonical_cleanup(key="cancel-original"):
         # DELETE is logical retirement. Explicit Run cancellation must arrange
         # owned cleanup before anyone can claim physical deletion is safe.
         run = c.client.get("/api/job-runs/" + c.run_id).json()
         response = c.client.post("/api/job-runs/" + c.run_id + "/operations", json={"operation": "cancel",
-            "expectedStateRevision": run["stateRevision"], "requestKey": "cancel-original"})
+            "expectedStateRevision": run["stateRevision"], "requestKey": key})
         assert response.status_code == 202, response.text
         operation_id = response.json()["operationId"]
-        try:
-            doc = wait_for(lambda: o.client.get_execution(o.identity), lambda row: "cleanupRequest" in row, timeout=1)
-            wired.append(True)
-        except AssertionError:
-            wired.append(False)
-            doc = o.client.cleanup_execution(o.identity, o.attempt)
+        operations.append(operation_id)
+        doc = wait_for(lambda: o.client.get_execution(o.identity), lambda row: "cleanupRequest" in row)
         operation = c.client.get("/api/operations/" + operation_id).json()
-        assert operation["status"] in {"accepted", "pending", "unknown"}
-        o.evidence.update(canonicalCleanupRequested=wired[0], canonicalCancelStatus=response.status_code,
+        assert operation["status"] in {"accepted", "pending", "unknown", "completed"}
+        o.evidence.update(canonicalCleanupRequested=True, canonicalCancelStatus=response.status_code,
                          canonicalOperationBeforeProof=operation["status"])
         return doc
 
-    final = exercise_cleanup(o, first_unknown, request_cleanup=canonical_cleanup)
+    final = exercise_cleanup(o, first_unknown, request_cleanup=canonical_cleanup,
+                             recheck_cleanup=lambda: canonical_cleanup("explicit-recheck"))
     assert final["jobId"] == c.job["id"]
     c.release_receipt.set()
     c.dispatch.join(10)
     assert not c.dispatch.is_alive() and c.dispatch_errors == []
-    assert c.client.get("/api/job-runs/" + c.run_id).json()["state"] == "failed"
+    asyncio.run(c.service.recover_external_receipts())
+    assert c.client.get("/api/job-runs/" + c.run_id).json()["state"] == "cancelled"
+    assert all(c.client.get("/api/operations/" + op).json()["status"] == "completed" for op in operations)
     after = delete(c, "delete-confirmed")
     assert after.status_code == 200, after.text
     assert c.client.get("/api/jobs/" + c.job["id"]).json()["state"] == "retired"
     o.evidence.update(retireStatus=after.status_code, physicallyCleanBeforeRetire=True)
-    assert wired == [True], (
-        "P23 shared-entry gap: canonical Run cancel never requested cleanup of the original owned executor; "
-        "the test had to explicitly call the independent cleanup endpoint. DELETE only retires the definition.")
+    assert o.evidence["canonicalCleanupRequested"] is True
 
 
 @pytest.mark.skipif(os.name != "nt", reason="P23 Windows FILETIME/Job Object real-tree verification")

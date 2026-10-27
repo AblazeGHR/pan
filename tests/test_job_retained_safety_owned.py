@@ -33,6 +33,7 @@ from pathlib import Path
 from packages.core.platform import process
 from packages.core.platform.process import IdentityCheck, ProcessStatus
 from packages.jobs.independent_execution_runner import run
+import time
 original = process.default_process_owner
 root = Path(sys.argv[1])
 class ObservedOwner:
@@ -50,7 +51,9 @@ class ObservedOwner:
             return TreeTerminationResult(tree.owned, (handle.pid,), False, 'injected lost termination acknowledgement')
         return tree
 process.default_process_owner = ObservedOwner
-raise SystemExit(run(root, sys.argv[2]))
+code = run(root, sys.argv[2])
+while (root/'hold-supervisor-exit').exists(): time.sleep(.02)
+raise SystemExit(code)
 '''
 
 
@@ -135,6 +138,12 @@ while not release.exists(): time.sleep(.02)
         release.touch()
         # Kill only our retained Popen supervisors if the assertion failed;
         # their original Job handles perform KILL_ON_JOB_CLOSE tree cleanup.
+        # The launcher PID may be a Windows venv redirector. Reap the actual
+        # supervisor by its captured FILETIME before waiting for that launcher.
+        for record in getattr(item, "supervisor_identities", []):
+            if default_process_owner().verify(record).verified_alive:
+                result = default_process_owner().recover(record, terminate=True)
+                assert result.terminated, result
         for child in children:
             try:
                 child.wait(timeout=8)
@@ -151,7 +160,9 @@ while not release.exists(): time.sleep(.02)
             assert probe.connect_ex(("127.0.0.1", server.server_port)) != 0
         assert not remaining(item.identities), "owned process leak"
         item.evidence.update(portReleased=True, ownedProcessesRemaining=[], supervisorsReaped=len(children))
-        out = Path("evidence/p23-retained-safety") / (item.evidence.get("label", "owned") + ".json")
+        interpreter = "venv" if sys.prefix != sys.base_prefix else "native"
+        item.evidence["interpreter"] = interpreter
+        out = Path("evidence/p23-retained-safety/public-resume") / interpreter / (item.evidence.get("label", "owned") + ".json")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(item.evidence, indent=2), encoding="utf-8")
 
@@ -164,18 +175,30 @@ def submit(owned):
                    lambda row: row["phase"] == "running" and owned.ready.exists())
     pids = json.loads(owned.ready.read_text())
     owner = default_process_owner()
-    owned.identities = [owner.identity(pid).as_dict() for pid in
-                        [pids["parent"], pids["child"], owned.children[0].pid]]
-    assert doc["supervisorIdentity"]["pid"] == owned.children[0].pid
-    assert doc["evidence"]["processIdentity"]["pid"] == pids["parent"]
+    # Windows venv redirectors are distinct processes. Do not bind the actual
+    # supervisor to Popen's launcher PID, nor the effect's ownership root to
+    # the script interpreter PID. Verify every identity and its ancestry.
+    root_pid = doc["evidence"]["processIdentity"]["pid"]
+    supervisor_pid = doc["supervisorIdentity"]["pid"]
+    effect_pids = list(dict.fromkeys([root_pid, pids["parent"], pids["child"]]))
+    supervisor_pids = list(dict.fromkeys([supervisor_pid, owned.children[0].pid]))
+    owned.effect_identities = [owner.identity(pid).as_dict() for pid in effect_pids]
+    owned.supervisor_identities = [owner.identity(pid).as_dict() for pid in supervisor_pids]
+    owned.identities = owned.effect_identities + owned.supervisor_identities
+    if pids["parent"] != root_pid:
+        assert root_pid in [p.pid for p in psutil.Process(pids["parent"]).parents()]
+    if supervisor_pid != owned.children[0].pid:
+        assert owned.children[0].pid in [p.pid for p in psutil.Process(supervisor_pid).parents()]
     assert all(owner.verify(record).verified_alive for record in owned.identities)
     assert all(record["kind"] == "filetime" and int(record["birth"]) > 0 for record in owned.identities)
     assert doc["evidence"]["processIdentity"]["birth"] == owned.identities[0]["birth"]
-    owned.evidence.update(originalIdentityVerified=True, identityKind="filetime", ownedProcessCount=3)
+    assert doc["supervisorIdentity"]["birth"] == owned.supervisor_identities[0]["birth"]
+    owned.evidence.update(originalIdentityVerified=True, identityKind="filetime", ownedProcessCount=len(owned.identities),
+        launcherIsSupervisor=supervisor_pid == owned.children[0].pid, ownershipRootIsScript=root_pid == pids["parent"])
     return doc, request
 
 
-def exercise_cleanup(owned, first_unknown, request_cleanup=None):
+def exercise_cleanup(owned, first_unknown, request_cleanup=None, recheck_cleanup=None):
     client, identity, attempt = owned.client, owned.identity, owned.attempt
     owner = default_process_owner()
     wrong = {**owned.identities[0], "birth": str(int(owned.identities[0]["birth"]) + 1)}
@@ -183,7 +206,7 @@ def exercise_cleanup(owned, first_unknown, request_cleanup=None):
     assert check.ours is False and not check.verified_alive
     refused = owner.recover(wrong, terminate=True)
     assert refused.action == "refused_identity" and not refused.terminated
-    assert len(remaining(owned.identities)) == 3
+    assert len(remaining(owned.identities)) == len(owned.identities)
     owned.evidence["pidReuseStaleBirthRefused"] = True
     for field, value in [("leaseId", "stale"), ("attemptId", "stale"), ("ownerEpoch", 2), ("generation", 2)]:
         with pytest.raises(RuntimeError, match="409"):
@@ -196,7 +219,7 @@ def exercise_cleanup(owned, first_unknown, request_cleanup=None):
                    lambda row: row.get("cleanupRequest", {}).get("status") in {"confirmed", "unknown"})
     if first_unknown:
         assert doc["cleanupRequest"]["status"] == "unknown"
-        assert doc["result"] is None and len(remaining(owned.identities)) == 3
+        assert doc["result"] is None and len(remaining(owned.identities)) == len(owned.identities)
         assert not (owned.root / "kills.jsonl").exists()
         # Cold process: real recovery, GET, and admission with the original
         # identity cannot execute, reset unknown, or enqueue another cleanup.
@@ -214,15 +237,15 @@ print('cold recovery retained unknown; no replay')
         time.sleep(.15)
         assert client.get_execution(identity)["cleanupRequest"]["status"] == "unknown"
         assert not (owned.root / "kills.jsonl").exists()
-        assert len(remaining(owned.identities)) == 3
-        assert client.cleanup_execution(identity, attempt)["cleanupRequest"]["revision"] == 2
+        assert len(remaining(owned.identities)) == len(owned.identities)
+        assert (recheck_cleanup or (lambda: client.cleanup_execution(identity, attempt)))()["cleanupRequest"]["revision"] == 2
         doc = wait_for(lambda: client.get_execution(identity),
                        lambda row: row.get("cleanupRequest", {}).get("status") == "confirmed")
     proof = doc["cleanupRequest"]["proof"]
     assert proof["confirmed"] and proof["rootExited"]
     assert proof["identityCheck"]["ours"] is True
     assert proof["ownedTree"]["confirmed"] and proof["ownedTree"]["remaining"] == []
-    assert {record["pid"] for record in owned.identities[:2]} <= set(proof["ownedTree"]["owned"])
+    assert {record["pid"] for record in owned.effect_identities} <= set(proof["ownedTree"]["owned"])
     final = wait_for(lambda: client.get_execution(identity), lambda row: row["result"] is not None)
     assert final["result"]["outcome"] == "rejected"  # killing is not successful business execution
     assert final["result"]["cleanupProof"]["confirmed"] is True
@@ -263,8 +286,8 @@ def test_real_partial_cleanup_waits_for_explicit_recheck(owned):
                    lambda row: row.get("cleanupRequest", {}).get("status") == "unknown")
     assert doc["result"] is None
     assert len((owned.root / "kills.jsonl").read_text().splitlines()) == 1
-    assert not remaining(owned.identities[:2])
-    assert remaining(owned.identities[2:])  # original supervisor/Job handle retained
+    assert not remaining(owned.effect_identities)
+    assert remaining(owned.supervisor_identities)  # original supervisor/Job handle retained
     (owned.root / "uncertain-kill").unlink()
     time.sleep(.2)
     assert owned.client.get_execution(owned.identity)["cleanupRequest"]["status"] == "unknown"

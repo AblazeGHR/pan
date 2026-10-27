@@ -81,6 +81,28 @@ def supervisor_alive(record):
     return status == "alive" and check.ours is True
 
 
+def supervisor_exit_evidence(record):
+    """Read-only proof for the ORIGINAL supervisor; unknown never means dead."""
+    import psutil
+    from packages.core.platform.process import default_process_owner, ProcessStatus
+    try:
+        check = default_process_owner().verify(record)
+        if check.status is ProcessStatus.DEAD and check.ours is True:
+            return {"confirmed": True, "reason": "original_handle_signaled", "identity": dict(record)}
+        if check.status is ProcessStatus.ALIVE and check.ours is False:
+            return {"confirmed": True, "reason": "pid_reused_original_exited", "identity": dict(record)}
+        if check.verified_alive:
+            return {"confirmed": False, "reason": "original_supervisor_alive"}
+        # A native handle cannot be reopened after process object deletion on
+        # Windows. Proven PID absence establishes exit, never kill authority.
+        psutil.Process(record["pid"])
+    except psutil.NoSuchProcess:
+        return {"confirmed": True, "reason": "pid_absent", "identity": dict(record)}
+    except Exception:
+        pass
+    return {"confirmed": False, "reason": "supervisor_exit_unknown"}
+
+
 def service_offline_evidence(*, root, port, old_pid, old_pid_created_at):
     """psutil distinguishes absence/reused PID from access-denied/unknown."""
     import psutil

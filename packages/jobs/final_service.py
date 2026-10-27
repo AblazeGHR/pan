@@ -84,6 +84,7 @@ class FinalService:
         self.compositions = CompositionCoordinator(self.creators, self)
         self.admission = TriggerAdmission(self)
         self.executor = executor or TypedExecutor(session_provider=WorkerSessionProvider())
+        self._product_executor = self.executor if executor is None else None
         self.task = None
         self.closed = False
         self.diagnostics = []
@@ -530,12 +531,26 @@ class FinalService:
                     result["attemptId"] = None
                     pending = True
                 elif operation == "cancel":
-                    if run["state"] == "uncertain":
-                        error("reconciliation_required", "Uncertain cancellation needs reconciliation")
                     if run["state"] not in ACTIVE:
                         error("cancellation_window_closed", "Run already settled")
-                    if run["state"] != "cancelling":
+                    targets = self._external_targets(job, run_id)
+                    if run["state"] == "uncertain" and not targets:
+                        error("reconciliation_required", "Uncertain cancellation needs original resource identity")
+                    if run["state"] == "uncertain":
+                        run["stateRevision"] += 1
+                        run["transitionSeq"] += 1
+                    elif run["state"] != "cancelling":
                         self.final.ledger.transition_run(job, self.root, run_id, "cancelling", operation="cancel")
+                    previous = state.setdefault("cancellations", {}).get(run_id)
+                    # Another in-flight request cannot authorize a second
+                    # destructive call. Only a fresh request after unknown can.
+                    active = previous and previous["status"] in {"intent", "requested"}
+                    if not active:
+                        state["cancellations"][run_id] = {"operationId": operation_id,
+                            "status": "intent", "targets": copy.deepcopy(targets),
+                            "revision": (previous or {}).get("revision", 0) + 1}
+                    result.update(cleanupStatus="pending", effectKeys=[copy.deepcopy(t["effectKey"]) for t in targets],
+                                  attemptIds=[t["attempt"]["attemptId"] for t in targets])
                     pending = True
                 elif operation == "pause":
                     if run["state"] not in {"queued", "retry_wait", "running"}:
@@ -557,6 +572,89 @@ class FinalService:
                     self._save(db, "job", job["jobId"], job)
                 return result, [object_ref("job", job["canonical"])], pending
             return self._operation(db, actor, operation, body["requestKey"], {"runId": run_id, **body}, "job", mutate)
+
+    def _external_adapter(self, job_id):
+        adapter = getattr(self.executor, "independent_executor", None) or self.executor
+        if self.executor is self._product_executor:
+            from packages.jobs.independent_executor import ExecutionHost, ExecutionStore, IndependentExecutor
+            return IndependentExecutor(job_id=job_id, client=ExecutionHost(ExecutionStore(self.root / "executions")))
+        return adapter
+
+    def _external_targets(self, job, run_id=None):
+        state = aggregate(job, self.root)
+        keys = {row["attemptId"]: row["effectKey"] for row in state["effects"] if row["outcome"] in {"unknown", "partial"}}
+        keys.update({row["attemptId"]: row["effectKey"] for row in state["effectAdmissions"].values()})
+        return [{"jobId": job["jobId"], "attempt": copy.deepcopy(state["attempts"][aid]), "effectKey": copy.deepcopy(key)}
+                for aid, key in keys.items() if state["attempts"][aid]["state"] in {"running", "uncertain"}
+                and (run_id is None or state["attempts"][aid]["runId"] == run_id)]
+
+    async def control_run_postcommit(self, run_id, body, *, actor):
+        self._permit(actor, "job", "execute")
+        if body["operation"] == "cancel":
+            # Observe a previous asynchronous unknown before admitting an
+            # explicit new recheck. This query cannot perform cleanup itself.
+            await self.recover_external_receipts()
+        response = self.control_run(run_id, body, actor=actor)
+        if body["operation"] != "cancel" or response.get("replayed"):
+            return response
+        with self.transaction() as db:
+            job, _ = self._find_run(db, run_id)
+            intent = aggregate(job, self.root)["cancellations"][run_id]
+            if intent["operationId"] != response["operationId"] or intent["status"] != "intent":
+                return response
+            intent["status"] = "requested"  # persist BEFORE external await; never replay after crash
+            job_id, targets = job["jobId"], copy.deepcopy(intent["targets"])
+            self._save(db, "job", job_id, job)
+        adapter = self._external_adapter(job_id)
+        failure = None
+        for target in targets:
+            try:
+                cleanup = getattr(adapter, "cleanup_execution", None)
+                if cleanup is None:
+                    raise ValueError("original executor does not support owned cleanup")
+                await cleanup(attempt=target["attempt"], effect_key=target["effectKey"])
+            except Exception:
+                failure = "cleanup_request_unknown"
+        if failure:
+            with self.transaction() as db:
+                job = self._get(db, "job", job_id)
+                current = aggregate(job, self.root)["cancellations"][run_id]
+                if current["operationId"] == response["operationId"]:
+                    current.update(status="unknown", error=failure)
+                    self._cancel_status(db, job, run_id, "unknown")
+                    self._save(db, "job", job_id, job)
+        await self.recover_external_receipts()
+        # Request acceptance is stable even if the terminal result arrived
+        # during the await. Query the original operation for its latest state.
+        return response
+
+    def _cancel_status(self, db, job, run_id, status):
+        intent = aggregate(job, self.root)["cancellations"][run_id]
+        for row in db.execute("SELECT id,document FROM final_operations").fetchall():
+            op = json.loads(row[1])
+            if op["operation"] != "cancel" or op["response"].get("runId") != run_id:
+                continue
+            if op["response"]["status"] not in {"accepted", "pending", "unknown"}:
+                continue
+            op["response"]["status"] = status
+            op["response"]["result"].update(cleanupStatus=intent["status"], runState=aggregate(job, self.root)["runs"][run_id]["state"])
+            op["response"]["result"]["cleanupRevision"] = intent["revision"]
+            if status == "unknown":
+                op["response"]["error"] = {"code": "reconciliation_required", "message": "Inspect original execution; explicit cancellation recheck required"}
+            else:
+                op["response"].pop("error", None)
+            db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
+
+    def _cancel_boundary(self, db, job, run_id):
+        state = aggregate(job, self.root)
+        intent = state.get("cancellations", {}).get(run_id)
+        if self._external_targets(job, run_id) or (intent and intent["targets"] and intent["status"] != "confirmed"):
+            return  # Neither a state label nor a lost host is resource proof.
+        self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
+        if intent:
+            intent["status"] = "confirmed"
+            self._cancel_status(db, job, run_id, "completed")
+        self._settle(db, job, run_id)
 
     def operation(self, operation_id, *, actor):
         with self.transaction(readonly=True) as db:
@@ -661,6 +759,14 @@ class FinalService:
                 "requiredCapabilities": [], "completionContracts": [{"id": contract, "schema": {"type": "object"}, "terminalProofSchema": {"type": "object"}}],
                 "defaultCompletion": contract, "cancel": {"supported": False}, "reconcile": {"supported": False},
                 "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
+            if op == "process":
+                # A new immutable release, never overwrite product_process or
+                # alter Actions embedded in an already-frozen Run.
+                with self.transaction(readonly=True) as db:
+                    value = definition("action", self._get(db, "action", "product_process"))
+                value.update(cancel={"supported": True}, reconcile={"supported": True},
+                    providerRef={"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.process-cleanup.v1"), "generation": 2})
+                self.publish_action("product_process_cleanup_v1", value)
 
     def actions(self, *, actor):
         self._permit(actor, "action", "read")
@@ -691,6 +797,7 @@ class FinalService:
 
     async def dispatch_once(self):
         """Drive WP02 records through WP05, one serial boundary per Run."""
+        await self.recover_external_receipts()
         async with self._dispatch_lock:
             with self.transaction() as db:
                 candidates = []
@@ -715,8 +822,7 @@ class FinalService:
             run = state["runs"][run_id]
             plan = state["plans"][run_id]
             if run["state"] == "cancelling":
-                self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
-                self._settle(db, job, run_id)
+                self._cancel_boundary(db, job, run_id)
                 return
             if plan.get("pauseRequested"):
                 if run["state"] != "paused_at_boundary":
@@ -737,8 +843,7 @@ class FinalService:
                 plan = state["plans"][run_id]
                 run = state["runs"][run_id]
                 if run["state"] == "cancelling":
-                    self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
-                    self._settle(db, job, run_id)
+                    self._cancel_boundary(db, job, run_id)
                     return
                 if plan.get("pauseRequested") or job["canonical"]["state"] == "paused":
                     self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
@@ -778,7 +883,8 @@ class FinalService:
                     executable["action"] = {"api": "send_qq", "args": {key: args[key] for key in ("targetType", "targetId", "botUin") if key in args}}
                 self._save(db, "job", job_id, job)
             try:
-                receipt = await self.executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
+                executor = self._external_adapter(job_id) if executable["operation"] == "process" and self.executor is self._product_executor else self.executor
+                receipt = await executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
                                                       retry=attempt["generation"] > 1)
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
@@ -788,10 +894,18 @@ class FinalService:
             mapped = {"succeeded": "completed", "rejected": "failed", "unknown": "uncertain", "partial": "uncertain"}.get(outcome, "uncertain")
             with self.transaction() as db:
                 job = self._get(db, "job", job_id)
+                state = aggregate(job, self.root)
+                # A fenced lookup may have already committed this very receipt
+                # while the original callback was delayed in transport.
+                if state["attempts"][attempt["attemptId"]]["state"] != "running":
+                    return
                 self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
                     expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
                 self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
                 state = aggregate(job, self.root)
+                if run_id in state.get("cancellations", {}):
+                    self._save(db, "job", job_id, job)
+                    return  # Only the explicit cleanup proof path settles cancel.
                 if mapped == "completed":
                     state["plans"][run_id].setdefault("outputs", {})[step["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
                     self._save(db, "job", job_id, job)
@@ -817,7 +931,11 @@ class FinalService:
         self._save(db, "job", job["jobId"], job)
         for row in db.execute("SELECT id,document FROM final_operations").fetchall():
             op = json.loads(row[1])
-            if op["response"].get("runId") == run_id and op["response"]["status"] in {"accepted", "pending"}:
+            if op["operation"] == "cancel" and aggregate(job, self.root).get("cancellations", {}).get(run_id, {}).get("status") != "confirmed":
+                continue
+            if (op["response"].get("runId") == run_id and
+                    (op["response"]["status"] in {"accepted", "pending"} or
+                     (op["response"]["status"] == "unknown" and run["state"] in {"completed", "failed", "cancelled"}))):
                 op["response"]["status"] = "unknown" if run["state"] == "uncertain" else "completed"
                 op["response"]["result"]["runState"] = run["state"]
                 if run["state"] in {"failed", "uncertain"}:
@@ -839,6 +957,10 @@ class FinalService:
                     self.creators._write(db, creator)
             for job in self._all(db, "job"):
                 state = aggregate(job, self.root)
+                for rid, intent in state.get("cancellations", {}).items():
+                    if intent["status"] in {"intent", "requested"}:
+                        intent["status"] = "unknown"
+                        self._cancel_status(db, job, rid, "unknown")
                 for row in state["outbox"].values():
                     if row["status"] == "sending":
                         row.update(status="uncertain", receipt={"code": "notification_host_restarted"})
@@ -856,44 +978,124 @@ class FinalService:
                     self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
                     self._settle(db, job, run["runId"])
 
+    @staticmethod
+    def _cleanup_complete(doc):
+        receipt = doc.get("result") or {}
+        proof = receipt.get("cleanupProof", {})
+        if receipt.get("outcome") not in {"succeeded", "rejected"} or proof.get("confirmed") is not True:
+            return False
+        if proof.get("effectStarted") is False:
+            return doc.get("phase") == "cancelled" and (not doc.get("supervisorIdentity")
+                or doc.get("supervisorExitProof", {}).get("confirmed") is True)
+        tree = proof.get("ownedTree", {})
+        return (tree.get("confirmed") is True and tree.get("remaining") == []
+                and proof.get("identityVerified") is True and proof.get("treeTerminated") is True
+                and doc.get("supervisorExitProof", {}).get("confirmed") is True)
+
+    def _apply_original_receipt(self, job, target, receipt):
+        from packages.jobs.independent_executor import fence
+        state = aggregate(job, self.root)
+        expected, key = target["attempt"], target["effectKey"]
+        attempt = state["attempts"][expected["attemptId"]]
+        if (target["jobId"] != job["jobId"] or fence(attempt) != fence(expected)
+                or receipt.get("effectKey") != key):
+            error("revision_conflict", "Original external receipt fence rejected")
+        outcome = "completed" if receipt["outcome"] == "succeeded" else "failed"
+        if attempt["state"] == "running":
+            admission = next((r for r in state["effectAdmissions"].values() if r["attemptId"] == attempt["attemptId"]), None)
+            if admission is None or admission["effectKey"] != key:
+                error("revision_conflict", "Original admission missing")
+            self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], outcome,
+                expected_epoch=expected["ownerEpoch"], expected_generation=expected["generation"])
+            self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt)
+        elif attempt["state"] == "uncertain":
+            self.final.ledger.reconcile_attempt(job, self.root, expected_attempt=expected, effect_key=key, receipt=receipt)
+        else:
+            prior = [r for r in state["effects"] if r["attemptId"] == attempt["attemptId"]]
+            if len(prior) != 1 or prior[0]["effectKey"] != key or prior[0]["receipt"] != receipt:
+                error("revision_conflict", "Late receipt differs from committed original")
+        if outcome == "completed":
+            state["plans"][expected["runId"]].setdefault("outputs", {})[expected["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
+        return outcome
+
     async def recover_external_receipts(self):
-        adapter = getattr(self.executor, "independent_executor", None) or self.executor
-        lookup = getattr(adapter, "lookup_receipt", None)
-        if lookup is None:
-            return
+        # Query only. Never submit execution or repeat a cleanup request here.
         with self.transaction(readonly=True) as db:
-            pending = [(job["jobId"], copy.deepcopy(state["attempts"][row["attemptId"]]), copy.deepcopy(row["effectKey"]))
-                       for job in self._all(db, "job") for state in [aggregate(job, self.root)]
-                       for row in state["effectAdmissions"].values()
-                       if state["attempts"][row["attemptId"]]["state"] == "running"]
-        for job_id, attempt, key in pending:
+            pending = []
+            for job in self._all(db, "job"):
+                state = aggregate(job, self.root)
+                cancelled = state.get("cancellations", {})
+                for rid, intent in cancelled.items():
+                    if intent["status"] != "confirmed" and intent["targets"]:
+                        pending.append((job["jobId"], rid, copy.deepcopy(intent), copy.deepcopy(intent["targets"])))
+                for target in self._external_targets(job):
+                    rid = target["attempt"]["runId"]
+                    if rid not in cancelled:
+                        pending.append((job["jobId"], rid, None, [target]))
+        for job_id, rid, intent, targets in pending:
+            adapter = self._external_adapter(job_id)
+            documents = []
             try:
-                receipt = await lookup(attempt=attempt, effect_key=key)
+                for target in targets:
+                    lookup_doc = getattr(adapter, "lookup_execution", None)
+                    if lookup_doc is not None:
+                        doc = await lookup_doc(attempt=target["attempt"], effect_key=target["effectKey"])
+                    elif intent is None and callable(getattr(adapter, "lookup_receipt", None)):
+                        doc = {"result": await adapter.lookup_receipt(attempt=target["attempt"], effect_key=target["effectKey"])}
+                    else:
+                        raise ValueError("original executor lookup unavailable")
+                    documents.append(doc)
             except Exception:
                 self.diagnostics.append({"at": now(), "code": "external_receipt_unavailable"})
+                del self.diagnostics[:-100]
+                if intent is not None:
+                    with self.transaction() as db:
+                        job = self._get(db, "job", job_id)
+                        current = aggregate(job, self.root)["cancellations"][rid]
+                        if current["operationId"] == intent["operationId"]:
+                            current["status"] = "unknown"
+                            self._cancel_status(db, job, rid, "unknown")
+                            self._save(db, "job", job_id, job)
                 continue
-            if receipt is None or receipt.get("outcome") not in {"succeeded", "rejected"}:
-                continue  # Still alive/unknown is not permission to replay.
-            outcome = "completed" if receipt["outcome"] == "succeeded" else "failed"
             with self.transaction() as db:
                 job = self._get(db, "job", job_id)
                 state = aggregate(job, self.root)
-                self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], outcome,
-                    expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
-                self.final.ledger.record_effect(job, self.root, attempt["attemptId"], outcome, receipt)
-                rid = attempt["runId"]
-                if outcome == "completed":
-                    state["plans"][rid].setdefault("outputs", {})[attempt["stepId"]] = copy.deepcopy(receipt.get("receipt", {}))
-                    target = "completed" if all(s["state"] == "completed" for s in state["steps"][rid].values()) else "retry_wait"
-                else:
-                    target = "failed"
-                if state["runs"][rid]["state"] == "cancelling":
-                    self.final.ledger.transition_run(job, self.root, rid, "settling")
-                    target = "uncertain"  # Cancellation still needs original tree proof.
-                self.final.ledger.transition_run(job, self.root, rid, target)
-                self._save(db, "job", job_id, job)
-                if target != "retry_wait":
+                if intent is not None:
+                    current = state["cancellations"][rid]
+                    if current["operationId"] != intent["operationId"] or current["status"] == "confirmed":
+                        continue
+                    current["observations"] = copy.deepcopy(documents)
+                    if not all(self._cleanup_complete(doc) for doc in documents):
+                        unknown = any(doc.get("cleanupRequest", {}).get("status") == "unknown"
+                                      or (doc.get("result") or {}).get("outcome") in {"unknown", "partial"} for doc in documents)
+                        if unknown:
+                            current["status"] = "unknown"
+                            self._cancel_status(db, job, rid, "unknown")
+                        self._save(db, "job", job_id, job)
+                        continue
+                    for target, doc in zip(targets, documents):
+                        self._apply_original_receipt(job, target, doc["result"])
+                    current["status"] = "confirmed"
+                    self.final.ledger.transition_run(job, self.root, rid, "cancelled",
+                        operation="reconcile" if state["runs"][rid]["state"] == "uncertain" else "cancel")
+                    self._cancel_status(db, job, rid, "completed")
                     self._settle(db, job, rid)
+                else:
+                    receipt = documents[0].get("result")
+                    if not receipt or receipt.get("outcome") not in {"succeeded", "rejected"}:
+                        continue
+                    # A control may have arrived while lookup was in flight.
+                    if rid in state.get("cancellations", {}):
+                        continue
+                    outcome = self._apply_original_receipt(job, targets[0], receipt)
+                    target_state = ("completed" if all(s["state"] == "completed" for s in state["steps"][rid].values())
+                                    else "retry_wait") if outcome == "completed" else "failed"
+                    run = state["runs"][rid]
+                    self.final.ledger.transition_run(job, self.root, rid, target_state,
+                        operation="reconcile" if run["state"] == "uncertain" else None)
+                    self._save(db, "job", job_id, job)
+                    if target_state != "retry_wait":
+                        self._settle(db, job, rid)
 
     def targets(self, event):
         with self.transaction(readonly=True) as db:

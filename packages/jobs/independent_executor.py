@@ -366,13 +366,26 @@ class IndependentExecutor:
     def __init__(self, *, job_id, client):
         self.job_id, self.client = job_id, client
 
+    async def lookup_execution(self, *, attempt, effect_key):
+        from packages.core.platform.execution_host import supervisor_exit_evidence
+        doc = await asyncio.to_thread(self.client.get_execution, effect_id(effect_key))
+        if (doc.get("jobId") != self.job_id or doc.get("effectKey") != dict(effect_key)
+                or doc.get("effectId") != effect_id(effect_key)
+                or fence(doc.get("attempt", {})) != fence(attempt)
+                or (doc.get("result") is not None and doc["result"].get("effectKey") != dict(effect_key))):
+            raise ExecutionConflict("execution lookup identity/fence mismatch")
+        doc["supervisorExitProof"] = await asyncio.to_thread(supervisor_exit_evidence, doc.get("supervisorIdentity", {}))
+        return doc
+
     async def cleanup_execution(self, *, attempt, effect_key):
         """Explicit cleanup of the original effect; response is not a receipt.
 
         The canonical control owner must keep pending/unknown visible and query
         the final receipt before completing cancellation or resource purge.
         """
-        doc = await asyncio.to_thread(self.client.cleanup_execution, effect_id(effect_key), dict(attempt))
+        original = await self.lookup_execution(attempt=attempt, effect_key=effect_key)
+        operation = self.client.cancel_execution if original.get("cancellable") and original.get("result") is None else self.client.cleanup_execution
+        doc = await asyncio.to_thread(operation, effect_id(effect_key), dict(attempt))
         if (doc.get("jobId") != self.job_id or doc.get("effectKey") != dict(effect_key)
                 or fence(doc.get("attempt", {})) != fence(attempt)
                 or doc.get("effectId") != effect_id(effect_key)):
