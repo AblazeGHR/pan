@@ -1,0 +1,15 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\job_retirement_closure.py",
+    "--output",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\inventory.json"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 2,
+  "stdout": "Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\n{\"exit\": 2, \"files\": 1076, \"edges\": 64, \"removalAllowed\": false}\n",
+  "stderr": ""
+}

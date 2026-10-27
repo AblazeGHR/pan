@@ -1,0 +1,233 @@
+[
+  {
+    "path": "packages/core/adapters/opencode/sessions.py",
+    "line": 311,
+    "code": "__import__('time')",
+    "status": "requires-review",
+    "manualReview": "Literal Python standard library; does not load legacy host"
+  },
+  {
+    "path": "packages/jobs/independent_runner.py",
+    "line": 290,
+    "code": "__import__('signal')",
+    "status": "requires-review",
+    "manualReview": "Literal Python standard library; does not load legacy host"
+  },
+  {
+    "path": "packages/web/e2e/automation.server.py",
+    "line": 10,
+    "code": "importlib.util.spec_from_file_location('automation_browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/automation.server.py",
+    "line": 12,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/composerUrlNodeHttp.e2e.py",
+    "line": 57,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', ROOT / 'packages/web/e2e/server.py')",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/composerUrlNodeHttp.e2e.py",
+    "line": 62,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/frontend-full.server.py",
+    "line": 10,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/frontend-full.server.py",
+    "line": 12,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/historySearchServer.py",
+    "line": 12,
+    "code": "importlib.util.spec_from_file_location('search_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/historySearchServer.py",
+    "line": 14,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/jobs-badge-retry.server.py",
+    "line": 24,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/jobs-badge-retry.server.py",
+    "line": 26,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/jobs-badge.server.py",
+    "line": 15,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/jobs-badge.server.py",
+    "line": 17,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/live-indicators.server.py",
+    "line": 6,
+    "code": "importlib.util.spec_from_file_location('live_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/live-indicators.server.py",
+    "line": 8,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/navigationServer.py",
+    "line": 6,
+    "code": "importlib.util.spec_from_file_location('nav_fixture', Path(os.environ.get('PAN_NAV_CHECKOUT', Path(__file__).resolve().parents[3])) / 'packages/web/e2e/server.py')",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/navigationServer.py",
+    "line": 8,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/network-list.server.py",
+    "line": 6,
+    "code": "importlib.util.spec_from_file_location('network_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/network-list.server.py",
+    "line": 8,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/notification-deeplink.server.py",
+    "line": 18,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/notification-deeplink.server.py",
+    "line": 20,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/notification-workspace-jump.server.py",
+    "line": 20,
+    "code": "importlib.util.spec_from_file_location('browser_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/notification-workspace-jump.server.py",
+    "line": 22,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/queueDraftAttachments.http.py",
+    "line": 30,
+    "code": "importlib.util.spec_from_file_location('fixture', WEB / 'e2e/server.py')",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/queueDraftAttachments.http.py",
+    "line": 32,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/queueDraftAttachmentsRoute.http.py",
+    "line": 33,
+    "code": "importlib.util.spec_from_file_location('fixture', WEB / 'e2e/server.py')",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/queueDraftAttachmentsRoute.http.py",
+    "line": 35,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/session-summary.server.py",
+    "line": 6,
+    "code": "importlib.util.spec_from_file_location('summary_fixture', Path(__file__).with_name('server.py'))",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "packages/web/e2e/session-summary.server.py",
+    "line": 8,
+    "code": "spec.loader.exec_module(fixture)",
+    "status": "requires-review",
+    "manualReview": "Browser test fixture loader, not production startup; retained in shipping source inventory"
+  },
+  {
+    "path": "scripts/check_terminal_deployment.py",
+    "line": 20,
+    "code": "importlib.import_module(name)",
+    "status": "requires-review",
+    "manualReview": "Read-only prerequisite checker: finite tuple pyte/psutil/fastapi/uvicorn/websockets/httpx/mcp/jwt"
+  },
+  {
+    "path": "scripts/diagnose_pan.py",
+    "line": 214,
+    "code": "__import__('re')",
+    "status": "requires-review",
+    "manualReview": "Literal Python standard library; does not load legacy host"
+  },
+  {
+    "path": "scripts/verify_action_groups.py",
+    "line": 29,
+    "code": "__import__('uuid')",
+    "status": "requires-review",
+    "manualReview": "Literal Python standard library; does not load legacy host"
+  }
+]
