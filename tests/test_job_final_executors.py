@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from packages.actions.typed_executor import InMemoryReceiptStore, TypedExecutor
+from packages.actions.typed_executor import InMemoryReceiptStore, TypedExecutor, WorkerSessionProvider
 from packages.jobs.final_contracts import ContractError
 
 
@@ -108,6 +108,47 @@ def test_fe03_session_fanout_returns_per_target_receipts():
     ))
     assert result["outcome"] == "partial"
     assert [row["outcome"] for row in result["receipt"]["targets"]] == ["succeeded", "rejected", "unknown"]
+
+
+def test_m03_source_metadata_reaches_original_session_provider():
+    provider = SessionProvider({"target": "queued"})
+    result = run(TypedExecutor(session_provider=provider).execute(
+        attempt=attempt(), effect_key=key(target="target"),
+        frozen_plan={"operation": "session-message", "sessionId": "target",
+                     "text": "report", "source": "agent",
+                     "sourceSessionId": "ses_source"},
+    ))
+    assert result["outcome"] == "succeeded"
+    assert provider.calls[0][2]["source"] == "agent"
+    assert provider.calls[0][2]["source_session_id"] == "ses_source"
+
+
+def test_m03_missing_provider_status_stays_unknown():
+    class NoStatus:
+        async def send_session(self, session_id, text, **kwargs):
+            return {"queueItemId": "q-1"}
+
+    result = run(TypedExecutor(session_provider=NoStatus()).execute(
+        attempt=attempt(), effect_key=key(target="target"),
+        frozen_plan={"operation": "session-message", "sessionId": "target", "text": "report"},
+    ))
+    assert result["outcome"] == "unknown"
+
+
+def test_m04_broadcast_uses_per_target_provider_receipts_without_extra_store_rows():
+    provider = SessionProvider({"a": "queued", "b": "error"})
+    store = InMemoryReceiptStore()
+    effect = key(target="fanout")
+    result = run(TypedExecutor(session_provider=provider, receipt_store=store).execute(
+        attempt=attempt(), effect_key=effect,
+        frozen_plan={"operation": "session-broadcast", "sessionIds": ["a", "b", "a"],
+                     "text": "broadcast", "source": "agent", "sourceSessionId": "ses_source"},
+    ))
+    assert result["outcome"] == "partial"
+    assert [row["targetSelection"]["sessionIds"] for row in result["receipt"]["targets"]] == [["a"], ["b"]]
+    assert provider.calls[0][2]["source_session_id"] == "ses_source"
+    # Only the parent effect is persisted; fan-out rows are receipts in it.
+    assert len(store._items) == 1
 
 
 def test_fe04_qq_typed_error_and_timeout_are_distinct():
