@@ -35,6 +35,8 @@ class IndependentJobClient:
     def get_execution(self, effect_id): return self._request("GET", "/executions/" + quote(effect_id, safe=""))
     def cancel_execution(self, effect_id, attempt):
         return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/cancel", {"attempt": attempt})
+    def cleanup_execution(self, effect_id, attempt):
+        return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/cleanup", {"attempt": attempt})
     def execution_events(self): return self._request("GET", "/execution-events")
     def ack_execution(self, event_id):
         return self._request("POST", "/execution-events/" + quote(event_id, safe="") + "/ack", {})

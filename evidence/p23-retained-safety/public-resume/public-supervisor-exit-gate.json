@@ -1,0 +1,18 @@
+{
+  "executorPort": 58266,
+  "label": "public-supervisor-exit-gate",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 3,
+  "launcherIsSupervisor": true,
+  "ownershipRootIsScript": true,
+  "supervisorAliveBlockedCompletion": true,
+  "supervisorExitConfirmed": true,
+  "effects": 1,
+  "cleanupCalls": 1,
+  "canonicalPort": 58267,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1
+}

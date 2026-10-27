@@ -285,6 +285,16 @@ class Handler(BaseHTTPRequestHandler):
                             return self._json(200, self.store.execution_host.store.get(parts[1]))
                         if len(parts) == 3 and parts[2] == "cancel" and method == "POST":
                             return self._json(200, self.store.execution_host.store.cancel(parts[1], self._body()["attempt"]))
+                        if len(parts) == 3 and parts[2] == "cleanup" and method == "POST":
+                            body = self._body()
+                            if set(body) != {"attempt"}:
+                                raise ServiceError(400, "cleanup accepts only the original Attempt fence")
+                            from packages.core.platform.process import UnsupportedPlatformError
+                            try:
+                                result = self.store.execution_host.cleanup_execution(parts[1], body["attempt"])
+                            except UnsupportedPlatformError as exc:
+                                raise ServiceError(501, "processOwner unsupported; owned cleanup unavailable") from exc
+                            return self._json(200, result)
                     except KeyError as exc:
                         raise ServiceError(404, "execution not found") from exc
                     except (ExecutionConflict, ValueError) as exc:

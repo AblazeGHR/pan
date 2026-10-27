@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import time
 
 from packages.actions.typed_executor import EffectReceipt, TypedExecutor
 from packages.core.platform.execution_host import supervisor_identity
@@ -25,6 +26,8 @@ async def execute_claimed(store, doc, *, executor=None):
                 owner = default_process_owner()
 
                 class RecordingOwner:
+                    cleanup_tree = None
+
                     def __getattr__(self, name):
                         return getattr(owner, name)
 
@@ -38,8 +41,42 @@ async def execute_claimed(store, doc, *, executor=None):
                         store.phase(identity, attempt, claim, "running", processIdentity=record)
                         return record
 
+                    def wait(self, handle, *, timeout):
+                        deadline = time.monotonic() + timeout
+                        while True:
+                            request = store.get(identity).get("cleanupRequest", {})
+                            if request.get("status") == "unknown":
+                                # Even if the root subsequently exits, keep
+                                # the original tree handle for explicit recheck.
+                                # Normal wait/finally must not retry a partially
+                                # observed destructive cleanup automatically.
+                                time.sleep(.05)
+                                continue
+                            waited = owner.wait(handle, timeout=min(.05, max(0, deadline - time.monotonic())))
+                            if request.get("status") != "requested" and (waited.exited or time.monotonic() >= deadline):
+                                return waited
+                            if request.get("status") != "requested":
+                                continue
+                            proof = {"confirmed": False, "rootExited": False}
+                            try:
+                                record = owner.recoverable_identity(handle)
+                                check = owner.verify(record)
+                                proof["identityCheck"] = check.as_dict()
+                                if check.ours is not True or check.status.value not in {"alive", "dead"}:
+                                    raise RuntimeError("original process identity is unknown or reused")
+                                tree = owner.kill_tree(handle, timeout=5)
+                                proof["ownedTree"] = tree.as_dict()
+                                root = owner.wait(handle, timeout=5)
+                                proof.update(rootExited=root.exited,
+                                             confirmed=root.exited and tree.confirmed is True)
+                                if proof["confirmed"]:
+                                    self.cleanup_tree = tree
+                            except Exception as exc:
+                                proof["error"] = str(exc)
+                            store.finish_cleanup(identity, attempt, claim, request["revision"], proof)
+
                     def kill_tree(self, handle, *, timeout):
-                        tree = owner.kill_tree(handle, timeout=timeout)
+                        tree = self.cleanup_tree or owner.kill_tree(handle, timeout=timeout)
                         store.phase(identity, attempt, claim, "cleaning", treeCleanupProof=tree.as_dict())
                         return tree
 

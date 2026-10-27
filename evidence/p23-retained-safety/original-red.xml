@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="5.571" timestamp="2026-10-27T10:43:36.353984+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_safety" name="test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent" time="0.286"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime">tests\test_job_delete_safety.py:226: in test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent
+    jobs._reconcile_scheduled_processes(jobs._root())
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime</failure></testcase><testcase classname="tests.test_job_delete_http_owned" name="test_real_owned_tree_delete_http[False]" time="2.388"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tests\test_job_delete_http_owned.py:44: in test_real_owned_tree_delete_http
+    job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+        ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?</failure></testcase><testcase classname="tests.test_job_delete_http_owned" name="test_real_owned_tree_delete_http[True]" time="2.273"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tests\test_job_delete_http_owned.py:44: in test_real_owned_tree_delete_http
+    job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+        ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?</failure></testcase></testsuite></testsuites>

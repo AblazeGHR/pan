@@ -1,0 +1,3245 @@
+{
+  "baseline": "bdd4c778d55daff58529635b2adc464c03a1393c",
+  "priorCandidate": "a700f2209942a27cd9af4af2ac1b141a53295975",
+  "codeSha": "4d9ab1c8857f8caa4a3150c55a03fdb8e7f527d3",
+  "branch": "r6/p23-retained-safety-20261027",
+  "integrationPerLatestMA": "5519630951f33417eacd57a8e0c2643d3016ea7f",
+  "integrationNotMergedHere": true,
+  "commands": [
+    {
+      "label": "backend-delivery",
+      "argv": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_final_contracts.py",
+        "tests/test_job_final_runtime.py",
+        "tests/test_job_final_http_service.py",
+        "tests/test_job_final_transports.py",
+        "tests/test_job_final_independent_execution.py",
+        "tests/test_job_attempt_epoch.py",
+        "tests/test_job_final_admission.py",
+        "tests/test_job_final_executors.py",
+        "tests/test_job_final_clients.py",
+        "tests/test_independent_job_service.py",
+        "tests/test_job_retained_safety_protocol.py",
+        "tests/test_job_retained_safety_owned.py",
+        "tests/test_job_retained_safety_canonical.py",
+        "tests/test_job_retained_safety_public.py",
+        "tests/test_job_delete_safety.py",
+        "tests/test_job_delete_http_owned.py",
+        "tests/test_job_cleanup_failures.py",
+        "tests/test_job_delete_main_combination.py",
+        "tests/test_platform_process_contract.py",
+        "tests/test_job_path_flip.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=evidence/p23-retained-safety/public-resume/backend-delivery.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+      "exit": 1,
+      "seconds": 200.734,
+      "testcases": 535,
+      "counts": {
+        "passed": 513,
+        "failure": 3,
+        "skipped": 19
+      },
+      "nodes": [
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_each_definition_object_accepts_a_minimal_valid_definition[trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_event_publish_envelope_is_valid_and_has_no_editable_definition",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[action-effectClass]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[trigger-targetJobId]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[event_creator-configSchemaRef]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[job-steps]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_missing_required_field_is_rejected[template-composition]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_unknown_field_is_rejected[trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[action-effect-class]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-overlap-mode]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[creator-provider-type]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-binding-source]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_enum_or_type_is_rejected[job-contract-type]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[empty-contracts]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[selector-mode]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_invalid_variant_is_rejected[literal-extra-key]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_condition_errors_use_the_condition_error_code",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[id-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[profileId-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[createdAt-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[updatedAt-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_server_fields_are_read_only[stateRevision-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_write_body_accepts_only_definition_revision_and_request_key[trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_object_envelopes_validate_for_all_six_objects",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_runtime_records_use_the_declared_state_vocabulary",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_capacity_limits_are_explicit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_committed_schema_artifacts_match_the_generator",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_design_document_job_example_parses_and_validates",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc01_json_input_rejects_duplicate_keys_and_non_finite_numbers",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_schema_version_must_be_exactly_two[None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_expected_revision_rules_for_create_and_update",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_revision_conflict_reports_current_revision",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_content_and_publish_increment_revision_state_ops_do_not",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_idempotent_replay_for_same_key_and_content",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_idempotency_conflict_for_same_key_different_content",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_idempotency_scope_is_per_principal_and_pending_records_are_not_purged",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[empty]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[too-long]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[control-character]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_request_key_bounds[surrounding-space]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc02_event_receipts_replay_or_conflict_on_the_fact_digest",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_tagged_union_accepts_the_five_declared_forms",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[forward-step]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[literal-extra-key]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_forward_and_malformed_references[missing-path]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_self_reference",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_binding_rejects_undeclared_input_paths_and_unknown_system_fields",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_trigger_bindings_reject_step_and_input_sources[step-source]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_trigger_bindings_reject_step_and_input_sources[input-source]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_action_reference_requires_published_exact_revision_and_digest",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_disabled_action_blocks_admission_but_not_definition_editing",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_step_completion_contract_must_be_declared_and_parameters_validated",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_template_composition_requires_unique_and_resolvable_local_keys",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_template_cannot_embed_trigger_links_or_unfilled_parameter_holes",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[action]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[event]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_supported_object_operations_are_accepted[trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-pause]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-resume]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-retry]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[action-cancel]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[trigger-retry]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[trigger-cancel]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-pause]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-resume]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[template-enable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[job-publish]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event_creator-publish]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-enable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-pause]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[event-retire]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_unsupported_operations_return_explicit_errors[run-publish]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_definition_transition_violations_are_explicit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_run_layer_transitions_require_the_declared_operation",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-legacyCompat]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-enabled]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-actionId]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-steps]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-retry]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-maxConcurrency]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[action-input_schema]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[template-enabled]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-cursor]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-producedCount]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_legacy_event_wire_names_are_rejected",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_error_codes_are_a_closed_set_with_http_mapping",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_contracts.py::test_fc04_operation_result_requires_the_documented_envelope",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr01_retry_run_again_and_clone_have_distinct_identities",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr01_parallel_retry_selects_original_run_not_last_summary",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr02_unknown_never_replays_and_fenced_late_receipt_is_rejected",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr02_reconcile_settles_run_and_resumes_only_pending_steps",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr03_event_trigger_identity_overlap_skip_and_queue_backpressure",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr04_same_operation_recovers_after_accepted_phase_crash",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr04_run_again_queue_replay_preserves_operation_and_hides_plan",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_runtime.py::test_fr05_revoked_recipient_is_suppressed_not_falsely_acked",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_run_request_key_replays_after_restart_without_new_run",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_revoke_between_steps_prevents_next_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[kind-background-process]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[source-user]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[enabled-True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[authorization-value3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[configRevision-999]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_real_http_401_403_404_409_and_cookie_same_origin",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_concurrent_cas_allows_exactly_one_writer",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_failed_creator_or_cross_reference_rolls_back_every_table",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft03_old_facade_retires_writes_and_keeps_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_new_trigger_never_consumes_old_wp04_event",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_forbid_is_durable_skipped_admission_not_a_second_run",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_creator_runtime_rechecks_lifecycle_grant_before_new_publication",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_real_agent_http_uses_existing_matrix_and_scoped_operations",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_bound_background_driver_survives_reload_without_resend",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft02_unbound_automatic_recovery_is_explicit_unsupported",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_recovery_never_reports_lost_cancelling_effect_as_cancelled",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_queue_keeps_admission_order_after_sorted_json_reload",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_unknown_effect_holds_queue_capacity_but_queued_cancel_can_settle",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_wp01_create_update_and_read_boundary[jobs-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_wp01_create_update_and_read_boundary[triggers-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_wp01_create_update_and_read_boundary[event-creators-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_wp01_create_update_and_read_boundary[job-templates-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation4]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation5]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_create_has_no_service_call[mutation6]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_strict_json_rejects_before_service[[]]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_strict_json_rejects_before_service[{]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_strict_json_rejects_before_service[{\"requestKey\":\"one\",\"requestKey\":\"two\"}]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_strict_json_rejects_before_service[{\"value\":NaN}]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_strict_json_rejects_before_service[null]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_http_headers_never_manufacture_authority[headers0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_http_headers_never_manufacture_authority[headers1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_http_headers_never_manufacture_authority[headers2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_http_headers_never_manufacture_authority[headers3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_agent_read_create_update_lifecycle_delete_exact_grants[jobs-job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_agent_read_create_update_lifecycle_delete_exact_grants[triggers-trigger]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_agent_read_create_update_lifecycle_delete_exact_grants[event-creators-event_creator]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_agent_read_create_update_lifecycle_delete_exact_grants[job-templates-template]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[retry]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[cancel]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[pause]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[resume]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[run-again]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft01_run_controls_require_execute_and_clone_create[clone-and-run]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[None-None-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://foreign-None-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://test.evil-None-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://test-cross-site-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://test:81-None-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[null-None-403]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://test-None-201]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_cookie_writes_enforce_same_origin[http://test:80-same-origin-201]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_invalid_bearer_never_falls_back_to_cookie",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[invalid_schema]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[invalid_condition]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[unsupported_operation]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[unauthenticated]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[authorization_denied]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[not_found]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[revision_conflict]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[idempotency_conflict]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[reference_conflict]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[pending_publication]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[reconciliation_required]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[not_retryable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[cancellation_window_closed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[capability_unsupported]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[unsupported_schema_version]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[capacity_exceeded]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[provider_unavailable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_contract_errors_keep_wp01_status_and_redact_values[storage_unavailable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft02_missing_host_binding_is_503_before_admission",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft04_legacy_permissions_preserved_without_read_write_or_revision_bump",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft04_unknown_creator_permissions_and_broken_old_grants_fail_closed",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_transports.py::test_ft03_legacy_facade_retires_writes_and_keeps_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_concurrent_admission_never_calls_legacy_create_retry",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_stale_fence_never_settles_or_cancels[leaseId-lease_other]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_stale_fence_never_settles_or_cancels[ownerEpoch-2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_stale_fence_never_settles_or_cancels[generation-2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_stale_fence_never_settles_or_cancels[attemptId-attempt_other]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[succeeded]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[unknown]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[partial]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_retry_needs_cleanup_proof[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_retry_needs_cleanup_proof[None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_missing_or_wrong_supervisor_claim_cannot_publish",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_ambiguous_launch_does_not_relaunch_or_change_other_intents",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_intent_and_terminal_outbox_transactions_are_atomic",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_live_supervisor_survives_host_reload_and_ack_loss",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_typed_external_message_receipt_survives_offline_recovery",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_lost_or_unclaimed_supervisor_is_unknown_without_replay",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_spawn_bound_wait_proves_exit_after_pid_reaped",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_real_worker_survives_the_admitting_host_process_exit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_canonical_client_http_receipt_and_ack_do_not_use_legacy_jobs",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe02_pending_typed_executor_requeries_host_instead_of_caching_unknown",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_protected_restart_completes_only_with_full_ready_evidence",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change4]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change5]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change6]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change7]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change8]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change9]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change10]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_restart_rejects_incomplete_ready_proof[change11]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_offline_evidence_required_even_after_stop_reports_success[service.restart]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_offline_evidence_required_even_after_stop_reports_success[service.exit]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_exit_offline_and_pre_effect_cancellation",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_exit_never_starts_service_and_receipt_is_queryable_offline",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_stop_exception_and_supervisor_loss_do_not_reexecute",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_payload_cannot_grant_privilege_or_multistep_lifecycle[grant_change0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_payload_cannot_grant_privilege_or_multistep_lifecycle[grant_change1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_payload_cannot_grant_privilege_or_multistep_lifecycle[grant_change2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_payload_cannot_grant_privilege_or_multistep_lifecycle[grant_change3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_protected_admission_and_capability_guard",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_supervisor_rechecks_capability_before_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_offline_probe_errors_are_not_offline[listener]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_offline_probe_errors_are_not_offline[birth]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_fe05_bootstrap_exit_receipt_requires_matching_nonce_and_success",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_reopened_store_rejects_stale_phase_and_receipt[leaseId-old]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_reopened_store_rejects_stale_phase_and_receipt[ownerEpoch-2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_reopened_store_rejects_stale_phase_and_receipt[generation-2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_reopened_store_rejects_stale_phase_and_receipt[attemptId-old]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_phase_transaction_prevents_duplicate_or_reverse_lifecycle_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_exit_phase_never_allows_start",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_cancel_wins_before_process_phase_without_spawn",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_ack_crash_rolls_back_and_redelivers_same_original_receipt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_consumer_failure_before_durable_commit_does_not_ack",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_canonical_startup_and_recovery_work_under_active_runtime_owner",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_lifecycle_offline_lookup_is_read_only_and_fenced",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_independent_execution.py::test_r5_active_owner_preserves_legacy_bytes_while_recovering_canonical",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_attempt_epoch.py::test_new_attempt_persists_held_epoch_before_effect_and_late_receipts_are_rejected[2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_attempt_epoch.py::test_new_attempt_persists_held_epoch_before_effect_and_late_receipts_are_rejected[3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_attempt_epoch.py::test_epoch2_retry_creates_new_attempt_and_preserves_effect_key_and_prior_attempt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa01_explicit_target_reused_across_events_and_restart",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_trigger_lifecycle_only_gates_future_admission[disable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_trigger_lifecycle_only_gates_future_admission[pause]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_trigger_lifecycle_only_gates_future_admission[retire]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_retained_legacy_subscription_is_read_only_after_cutover",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[succeeded-acked]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[unknown-uncertain]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_admission.py::test_fa03_retired_trigger_hosts_are_absent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_fe02_cross_host_lookup_keeps_run_and_effect_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_invalid_qq_identity_is_rejected_before_provider_call",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining0-False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining1-False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_cleanup_close_failure_cannot_be_success_or_retry",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses0-unknown]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses1-partial]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_terminal_persistence_crash_retains_unknown_intent_without_resend",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_failed_intent_persistence_prevents_provider_call",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_executors.py::test_r5_unrelated_receipt_host_cannot_authorize_ephemeral_message_executor",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy[core]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_real_stdio_crud_operations_permissions_and_legacy[native]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_real_tcp_401_and_user_crud[jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_real_tcp_401_and_user_crud[triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_real_tcp_401_and_user_crud[event-creators]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_real_tcp_401_and_user_crud[job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation0-jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation0-triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation0-event-creators]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation0-job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation1-jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation1-triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation1-event-creators]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation1-job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation2-jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation2-triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation2-event-creators]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_wp01_validation_before_transport[mutation2-job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/jobs/j/runs?limit=1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/event-creators/c/operations]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/triggers/t]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/job-templates/t]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/job-runs/r/operations]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/operations?operation=retry&requestKey=k]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_canonical_allowlist[/api/final/actions]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[https://bad/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[//bad/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/jobs/x/private]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/private]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/main/exit]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/jobs#fragment]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/jobs/%2e%2e]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/jobs/..]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_bridge_stays_bounded[/api/final/jobs/%2fapi%2fmain%2fexit]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_real_tcp_run_controls_and_receipt_recovery",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[pause-body0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[cancel-body1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[retry-body2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[run-again-body3]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[clone-and-run-body4]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_invalid_run_controls_never_reach_transport[clone-and-run-body5]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_http_unconfirmed_write_is_never_replayed",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_remote_mcp_cannot_borrow_local_authority[/api]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_remote_mcp_cannot_borrow_local_authority[/api/final]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api/final]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_real_http_mcp_request_cannot_borrow_local_ipc",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_final_clients.py::test_cli_unknown_receipt_exits_nonzero",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_exit_accounting_settles_without_assuming_empty",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_empty_requires_both_proofs[1-members0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_empty_requires_both_proofs[0-members1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_empty_requires_both_proofs[None-members2]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_empty_requires_both_proofs[0-None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_owned_job_query_failure_does_not_confirm_empty",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_system_action_admission_sql_failure_and_unknown_cleanup",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_concurrent_create_is_idempotent_and_conflict_is_rejected",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_immediate_completion_and_outbox_ack_are_durable_and_idempotent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_malformed_body_is_rejected_with_static_error",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_cancel_with_wrong_runner_identity_does_not_touch_job",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_cancel_proves_and_terminates_the_owned_process_tree",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_runner_environment_removes_pan_variables_and_pythonpath",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_service_restart_keeps_live_runner_and_does_not_repeat_execution",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_unknown_jobs_are_not_retryable[UNKNOWN]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_unknown_jobs_are_not_retryable[failed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_unknown_jobs_are_not_retryable[cancelled]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_unknown_jobs_are_not_retryable[completed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_unknown_jobs_are_not_retryable[running]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_new_process_requires_name_without_spawning[None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_new_process_requires_name_without_spawning[]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_new_process_requires_name_without_spawning[   ]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_new_process_requires_name_without_spawning[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_new_process_requires_name_without_spawning[valid historical name]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_name_is_trimmed_label_optional_and_legacy_read_unchanged",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_retired_http_writes_and_client_helpers_never_create_jobs",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_independent_job_service.py::test_service_lock_is_exclusive_and_releasable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_concurrency_retains_one_request_and_requires_explicit_unknown_recheck",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[rootExited]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[identityCheck]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[ownedTree]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[confirmed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_lost_supervisor_cleanup_is_unknown_and_cannot_authorize_root_only_recovery",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_unavailable_capability_fails_explicitly_without_mutation",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_http_rejects_self_asserted_proof_and_exposes_unsupported",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_partial_cleanup_waits_for_explicit_recheck",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_default_pending_cold_reopen_resolves_original_uncertain_attempt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_unknown_query_explicit_recheck_and_lost_response_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_process_cancel_release_is_additive_and_frozen_old_action_unchanged",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_cancel_waits_for_original_supervisor_exit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_queued_cancel_does_not_create_attempt_or_process",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_original_uncertain_reconcile_rejects_old_epoch_generation_and_lease",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[ownedTree]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[identityVerified]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[treeTerminated]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[supervisorExitProof]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[confirmed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_product_default_executor_has_owned_receipt_and_no_second_lifecycle",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[children_oserror]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[children_denied]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[birth]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[kill]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[missing_pid]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unobservable_tree_never_confirmed[late_child]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_all_roots_captured_before_guard_effect_and_late_children_caught",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_pending_recheck_does_not_repeat_effects_after_confirmed_exit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_delete_failure_recheck_and_runner_writeback",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_concurrent_delete_serializes_and_unrelated_job_not_blocked",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_spawn_denied_after_delete_intent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_scheduled_parent_keeps_active_child_and_no_resurrection[running-running]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_scheduled_parent_keeps_active_child_and_no_resurrection[scheduled-running]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_scheduled_parent_keeps_active_child_and_no_resurrection[scheduled-cleanup_pending]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_legacy_unguarded_tree_is_not_proof",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_explicit_recheck_finishes_runner_only_after_durable_tree_proof",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_uncertain_runner_kill_keeps_durable_tree_proof",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+          "status": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_zero_tolerance_and_raw_filetime_precedence",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_capture_unknown_or_exited_handle_cannot_prove_tree[unknown]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_capture_unknown_or_exited_handle_cannot_prove_tree[dead]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_expired_root_without_tree_proof_retains_record",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_spawn_wait_does_not_block_unrelated_job",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_cancel_cannot_turn_unconfirmed_delete_into_terminal[before]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_cancel_cannot_turn_unconfirmed_delete_into_terminal[during_probe]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_cancel_cannot_turn_unconfirmed_delete_into_terminal[during_kill]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unknown_process_outcome_cannot_be_unlinked_without_proof[unknown]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unknown_process_outcome_cannot_be_unlinked_without_proof[uncertain]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_safety.py::test_unknown_process_outcome_cannot_be_unlinked_without_proof[UNKNOWN]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[False]",
+          "status": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        {
+          "node": "tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[True]",
+          "status": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_all_cleanup_failures_and_original_remain_diagnostic",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_guard_stop_false_is_unconfirmed_failure",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_failure_still_attempts_other_native_resources[job]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_failure_still_attempts_other_native_resources[guard]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_failure_still_attempts_other_native_resources[desktop]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_failure_still_attempts_other_native_resources[all]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_failure_still_attempts_other_native_resources[unconfirmed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_legacy_constructor_retains_spawn_and_cleanup_errors",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_legacy_close_process_thread_guard_desktop_attempted",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_failed_legacy_handle_closes_retain_unconfirmed_handles_and_attempt_rest",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_independent_original_spawn_error_survives_outer_desktop_failure",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_token_close_failure_after_creation_terminates_unresumed_owned_process[independent]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_token_close_failure_after_creation_terminates_unresumed_owned_process[legacy]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_cleanup_failures.py::test_runner_persists_unknown_and_diagnostics_on_cleanup_failure",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_delete_main_combination.py::test_cleanup_pending_preserves_system_snapshot_attempt_and_no_terminal_notice",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_spawn_binds_exact_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_identity_by_pid_matches_spawn_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_identity_of_own_process_is_readable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_returns_exit_code",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_timeout_does_not_terminate",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_after_exit_is_stable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_terminate_stops_process",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_terminate_is_idempotent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_kill_tree_removes_grandchild",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_check_detects_reused_pid",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_refuses_mismatched_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recoverable_identity_roundtrip",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_verify_rejects_foreign_platform_record",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_terminates_verified_process",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_can_verify_without_terminating",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_reports_already_dead",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_close_is_idempotent",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_handle_cannot_cross_owner",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_spawn_binds_exact_identity",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_identity_by_pid_matches_spawn_identity",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_identity_of_own_process_is_readable",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_returns_exit_code",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_timeout_does_not_terminate",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_after_exit_is_stable",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_terminate_stops_process",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_terminate_is_idempotent",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_kill_tree_removes_grandchild",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_check_detects_reused_pid",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_refuses_mismatched_identity",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recoverable_identity_roundtrip",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_verify_rejects_foreign_platform_record",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_terminates_verified_process",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_can_verify_without_terminating",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_reports_already_dead",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_close_is_idempotent",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_handle_cannot_cross_owner",
+          "status": "skipped",
+          "message": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+        },
+        {
+          "node": "tests/test_platform_process_contract.py::test_default_process_owner_matches_platform",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract.py::test_posix_owner_rejects_calls_on_windows",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract.py::test_windows_owner_rejects_construction_on_posix",
+          "status": "skipped",
+          "message": "仅在 POSIX 主机上验证 Windows 实现门禁"
+        },
+        {
+          "node": "tests/test_platform_process_contract.py::test_identity_record_requires_known_fields",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_platform_process_contract.py::test_identity_mismatch_error_is_process_owner_error",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_production_route_snapshot_and_same_handler_aliases",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_tcp_new_and_deprecated_crud_operations_and_legacy[/api]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_tcp_new_and_deprecated_crud_operations_and_legacy[/api/final]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_tcp_cookie_origin_and_explicit_bearer_precedence[/api]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_tcp_cookie_origin_and_explicit_bearer_precedence[/api/final]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_clients_emit_only_current_routes",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/legacy/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/jobs/private/x]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/operations/o/private]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/triggers/t/lifecycle]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/event-creators/c/private]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/job-templates/t/instantiate]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/jobs/settings]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/jobs/kinds]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/final/jobs/../private]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_path_flip.py::test_new_allowlist_does_not_expand_other_paths[/api/main/exit]",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "label": "import-delivery",
+      "argv": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-c",
+        "import packages.web.server; print('import-ok')"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+      "exit": 0,
+      "seconds": 0.873
+    },
+    {
+      "label": "venv-delivery",
+      "argv": [
+        "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retained_safety_protocol.py",
+        "tests/test_job_retained_safety_owned.py",
+        "tests/test_job_retained_safety_canonical.py",
+        "tests/test_job_retained_safety_public.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=evidence/p23-retained-safety/public-resume/venv-delivery.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+      "exit": 0,
+      "seconds": 118.305,
+      "testcases": 26,
+      "counts": {
+        "passed": 26
+      },
+      "nodes": [
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_concurrency_retains_one_request_and_requires_explicit_unknown_recheck",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[rootExited]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[identityCheck]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[ownedTree]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[confirmed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_lost_supervisor_cleanup_is_unknown_and_cannot_authorize_root_only_recovery",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_unavailable_capability_fails_explicitly_without_mutation",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_http_rejects_self_asserted_proof_and_exposes_unsupported",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_owned.py::test_real_partial_cleanup_waits_for_explicit_recheck",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_default_pending_cold_reopen_resolves_original_uncertain_attempt",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_unknown_query_explicit_recheck_and_lost_response_identity",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_process_cancel_release_is_additive_and_frozen_old_action_unchanged",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_cancel_waits_for_original_supervisor_exit",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_public_queued_cancel_does_not_create_attempt_or_process",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_original_uncertain_reconcile_rejects_old_epoch_generation_and_lease",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[ownedTree]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[identityVerified]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[treeTerminated]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[supervisorExitProof]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[confirmed]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_safety_public.py::test_product_default_executor_has_owned_receipt_and_no_second_lifecycle",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": "AGENTS.md",
+      "baselineBlob": "e83998a4e57eef86500066f9ff1e203dd7fffe71",
+      "unchanged": true
+    },
+    {
+      "path": "CODEBUDDY.md",
+      "baselineBlob": "680d691cf3f1ec144cfa33640ad300656996b6fe",
+      "unchanged": true
+    },
+    {
+      "path": "packages/jobs/final_runtime/coordinator.py",
+      "baselineBlob": "646f90442cc04ae2bd08a6de0f026023f93b0747",
+      "unchanged": true
+    },
+    {
+      "path": "packages/core/background_jobs.py",
+      "baselineBlob": "a94e616439425c65dbf57a3012a144ecb39d36d2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/conftest.py",
+      "baselineBlob": "f61881c8158970fdd7db832b919c9469e0a4f8da",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_delete_safety.py",
+      "baselineBlob": "de313e0467ff45ccb005e0e88f633e3125f97246",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_delete_http_owned.py",
+      "baselineBlob": "f82c0575e44b3f2b3e2bfe568e587ffcec547687",
+      "unchanged": true
+    },
+    {
+      "path": "packages/scheduler/time_events.py",
+      "baselineBlob": "bed931fe6440a61bb28420f692aec9740ce2e45d",
+      "unchanged": true
+    },
+    {
+      "path": "packages/scheduler/store.py",
+      "baselineBlob": "b156e153c7b650463e74a4435ecd4903ac54fa24",
+      "unchanged": true
+    },
+    {
+      "path": "packages/scheduler/legacy_bridge.py",
+      "baselineBlob": "f9a857a5eeb8c602b57e5e7ad54fa3335c73a5d8",
+      "unchanged": true
+    },
+    {
+      "path": "docs/reports/R6_I_REPAIR_20261027.md",
+      "baselineBlob": "3a1179e2e024f7225f043c164c639b3f4fa66999",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-assessment.md",
+      "baselineBlob": "9a972eef8cc0abfe4d0da5c26a15207bf0820d1c",
+      "unchanged": true
+    }
+  ],
+  "unchangedMethods": [
+    {
+      "path": "packages/jobs/final_service.py",
+      "method": "FinalService.actions",
+      "unchangedFromPrior": true
+    },
+    {
+      "path": "packages/jobs/final_runtime/ledger.py",
+      "method": "Ledger.finish_attempt",
+      "unchangedFromPrior": true
+    }
+  ],
+  "resources": [
+    {
+      "artifact": "native/backend-partial-ack.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/backend-unknown-false.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/backend-unknown-true.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/canonical-delete-unknown-false.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/canonical-delete-unknown-true.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/canonical-late-terminal.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/owned.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-default-pending-cold.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-default-unknown-recheck.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-original-fence.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-product-default-executor.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-queued-cancel.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "native/public-supervisor-exit-gate.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/backend-partial-ack.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/backend-unknown-false.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/backend-unknown-true.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/canonical-delete-unknown-false.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/canonical-delete-unknown-true.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/canonical-late-terminal.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/owned.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-default-pending-cold.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-default-unknown-recheck.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-original-fence.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-product-default-executor.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-queued-cancel.json",
+      "cleanupVerified": true
+    },
+    {
+      "artifact": "venv/public-supervisor-exit-gate.json",
+      "cleanupVerified": true
+    }
+  ],
+  "originalEvidence": [
+    {
+      "path": "evidence/p23-retained-safety/CAPABILITY_MATRIX.md",
+      "blob": "6fe3f750ed37a9cc9039ff01c1da910c0be4f506",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/MA_SHARED_ENTRY_REQUIREMENTS.md",
+      "blob": "2793c814af301de435f7ba6481d3284c76e937c3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/acceptance-final.log",
+      "blob": "1186d9a9e5e1dff4f64ace51565fd44c0a5849ac",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/acceptance-final.xml",
+      "blob": "4bda5cd3abdf0d21eb0e6f738e0bc8adde121828",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/artifact-whitespace.json",
+      "blob": "2f9f9c29c2790c40eb394e04f6bc0174d4e2c38e",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/backend-first.log",
+      "blob": "4434a37c94bcf5ef59494b67d1bb71b9a0ebddeb",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/backend-first.xml",
+      "blob": "225ba2c2c33703505a3090158a37f7f600477baa",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/backend-partial-ack.json",
+      "blob": "0ba3595d4fd6dd895abce8b8355cd5865207154d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/backend-unknown-false.json",
+      "blob": "7d8f1e1656f7e2fe0d43fdc27b7d774f482e5c47",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/backend-unknown-true.json",
+      "blob": "d2471af6136b30eb26e6f93d621928cb84d7aae1",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-delete-unknown-false.json",
+      "blob": "7a6db19422e14b2231241635660a8dc3a8d0131f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-delete-unknown-true.json",
+      "blob": "cc22b704d05e8f7152bf870fa85c708ca84a4012",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-final.log",
+      "blob": "b65045b60b414b147cc74d35ebd5e9f3e22428ec",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-final.xml",
+      "blob": "640a400984bbbc186ad7f25fabf2b98234dd798e",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-first.log",
+      "blob": "9a11d720eef0687d27cc017f9b5803434fbf1a9c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-first.xml",
+      "blob": "d6b970189b6807caeb130a7468b4d36fc60a5ab5",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/canonical-late-terminal.json",
+      "blob": "5e321dfb39cae97ed246864f9f5a1a9f35e0b424",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/cleanup-final.log",
+      "blob": "bf958b21c4192d241c2f775de79020727a0b6806",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/cleanup-final.xml",
+      "blob": "b3bf12fa54c276aebecf7d00e2cdb29f9fd4d680",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/delta-final.log",
+      "blob": "bf958b21c4192d241c2f775de79020727a0b6806",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/delta-final.xml",
+      "blob": "082bee05ca9761d81bc96c445a3573a42ae3452b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/finalize_evidence.py",
+      "blob": "fba38490f8f672adfa69d3bfb87fb22f9ed5e970",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/import.log",
+      "blob": "74941343a6a37878b5823ea1a86bd02fc3c15ea1",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/matrix-final.log",
+      "blob": "2822c277923b89ddcfe8b6bf1fe0b7eb58cbdae7",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/matrix-final.xml",
+      "blob": "54796e008cdc3965cdf22e1ae9c312fb05162887",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/original-http-owned-recheck.json",
+      "blob": "c1e60a345f6cf0fe63077c53918e12e773b23e9b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/original-http-owned.json",
+      "blob": "006d0660585f6bf3662a6cb43e6840de2d8c03bb",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/original-red.log",
+      "blob": "b980483cac35bd511df50098bc3581a9c780a670",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/original-red.xml",
+      "blob": "7abc8b4d76470f20ff30cf50f59bd91daebcb7af",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/raw-output.zip",
+      "blob": "2ceb4d8b3044044818d790ce328efd514bd458d3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/regression-final.log",
+      "blob": "9e50260854f22b26b0ebed64cbd0ded25dcc7d7b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/regression-final.xml",
+      "blob": "a172941fa401c13b33dc61f23d640b0fb2e09148",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/regression-first.log",
+      "blob": "dfe3ef21e47f125a609884680bc8b3d6a281f6ea",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/regression-first.xml",
+      "blob": "c2aae47eaffdc8d84edfab49940a47fbb2f50dd6",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p23-retained-safety/validation.json",
+      "blob": "eb2ff9da6a6db19c2c4986dac08985f7fd81edd0",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/archive_raw_outputs.py",
+      "blob": "bbbae6768aae565a06510d99763e5d13c890b071",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/artifact-whitespace.json",
+      "blob": "a67d3fdf0301e104f169c209aa6668d5197029a2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/assess_original_red.py",
+      "blob": "5310b2d1f35dd758fb2ac50210341f1d5889bd71",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final-v2.log",
+      "blob": "cd3750f954d4c658f12778e5b9cbf7b1d0891828",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final-v2.xml",
+      "blob": "592e5c189133ee6fc369115ddf164c5556312609",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final.log",
+      "blob": "69ef29c5930ea46d7b40d764d48286953e05422f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final.xml",
+      "blob": "adf51b0ce2b6ced76d7eced093263e973ce53a1d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional-command.json",
+      "blob": "7a82d5ba4120cb1cb011743bafac61a779aab218",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional.log",
+      "blob": "7a1c5b68c4fe4559d9a134e7b17d43fcb563360b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional.xml",
+      "blob": "c0379e12ca1943b5da5e8a4bc698a254bcadfe3c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.json",
+      "blob": "d0d36d2ca68af0e2e8a1778277f191e6eebedf8a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.log",
+      "blob": "5993b3cf0cd5c19d9a53d7aa7aa55f2144bb5bc9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.xml",
+      "blob": "7eecce73816e724786c42761efbf9a837cac519a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v2.log",
+      "blob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v2.xml",
+      "blob": "e669def788de58b1b5251fda5af12917f5ea4c69",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v3.log",
+      "blob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v3.xml",
+      "blob": "9dda8f2391a6c4d7434b59fc90362a88e4bcee5c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v4.log",
+      "blob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v4.xml",
+      "blob": "767c7f20a996b2e95756b909c0fc092cd0201a45",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final.log",
+      "blob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final.xml",
+      "blob": "51123689545afcc8e72e784c59a197e61f97b41b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-initial.log",
+      "blob": "9fd6b6fc2e43a99a9ededfe4c9ac648636ee5f64",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-initial.xml",
+      "blob": "bafa928136e5f432cb8ff5be8620502302c6f067",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-result.json",
+      "blob": "d75e8934274875bd814f7cfd5243b0826e77d094",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-server.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v2.log",
+      "blob": "c132f1e8d7b95f43c8c902d50cf4b727a42b368c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v2.xml",
+      "blob": "9e22e0720526778f02e6a31c32b2b24dbf065be7",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v3.log",
+      "blob": "18a69dbb80ce0f3532ce9ada33f13942465b3083",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v3.xml",
+      "blob": "8d51d584d896b4cd635625d2dc22bbff6d8ed6c8",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v4.log",
+      "blob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v4.xml",
+      "blob": "22f6b6127a52caaa28e56f62a5a63eb969086fe0",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v2.log",
+      "blob": "3558dbf4bcb113c22ebc7e5eb667def641cf827a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v3.log",
+      "blob": "ceb7c101e132e9356d84eefaed181a233eae03ef",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v4.log",
+      "blob": "42d5052e0213490c85bacb412d97679434039e5f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final.log",
+      "blob": "235451c3ea3a81d367980f690802b5c86e2777ac",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build_manifest.py",
+      "blob": "ea0f7b8c8f0d18bae350d01607116991a828317b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-final.json",
+      "blob": "a14937524b628a14599ab579db16bae342382793",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-final.log",
+      "blob": "db1bdaedbc1993ac9ac24ef87d5424cf9fcfb552",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-green.json",
+      "blob": "a14937524b628a14599ab579db16bae342382793",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-green.log",
+      "blob": "db1bdaedbc1993ac9ac24ef87d5424cf9fcfb552",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final-v2.log",
+      "blob": "7289d7f5098c71d00516943f46162de0b55ea96c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final-v2.xml",
+      "blob": "6df3cd2bc94ad22753cab9fc543b6da3cffca5f2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final.log",
+      "blob": "b4664a17f909be950eda0aca8f1b08d289209808",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final.xml",
+      "blob": "6cc4ba94b3519c633f413acf72b5fb9765121101",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/dependencies-final.json",
+      "blob": "6e8271880a3b0fa68d4595ab14a49c06078e468a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/epoch-initial.log",
+      "blob": "0e30f3bbf4d728411e5aba8c4ca7a64c9d4a5df1",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/epoch-initial.xml",
+      "blob": "576f56130e3b2997954d557799227ca4ec7c561d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/identity-positive.json",
+      "blob": "40aebdc7afb2fb10128672069cf260d4522a682b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/identity-positive.log",
+      "blob": "a4f9ae2c3c4238256b0b145ea1b03a5724c71971",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-initial.log",
+      "blob": "66a31f67186ce8cd6bd7a9bd7c728d690189ce8c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-initial.xml",
+      "blob": "19e6bd998aad1e4d330e721c2ad8cbe745c59bb5",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-v2.log",
+      "blob": "52092303d829a7a0bb30ad6c67b6721402db847f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-v2.xml",
+      "blob": "225b6cf73ec5f85fa9aa97ca79cdd66d91364ae4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-assessment.json",
+      "blob": "55b27b4cb617a65de7abdf7d223d03920639a5af",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-assessment.md",
+      "blob": "9a972eef8cc0abfe4d0da5c26a15207bf0820d1c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-command.json",
+      "blob": "b0ea1488cb9baf3becda7d35b5ba4109d2587706",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-current.log",
+      "blob": "8779013f14efeb75c27f221053012467c452ef2d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-current.xml",
+      "blob": "ff4eff75aee226f3bf5745911bdda2d68b57dfaf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-http-owned-recheck.json",
+      "blob": "c941c79e00b11e65cfa89efeafde3f5d1ebb6cca",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-http-owned.json",
+      "blob": "796716eebfe413c6260eb7b86a145e5f10824a1a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/owner_epoch_probe.py",
+      "blob": "b2fc7a01febe17554331a251054b6704a032536d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/pnpm-install.log",
+      "blob": "d845251954bc2c76722708be7ec9f7afe7fb0770",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/prior-automation-view-tests.txt",
+      "blob": "0f26c14d57b85f9c047f235bcc26792f464df098",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/prior-automation-workspace-tests.txt",
+      "blob": "50c85c760a6dd1c535774d61b7aeb32135e107bf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/raw-output.zip",
+      "blob": "431f42b246c8552f7279e000ba791506990ab482",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/repair-delta-final.log",
+      "blob": "7f041b765a8bdf18a4869a9109a478d8525a83a5",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/repair-delta-final.xml",
+      "blob": "ce41faac1368b82515f0deb59f42715fd10aa681",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/retained-contracts-final.log",
+      "blob": "88c39e4c7ac64e284740cb4abfca5ce1d9e3e3f4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/retained-contracts-final.xml",
+      "blob": "fb2fd16093be7fa5f8a782983bdb2d0179545358",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/route-snapshot-delta.json",
+      "blob": "ce4e74c01f183d1781f0ded30e4b36d056bfc6c3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/run_original_red.py",
+      "blob": "96a3d947537eaa1be8be746bbd910c09b603edca",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/scheduler-remaining-final.log",
+      "blob": "4c8a3d8d031ba1d10b7937723716d3f3458664ee",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/scheduler-remaining-final.xml",
+      "blob": "e6e1ff780c16015932412b7f769a9f3369398414",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/source-commit.log",
+      "blob": "4d69e6d5302e35d6569575eb35929c81e2f60c10",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/startup-final.log",
+      "blob": "1d97430001539679d3d16e95e39e74f3315993d0",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/startup-final.xml",
+      "blob": "5fb94b52b6d6ec17228150f2967b90601b57df46",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/strengthened-final.log",
+      "blob": "47a589caf101b671014128cc8779872217edceee",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/strengthened-final.xml",
+      "blob": "f281c795a4a4f91f2c3b4c17588ac2f28a173758",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/surface-final.log",
+      "blob": "db4a3cb50ae8f02c967d210d3df0172a53031f94",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/surface-final.xml",
+      "blob": "63b7dd2d2bc4163807224429bc50f6cac7436122",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v2.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v3.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v4.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v5.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final.log",
+      "blob": "b4e5fbf1b688b8c0e066328079eb8aea26550871",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-initial.log",
+      "blob": "3178cc662e7e9bbca24bf9c44ce71400d40a403b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-v2.log",
+      "blob": "660c1f7082a9fc7d4398866239f26f43e72c61b7",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-v3.log",
+      "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/ui-test-successors.json",
+      "blob": "67c7db9308b79ba7ec1a0a55194e33c628e5a3b9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/ui_test_successors.py",
+      "blob": "4d38936b93f48d867073343cda0adf2e4eed95cd",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/update_route_snapshot.py",
+      "blob": "1df2ea1b4a0f9ee98c13ecbeb4efa104e8209826",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/validation.json",
+      "blob": "fb26533b730b2dda4a4cb08a809c4fb9a0ca21e4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/verify_additional_baseline.py",
+      "blob": "161c26a9c1acb0c0c4201c8f04331d314ebecd6b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/verify_baseline_routes.py",
+      "blob": "6c5a040fea58f08f9a9e62157a51f7edfbc7ccb9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-canonical-initial.log",
+      "blob": "a5960be3a756653216426402133fa3df6962428a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v2.log",
+      "blob": "16d6a022ea71468e586fdce354905317ebd41853",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v3.log",
+      "blob": "7a8d0f04616e811ced69b28d196abfdfa8fb7e8a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v4.log",
+      "blob": "65b0735978bc06cdb62494d6351f8567a21ecea3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final.log",
+      "blob": "5d0b03d865fb7bb841bced04203fa15fb80be518",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-initial.log",
+      "blob": "a1707d9d56956225cbea5bf222afeccab82e53cf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-v2.log",
+      "blob": "6be639eeb949febcdec8d8a4313db4d09fb5454d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-v3.log",
+      "blob": "672328d8ee3edbd7907c2b8bd237b9ed3dc3ff8c",
+      "unchanged": true
+    }
+  ],
+  "protectedRefSnapshot": {
+    "main": "7f303faa355bfc763f0452ad68d31b920e4dc6e1",
+    "practical": "5b6165ca7d1b2751b5ddf736a9679bcefb24a068"
+  },
+  "relativeCodeDiffFromBaseline": "packages/core/platform/execution_host.py      |  22 ++\n packages/jobs/final_api.py                    |   5 +-\n packages/jobs/final_runtime/ledger.py         |  36 +++\n packages/jobs/final_service.py                | 276 +++++++++++++++++++----\n packages/jobs/independent_client.py           |   2 +\n packages/jobs/independent_execution_runner.py |  39 +++-\n packages/jobs/independent_executor.py         |  87 ++++++++\n packages/jobs/independent_service.py          |  10 +\n tests/test_job_retained_safety_canonical.py   | 239 ++++++++++++++++++++\n tests/test_job_retained_safety_owned.py       | 305 ++++++++++++++++++++++++++\n tests/test_job_retained_safety_protocol.py    |  88 ++++++++\n tests/test_job_retained_safety_public.py      | 275 +++++++++++++++++++++++\n 12 files changed, 1345 insertions(+), 39 deletions(-)",
+  "unverified": [
+    "Linux/macOS execution",
+    "three-platform remote CI",
+    "whole repository suite",
+    "MA combined integration acceptance",
+    "browser",
+    "real providers",
+    "real data migration",
+    "deployment",
+    "human acceptance"
+  ]
+}

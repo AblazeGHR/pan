@@ -1,0 +1,9 @@
+{
+  "executorPort": 64413,
+  "label": "canonical-delete-unknown-false",
+  "canonicalPort": 64415,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1
+}
