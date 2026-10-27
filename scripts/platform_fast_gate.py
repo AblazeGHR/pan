@@ -27,6 +27,7 @@ FAST_TESTS = (
     "tests/test_platform_import_chain.py::test_platform_layer_imports_only_stdlib",
     "tests/test_platform_process_contract.py",
     "tests/test_platform_process_posix_unit.py",
+    "tests/test_job_posix_safety.py",
     "tests/test_job_runtime_owner.py",
     "tests/test_job_attempt_epoch.py",
     "tests/test_job_final_executors.py",

@@ -142,3 +142,7 @@ This host has no running WSL distribution; none was started or installed.
 Linux/macOS native import, shared suite and public real-process probes are
 runnable but NOT RUN here. Windows controls/real Windows P23, target-platform
 runtime, remote CI, deployment, migration and human acceptance remain separate.
+
+## MA 集成接线
+
+CP-X1 快层显式包含 `tests/test_job_posix_safety.py`，使 Linux/macOS 公共后继进入同一三平台入口。Windows 的平台 skip 保留，不能作为目标平台实测。远端执行与最终能力验收仍未完成。
