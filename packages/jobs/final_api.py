@@ -77,6 +77,8 @@ class CanonicalService(Protocol):
     def write(self, kind: str, object_id: str | None, body: dict, *, actor: Mapping[str, Any]): ...
     def control(self, kind: str, object_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def retire(self, kind: str, object_id: str, body: dict, *, actor: Mapping[str, Any]): ...
+    def instantiate_time_template(self, template_id: str, body: dict, *, actor: Mapping[str, Any]): ...
+    def resolve_time_input(self, body: dict, *, actor: Mapping[str, Any]): ...
     def runs(self, job_id: str, *, actor: Mapping[str, Any], cursor: str | None, limit: int): ...
     def create_run(self, job_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def get_run(self, run_id: str, *, actor: Mapping[str, Any]): ...
@@ -354,10 +356,33 @@ async def action_catalog(request: Request):
     return await invoke(request, "actions", actor=who)
 
 
+@router.post("/job-templates/{template_id}/instantiate")
+async def instantiate_time_template(template_id: str, request: Request):
+    who = await actor(request, "template", "use")
+    value = await body(request)
+    fields(value, {"expectedRevision", "requestKey", "activate"}, {"expectedRevision", "requestKey"})
+    revision(value["expectedRevision"])
+    contracts.check_request_key(value["requestKey"])
+    if type(value.get("activate", False)) is not bool:
+        reject("invalid_schema", "activate must be boolean")
+    return write_result(await invoke(request, "instantiate_time_template", template_id, value, actor=who), created=True)
+
+
 @router.get("/event-creators/providers")
 async def creator_providers(request: Request):
     who = await actor(request, "event_creator", "read")
     return await invoke(request, "creator_providers", actor=who)
+
+
+@router.post("/event-creators/time-input/resolve")
+async def resolve_time_input(request: Request):
+    who = await actor(request, "event_creator", "read")
+    value = await body(request)
+    fields(value, {"value", "timezone"}, {"value"})
+    if (not isinstance(value["value"], str) or not 1 <= len(value["value"]) <= 256
+            or "timezone" in value and (not isinstance(value["timezone"], str) or not 1 <= len(value["timezone"]) <= 64)):
+        reject("invalid_schema", "Invalid time input")
+    return await invoke(request, "resolve_time_input", value, actor=who)
 
 
 @router.get("/event-creators/{creator_id}/references")

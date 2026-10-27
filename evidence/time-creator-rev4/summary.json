@@ -1,0 +1,137 @@
+{
+  "baselineSha": "e17a7c0e8da071723c1cce9d7bdb8b0710f1e4d2",
+  "sourceSha": "475747872a5a89f3d395df95d6bf7b4d347f16ff",
+  "sourceTree": "46c732427668ac1e808659ddb383fe6b712f5d0a",
+  "branch": "r6/job-time-creator-line-20261029",
+  "logicalCommits": [
+    "fd30edabb6d06ec4c4269a34cc8f16710a118f56 Seed owned Session targets in migration and authorization fixtures",
+    "b9864ea68775fb961c0b04d103159bc4f69abb75 Resolve local once and anchor inputs using the current Pan timezone",
+    "475747872a5a89f3d395df95d6bf7b4d347f16ff Preserve all accepted explicit RFC3339 input spellings"
+  ],
+  "commands": {
+    "backend": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_time_input.py tests/test_scheduler_time_revision2.py tests/test_scheduler_time_templates.py tests/test_platform_layer.py tests/test_platform_api.py tests/test_job_final_creators.py tests/test_job_final_contracts.py tests/test_scheduler_canonical_migration.py tests/test_scheduler_time_events.py tests/test_scheduler_store.py tests/test_scheduler_cron.py tests/test_scheduler_engine.py tests/test_scheduler_pending_adoption.py tests/test_scheduler_source_migration.py tests/test_scheduler_creator_management.py tests/test_scheduler_dependency_cutover.py tests/test_job_final_transports.py tests/test_job_final_http_service.py -q --tb=short --junitxml=evidence/time-creator-rev4/backend.xml",
+    "migration-fixtures": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_pending_adoption.py tests/test_scheduler_source_migration.py tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate -q --tb=short --junitxml=evidence/time-creator-rev4/migration-fixtures.xml",
+    "resolver": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_time_input.py -q --tb=short --junitxml=evidence/time-creator-rev4/resolver.xml",
+    "frontend": "pnpm --dir packages/web exec vitest run src/components/automation/SchedulerInstantInput.test.tsx src/components/automation/CanonicalForms.test.tsx src/views/AutomationWorkspace.test.tsx src/views/CanonicalJobsView.test.tsx src/services/canonicalJobs.test.ts",
+    "browser": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_local_input_browser.py tests/test_scheduler_time_revision2_browser.py -q --tb=short --junitxml=evidence/time-creator-rev4/browser.xml",
+    "build": "pnpm --dir packages/web build",
+    "eslint": "pnpm --dir packages/web exec eslint src/components/automation/SchedulerInstantInput.tsx src/components/automation/SchedulerInstantInput.test.tsx",
+    "schema": "python -m packages.jobs.final_contracts --check",
+    "static": "git diff --check; normal git pre-commit React frontend check"
+  },
+  "checks": {
+    "backend": {
+      "tests": 498,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "browser": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "migration-fixtures": {
+      "tests": 42,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "resolver": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exitCode": 0
+    }
+  },
+  "frontend": {
+    "files": 5,
+    "passed": 81,
+    "failed": 0,
+    "exitCode": 0
+  },
+  "build": {
+    "includesTypecheck": true,
+    "compressedAssets": 88,
+    "exitCode": 0
+  },
+  "eslint": {
+    "errors": 0,
+    "warnings": 0,
+    "exitCode": 0
+  },
+  "previousFailedNodesNowPassing": [
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-admit]",
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[after-admit-before-cursor]",
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-ack]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]",
+    "tests.test_scheduler_source_migration::test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]",
+    "tests.test_job_final_http_service::test_ft01_system_grant_and_high_risk_remain_separate"
+  ],
+  "fixturesOnlyAddedLines": 6,
+  "highRiskDiagnosis": "Missing owned-test-session fixture caused create 400 before grant checks; fixed fixture now reaches both original denial paths. No product authorization change.",
+  "readonlyResolver": "TimeProvider.resolve_input via existing _wall_instant and Decimal; database iterdump unchanged by HTTP preview",
+  "browserProof": {
+    "authenticated": true,
+    "productionBundle": true,
+    "chromium": "153.0.8010.12",
+    "fakePanHostZone": "America/New_York",
+    "browserZone": "Asia/Tokyo",
+    "ordinaryLocalOnce": true,
+    "override": true,
+    "gapBlocked": true,
+    "foldTwoActualInstantsAndExplicitSecondChoice": true,
+    "fractionalAnchor": true,
+    "createdSources": 4,
+    "pageErrors": [],
+    "ownedChildWaitedInFinally": true
+  },
+  "sourceFileSha256": {
+    "packages/jobs/final_api.py": "4d70406c66585a6bf01934af05c4f7a873496ffa30b2e1ded2d0fa9928ac9d35",
+    "packages/jobs/final_service.py": "f85f7fe486df8bbd9f9a6b688a93a59d47f0a7b51cf97238a3e21936ee326c17",
+    "packages/scheduler/providers.py": "f4a4434392a8be7593133835723b1a8c2d2df74e8a6fa21cf63e8a4f7e30a5d6",
+    "packages/web/src/components/automation/CanonicalForms.test.tsx": "a375d85a96e42f9282572eca2c945753f33b2e90ec7c73a21c3c00e8bd4da400",
+    "packages/web/src/components/automation/CanonicalSchedulerFields.tsx": "7642544121396ac0551a3f20009d52f870a9c28badc50fb4f98053acdbc72d6c",
+    "packages/web/src/components/automation/SchedulerInstantInput.test.tsx": "a1140854cb5810f247e2548d3496c82993b7608d24f6514e284ef2d6648ce61b",
+    "packages/web/src/components/automation/SchedulerInstantInput.tsx": "70158c602b3ed44878b7c0a2051e5deabe596f232873517b4f02ec140b60aec0",
+    "packages/web/src/services/canonicalJobs.ts": "3161b0a6b329a4546dec1b76c0393eaece47e4161dc929fc534722620417928f",
+    "tests/support/scheduler_management_server.py": "51efcdeb671913e888d9d68188f356440739f3f247a667935f3f94a022e41133",
+    "tests/test_job_final_http_service.py": "97a4741f31fb047d1adad2deedd57a3f9264b94d1681afdee5737e360e493d6c",
+    "tests/test_job_final_transports.py": "c096992b9b04e45420d603d062b87661627898664bc88a4249c855430f01bbd7",
+    "tests/test_scheduler_local_input_browser.py": "46ad425b739c2f3896c6e12106eae80935a5ef66f8cbe1e5224fed22e11f8c24",
+    "tests/test_scheduler_pending_adoption.py": "e667d2b0a1a96651e81ba9e10a5e9582aae9286d1b2f040277304c6ad9fd8163",
+    "tests/test_scheduler_source_migration.py": "5352db0458b9dffe1bd95a33f645ed19fcc6d7f6b6d6b9e347ac032b48eb8038",
+    "tests/test_scheduler_time_input.py": "be9fdeb66d0ff88f6355cd83edf6b9382b9e9c52e47c371cdddcee2b1e549a1c",
+    "tests/test_scheduler_time_revision2_browser.py": "571526ef4e6582c23c122ff98181ed67f8b30e8bf3b0f89ae1e1c9cec43f24cd"
+  },
+  "preservedOriginalEvidenceDiffEmpty": true,
+  "protectedRefs": {
+    "main": "0025c9d67c6ef29bf034e10ae1443a052bc62d64",
+    "practical": "0025c9d67c6ef29bf034e10ae1443a052bc62d64"
+  },
+  "noMergePushOrExistingServiceControl": true,
+  "realDataMigration": false,
+  "unverified": [
+    "full backend suite",
+    "Linux/macOS runtime and remote CI",
+    "real OS timezone or clock changes",
+    "real provider effects",
+    "production lifespan",
+    "real profile migration",
+    "deployment",
+    "human acceptance"
+  ]
+}

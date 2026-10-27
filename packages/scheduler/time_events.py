@@ -218,10 +218,11 @@ class Sources:
             fire = parse_datetime(item.get('nextFireAt'))
             if not item['enabled'] or fire is None or fire > at:return None
             next_fire = calculator.iso(_entry_next_fire(item['schedule'], max(at, fire)))
-            late = (at - fire).total_seconds() > item['graceSec']
-            if late and (item['schedule']['kind'] == 'once' or item['misfirePolicy'] == 'skip'):
+            outcome = calculator.misfire_outcome(item['schedule']['kind'], item['misfirePolicy'],
+                                                 (at - fire).total_seconds(), item['graceSec'])
+            if outcome:
                 # Same expiry/coalescing rules as the legacy scheduler; no Event.
-                item.update(nextFireAt=next_fire, lastOutcome='expired' if item['schedule']['kind'] == 'once' else 'skipped', lastScheduledAt=calculator.iso(fire))
+                item.update(nextFireAt=next_fire, lastOutcome=outcome, lastScheduledAt=calculator.iso(fire))
                 if item['schedule']['kind'] == 'once':item['enabled'] = False
                 self.write(db, item)
                 return None

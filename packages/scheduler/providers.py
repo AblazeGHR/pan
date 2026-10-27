@@ -14,7 +14,9 @@ from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
 from packages.jobs import final_contracts as contracts
-from packages.jobs.cron import MAX_SEARCH_DAYS, parse_cron
+from packages.jobs.cron import MAX_SEARCH_DAYS, parse_cron, _day_matches
+from packages.core.platform.timezones import host_zone_name
+from packages.jobs.schedule_calculations import misfire_outcome
 
 UTC = timezone.utc
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -195,14 +197,66 @@ class TimeProvider:
         "digest": contracts.digest({"schema": "scheduler.config", "revision": 1}),
     }
 
-    def __init__(self, zone_factory=ZoneInfo):
+    def __init__(self, zone_factory=ZoneInfo, host_zone=host_zone_name):
         self.zone_factory = zone_factory
+        self.host_zone = host_zone
 
     def health(self):
         return {"status": "available", "capabilities": list(self.capabilities)}
 
+    def resolve_input(self, value, timezone_name=None):
+        """Read-only local input preview. No cursor, rule or confirmation state.
+
+        Resolve the whole wall second with the existing DST calculator, then add
+        the original Decimal fraction without passing it through datetime/float.
+        """
+        if not isinstance(value, str) or not 1 <= len(value) <= 256:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        text = value.strip()
+        if _TIMESTAMP.fullmatch(text):
+            try:
+                contracts.check_timestamp(text, "value")
+                return {"status": "resolved", "at": timestamp(text), "zoneSelection": "explicit-offset",
+                        "timezone": None, "input": text}
+            except (ValueError, OverflowError, contracts.ContractError):
+                return {"status": "invalid", "reason": "invalid_datetime"}
+        match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})[Tt ](\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?", text)
+        if not match:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        try:
+            wall = datetime.fromisoformat(match[1] + "T" + match[2] + ":" + (match[3] or "00"))
+        except ValueError:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        try:
+            zone = self.zone(timezone_name)
+        except contracts.ContractError as exc:
+            return {"status": "unavailable", "reason": exc.details.get("reason", "timezone_unavailable")}
+        evidence = {"timezone": str(zone), "zoneSelection": timezone_name or "host", "input": text}
+        try:
+            first = _wall_instant(wall, zone, "gap-skip-fold-first")
+            second = _wall_instant(wall, zone, "gap-skip-fold-second")
+        except (ValueError, OverflowError):
+            return {"status": "invalid", "reason": "invalid_datetime", **evidence}
+        if first is None:
+            return {"status": "nonexistent", "reason": "dst_gap", **evidence}
+        fraction = Decimal("0." + match[4]) if match[4] else Decimal(0)
+        points = [first] if first["at"] == second["at"] else [first, second]
+        options = []
+        for point in points:
+            at = timestamp(_decimal_add(point["at"], fraction))
+            local = wall.replace(tzinfo=zone, fold=point["fold"]).isoformat()
+            offset = local[len(wall.isoformat()):]
+            options.append({"at": at, "localTime": wall.isoformat() + ("." + match[4] if match[4] else "") + offset})
+        if len(options) == 2:
+            return {"status": "ambiguous", "reason": "dst_fold", "options": options, **evidence}
+        return {"status": "resolved", **options[0], **evidence}
+
     def zone(self, name: str):
-        text = str(name or "").strip()
+        try:
+            text = str(name or self.host_zone()).strip()
+        except Exception as exc:
+            raise contracts.ContractError("provider_unavailable", "Current host timezone is unavailable",
+                                          details={"reason": "host_timezone_unavailable"}) from exc
         if text.upper() in {"UTC", "Z", "+00:00", "-00:00"}:
             return UTC
         fixed = _FIXED_OFFSET.match(text)
@@ -230,10 +284,10 @@ class TimeProvider:
         if config["pausePolicy"] not in PAUSE_POLICIES:
             raise contracts.ContractError("capability_unsupported", "Unknown pausePolicy")
         for rule in config["rules"]:
-            if rule["type"] in {"weekly", "cron"}:
-                if rule["dstPolicy"] not in DST_POLICIES:
+            if rule["type"] in {"daily", "weekly", "cron"}:
+                if rule.get("dstPolicy", "gap-skip-fold-first") not in DST_POLICIES:
                     raise contracts.ContractError("capability_unsupported", "Unknown dstPolicy")
-                self.zone(rule["timezone"])
+                self.zone(rule.get("timezone"))
             if rule["type"] == "cron":
                 try:
                     parse_cron(rule["expression"])
@@ -271,18 +325,31 @@ class TimeProvider:
                     point = anchor + index * seconds
             text = timestamp(point)
             return {"at": text, "timezone": "UTC", "wallTime": text, "fold": 0, "ordinal": 0, "gap": "none"}
-        zone = self.zone(rule["timezone"])
+        zone = self.zone(rule.get("timezone"))
         wall_after = _datetime_at(boundary, zone)
-        if kind == "weekly":
+        policy = rule.get("dstPolicy", "gap-skip-fold-first")
+        skipped = []
+        def public(occurrence):
+            value = _public_occurrence(occurrence)
+            value["zoneSelection"] = rule.get("timezone") or "host"
+            if skipped:
+                value["skippedOccurrences"] = list(skipped)
+            return value
+        def resolve(wall):
+            value = _wall_instant(wall, zone, policy)
+            if value is None:
+                skipped.append({"wallTime": wall.isoformat(), "timezone": str(zone), "reason": "dst_gap"})
+            return value
+        if kind in {"daily", "weekly"}:
             hour, minute, second = (int(part) for part in rule["time"].split(":"))
             for offset in range(MAX_SEARCH_DAYS + 8):
                 day = wall_after.date() + timedelta(days=offset)
-                if day.weekday() != rule["weekday"]:
+                if kind == "weekly" and day.weekday() != rule["weekday"]:
                     continue
                 wall = datetime(day.year, day.month, day.day, hour, minute, second)
-                occurrence = _wall_instant(wall, zone, rule["dstPolicy"])
+                occurrence = resolve(wall)
                 if occurrence is not None and occurrence["at"] > boundary:
-                    return _public_occurrence(occurrence)
+                    return public(occurrence)
             return None
         sets = parse_cron(rule["expression"])
         minutes, hours = sorted(sets["minute"]), sorted(sets["hour"])
@@ -292,9 +359,7 @@ class TimeProvider:
             day = wall_after.date() + timedelta(days=offset)
             if day.month not in sets["month"]:
                 continue
-            dom_ok = day.day in sets["dom"]
-            dow_ok = ((day.weekday() + 1) % 7) in sets["dow"]
-            if not ((dom_ok and dow_ok) if dom_star and dow_star else dow_ok if dom_star else dom_ok if dow_star else dom_ok or dow_ok):
+            if not _day_matches(day, sets["dom"], sets["dow"], dom_star, dow_star):
                 continue
             for hour in hours:
                 for minute in minutes:
@@ -303,11 +368,11 @@ class TimeProvider:
                     # be a historical gap). Fold-second/shift policies can
                     # still have a future instant behind the current wall time.
                     if (wall <= wall_after.replace(microsecond=0, tzinfo=None)
-                            and rule["dstPolicy"] in {"strict", "gap-skip-fold-first"}):
+                            and policy in {"strict", "gap-skip-fold-first"}):
                         continue
-                    occurrence = _wall_instant(wall, zone, rule["dstPolicy"])
+                    occurrence = resolve(wall)
                     if occurrence is not None and occurrence["at"] > boundary:
-                        return _public_occurrence(occurrence)
+                        return public(occurrence)
         return None
 
     def initial_cursor(self, item: Mapping[str, Any], at: str, previous=None) -> dict[str, Any]:
@@ -326,6 +391,24 @@ class TimeProvider:
                 "rule": copy.deepcopy(rule),
             }
         return {"rules": rules}
+
+    def refresh_host_cursor(self, item, at):
+        if item.get("pendingPublication"):
+            return False
+        changed = False
+        for rule in item["config"]["rules"]:
+            if rule["type"] not in {"daily", "weekly", "cron"} or rule.get("timezone"):
+                continue
+            zone = str(self.zone(None))
+            cursor = item["cursor"]["rules"][rule["ruleId"]]
+            occurrence = cursor.get("nextOccurrence")
+            if occurrence and occurrence.get("timezone") != zone:
+                following = self.next_after(rule, at)
+                cursor.update(nextFireAt=following["at"] if following else None, nextOccurrence=following)
+                item["health"] = {**item.get("health", {}), "lastZoneChange":
+                                  {"from": occurrence.get("timezone"), "to": zone, "at": at}}
+                changed = True
+        return changed
 
     def due_occurrences(self, item: Mapping[str, Any], at: str) -> list[str]:
         boundary = instant(at)
@@ -347,28 +430,29 @@ class TimeProvider:
             basis = timestamp(max(instant(at), instant(scheduled)))
             following = self.next_after(rule, basis)
             late = instant(at) - instant(scheduled) > Decimal(item["config"]["graceSeconds"])
-            outcome = None
-            if late and rule["type"] == "once":
-                outcome = "expired"
-            elif late and item["config"]["misfirePolicy"] == "skip":
-                outcome = "skipped"
+            outcome = misfire_outcome(rule["type"], item["config"]["misfirePolicy"],
+                                      instant(at) - instant(scheduled), Decimal(item["config"]["graceSeconds"]))
             reason = "backfill" if late else "scheduled"
+            occurrence = cursor.get("nextOccurrence") or {
+                "timezone": "UTC", "wallTime": scheduled, "fold": 0, "ordinal": 0, "gap": "none"
+            }
             drive = {
                 "driveId": drive_id, "driveSeq": drive_seq, "occurrenceKey": occurrence_key,
                 "actualDriveAt": at if not outcome else None,
                 "scheduledAt": scheduled, "reason": reason,
                 "ruleId": rule_id, "outcome": outcome or "reserved",
+                "timezone": occurrence["timezone"], "zoneSelection": occurrence.get("zoneSelection", "UTC"),
+                "skippedOccurrences": copy.deepcopy(occurrence.get("skippedOccurrences", [])),
             }
             if outcome:
                 return {"disposition": outcome, "drive": drive, "ruleId": rule_id, "nextOccurrence": following}
-            occurrence = cursor.get("nextOccurrence") or {
-                "timezone": "UTC", "wallTime": scheduled, "fold": 0, "ordinal": 0, "gap": "none"
-            }
             payload = {
                 "driveId": drive_id, "driveSeq": drive_seq, "driveReason": reason,
                 "ruleId": rule_id, "scheduledAt": scheduled,
                 "timezone": occurrence["timezone"], "wallTime": occurrence["wallTime"],
                 "fold": occurrence["fold"], "ordinal": occurrence["ordinal"], "gap": occurrence["gap"],
+                "zoneSelection": occurrence.get("zoneSelection", "UTC"),
+                "skippedOccurrences": copy.deepcopy(occurrence.get("skippedOccurrences", [])),
             }
             return {
                 "drive": drive, "ruleId": rule_id, "rule": copy.deepcopy(rule),
@@ -394,12 +478,15 @@ class TimeProvider:
             rule = next(rule for rule in item["config"]["rules"] if rule["ruleId"] == rule_id)
             basis = timestamp(max(instant(at), instant(scheduled)))
             following = self.next_after(rule, basis)
+            occurrence = cursor.get("nextOccurrence") or {}
             return {
                 "disposition": "paused", "ruleId": rule_id, "nextOccurrence": following,
                 "drive": {
                     "driveId": drive_id, "driveSeq": drive_seq, "occurrenceKey": occurrence_key,
                     "actualDriveAt": None, "scheduledAt": scheduled, "reason": "paused",
                     "ruleId": rule_id, "outcome": "paused",
+                    "timezone": occurrence.get("timezone", "UTC"),
+                    "zoneSelection": occurrence.get("zoneSelection", "UTC"),
                 },
             }
         raise contracts.ContractError("revision_conflict", "Paused occurrence no longer matches the cursor")

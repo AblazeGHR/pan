@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.845" timestamp="2026-10-28T04:09:40.624324+08:00"><testcase classname="tests.test_job_final_http_service" name="test_ft01_system_grant_and_high_risk_remain_separate" time="0.286"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_final_http_service.py:274: in test_ft01_system_grant_and_high_risk_remain_separate
+    item = enabled(h)
+           ^^^^^^^^^^
+tests\test_job_final_http_service.py:91: in enabled
+    item = create(h, value=value)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:80: in create
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 201
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase></testsuite></testsuites>

@@ -42,6 +42,8 @@ def enable(service, kind, item, key):
 
 
 def graph(service, cid):
+    from packages.core import session
+    session.save(session.Session(id="owned-session", name="Owned source migration target"))
     action = next(a for a in service.actions(actor=USER)["items"] if a["id"] == "product_session_message")
     job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
     trigger = enabled(service, "trigger", {"name": "reviewed successor", "targetJobId": job["id"],

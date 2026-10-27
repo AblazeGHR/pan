@@ -2,7 +2,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { CanonicalSchedulerFields } from './CanonicalSchedulerFields';
+import { CanonicalSchedulerFields, schedulerRule } from './CanonicalSchedulerFields';
+import { TimeTemplateFields } from './TimeTemplateFields';
 import { CanonicalDefinitionFields } from './CanonicalDefinitionFields';
 import type { JsonObject } from '@/types/canonicalJobs';
 import { canonicalJobs } from '@/services/canonicalJobs';
@@ -53,6 +54,70 @@ function Scheduler({ initial = full }: { initial?: JsonObject }) {
 }
 const data = () => JSON.parse(screen.getByTestId('value').textContent!) as JsonObject;
 
+it('defaults calendar rules to the current host and clears an override without requiring DST fields', () => {
+  render(
+    <Scheduler
+      initial={{
+        rules: [schedulerRule('daily', 'day')],
+        misfirePolicy: 'fire_now',
+        graceSeconds: '300',
+        pausePolicy: 'advance',
+      }}
+    />,
+  );
+  expect(screen.queryByLabelText('DST policy')).toBeNull();
+  expect((screen.getByLabelText('Timezone') as HTMLInputElement).required).toBe(false);
+  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: 'America/New_York' } });
+  expect((data().rules as JsonObject[])[0]!.timezone).toBe('America/New_York');
+  fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: '' } });
+  expect((data().rules as JsonObject[])[0]).not.toHaveProperty('timezone');
+  expect((data().rules as JsonObject[])[0]).not.toHaveProperty('dstPolicy');
+});
+
+it('builds a passive time Template using the native rule form and existing composition keys', async () => {
+  const metadata = {
+    providerRef: { type: 'time', id: 'scheduler', generation: 1, releaseDigest: 'd' },
+    configSchemaRef: { id: 'scheduler.config', revision: 1, digest: 's' },
+    configSchema: {},
+    eventTypes: ['scheduler.time.v2'],
+    requiredCapabilities: [],
+  };
+  vi.spyOn(canonicalJobs, 'creatorProviders').mockResolvedValue({ items: [metadata] });
+  vi.spyOn(canonicalJobs, 'actions').mockResolvedValue({ items: [], references: {}, nextCursor: null });
+  let result: JsonObject = {};
+  function Template() {
+    const [value, setValue] = useState<JsonObject>({
+      jobDefinition: { name: 'Scheduled message', steps: [], retention: { policyRef: 'default' } },
+      composition: { creators: [], triggers: [] },
+    });
+    return (
+      <TimeTemplateFields
+        value={value}
+        onChange={(next) => {
+          result = next;
+          setValue(next);
+        }}
+      />
+    );
+  }
+  render(<Template />);
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Add Template Scheduler' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Add Template Scheduler' }));
+  fireEvent.change(screen.getByLabelText('Time of day'), { target: { value: '09:00:12' } });
+  const composition = result.composition as JsonObject;
+  const creator = (composition.creators as JsonObject[])[0]!;
+  expect((creator.definition as JsonObject).config).toMatchObject({
+    rules: [{ type: 'daily', time: '09:00:12' }],
+  });
+  expect((composition.triggers as JsonObject[])[0]!.creatorKeys).toEqual([creator.key]);
+  expect(creator.definition as JsonObject).not.toHaveProperty('configSchema');
+});
+
 it('edits one rule without converting or truncating other rule IDs, precision, offsets, timezone, policies or counts', () => {
   render(<Scheduler />);
   expect(data()).toEqual(full);
@@ -66,7 +131,7 @@ it('edits one rule without converting or truncating other rule IDs, precision, o
   expect((screen.getByLabelText('Interval seconds') as HTMLInputElement).value).toBe(
     '0.000000123456789',
   );
-  expect((screen.getByLabelText('Scheduled time (RFC3339)') as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText('Scheduled date and time') as HTMLInputElement).value).toBe(
     '2027-11-01T00:00:13.123456789+05:30',
   );
 });
@@ -86,7 +151,7 @@ it('adds and removes multiple rules and changes type with stable IDs, including 
     'cron',
     id,
   ]);
-  expect((screen.getByLabelText('Anchor (RFC3339)') as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText('Anchor date and time') as HTMLInputElement).value).toBe(
     (full.rules as JsonObject[])[0]!.anchor,
   );
 });

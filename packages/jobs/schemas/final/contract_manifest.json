@@ -696,6 +696,7 @@
     "scheduleRuleTypes": [
       "once",
       "interval",
+      "daily",
       "weekly",
       "cron"
     ],

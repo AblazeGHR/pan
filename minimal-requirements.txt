@@ -8,6 +8,7 @@ jsonschema>=4.20
 PyJWT[crypto]>=2.10,<3
 pywinpty==3.0.5; sys_platform == 'win32'
 tzdata>=2025.2; sys_platform == 'win32'
+tzlocal>=5.3,<6
 pyte==0.8.2
 # dsh adapter reads DeepSeek Harness session logs (multi-frame zstd). Python 3.14+
 # ships compression.zstd, so the wheel is only needed on older interpreters.

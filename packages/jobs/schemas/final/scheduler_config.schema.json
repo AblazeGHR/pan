@@ -103,9 +103,7 @@
               "ruleId",
               "type",
               "weekday",
-              "time",
-              "timezone",
-              "dstPolicy"
+              "time"
             ]
           },
           {
@@ -140,9 +138,41 @@
             "required": [
               "ruleId",
               "type",
-              "expression",
-              "timezone",
-              "dstPolicy"
+              "expression"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "type": {
+                "const": "daily"
+              },
+              "time": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d$"
+              },
+              "timezone": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "dstPolicy": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              }
+            },
+            "required": [
+              "ruleId",
+              "type",
+              "time"
             ]
           }
         ]

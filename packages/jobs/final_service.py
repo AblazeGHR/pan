@@ -292,6 +292,74 @@ class FinalService:
             "configSchemaRef": provider.config_schema_ref, "requiredCapabilities": list(provider.capabilities),
             "eventTypes": ["scheduler.time.v2"], "configSchema": fc.schema_artifacts()["scheduler_config.schema.json"]}]}
 
+    def instantiate_time_template(self, template_id, body, *, actor):
+        """Thin time-composition admission; no Run or second operation ledger.
+
+        CreatorStore, FinalService operations and the composition callbacks join
+        the same SQLite transaction. A failed call rolls all of them back;
+        an existing composition checkpoint resumes under its original key.
+        """
+        if (not isinstance(body, dict) or set(body) - {"expectedRevision", "requestKey", "activate"}
+                or not {"expectedRevision", "requestKey"} <= set(body)
+                or type(body.get("activate", False)) is not bool):
+            error("invalid_schema", "Invalid time Template instantiation")
+        self._permit(actor, "template", "use")
+        activate = body.get("activate", False)
+        request = {**body, "activate": activate}
+        with self.transaction() as db:
+            def mutate(operation_id):
+                template = self._object(db, "template", template_id)
+                fc.check_revision(template["revision"], body["expectedRevision"])
+                if template["state"] != "published":
+                    error("reference_conflict", "Only a published Template can be instantiated")
+                value = definition("template", template)
+                specs = value["composition"]["creators"]
+                if not specs:
+                    error("capability_unsupported", "A time Template requires a Scheduler")
+                self._permit(actor, "job", "create")
+                self._references(db, "template", value, enabled=activate)
+                # Use the existing Job target validation before creating the graph.
+                self._references(db, "job", value["jobDefinition"], enabled=activate)
+                for spec in specs:
+                    if spec["mode"] == "create":
+                        self._permit(actor, "event_creator", "create")
+                        source = self.creators.registry.validate_definition(spec["definition"])
+                    else:
+                        self._permit(actor, "event_creator", "read")
+                        source = self.creators.get(spec["ref"]["id"])
+                    if source is None or source["providerRef"]["type"] != "time" or source["providerRef"]["id"] != "scheduler":
+                        error("capability_unsupported", "Only time Scheduler compositions are supported here")
+                if value["composition"]["triggers"]:
+                    self._permit(actor, "trigger", "create")
+                if activate:
+                    self._permit(actor, "job", "lifecycle")
+                    self._permit(actor, "job", "execute", execution=True)
+                    if value["composition"]["triggers"]:
+                        self._permit(actor, "trigger", "lifecycle", execution=True)
+                    if any(spec["mode"] == "create" for spec in specs):
+                        self._permit(actor, "event_creator", "lifecycle", execution=True)
+                key = "template:" + fc.digest({"scope": self._scope(actor, "instantiate-template"),
+                                                "requestKey": body["requestKey"]})
+                composed = self.compositions.instantiate_template(value, request_key=key, activate=activate,
+                    authorization_evidence={"principal": principal(actor)})
+                ids = composed["objectIds"]
+                objects = [("job", ids["job"]), *[("trigger", tid) for tid in ids["triggers"].values()]]
+                objects += [("event_creator", ids["creators"][spec["key"]]) for spec in specs if spec["mode"] == "create"]
+                for kind, oid in objects:
+                    db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, oid, fc.canonical_json(actor)))
+                refs = [object_ref(kind, self._object(db, kind, oid)) for kind, oid in objects]
+                return {"objectIds": ids, "compositionId": composed["operationId"],
+                        "phase": composed["phase"], "activated": activate}, refs, False
+            return self._operation(db, actor, "instantiate-template", body["requestKey"],
+                                   {"templateId": template_id, **request}, "template", mutate)
+
+    def resolve_time_input(self, body, *, actor):
+        self._permit(actor, "event_creator", "read")
+        provider = self.creators.registry.providers.get(("time", "scheduler"))
+        if provider is None:
+            error("provider_unavailable", "Time provider is unavailable")
+        return provider.resolve_input(body["value"], body.get("timezone"))
+
     def _creator_references(self, db, creator_id):
         creator = self.creators.get(creator_id)
         if creator is None:

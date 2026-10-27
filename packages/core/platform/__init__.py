@@ -101,6 +101,10 @@ class Capability:
 
 #: 能力矩阵（顺序即 API 输出顺序，便于前端与测试稳定比较）。
 CAPABILITIES: Mapping[str, Capability] = {
+    "time.hostZone": Capability(
+        "time.hostZone", frozenset({WINDOWS, DARWIN, LINUX}),
+        "tzlocal refreshes the current zoneinfo identity; resolution failures are explicit",
+    ),
     "job.runtimeOwner": Capability(
         "job.runtimeOwner", frozenset({WINDOWS, DARWIN, LINUX}),
         "本地文件系统进程锁与 SQLite epoch CAS；不提供跨主机 owner 租约",

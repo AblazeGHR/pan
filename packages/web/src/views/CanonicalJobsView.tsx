@@ -24,6 +24,7 @@ import type {
 import { newId, type EventCreator } from '@/types/automationJobs';
 import { useAutomationDraft } from '@/components/automation/DraftBoundary';
 import { CanonicalDefinitionFields, canonicalFormErrors } from '@/components/automation/CanonicalDefinitionFields';
+import { TimeTemplateFields } from '@/components/automation/TimeTemplateFields';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -146,6 +147,8 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
   const [conflict, setConflict] = useState(false);
   const [structuredEdited, setStructuredEdited] = useState(false);
   const [advancedEditing, setAdvancedEditing] = useState(false);
+  const [instantiating, setInstantiating] = useState<CanonicalObject | null>(null);
+  const [activateTemplate, setActivateTemplate] = useState(false);
   const [enabling, setEnabling] = useState<CanonicalObject | null>(null);
   const [enableReviewed, setEnableReviewed] = useState(false);
   const [retiring, setRetiring] = useState<CanonicalObject | null>(null);
@@ -194,6 +197,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
       if (!alive.current) return;
       setPending({ operation, requestKey, receipt });
       if (receipt.status === 'completed') {
+        setInstantiating(null);
         setEditor(null);
         setRetiring(null);
         setEnabling(null);
@@ -244,6 +248,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           onChange={(value) => {
             setPending(value);
             if (value.receipt?.status === 'completed') {
+              setInstantiating(null);
               setError('');
               setEditor(null);
               setRetiring(null);
@@ -283,6 +288,11 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           </label>
           {(kind === 'jobs' || kind === 'triggers') && <fieldset hidden={advancedEditing} disabled={busy || advancedEditing} className="min-w-0">
             {(() => { try { return <CanonicalDefinitionFields kind={kind} value={objectJson(editor.json)} targetJob={jobs.find((job) => job.id === objectJson(editor.json).targetJobId)} onChange={(value) => { setStructuredEdited(true); setEditor({ ...editor, json: JSON.stringify(value, null, 2) }); }} />; } catch { return <p role="status">Fix the advanced definition before using the form. Your draft is retained.</p>; } })()}
+          </fieldset>}
+          {kind === 'job-templates' && !!previewObject(editor.json).jobDefinition && !!previewObject(editor.json).composition && <fieldset hidden={advancedEditing} disabled={busy || advancedEditing}>
+            <TimeTemplateFields value={previewObject(editor.json)} onChange={(value) => {
+              setStructuredEdited(true); setEditor({ ...editor, json: JSON.stringify(value, null, 2) });
+            }} />
           </fieldset>}
           <details><summary>Advanced definition JSON</summary><label className="block text-sm">
             定义 JSON（名称单独填写）
@@ -373,6 +383,14 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           </div>
         </section>
       )}
+      {instantiating && <section aria-label="Instantiate time Template" className={`${card} space-y-3`}>
+        <p>Create a new Job, Scheduler and subscription from {instantiating.name}. The Job is not run immediately.</p>
+        <label><input type="checkbox" checked={activateTemplate} disabled={busy}
+          onChange={(e) => setActivateTemplate(e.target.checked)} />Activate future time events</label>
+        <Button disabled={busy} onClick={() => void mutate('instantiate-template', (key) =>
+          canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate))}>Create from time Template</Button>
+        <Button disabled={busy} onClick={() => setInstantiating(null)}>Cancel instantiation</Button>
+      </section>}
       {!loading && !items.length && <p>暂无 canonical {labels[kind]}。</p>}
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         {items.map((item) => (
@@ -388,6 +406,13 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               {item.state} · 定义版本 {revisionOf(item)} · 状态版本 {item.stateRevision}
             </p>
             <div className="flex flex-wrap gap-2">
+              {kind === 'job-templates' && <>
+                {item.state === 'draft' && <Button disabled={busy || !!editor} onClick={() =>
+                  void mutate('publish', (key) => canonicalJobs.controlDefinition(kind, item, 'publish', key))}>Publish {item.name}</Button>}
+                {item.state === 'published' && <Button disabled={busy || !!editor || !!instantiating} onClick={() => {
+                  setActivateTemplate(false); setInstantiating(item);
+                }}>Instantiate {item.name}</Button>}
+              </>}
               {kind !== 'job-templates' && <>
                 {(item.state === 'draft' || item.state === 'disabled') && <Button disabled={busy || !!editor || !!enabling} onClick={() => { setEnableReviewed(false); setEnabling(item); }}>Enable {item.name}</Button>}
                 {item.state === 'enabled' && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('pause', (key) => canonicalJobs.controlDefinition(kind, item, 'pause', key))}>Pause {item.name}</Button>}

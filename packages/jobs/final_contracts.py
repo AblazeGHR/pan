@@ -79,7 +79,7 @@ OWNER_TYPES = ("session", "agent", "user", "system", "plugin")
 PRINCIPAL_TYPES = ("user", "agent", "system", "plugin")
 MISFIRE_POLICIES = ("skip", "fire_now")
 ADVANCE_MODES = ("grid", "afterPublication")
-SCHEDULE_RULE_TYPES = ("once", "interval", "weekly", "cron")
+SCHEDULE_RULE_TYPES = ("once", "interval", "daily", "weekly", "cron")
 COUNTER_DOMAINS = ("run-admission",)
 TEMPLATE_JOB_KEY = "job"
 
@@ -1310,7 +1310,7 @@ def _scheduler_config() -> dict[str, Any]:
                     "timezone": {"type": "string", "minLength": 1, "maxLength": 64},
                     "dstPolicy": _POLICY_TOKEN,
                 },
-                ("ruleId", "type", "weekday", "time", "timezone", "dstPolicy"),
+                ("ruleId", "type", "weekday", "time"),
             ),
             _obj(
                 {
@@ -1320,10 +1320,15 @@ def _scheduler_config() -> dict[str, Any]:
                     "timezone": {"type": "string", "minLength": 1, "maxLength": 64},
                     "dstPolicy": _POLICY_TOKEN,
                 },
-                ("ruleId", "type", "expression", "timezone", "dstPolicy"),
+                ("ruleId", "type", "expression"),
             ),
         ]
     }
+    daily = copy.deepcopy(rule["oneOf"][2])
+    daily["properties"]["type"] = {"const": "daily"}
+    daily["properties"].pop("weekday")
+    daily["required"].remove("weekday")
+    rule["oneOf"].append(daily)
     return {
         "title": "Scheduler provider config",
         "description": "Time provider config consumed by Event Creator instances (design §10.3).",

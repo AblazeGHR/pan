@@ -11,6 +11,16 @@ from datetime import datetime
 from packages.jobs import cron
 
 MISFIRE_POLICIES = ("fire_now", "skip")
+
+
+def misfire_outcome(kind, policy, lateness, grace):
+    """Shared expiry/skip/coalesce decision; callers retain their time precision."""
+    if lateness <= grace:
+        return None
+    if kind == "once":
+        return "expired"
+    return "skipped" if policy == "skip" else None
+
 ENTRY_ID_PREFIX = "sce_"
 _ENTRY_CONTROL_KEYS = ("id", "nextFireAt", "lastFireAt", "enabled", "misfirePolicy")
 
