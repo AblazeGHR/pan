@@ -50,6 +50,7 @@ class SessionProvider(Protocol):
         *,
         effect_key: Mapping[str, Any],
         source: str,
+        source_session_id: str | None = None,
     ) -> Mapping[str, Any]: ...
 
 
@@ -97,9 +98,10 @@ class InMemoryReceiptStore:
 class WorkerSessionProvider:
     """Adapter over Pan's existing typed ``worker.send_session`` API.
 
-    The source is fixed to ``automation``.  A caller supplied ``source`` is
-    intentionally ignored, preventing payload metadata from becoming a
-    trusted identity.  The stable client id is derived from the effect key.
+    The source metadata is passed through the existing worker boundary.  The
+    worker remains the authority for validating source/sourceSessionId; this
+    adapter does not infer identity from the payload.  The stable client id is
+    derived from the effect key.
     """
 
     async def send_session(
@@ -109,13 +111,15 @@ class WorkerSessionProvider:
         *,
         effect_key: Mapping[str, Any],
         source: str = "automation",
+        source_session_id: str | None = None,
     ) -> Mapping[str, Any]:
         from packages.core import worker
 
         return await worker.send_session(
             session_id,
             text,
-            source="automation",
+            source=source,
+            source_session_id=source_session_id,
             client_message_id="effect_" + contracts.digest(dict(effect_key))[:40],
         )
 
@@ -190,7 +194,7 @@ async def _invoke(fn: Any, *args: Any, **kwargs: Any) -> Any:
 
 def _status(value: Any) -> str:
     if not isinstance(value, Mapping):
-        return "succeeded"
+        return "unknown"
     raw = value.get("outcome", value.get("status"))
     if raw is None and value.get("ok") is True:
         return "succeeded"
@@ -203,9 +207,10 @@ def _status(value: Any) -> str:
         return "rejected"
     if text in _UNKNOWN_STATUSES:
         return "unknown"
-    # A typed provider receipt without a status is an accepted receipt.  This
-    # is useful for QQ providers that return only messageId/sequence fields.
-    return "succeeded"
+    # A provider response without an explicit status is not proof of queue
+    # admission or delivery.  Preserve the uncertainty so callers can query
+    # the original effect receipt instead of treating metadata as success.
+    return "unknown"
 
 
 def _provider_error(exc: BaseException) -> tuple[str, dict[str, Any]]:
@@ -431,7 +436,11 @@ class TypedExecutor:
         if method is None:
             return EffectReceipt(dict(key), "rejected", {"code": "provider_unavailable", "sessionId": session_id}).as_dict()
         try:
-            result = await _invoke_provider(method, session_id, text, effect_key=key, source="automation")
+            arguments = plan.get("arguments") if isinstance(plan.get("arguments"), Mapping) else plan
+            source = arguments.get("source", "automation")
+            source_session_id = arguments.get("sourceSessionId", arguments.get("source_session_id"))
+            result = await _invoke_provider(method, session_id, text, effect_key=key,
+                                             source=source, source_session_id=source_session_id)
             outcome = _status(result)
             return EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"sessionIds": [session_id]}).as_dict()
         except BaseException as exc:
@@ -452,10 +461,16 @@ class TypedExecutor:
         text = _non_empty_string(arguments.get("text"), "text")
         ids = list(dict.fromkeys(ids))
         rows: list[dict[str, Any]] = []
+        source_fields = {
+            field: arguments[field] for field in ("source", "sourceSessionId", "source_session_id")
+            if field in arguments
+        }
         for target in ids:
             child_key = dict(key)
             child_key["targetId"] = target
-            row = await self._session_message(child_key, {"sessionId": target, "text": text})
+            row = await self._session_message(child_key, {
+                "sessionId": target, "text": text, **source_fields
+            })
             rows.append(row)
         outcomes = [str(row.get("outcome", "unknown")) for row in rows]
         if all(item == "succeeded" for item in outcomes):
