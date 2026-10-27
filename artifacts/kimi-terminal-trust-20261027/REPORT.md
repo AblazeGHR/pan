@@ -76,4 +76,5 @@ Trust this folder?
 - 所有真实 CLI 子进程在 bridge 退出后消失：`tasklist /FI "IMAGENAME eq kimi.exe"` 无输出；集成测试用 psutil PID+create_time 断言子进程已退出或 PID 已复用。
 - 本地假模型 HTTP server 在 fixture/teardown 关闭；无监听残留。
 - 未验证层：React/xterm 浏览器内实际绘制（未改前端；验证的是 ConPTY 原始字节与生产终端同源）；完整 Pan worker/queue/HTTP 浏览器 E2E（桥协议与既有 `test_native_control_api` 覆盖，但未起完整生产 profile）；POSIX（ConPTY 仅 Windows）；kimi 2.3.1（修复在 2.3.3 实测，2.3.1 未复跑）。
+- 会话发现仍沿用既有 `discover_session_id`（cwd + 最新 `createdAt`）启发式。生产 per-Session `kimi_home` 时无歧义；无 MCP 时回退真实 home，与其他并发 kimi 进程的歧义是既有边界，本任务未扩大修复范围。
 - main/practical、push/release/部署、保护服务、真实账号均未操作；本报告仅为 TA clean 候选，等待 MA 验收。
