@@ -1,0 +1,17 @@
+
+[>7u[>4;2m ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Trust this folder?
+  ↑↓ navigate · Enter select · Esc exit
+ 
+  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\final-decline\
+  kimi-trust-9vua1vk8\work
+ 
+  Load project instructions
+    Check: D:/project/pan-worktrees/kimi-terminal-trust-20261027/AGENTS.md
+ 
+  Trust is remembered for this folder, including future project config changes.
+  Tool approvals follow your permission settings.
+ 
+   ❯ Trust and continue
+     Exit
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────[<u[>4;0m  Bye!

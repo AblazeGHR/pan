@@ -1,0 +1,29 @@
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\terminal\spawn_win.py", line 953, in spawn_conpty_suspended
+    raise OSError(f"CreateProcessW 失败（{format_last_error()}）")
+OSError: CreateProcessW 失败（winerror=2）
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\adapters\kimi\native_bridge.py", line 635, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\adapters\kimi\native_bridge.py", line 629, in main
+    run(args.kimi_path, args.cwd, args.session_id or None, args.kimi_home or None,
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        args.model or None, args.agent_file or None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\adapters\kimi\native_bridge.py", line 472, in run
+    backend = ConPtyBackend.spawn(argv, cwd=cwd, env=env, rows=initial_size[0], cols=initial_size[1])
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\terminal\backend.py", line 339, in spawn
+    attempt = spawn_conpty_suspended(
+        argv,
+    ...<5 lines>...
+        resume=resume,
+    )
+  File "D:\project\pan-worktrees\kimi-terminal-trust-20261027\packages\core\terminal\spawn_win.py", line 1079, in spawn_conpty_suspended
+    raise _deny({
+    ...<2 lines>...
+    }) from exc
+packages.core.terminal.spawn_win.SpawnDenied: atomic spawn denied at stage=create_process_suspended: {'exception': 'OSError: CreateProcessW 失败（winerror=2）', 'resumed': False, 'argv0': 'C:/does/not/exist/kimi.exe', 'stage_timings': {'create_pipes_ms': 0.033, 'create_pseudo_console_ms': 7.079}}

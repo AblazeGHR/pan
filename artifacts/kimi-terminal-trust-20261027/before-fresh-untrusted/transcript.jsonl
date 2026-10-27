@@ -1,0 +1,15 @@
+{"t": 0.401, "type": "pan.native_busy", "busy": true}
+{"t": 0.401, "type": "pan.native_ready"}
+{"t": 0.408, "type": "pan.native_output", "data": "G1s/OTAwMWgbWz8xMDA0aA=="}
+{"t": 0.777, "type": "pan.native_output", "data": "G1s/MjVsG1syShtbbRtbSBtdMDtraW1pLWNvZGUHG1s/MjVo"}
+{"t": 1.271, "type": "pan.native_output", "data": "DQo="}
+{"t": 1.271, "type": "pan.native_output", "data": "G1s/MjAwNGg="}
+{"t": 1.282, "type": "pan.native_output", "data": "G1s+N3UbWz91"}
+{"t": 1.282, "type": "pan.native_output", "data": "G1s/MTAwNGg="}
+{"t": 1.283, "type": "pan.native_output", "data": "G1s/MjAzMWg="}
+{"t": 1.283, "type": "pan.native_output", "data": "G1s/OTk2bg=="}
+{"t": 1.284, "type": "pan.native_output", "data": "G1s+NDsybQ=="}
+{"t": 1.291, "type": "pan.native_output", "data": "G1s/MjVs"}
+{"t": 1.3, "type": "pan.native_output", "data": "G1s/MjAyNmgbWz8yMDI2bA=="}
+{"t": 1.306, "type": "pan.native_output", "data": "G1tIIBtbMzg7Mjs3OTsxNjg7MjU1beKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgBtbbQ0KIBtbMzg7Mjs3OTsxNjg7MjU1bRtbMW0gVHJ1c3QgdGhpcyBmb2xkZXI/G1ttDQogIBtbMzg7MjsxMDc7MTA3OzEwN23ihpHihpMgbmF2aWdhdGUgwrcgRW50ZXIgc2VsZWN0IMK3IEVzYyBleGl0G1ttDQogDQogIBtbMzg7MjsyNDU7MjQ1OzI0NW1EOlxwcm9qZWN0XHBhbi13b3JrdHJlZXNca2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyN1xhcnRpZmFjdHNca2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyN1xiZWZvcmUtZnJlc2gtdRtbbQ0KICAbWzM4OzI7MjQ1OzI0NTsyNDVtbnRydXN0ZWRca2ltaS10cnVzdC00cmRtYWQyOVx3b3JrG1ttDQogDQogIBtbMzg7MjsyMjQ7MjI0OzIyNG1Mb2FkIHByb2plY3QgaW5zdHJ1Y3Rpb25zG1ttDQogICAgG1szODsyOzEwNzsxMDc7MTA3bUNoZWNrOiBEOi9wcm9qZWN0L3Bhbi13b3JrdHJlZXMva2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyNy9BR0VOVFMubWQbW20NCiANCiAgG1szODsyOzEwNzsxMDc7MTA3bVRydXN0IGlzIHJlbWVtYmVyZWQgZm9yIHRoaXMgZm9sZGVyLCBpbmNsdWRpbmcgZnV0dXJlIHByb2plY3QgY29uZmlnIGNoYW5nZXMuG1ttDQogIBtbMzg7MjsxMDc7MTA3OzEwN21Ub29sIGFwcHJvdmFscyBmb2xsb3cgeW91ciBwZXJtaXNzaW9uIHNldHRpbmdzLhtbbQ0KIA0KICAgG1szODsyOzc5OzE2ODsyNTVt4p2vIBtbMW1UcnVzdCBhbmQgY29udGludWUbW20NCiAgICAgG1szODsyOzIyNDsyMjQ7MjI0bUV4aXQbW20NCiAbWzM4OzI7Nzk7MTY4OzI1NW3ilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIA="}
+{"t": 20.517, "type": "pan.native_error", "error": "Kimi TUI session was not created"}

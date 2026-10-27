@@ -12,8 +12,11 @@ Covers the contract proven against real kimi 2.3.1 (2026-10-24):
 Real-PTY evidence lives in tests/test_kimi_native_integration.py (env-gated).
 """
 
+import io
 import json
+import queue
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -254,6 +257,230 @@ def test_submit_rejects_when_turn_is_busy(tmp_path):
     with pytest.raises(nb.ControlRejected):
         bridge.submit("late input")
     assert backend.writes == []
+
+
+# ── startup loop: the trust prompt stays answerable ────────────────────────
+
+
+class _FakeStdin:
+    def __init__(self):
+        self.lines: queue.Queue = queue.Queue()
+
+    def feed(self, payload: dict) -> None:
+        self.lines.put(json.dumps(payload))
+
+    def close(self) -> None:
+        self.lines.put(None)
+
+    def __iter__(self):
+        while True:
+            line = self.lines.get()
+            if line is None:
+                return
+            yield line + "\n"
+
+
+class _FakeBackend:
+    """Minimal PTY backend: one painted frame, then a quiet screen."""
+
+    def __init__(self):
+        self.writes: list[bytes] = []
+        self.resizes: list[tuple[int, int]] = []
+        self.terminated: list[bool] = []
+        self.closed = False
+        self.alive_flag = True
+        self._output = b"x" * 600
+        self._lock = threading.Lock()
+
+    def spawn(self, argv, **kwargs):  # patched as the classmethod below
+        self.argv = list(argv)
+        return self
+
+    def read(self, size, *, timeout=None):
+        with self._lock:
+            if self._output:
+                data, self._output = self._output, b""
+                return data
+        time.sleep(0.02)
+        return b""
+
+    def write(self, data):
+        with self._lock:
+            self.writes.append(bytes(data))
+        return len(data)
+
+    def resize(self, rows, cols):
+        self.resizes.append((rows, cols))
+
+    def alive(self):
+        return self.alive_flag
+
+    def terminate(self, force):
+        self.terminated.append(bool(force))
+        self.alive_flag = False
+
+    def close(self):
+        self.closed = True
+
+
+class _TeeStdout:
+    def __init__(self, original):
+        self.original = original
+        self.buffer = io.StringIO()
+        self.lock = threading.Lock()
+
+    def write(self, text):
+        with self.lock:
+            self.buffer.write(text)
+        return len(text)
+
+    def flush(self):
+        pass
+
+    def getvalue(self):
+        with self.lock:
+            return self.buffer.getvalue()
+
+
+class _RunHarness:
+    def __init__(self, tmp_path, session_id=""):
+        self.home = tmp_path / "home"
+        self.work = tmp_path / "work"
+        self.home.mkdir()
+        self.work.mkdir()
+        self.session_id = session_id
+        self.stdin = _FakeStdin()
+        self.backend = _FakeBackend()
+        self.thread = None
+        self.stdout = None
+
+    def start(self, monkeypatch):
+        backend = self.backend
+
+        class _Spawn:
+            @staticmethod
+            def spawn(argv, **kwargs):
+                return backend.spawn(argv, **kwargs)
+
+        monkeypatch.setattr("packages.core.terminal.backend.ConPtyBackend", _Spawn)
+        monkeypatch.setattr(sys, "stdin", self.stdin)
+        self.stdout = _TeeStdout(sys.stdout)
+        monkeypatch.setattr(sys, "stdout", self.stdout)
+        monkeypatch.setattr(nb, "_SUBMIT_TIMEOUT_SECONDS", 0.3)
+        monkeypatch.setattr(nb, "_SUBMIT_RETRY_TIMEOUT_SECONDS", 0.3)
+        monkeypatch.setattr(nb, "_PASTE_SETTLE_SECONDS", 0.01)
+        self.thread = threading.Thread(
+            target=nb.run,
+            args=("kimi.exe", str(self.work), self.session_id or None,
+                  str(self.home), "kimi-k2.6"),
+            daemon=True,
+        )
+        self.thread.start()
+
+    def events(self):
+        out = []
+        for line in self.stdout.getvalue().splitlines():
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return out
+
+    def wait_for(self, predicate, timeout=5.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            for event in self.events():
+                if predicate(event):
+                    return event
+            time.sleep(0.02)
+        return None
+
+    def trust(self):
+        trust = self.home / "workspace-trust"
+        trust.mkdir(exist_ok=True)
+        (trust / "wd_probe").write_text(
+            json.dumps({"root": str(self.work)}), encoding="utf-8")
+
+    def stop(self):
+        self.stdin.close()
+        if self.thread is not None:
+            self.thread.join(10.0)
+            assert not self.thread.is_alive(), "bridge loop did not stop"
+
+
+def test_run_keeps_untrusted_tui_answerable_without_a_session(tmp_path, monkeypatch):
+    """A fresh untrusted TUI has no session yet: that must not be fatal."""
+    h = _RunHarness(tmp_path)
+    h.start(monkeypatch)
+    try:
+        assert h.wait_for(lambda e: e.get("type") == "pan.native_trust_required", 5)
+        h.stdin.feed({"type": "control_mode", "mode": "native", "generation": 0,
+                      "requestId": "m1"})
+        receipt = h.wait_for(lambda e: e.get("requestId") == "m1", 2.0)
+        assert receipt is not None and receipt.get("ok") is True
+        assert receipt.get("mode") == "native"
+        # No session exists and none was declared a startup failure.
+        assert not [e for e in h.events() if e.get("type") == "pan.native_error"]
+        assert h.backend.writes == []
+    finally:
+        h.stop()
+    assert h.backend.terminated == [True]
+    assert h.backend.closed is True
+
+
+def test_run_holds_pan_prompt_until_trust_and_keeps_input_live(tmp_path, monkeypatch):
+    """Waiting for trust must not block the keystrokes that answer the prompt."""
+    h = _RunHarness(tmp_path, session_id="session_x")
+    h.start(monkeypatch)
+    try:
+        assert h.wait_for(lambda e: e.get("type") == "pan.native_trust_required", 5)
+        h.stdin.feed({"type": "user", "message": {"content": [
+            {"type": "text", "text": "pan prompt"}]}})
+        time.sleep(0.4)
+        # Never pasted into the trust screen.
+        assert h.backend.writes == []
+
+        h.stdin.feed({"type": "control_mode", "mode": "native", "generation": 0,
+                      "requestId": "m1"})
+        assert h.wait_for(lambda e: e.get("requestId") == "m1", 2.0) is not None
+
+        h.trust()
+        assert h.wait_for(
+            lambda e: e.get("type") == "pan.native_busy" and e.get("busy") is False, 3)
+        time.sleep(0.4)
+        # Terminal ownership still wins: the prompt waits, nothing is typed.
+        assert h.backend.writes == []
+
+        h.stdin.feed({"type": "control_mode", "mode": "pan", "generation": 1,
+                      "requestId": "m2"})
+        assert h.wait_for(lambda e: e.get("requestId") == "m2", 2.0) is not None
+        result = h.wait_for(lambda e: e.get("role") == "result", 3.0)
+        assert result is not None and result["kimi_stop_reason"] == "input-rejected"
+        assert h.backend.writes[0] == b"\x1b[200~pan prompt\x1b[201~"
+        assert h.backend.writes[-1] == b"\r"
+    finally:
+        h.stop()
+    assert h.backend.terminated == [True]
+    assert h.backend.closed is True
+
+
+def test_run_reports_pending_prompt_when_tui_exits_before_trust(tmp_path, monkeypatch):
+    h = _RunHarness(tmp_path)
+    h.start(monkeypatch)
+    try:
+        assert h.wait_for(lambda e: e.get("type") == "pan.native_trust_required", 5)
+        h.stdin.feed({"type": "user", "message": {"content": [
+            {"type": "text", "text": "never pasted"}]}})
+        time.sleep(0.4)
+        h.backend.alive_flag = False
+        result = h.wait_for(lambda e: e.get("role") == "result", 5.0)
+        assert result is not None and result["kimi_stop_reason"] == "tui-closed"
+        assert h.wait_for(lambda e: e.get("type") == "pan.native_error", 2.0) is not None
+        assert h.backend.writes == []
+    finally:
+        h.stop()
+    assert h.backend.terminated == [True]
+    assert h.backend.closed is True
 
 
 # ── adapter + capability gates ─────────────────────────────────────────────

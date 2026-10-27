@@ -1,0 +1,31 @@
+{"t": 0.172, "type": "pan.native_busy", "busy": true}
+{"t": 0.172, "type": "pan.native_ready"}
+{"t": 0.172, "type": "pan.native_trust_required", "root": "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\artifacts\\kimi-terminal-trust-20261027\\final-decline\\kimi-trust-9vua1vk8\\work"}
+{"t": 0.178, "type": "pan.native_output", "data": "G1s/OTAwMWgbWz8xMDA0aA=="}
+{"t": 0.522, "type": "pan.native_output", "data": "G1s/MjVsG1syShtbbRtbSBtdMDtraW1pLWNvZGUHG1s/MjVo"}
+{"t": 0.98, "type": "pan.native_output", "data": "DQo="}
+{"t": 0.98, "type": "pan.native_output", "data": "G1s/MjAwNGg="}
+{"t": 0.99, "type": "pan.native_output", "data": "G1s+N3UbWz91"}
+{"t": 0.991, "type": "pan.native_output", "data": "G1s/MTAwNGg="}
+{"t": 0.991, "type": "pan.native_output", "data": "G1s/MjAzMWgbWz85OTZu"}
+{"t": 0.992, "type": "pan.native_output", "data": "G1s+NDsybQ=="}
+{"t": 0.992, "type": "pan.native_output", "data": "G1s/MjVs"}
+{"t": 1.007, "type": "pan.native_output", "data": "G1s/MjAyNmgbWz8yMDI2bA=="}
+{"t": 1.008, "type": "pan.native_output", "data": "G1tIIBtbMzg7Mjs3OTsxNjg7MjU1beKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgBtbbQ0KIBtbMzg7Mjs3OTsxNjg7MjU1bRtbMW0gVHJ1c3QgdGhpcyBmb2xkZXI/G1ttDQogIBtbMzg7MjsxMDc7MTA3OzEwN23ihpHihpMgbmF2aWdhdGUgwrcgRW50ZXIgc2VsZWN0IMK3IEVzYyBleGl0G1ttDQogDQogIBtbMzg7MjsyNDU7MjQ1OzI0NW1EOlxwcm9qZWN0XHBhbi13b3JrdHJlZXNca2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyN1xhcnRpZmFjdHNca2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyN1xmaW5hbC1kZWNsaW5lXBtbbQ0KICAbWzM4OzI7MjQ1OzI0NTsyNDVta2ltaS10cnVzdC05dnVhMXZrOFx3b3JrG1ttDQogDQogIBtbMzg7MjsyMjQ7MjI0OzIyNG1Mb2FkIHByb2plY3QgaW5zdHJ1Y3Rpb25zG1ttDQogICAgG1szODsyOzEwNzsxMDc7MTA3bUNoZWNrOiBEOi9wcm9qZWN0L3Bhbi13b3JrdHJlZXMva2ltaS10ZXJtaW5hbC10cnVzdC0yMDI2MTAyNy9BR0VOVFMubWQbW20NCiANCiAgG1szODsyOzEwNzsxMDc7MTA3bVRydXN0IGlzIHJlbWVtYmVyZWQgZm9yIHRoaXMgZm9sZGVyLCBpbmNsdWRpbmcgZnV0dXJlIHByb2plY3QgY29uZmlnIGNoYW5nZXMuG1ttDQogIBtbMzg7MjsxMDc7MTA3OzEwN21Ub29sIGFwcHJvdmFscyBmb2xsb3cgeW91ciBwZXJtaXNzaW9uIHNldHRpbmdzLhtbbQ0KIA0KICAgG1szODsyOzc5OzE2ODsyNTVt4p2vIBtbMW1UcnVzdCBhbmQgY29udGludWUbW20NCiAgICAgG1szODsyOzIyNDsyMjQ7MjI0bUV4aXQbW20NCiAbWzM4OzI7Nzk7MTY4OzI1NW3ilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIA="}
+{"t": 3.0, "sent": {"type": "user", "message": {"content": [{"type": "text", "text": "should not be pasted"}]}}}
+{"t": 4.001, "sent": {"type": "control_mode", "mode": "native", "generation": 0, "requestId": "m1"}}
+{"t": 4.001, "type": "pan.control_mode", "ok": true, "requestId": "m1", "mode": "native", "generation": 1}
+{"t": 5.003, "sent": {"type": "native_input", "text": "\u001b", "generation": 1, "requestId": "k1"}}
+{"t": 5.003, "type": "pan.native_input_state", "uncertain": true}
+{"t": 5.008, "type": "pan.native_input_state", "uncertain": false}
+{"t": 5.008, "type": "pan.native_write", "ok": true, "requestId": "k1", "mode": "native", "generation": 1}
+{"t": 5.037, "type": "pan.native_output", "data": "G1tt"}
+{"t": 5.038, "type": "pan.native_output", "data": "G1s/MjAzMWw="}
+{"t": 5.044, "type": "pan.native_output", "data": "G1s8dQ=="}
+{"t": 5.044, "type": "pan.native_output", "data": "G1s+NDswbQ=="}
+{"t": 5.097, "type": "pan.native_output", "data": "IA=="}
+{"t": 5.097, "type": "pan.native_output", "data": "G1s/MjAwNGw="}
+{"t": 5.112, "type": "pan.native_output", "data": "G1sxODsxSBtbPzI1aA=="}
+{"t": 5.323, "type": "pan.native_output", "data": "IEJ5ZSENCg=="}
+{"t": 5.501, "type": "pan.native_error", "error": "Kimi TUI exited"}
+{"t": 5.627, "role": "result", "is_error": true, "cancelled": false, "result": "Kimi Terminal TUI closed before the workspace trust was confirmed", "kimi_stop_reason": "tui-closed"}
