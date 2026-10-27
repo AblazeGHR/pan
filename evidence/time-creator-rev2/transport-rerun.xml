@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="0.333" timestamp="2026-10-28T04:13:08.674415+08:00"><testcase classname="tests.test_job_final_transports" name="test_ft01_run_controls_require_execute_and_clone_create[clone-and-run]" time="0.059" /></testsuite></testsuites>
