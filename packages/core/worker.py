@@ -2144,9 +2144,11 @@ async def _persist_terminal_state_locked(
             old_runtime_state["_current_task_assistant_ids"].add(entry["messageId"])
     from packages.core import qq_reports
     old_qq_outbox = dict(s.qq_report_outbox)
-    if (status in {"done", "error"} and task_seq is not None
+    # Error Reports use the structured error-event ledger so Session/global
+    # paths share one claim. Successful task reports keep their existing outbox.
+    if (status == "done" and task_seq is not None
             and not w._current_report_items):
-        body = result_text if status == "error" else (w._current_task_last_assistant_text or result_text)
+        body = w._current_task_last_assistant_text or result_text
         if body:
             qq_reports.prepare(s, terminal_key, body)
     w._current_task_assistant_ids.clear()

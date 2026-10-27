@@ -437,7 +437,7 @@ def record_session_error(
         return None
     if prepared is None:
         return None
-    return _write_prepared(prepared)
+    return _write_with_notification(prepared)
 
 
 async def record_session_error_async(**kwargs) -> str | None:
@@ -457,9 +457,9 @@ async def record_session_error_async(**kwargs) -> str | None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        return _write_prepared(prepared)
+        return _write_with_notification(prepared)
     try:
-        result = await loop.run_in_executor(_WRITE_EXECUTOR, _write_prepared, prepared)
+        result = await loop.run_in_executor(_WRITE_EXECUTOR, _write_with_notification, prepared)
         if kwargs.get('runtime_issue') is not None:
             from .runtime_issues import observe
             observe(kwargs['runtime_issue'])
@@ -615,6 +615,17 @@ def _prepare_record(
     if runtime_issue is not None:
         record["runtimeIssue"] = sanitize(runtime_issue)
     return record, event_id, raw_diagnostics_source
+
+
+def _write_with_notification(prepared):
+    # Use the same FIFO executor as the log write. Admission must not reorder
+    # the existing processSequence contract or block the event loop on SQLite.
+    try:
+        from .source_notifications import error_event
+        error_event(prepared[0])
+    except Exception:
+        _LOG.warning('Error notification admission failed; sample write continues')
+    return _write_prepared(prepared)
 
 
 def _write_prepared(prepared: tuple[dict, str, Any]) -> str | None:

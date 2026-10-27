@@ -41,6 +41,19 @@ def register(app):
     from .user_cards_api import register as register_user_cards
     register_user_cards(app, user)
 
+    @app.get('/api/notifications/browser-events/{ref}')
+    async def source_browser_event(ref: str, request: Request):
+        await user(request)
+        import asyncio
+        import re
+        from packages.core.source_notifications import browser_event
+        if not re.fullmatch(r'[a-f0-9]{64}', ref):
+            raise HTTPException(404)
+        result = await asyncio.to_thread(browser_event, get_store(), ref)
+        if result is None:
+            raise HTTPException(404)
+        return result
+
     @app.get('/api/locker-unread-summary')
     async def locker_unread_summary():
         """Return the local profile's aggregate and per-Session unread counts.

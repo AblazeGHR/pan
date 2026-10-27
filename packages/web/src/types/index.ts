@@ -456,6 +456,7 @@ export interface TerminalInteraction {
 
 export interface StreamEvent {
   type: string;
+  notificationId?: string;
   delayedRestart?: DelayedRestartState;
   /** Legacy/source cursor; new clients prefer sourceCursorStart/End. */
   eventEpoch?: string;
