@@ -244,6 +244,61 @@ class ExecutionStore:
             db.commit()
             return doc
 
+    def request_cleanup(self, identity, attempt):
+        """Explicit owned-tree cleanup, separate from pre-effect cancellation.
+
+        A request is never proof. Only the original supervisor, holding the
+        original ownership handle, can confirm it. Unknown requests need a new
+        explicit call; recovery and GET do not retry the destructive effect.
+        """
+        from packages.core.platform import supports
+        from packages.core.platform.process import UnsupportedPlatformError
+        if not supports("processOwner"):
+            raise UnsupportedPlatformError("processOwner unsupported; owned cleanup unavailable")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            doc = self._load(db, identity)
+            self._check(doc, attempt)
+            if doc["frozenPlan"].get("operation") not in {"process", "background-process", "command"}:
+                raise ExecutionConflict("owned-tree cleanup supports process effects only")
+            prior = doc.get("cleanupRequest", {})
+            proof = (doc.get("result") or {}).get("cleanupProof", {})
+            if (proof.get("confirmed") is True and proof.get("ownedTree", {}).get("confirmed") is True
+                    and not proof.get("ownedTree", {}).get("remaining", ["unknown"])):
+                if prior.get("status") == "confirmed":
+                    return doc
+                doc["cleanupRequest"] = {"revision": prior.get("revision", 0) + 1,
+                                         "status": "confirmed", "proof": copy.deepcopy(proof)}
+            elif doc["phase"] != "running" or doc.get("result") is not None:
+                raise ExecutionConflict("original supervisor/owned handle unavailable; cleanup unknown")
+            elif prior.get("status") in {"requested", "confirmed"}:
+                return doc
+            else:
+                doc["cleanupRequest"] = {"revision": prior.get("revision", 0) + 1, "status": "requested"}
+            self._save(db, doc)
+            db.commit()
+            return doc
+
+    def finish_cleanup(self, identity, attempt, claim, revision, proof):
+        """Persist the retained-owner result before publishing a final receipt."""
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            doc = self._load(db, identity)
+            self._check(doc, attempt, claim, require_claim=True)
+            request = doc.get("cleanupRequest", {})
+            if request.get("revision") != revision or request.get("status") != "requested":
+                raise ExecutionConflict("stale cleanup request")
+            confirmed = (proof.get("confirmed") is True and proof.get("rootExited") is True
+                         and proof.get("identityCheck", {}).get("ours") is True
+                         and proof.get("identityCheck", {}).get("status") in {"alive", "dead"}
+                         and proof.get("ownedTree", {}).get("confirmed") is True
+                         and not proof.get("ownedTree", {}).get("remaining", ["unknown"]))
+            request.update(status="confirmed" if confirmed else "unknown", proof={**copy.deepcopy(proof), "confirmed": confirmed})
+            doc.setdefault("cleanupHistory", []).append(copy.deepcopy(request))
+            self._save(db, doc)
+            db.commit()
+            return doc
+
     def events(self):
         with self.connect() as db:
             return {"events": [json.loads(row[0]) for row in db.execute(
@@ -288,6 +343,9 @@ class ExecutionStore:
                     alive = False
                 if alive:
                     continue
+                request = doc.get("cleanupRequest", {})
+                if request.get("status") == "requested":
+                    request.update(status="unknown", proof={"confirmed": False, "code": "supervisor_unconfirmed"})
                 self._settle(db, doc, EffectReceipt(doc["effectKey"], "unknown",
                     {"code": "supervisor_unconfirmed", "phase": "uncertain",
                      "evidence": doc.get("evidence", {}), "supervisorIdentity": identity},
@@ -307,6 +365,19 @@ class IndependentExecutor:
 
     def __init__(self, *, job_id, client):
         self.job_id, self.client = job_id, client
+
+    async def cleanup_execution(self, *, attempt, effect_key):
+        """Explicit cleanup of the original effect; response is not a receipt.
+
+        The canonical control owner must keep pending/unknown visible and query
+        the final receipt before completing cancellation or resource purge.
+        """
+        doc = await asyncio.to_thread(self.client.cleanup_execution, effect_id(effect_key), dict(attempt))
+        if (doc.get("jobId") != self.job_id or doc.get("effectKey") != dict(effect_key)
+                or fence(doc.get("attempt", {})) != fence(attempt)
+                or doc.get("effectId") != effect_id(effect_key)):
+            raise ExecutionConflict("cleanup response identity/fence mismatch")
+        return doc
 
     async def lookup_receipt(self, *, attempt, effect_key):
         """Query the original identity after owner restart; never submit again."""
@@ -357,6 +428,9 @@ class ExecutionHost:
 
     def cancel_execution(self, identity, attempt):
         return self.store.cancel(identity, attempt)
+
+    def cleanup_execution(self, identity, attempt):
+        return self.store.request_cleanup(identity, attempt)
 
     def submit_execution(self, request):
         if not isinstance(request.get("frozenPlan"), dict) or type(request.get("retry", False)) is not bool:
