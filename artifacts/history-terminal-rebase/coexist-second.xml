@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="38" time="2.287" timestamp="2026-10-27T17:12:07.047171+08:00" hostname="ablaze"><testcase classname="tests.test_history_terminal_notifications" name="test_error_history_report_and_notification_then_done[False]" time="0.251"><failure message="AssertionError: assert 2 == 1&#10; +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_dfea95728e0d557b9a5ff099d4015666', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_dd02a78f1c185f1fa7ee3f202cc14914', 'processSequence': 1, 'timestamp': '2026-10-27T09:12:07.426333+00:00', ...}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5518/test_error_history_report_and_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000013129DD9940&gt;
+global_on = False
+
+    @pytest.mark.parametrize("global_on", [False, True])
+    def test_error_history_report_and_notification_then_done(tmp_path, monkeypatch, global_on):
+        from packages.interactions import api
+        from tests import test_report_error_context as fixture
+        process = fixture._StreamProcess
+        # This scenario has a confirmed clean CLI exit, rather than the shared
+        # fixture's separate "EOF with unknown process state" incident.
+        monkeypatch.setattr(fixture, "_StreamProcess", lambda events: process(events, returncode=0))
+        store = InteractionStore(tmp_path / "owned-notification.sqlite")
+        monkeypatch.setattr(api, "get_store", lambda: store)
+        monkeypatch.setattr(notices, "settings", lambda source: notices.normalize({
+            "enabled": global_on, "browser": True, "qqReport": True,
+            "qqTargets": ["user:123@456"], "epoch": "coexist"}))
+        monkeypatch.setattr(notices, "session_policy", lambda: (True, "coexist"))
+        child, manager, _ = _setup_managed_pair()
+        child.notification_settings = {"browser": True, "system": False}
+        child.qq_report_targets = {"user:123@456"}
+        native = {"type": "result", "is_error": True, "result": "original assistant body",
+            "error": {"message": "capacity; api_key=private-value", "code": "serverOverloaded"},
+            "error_source": "codex_error_payload"}
+        try:
+            _run_stream_worker(child, [_event_line(_assistant_event("original assistant body")),
+                                      _event_line(native)], seq=1)
+            original = copy.deepcopy(child.history[-1])
+            assert original["terminal"]["status"] == "error"
+            assert original["terminal"]["anchorMessageId"] == child.history[0]["messageId"]
+            assert original["terminal"]["error"]["code"] == "serverOverloaded"
+            assert "private-value" not in original["terminal"]["error"]["message"]
+            assert child.qq_report_outbox == {}, "error must not re-enter completion QQ outbox"
+            assert manager.queue_pending[0]["status"] == "error"
+            assert manager.queue_pending[0]["errorCode"] == "serverOverloaded"
+            assert manager.queue_pending[0]["lastMessage"] == "original assistant body"
+            records = [json.loads(line) for line in session_error_log.path().read_text(encoding="utf-8").splitlines()]
+&gt;           assert len(records) == 1
+E           AssertionError: assert 2 == 1
+E            +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_dfea95728e0d557b9a5ff099d4015666', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_dd02a78f1c185f1fa7ee3f202cc14914', 'processSequence': 1, 'timestamp': '2026-10-27T09:12:07.426333+00:00', ...}])
+
+tests\test_history_terminal_notifications.py:49: AssertionError</failure></testcase><testcase classname="tests.test_history_terminal_notifications" name="test_error_history_report_and_notification_then_done[True]" time="0.072"><failure message="AssertionError: assert 2 == 1&#10; +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_dfea95728e0d557b9a5ff099d4015666', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_dd02a78f1c185f1fa7ee3f202cc14914', 'processSequence': 1, 'timestamp': '2026-10-27T09:12:07.619362+00:00', ...}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5518/test_error_history_report_and_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000013129DD89D0&gt;
+global_on = True
+
+    @pytest.mark.parametrize("global_on", [False, True])
+    def test_error_history_report_and_notification_then_done(tmp_path, monkeypatch, global_on):
+        from packages.interactions import api
+        from tests import test_report_error_context as fixture
+        process = fixture._StreamProcess
+        # This scenario has a confirmed clean CLI exit, rather than the shared
+        # fixture's separate "EOF with unknown process state" incident.
+        monkeypatch.setattr(fixture, "_StreamProcess", lambda events: process(events, returncode=0))
+        store = InteractionStore(tmp_path / "owned-notification.sqlite")
+        monkeypatch.setattr(api, "get_store", lambda: store)
+        monkeypatch.setattr(notices, "settings", lambda source: notices.normalize({
+            "enabled": global_on, "browser": True, "qqReport": True,
+            "qqTargets": ["user:123@456"], "epoch": "coexist"}))
+        monkeypatch.setattr(notices, "session_policy", lambda: (True, "coexist"))
+        child, manager, _ = _setup_managed_pair()
+        child.notification_settings = {"browser": True, "system": False}
+        child.qq_report_targets = {"user:123@456"}
+        native = {"type": "result", "is_error": True, "result": "original assistant body",
+            "error": {"message": "capacity; api_key=private-value", "code": "serverOverloaded"},
+            "error_source": "codex_error_payload"}
+        try:
+            _run_stream_worker(child, [_event_line(_assistant_event("original assistant body")),
+                                      _event_line(native)], seq=1)
+            original = copy.deepcopy(child.history[-1])
+            assert original["terminal"]["status"] == "error"
+            assert original["terminal"]["anchorMessageId"] == child.history[0]["messageId"]
+            assert original["terminal"]["error"]["code"] == "serverOverloaded"
+            assert "private-value" not in original["terminal"]["error"]["message"]
+            assert child.qq_report_outbox == {}, "error must not re-enter completion QQ outbox"
+            assert manager.queue_pending[0]["status"] == "error"
+            assert manager.queue_pending[0]["errorCode"] == "serverOverloaded"
+            assert manager.queue_pending[0]["lastMessage"] == "original assistant body"
+            records = [json.loads(line) for line in session_error_log.path().read_text(encoding="utf-8").splitlines()]
+&gt;           assert len(records) == 1
+E           AssertionError: assert 2 == 1
+E            +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_dfea95728e0d557b9a5ff099d4015666', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_dd02a78f1c185f1fa7ee3f202cc14914', 'processSequence': 1, 'timestamp': '2026-10-27T09:12:07.619362+00:00', ...}])
+
+tests\test_history_terminal_notifications.py:49: AssertionError</failure></testcase><testcase classname="tests.test_source_notifications" name="test_new_unread_identity_not_counts_read_toggle_or_restart" time="0.099" /><testcase classname="tests.test_source_notifications" name="test_off_enable_never_backfills_and_sources_independent" time="0.056" /><testcase classname="tests.test_source_notifications" name="test_off_on_cancels_pending_epoch" time="0.063" /><testcase classname="tests.test_source_notifications" name="test_claim_rechecks_policy_and_source_permission[disabled]" time="0.037" /><testcase classname="tests.test_source_notifications" name="test_claim_rechecks_policy_and_source_permission[report_off]" time="0.037" /><testcase classname="tests.test_source_notifications" name="test_claim_rechecks_policy_and_source_permission[removed]" time="0.034" /><testcase classname="tests.test_source_notifications" name="test_claim_rechecks_policy_and_source_permission[locked]" time="0.035" /><testcase classname="tests.test_source_notifications" name="test_claim_rechecks_policy_and_source_permission[missing]" time="0.040" /><testcase classname="tests.test_source_notifications" name="test_other_recipient_and_locked_admission_store_no_content" time="0.040" /><testcase classname="tests.test_source_notifications" name="test_receipts_not_delivery_and_no_retry[response0-queued]" time="0.051" /><testcase classname="tests.test_source_notifications" name="test_receipts_not_delivery_and_no_retry[response1-queued]" time="0.068" /><testcase classname="tests.test_source_notifications" name="test_receipts_not_delivery_and_no_retry[response2-unknown]" time="0.047" /><testcase classname="tests.test_source_notifications" name="test_receipts_not_delivery_and_no_retry[response3-unknown]" time="0.069" /><testcase classname="tests.test_source_notifications" name="test_receipts_not_delivery_and_no_retry[response4-failed]" time="0.047" /><testcase classname="tests.test_source_notifications" name="test_sender_exception_unknown_does_not_break_content" time="0.047" /><testcase classname="tests.test_source_notifications" name="test_crash_after_claim_is_not_retried" time="0.038" /><testcase classname="tests.test_source_notifications" name="test_concurrent_claim_only_one_attempt" time="0.043" /><testcase classname="tests.test_source_notifications" name="test_rollback_cannot_emit_and_notification_failure_cannot_reject_content" time="0.029" /><testcase classname="tests.test_source_notifications" name="test_summary_redacted_bounded_plain_text_and_routing" time="0.047" /><testcase classname="tests.test_source_notifications" name="test_cards_and_answer_hooks_only_new_unread" time="0.091" /><testcase classname="tests.test_source_notifications" name="test_authoritative_errors_dedupe_cancellation_and_no_raw_history" time="0.060" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value0]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value1]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value2]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value3]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value4]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_strict_source_settings_report_only[value5]" time="0.002" /><testcase classname="tests.test_source_notifications" name="test_session_global_union_system_once_and_qq_same_path[False-False]" time="0.031" /><testcase classname="tests.test_source_notifications" name="test_session_global_union_system_once_and_qq_same_path[True-False]" time="0.087" /><testcase classname="tests.test_source_notifications" name="test_session_global_union_system_once_and_qq_same_path[False-True]" time="0.090" /><testcase classname="tests.test_source_notifications" name="test_session_global_union_system_once_and_qq_same_path[True-True]" time="0.084" /><testcase classname="tests.test_source_notifications" name="test_route_change_preserves_other_origin_and_does_not_add_targets" time="0.063" /><testcase classname="tests.test_source_notifications" name="test_behavior_off_on_never_revives_old_session_error" time="0.075" /><testcase classname="tests.test_source_notifications" name="test_notification_admission_exception_does_not_prevent_error_sample" time="0.022" /><testcase classname="tests.test_source_notifications" name="test_connection_change_does_not_retire_newly_admitted_grant" time="0.079" /><testcase classname="tests.test_source_notifications" name="test_structured_product_error_without_session_uses_only_global_policy" time="0.045" /></testsuite></testsuites>

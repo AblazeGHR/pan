@@ -1,5 +1,7 @@
 # History terminal events candidate
 
+> Historical validation on the original baseline. The new-main candidate and current-run checks are recorded in [the rebase report](../history-terminal-rebase/REPORT.md); use that report for current acceptance.
+
 - Worktree: `D:/project/pan-worktrees/history-terminal-events-20261027`
 - Branch: `feature/history-terminal-events-20261027`
 - Baseline: `7f303faa355bfc763f0452ad68d31b920e4dc6e1`

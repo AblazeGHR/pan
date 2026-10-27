@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.617" timestamp="2026-10-27T17:12:59.822757+08:00" hostname="ablaze"><testcase classname="tests.test_history_terminal_notifications" name="test_error_history_report_and_notification_then_done[False]" time="0.281"><failure message="AssertionError: assert 2 == 1&#10; +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_68add072eaa251cca6510e7842ee9dda', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_260d98b91db254aa82f00ef4d5a6b5db', 'processSequence': 1, 'timestamp': '2026-10-27T09:13:00.205590+00:00', ...}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5519/test_error_history_report_and_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016AED2F0FC0&gt;
+global_on = False
+
+    @pytest.mark.parametrize("global_on", [False, True])
+    def test_error_history_report_and_notification_then_done(tmp_path, monkeypatch, global_on):
+        from packages.interactions import api
+        def run_stream(target, events, *, seq):
+            process = _StreamProcess(events, returncode=0)
+            w = worker.Worker(worker_id="coexist-worker", session_id=target.id, adapter=CbcAdapter(),
+                status="running", process=process, pending_signal=asyncio.Queue())
+            w._current_seq = seq
+            w._current_task_id = "coexist-task"
+            worker.workers[w.worker_id] = w
+            async def run():
+                await worker._capture_auto_report(w, [{"source": "agent"}])
+                await worker._read_stdout(w)
+            asyncio.run(run())
+        store = InteractionStore(tmp_path / "owned-notification.sqlite")
+        monkeypatch.setattr(api, "get_store", lambda: store)
+        monkeypatch.setattr(notices, "settings", lambda source: notices.normalize({
+            "enabled": global_on, "browser": True, "qqReport": True,
+            "qqTargets": ["user:123@456"], "epoch": "coexist"}))
+        monkeypatch.setattr(notices, "session_policy", lambda: (True, "coexist"))
+        child, manager, _ = _setup_managed_pair()
+        child.notification_settings = {"browser": True, "system": False}
+        child.qq_report_targets = {"user:123@456"}
+        native = {"type": "result", "is_error": True, "result": "original assistant body",
+            "error": {"message": "capacity; api_key=private-value", "code": "serverOverloaded"},
+            "error_source": "codex_error_payload"}
+        try:
+            run_stream(child, [_event_line(_assistant_event("original assistant body")),
+                                      _event_line(native)], seq=1)
+            original = copy.deepcopy(child.history[-1])
+            assert original["terminal"]["status"] == "error"
+            assert original["terminal"]["anchorMessageId"] == child.history[0]["messageId"]
+            assert original["terminal"]["error"]["code"] == "serverOverloaded"
+            assert "private-value" not in original["terminal"]["error"]["message"]
+            assert child.qq_report_outbox == {}, "error must not re-enter completion QQ outbox"
+            assert manager.queue_pending[0]["status"] == "error"
+            assert manager.queue_pending[0]["errorCode"] == "serverOverloaded"
+            assert manager.queue_pending[0]["lastMessage"] == "original assistant body"
+            records = [json.loads(line) for line in session_error_log.path().read_text(encoding="utf-8").splitlines()]
+&gt;           assert len(records) == 1
+E           AssertionError: assert 2 == 1
+E            +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_68add072eaa251cca6510e7842ee9dda', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_260d98b91db254aa82f00ef4d5a6b5db', 'processSequence': 1, 'timestamp': '2026-10-27T09:13:00.205590+00:00', ...}])
+
+tests\test_history_terminal_notifications.py:56: AssertionError</failure></testcase><testcase classname="tests.test_history_terminal_notifications" name="test_error_history_report_and_notification_then_done[True]" time="0.087"><failure message="AssertionError: assert 2 == 1&#10; +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_68add072eaa251cca6510e7842ee9dda', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_260d98b91db254aa82f00ef4d5a6b5db', 'processSequence': 1, 'timestamp': '2026-10-27T09:13:00.412987+00:00', ...}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5519/test_error_history_report_and_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000016AED2F09D0&gt;
+global_on = True
+
+    @pytest.mark.parametrize("global_on", [False, True])
+    def test_error_history_report_and_notification_then_done(tmp_path, monkeypatch, global_on):
+        from packages.interactions import api
+        def run_stream(target, events, *, seq):
+            process = _StreamProcess(events, returncode=0)
+            w = worker.Worker(worker_id="coexist-worker", session_id=target.id, adapter=CbcAdapter(),
+                status="running", process=process, pending_signal=asyncio.Queue())
+            w._current_seq = seq
+            w._current_task_id = "coexist-task"
+            worker.workers[w.worker_id] = w
+            async def run():
+                await worker._capture_auto_report(w, [{"source": "agent"}])
+                await worker._read_stdout(w)
+            asyncio.run(run())
+        store = InteractionStore(tmp_path / "owned-notification.sqlite")
+        monkeypatch.setattr(api, "get_store", lambda: store)
+        monkeypatch.setattr(notices, "settings", lambda source: notices.normalize({
+            "enabled": global_on, "browser": True, "qqReport": True,
+            "qqTargets": ["user:123@456"], "epoch": "coexist"}))
+        monkeypatch.setattr(notices, "session_policy", lambda: (True, "coexist"))
+        child, manager, _ = _setup_managed_pair()
+        child.notification_settings = {"browser": True, "system": False}
+        child.qq_report_targets = {"user:123@456"}
+        native = {"type": "result", "is_error": True, "result": "original assistant body",
+            "error": {"message": "capacity; api_key=private-value", "code": "serverOverloaded"},
+            "error_source": "codex_error_payload"}
+        try:
+            run_stream(child, [_event_line(_assistant_event("original assistant body")),
+                                      _event_line(native)], seq=1)
+            original = copy.deepcopy(child.history[-1])
+            assert original["terminal"]["status"] == "error"
+            assert original["terminal"]["anchorMessageId"] == child.history[0]["messageId"]
+            assert original["terminal"]["error"]["code"] == "serverOverloaded"
+            assert "private-value" not in original["terminal"]["error"]["message"]
+            assert child.qq_report_outbox == {}, "error must not re-enter completion QQ outbox"
+            assert manager.queue_pending[0]["status"] == "error"
+            assert manager.queue_pending[0]["errorCode"] == "serverOverloaded"
+            assert manager.queue_pending[0]["lastMessage"] == "original assistant body"
+            records = [json.loads(line) for line in session_error_log.path().read_text(encoding="utf-8").splitlines()]
+&gt;           assert len(records) == 1
+E           AssertionError: assert 2 == 1
+E            +  where 2 = len([{'schemaVersion': 1, 'eventId': 'se_68add072eaa251cca6510e7842ee9dda', 'processSequence': 0, 'timestamp': '2026-10-27...d': 'se_260d98b91db254aa82f00ef4d5a6b5db', 'processSequence': 1, 'timestamp': '2026-10-27T09:13:00.412987+00:00', ...}])
+
+tests\test_history_terminal_notifications.py:56: AssertionError</failure></testcase></testsuite></testsuites>
