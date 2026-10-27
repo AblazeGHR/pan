@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="16" time="6.143" timestamp="2026-10-27T10:55:50.844564+08:00" hostname="ablaze"><testcase classname="tests.test_job_retained_canonical_pins" name="test_old_pin_corruption_never_enters_native_crud_run_or_retention[json]" time="0.424" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_old_pin_corruption_never_enters_native_crud_run_or_retention[encoding]" time="0.405" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_old_pin_corruption_never_enters_native_crud_run_or_retention[read]" time="0.393" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_http_config_pin_cas_operation_and_disk_reopen" time="0.302"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:128: in test_http_config_pin_cas_operation_and_disk_reopen
+    disabled = disable(h, pinned)
+               ^^^^^^^^^^^^^^^^^^
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs" time="0.241"><failure message="AssertionError: Regex pattern did not match.&#10;  Expected regex: 'revision'&#10;  Actual message: 'Revision changed; reload before confirming'">tests\test_job_retained_canonical_pins.py:141: in test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs
+    with pytest.raises(fc.ContractError, match="revision"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'revision'
+E     Actual message: 'Revision changed; reload before confirming'</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]" time="0.270" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]" time="0.276" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_lost_pin_response_queries_original_operation_without_reposting" time="0.315" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state0-pin_metadata_unknown]" time="0.311"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:209: in test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc
+    item = disable(h, create(h))
+           ^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state1-pinned]" time="0.323"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:209: in test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc
+    item = disable(h, create(h))
+           ^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state2-cleanup_or_ownership_unknown]" time="0.256"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:209: in test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc
+    item = disable(h, create(h))
+           ^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state3-active_or_unknown]" time="0.313"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:209: in test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc
+    item = disable(h, create(h))
+           ^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_http_pin_true_must_protect_gc_after_runtime_unpin" time="0.275"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;unsupported_operation&quot;,&quot;message&quot;:&quot;unsupported operation&quot;,&quot;path&quot;:&quot;operation&quot;}}&#10;assert 400 == 200&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_job_retained_canonical_pins.py:225: in test_http_pin_true_must_protect_gc_after_runtime_unpin
+    disable(h, response.json()["result"]["object"])
+tests\test_job_retained_canonical_pins.py:55: in disable
+    assert response.status_code == 200, response.text
+E   AssertionError: {"error":{"code":"unsupported_operation","message":"unsupported operation","path":"operation"}}
+E   assert 400 == 200
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_job_retained_canonical_pins" name="test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution" time="0.483" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_notification_ack_commit_failure_recovers_uncertain_without_resending" time="0.416" /><testcase classname="tests.test_job_retained_canonical_pins" name="test_unknown_run_queries_original_operation_and_never_resends_effect" time="0.541" /></testsuite></testsuites>
