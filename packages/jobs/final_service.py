@@ -665,7 +665,9 @@ class FinalService:
     def actions(self, *, actor):
         self._permit(actor, "action", "read")
         with self.transaction(readonly=True) as db:
-            return {"items": self._all(db, "action"), "nextCursor": None}
+            items = self._all(db, "action")
+            return {"items": items, "nextCursor": None,
+                    "references": {item["id"]: object_ref("action", item) for item in items}}
 
     def _guard_effect(self, db, job, run_id, frozen, action):
         self._permit(frozen["authority"], "job", "execute", execution=True)

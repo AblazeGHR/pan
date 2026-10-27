@@ -35,6 +35,7 @@ beforeEach(()=>{
     const method=init.method??'GET';
     if(method==='GET'){
       reads.push(url);
+      if(url==='/api/jobs/actions')return response({items:[{id:'action_form',name:'Form message',revision:2,state:'published',enabled:true,inputSchema:{type:'object',properties:{text:{type:'string'}},required:['text']},defaultCompletion:'durable-queue-accepted',completionContracts:[{id:'durable-queue-accepted'}]}],references:{action_form:{id:'action_form',revision:2,digest:'f'.repeat(64)}},nextCursor:null});
       if(url.includes('/operations'))return response(receipt(sources[0]!,new URL(url,'http://owned').searchParams.get('requestKey')??'lookup'));
       if(url==='/api/event-creators/providers')return response({items:[provider]});
       if(url.endsWith('/references'))return response(referenceState(url.split('/')[3]!));
@@ -152,4 +153,21 @@ it('blocks duplicate submits and departure while the canonical definition receip
 it('requires explicit full definition and Action parameter review before canonical enable',async()=>{
   jobs[0]!.state='draft';host();fireEvent.click(await screen.findByRole('button',{name:'Enable Morning review'}));expect((screen.getByRole('button',{name:'Confirm enable'}) as HTMLButtonElement).disabled).toBe(true);expect(writes).toEqual([]);
   fireEvent.click(screen.getByLabelText('I reviewed this definition, Actions, parameters and source references.'));fireEvent.click(screen.getByRole('button',{name:'Confirm enable'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/jobs/job_review/operations');expect(writes[0]!.body).toMatchObject({operation:'enable',expectedRevision:4,expectedStateRevision:1});
+});
+
+it('saves an ordinary Scheduler entirely through time-rule fields with canonical CAS and original-key recovery',async()=>{
+  await editor();fireEvent.change(screen.getByLabelText('Interval seconds'),{target:{value:'0.250000000000000001'}});fireEvent.change(screen.getByLabelText('Grace period (seconds)'),{target:{value:'1.000000000000000001'}});fireEvent.click(screen.getByLabelText('I reviewed the affected subscribers.'));network=true;fireEvent.click(screen.getByRole('button',{name:'Save Scheduler'}));
+  await screen.findByRole('button',{name:'Query original operation'});expect(writes).toHaveLength(1);expect(writes[0]!.body).toMatchObject({expectedRevision:7,expectedReferences:referenceState('creator_shared').referenceDigest,definition:{config:{...fullConfig,rules:[{...fullConfig.rules[0],seconds:'0.250000000000000001'},...fullConfig.rules.slice(1)],graceSeconds:'1.000000000000000001'}}});
+  expect((screen.getByLabelText('Interval seconds') as HTMLInputElement).value).toBe('0.250000000000000001');expect((screen.getByRole('button',{name:'Save Scheduler'}) as HTMLButtonElement).disabled).toBe(true);fireEvent.click(screen.getByRole('button',{name:'Query original operation'}));await waitFor(()=>expect(reads.some(path=>path.includes(encodeURIComponent(String(writes[0]!.body.requestKey))))).toBe(true));expect(writes).toHaveLength(1);
+});
+
+it('creates a Job from Action and typed binding controls then links a Trigger through source and condition controls',async()=>{
+  host();fireEvent.click(await screen.findByRole('button',{name:'创建 Jobs'}));fireEvent.change(screen.getByLabelText('名称'),{target:{value:'Plain form Job'}});await screen.findByRole('option',{name:'Form message · Revision 2'});fireEvent.change(screen.getByLabelText('Action for step 1'),{target:{value:'action_form'}});fireEvent.change(screen.getByLabelText('text value'),{target:{value:'plain text, no schema'}});fireEvent.click(screen.getByRole('button',{name:'保存定义'}));await waitFor(()=>expect(writes).toHaveLength(1));
+  expect(writes[0]!.body).toMatchObject({expectedRevision:0,definition:{name:'Plain form Job',steps:[{stepId:'step1',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'plain text, no schema'}},completion:{contract:'durable-queue-accepted'}}]}});
+  await waitFor(()=>expect(screen.queryByRole('form')).toBeNull());fireEvent.click(screen.getByRole('tab',{name:'Trigger'}));fireEvent.click(screen.getByRole('button',{name:'创建 Triggers'}));fireEvent.change(screen.getByLabelText('名称'),{target:{value:'Plain form subscriber'}});await screen.findByRole('option',{name:/Plain form Job/});fireEvent.change(screen.getByLabelText('Target canonical Job'),{target:{value:'job_new'}});const select=screen.getByLabelText('Scheduler sources') as HTMLSelectElement;select.options[0]!.selected=true;fireEvent.change(select);fireEvent.click(screen.getByLabelText('Check State after Event'));fireEvent.change(screen.getByLabelText('State field'),{target:{value:'workers.runningCount'}});fireEvent.click(screen.getByRole('button',{name:'保存定义'}));await waitFor(()=>expect(writes).toHaveLength(2));expect(writes[1]!.body).toMatchObject({expectedCreatorRevisions:{creator_shared:7},definition:{targetJobId:'job_new',creatorSelector:{mode:'ids',ids:['creator_shared']},condition:{field:'workers.runningCount',op:'eq',value:0}}});expect(writes.every(w=>!w.url.includes('scheduler/event-sources'))).toBe(true);
+});
+
+it('saves retention.pinned through canonical Job definition CAS without a runtime pin override',async()=>{
+  jobs[0]!.steps=[{stepId:'kept',actionRef:{id:'action_form',revision:2,digest:'f'.repeat(64)},arguments:{text:{from:'literal',value:'existing message'}},completion:{contract:'durable-queue-accepted'}}];
+  host();fireEvent.click(await screen.findByRole('button',{name:'编辑 Morning review'}));fireEvent.click(screen.getByLabelText('Pin Job retention'));fireEvent.click(screen.getByRole('button',{name:'保存定义'}));await waitFor(()=>expect(writes).toHaveLength(1));expect(writes[0]!.url).toBe('/api/jobs/job_review');expect(writes[0]!.body).toMatchObject({expectedRevision:4,definition:{retention:{policyRef:'default',pinned:true}}});expect(writes.some(w=>w.url.endsWith('/pin'))).toBe(false);
 });

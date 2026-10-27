@@ -21,9 +21,10 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
     assert port not in (8767,8768)
     root=tmp_path/"profile"
     repo=Path(__file__).resolve().parents[1]
-    out=repo/"evidence/r6i-repair"
-    log=(out/"browser-server.log").open("wb")
-    child=subprocess.Popen([sys._base_executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+    out=repo/"evidence/r6i-forms"
+    out.mkdir(exist_ok=True)
+    log=(out/"advanced-browser-server.log").open("wb")
+    child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
     base=f"http://127.0.0.1:{port}"
     result={"port":port,"rootOwned":True,"productionBundle":True}
     try:
@@ -63,6 +64,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
                     page.get_by_role('button',name='New Scheduler',exact=True).click()
                     page.get_by_label('Scheduler name',exact=True).fill('Browser timer')
                     config={'rules':[{'ruleId':'fraction','type':'interval','seconds':'3600.125','anchor':'2026-11-01T00:00:00.125Z','advanceMode':'grid'},{'ruleId':'dst','type':'weekly','weekday':0,'time':'01:30:00','timezone':'America/New_York','dstPolicy':'gap-skip-fold-second'}],'misfirePolicy':'skip','graceSeconds':'1.25','pausePolicy':'advance','driveLimit':{'maxEvents':17,'initialProducedCount':0}}
+                    page.get_by_text('Advanced Scheduler JSON',exact=True).click()
                     page.get_by_label('Scheduler config JSON').fill(json.dumps(config))
                     page.get_by_role('button',name='Save Scheduler',exact=True).click()
                     expect(page.get_by_role('article',name='Scheduler Browser timer',exact=True)).to_be_visible()
@@ -147,4 +149,4 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
             time.sleep(.1)
         assert released
         result['portReleased']=True
-        (out/'browser-result.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+        (out/'advanced-browser-result.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')

@@ -1,0 +1,260 @@
+"""Owned authenticated production React: all ordinary edits through forms."""
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import time
+
+import httpx
+import pytest
+from packages.jobs.window import command_window_options
+
+
+@pytest.mark.parametrize('create_job_with_form', [False, True])
+def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):
+    from playwright.sync_api import sync_playwright, expect
+    repo = Path(__file__).resolve().parents[1]
+    out = repo / 'evidence/r6i-forms'
+    out.mkdir(exist_ok=True)
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1',0))
+        port = reservation.getsockname()[1]
+    assert port not in (8767,8768)
+    root = tmp_path / 'owned-profile'
+    log = (out/'browser-server.log').open('wb')
+    child = subprocess.Popen([sys.executable,'-m','tests.support.scheduler_management_server',
+        '--root',str(root),'--port',str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+    base = f'http://127.0.0.1:{port}'
+    result = {'port':port,'ownedRoot':True,'productionBundle':True}
+    try:
+        with httpx.Client(base_url=base,timeout=10,trust_env=False) as client:
+            for _ in range(100):
+                assert child.poll() is None, 'Owned server exited'
+                try:
+                    if client.get('/test/ready').status_code == 200: break
+                except httpx.TransportError: pass
+                time.sleep(.1)
+            key = (root/'automation/user.key').read_text(encoding='utf-8').strip()
+            token = client.post('/api/automation/login',json={'key':key}).json()['token']
+            client.headers['Authorization'] = 'Bearer '+token
+            result['actionReferenceMetadataPresent'] = 'references' in client.get('/api/jobs/actions').json()
+            with sync_playwright() as pw:
+                launch = {}
+                if os.name == 'nt':
+                    installed = sorted((Path(os.environ['LOCALAPPDATA'])/'ms-playwright').glob('chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe'))
+                    if installed: launch['executable_path'] = str(installed[-1])
+                browser = pw.chromium.launch(headless=True,**launch)
+                result['chromiumVersion'] = browser.version
+                try:
+                    page = browser.new_page(viewport={'width':1440,'height':1100})
+                    page.add_init_script("""window.__definitionJSONEdits = 0;
+                        document.addEventListener('input', event => {
+                            const input = event.target;
+                            if ((input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement)
+                                && [...(input.labels || [])].some(label => /JSON/.test(label.textContent)))
+                                window.__definitionJSONEdits++;
+                        }, true);""")
+                    errors, requests = [], []
+                    result['pageErrors'] = errors
+                    page.on('pageerror',lambda e:errors.append(str(e)))
+                    page.on('request',lambda r:requests.append((r.method,r.url.split(base)[-1])))
+                    page.on('dialog',lambda dialog:dialog.accept())
+                    page.goto(base+'/react/automation?tab=job')
+                    page.get_by_label('Local user key',exact=True).fill(key)
+                    page.get_by_role('button',name='Log in',exact=True).click()
+                    if create_job_with_form:
+                        page.get_by_role('button',name='创建 Jobs',exact=True).click()
+                        page.get_by_label('名称',exact=True).fill('Form Job')
+                        page.get_by_label('Action for step 1',exact=True).select_option('product_session_message')
+                        first = page.get_by_role('group',name='Step 1',exact=True)
+                        first.get_by_label('sessionId value',exact=True).fill('owned-session')
+                        first.get_by_label('text value',exact=True).fill('first plain text')
+                        page.get_by_role('button',name='Add step',exact=True).click()
+                        page.get_by_label('Action for step 2',exact=True).select_option('product_session_message')
+                        second = page.get_by_role('group',name='Step 2',exact=True)
+                        second.get_by_label('sessionId value',exact=True).fill('owned-session')
+                        second.get_by_label('text source',exact=True).select_option('step')
+                        second.get_by_label('text path',exact=True).fill('messageId')
+                        page.get_by_role('button',name='Move step 2 up',exact=True).click()
+                        expect(page.get_by_label('Chain validation')).to_contain_text('preceding step')
+                        expect(page.get_by_role('button',name='保存定义',exact=True)).to_be_disabled()
+                        page.get_by_role('button',name='Move step 1 down',exact=True).click()
+                        page.get_by_role('button',name='保存定义',exact=True).click()
+                        expect(page.get_by_role('article',name='Jobs Form Job',exact=True)).to_be_visible()
+                        job = next(j for j in client.get('/api/jobs?limit=100').json()['items'] if j['name']=='Form Job')
+                        assert len(job['steps']) == 2 and job['steps'][1]['arguments']['text']['stepId'] == job['steps'][0]['stepId']
+                        stable_steps = [s['stepId'] for s in job['steps']]
+                        page.get_by_role('button',name='编辑 Form Job',exact=True).click()
+                        first = page.get_by_role('group',name='Step 1',exact=True)
+                        first.get_by_label('text value',exact=True).fill('edited plain text')
+                        page.get_by_text('Job policies',exact=True).click()
+                        page.get_by_label('Pin Job retention',exact=True).check()
+                        page.get_by_role('button',name='保存定义',exact=True).click()
+                        expect(page.get_by_role('form',name='编辑 Jobs',exact=True)).to_have_count(0)
+                        updated_job = client.get('/api/jobs/'+job['id']).json()
+                        assert [s['stepId'] for s in updated_job['steps']] == stable_steps
+                        assert updated_job['retention']['pinned'] is True
+                        page.get_by_role('button',name='Enable Form Job',exact=True).click()
+                        page.get_by_label('I reviewed this definition, Actions, parameters and source references.').check()
+                        page.get_by_role('button',name='Confirm enable',exact=True).click()
+                        expect(page.get_by_role('button',name='Pause Form Job',exact=True)).to_be_visible()
+                    else:
+                        # Complementary source/Trigger-only browser matrix while
+                        # the separately owned Action metadata API is coordinated.
+                        from packages.jobs.final_service import object_ref
+                        action = next(a for a in client.get('/api/jobs/actions').json()['items'] if a['id']=='product_session_message')
+                        ref = object_ref('action', action)
+                        body = {'name':'Form Job','steps':[{'stepId':'setup','actionRef':ref,'arguments':{'sessionId':{'from':'literal','value':'owned-session'},'text':{'from':'literal','value':'setup'}},'completion':{'contract':'durable-queue-accepted'}}],'retention':{'policyRef':'test'}}
+                        response = client.post('/api/jobs',json={'definition':body,'expectedRevision':0,'requestKey':'source-only-job-fixture'})
+                        response.raise_for_status()
+                        job = response.json()['result']['object']
+                        client.post('/api/jobs/'+job['id']+'/operations',json={'operation':'enable','parameters':{},'expectedRevision':job['configRevision'],'expectedStateRevision':job['stateRevision'],'requestKey':'enable-source-only-job-fixture'}).raise_for_status()
+                    page.get_by_role('tab',name='Event Register',exact=True).click()
+                    def source_form(name, kind):
+                        page.get_by_role('button',name='New Scheduler',exact=True).click()
+                        page.get_by_label('Scheduler name',exact=True).fill(name)
+                        page.get_by_label('Time rule type',exact=True).select_option(kind)
+                    def save_source(name):
+                        page.get_by_role('button',name='Save Scheduler',exact=True).click()
+                        expect(page.get_by_role('region',name='Scheduler editor',exact=True)).to_have_count(0)
+                        expect(page.get_by_role('article',name='Scheduler '+name,exact=True)).to_be_visible()
+                        return next(s for s in client.get('/api/event-creators?limit=100').json()['items'] if s['name']==name)
+                    source_form('Form interval','interval')
+                    page.get_by_label('Interval seconds',exact=True).fill('0.125000000000000001')
+                    page.get_by_label('Anchor (RFC3339)',exact=True).fill('2027-11-01T00:00:12.123456789+08:00')
+                    page.get_by_label('Interval advance mode',exact=True).select_option('afterPublication')
+                    page.get_by_label('Grace period (seconds)',exact=True).fill('1.250000000000000001')
+                    page.get_by_label('Limit produced events',exact=True).check()
+                    page.get_by_label('Maximum events',exact=True).fill('17')
+                    interval = save_source('Form interval')
+                    assert interval['config']['rules'][0]['seconds']=='0.125000000000000001'
+                    source_form('Form once','once')
+                    page.get_by_label('Scheduled time (RFC3339)',exact=True).fill('2027-11-01T00:00:13.123456789+05:30')
+                    once = save_source('Form once')
+                    assert once['config']['rules'][0]['at']=='2027-11-01T00:00:13.123456789+05:30'
+                    source_form('Form weekly','weekly')
+                    page.get_by_label('Weekday',exact=True).select_option('6')
+                    page.get_by_label('Time of day',exact=True).fill('01:30:12')
+                    page.get_by_label('Timezone',exact=True).fill('America/New_York')
+                    page.get_by_label('DST policy',exact=True).select_option('gap-skip-fold-second')
+                    weekly = save_source('Form weekly')
+                    source_form('Form cron','cron')
+                    page.get_by_label('Cron expression',exact=True).fill('15 9 * * 1')
+                    page.get_by_label('Timezone',exact=True).fill('Asia/Shanghai')
+                    page.get_by_label('DST policy',exact=True).select_option('gap-shift-fold-first')
+                    cron = save_source('Form cron')
+                    # Edit each ordinary kind through the form; none converts to a legacy single rule.
+                    for source, field, text in ((once,'Scheduled time (RFC3339)','2027-11-01T00:00:14.123456789+05:30'),
+                        (weekly,'Time of day','01:30:13'),(cron,'Cron expression','16 9 * * 1')):
+                        page.get_by_role('button',name='Edit '+source['name'],exact=True).click()
+                        page.get_by_label(field,exact=True).fill(text)
+                        updated = save_source(source['name'])
+                        assert updated['config']['rules'][0]['ruleId'] == source['config']['rules'][0]['ruleId']
+                    page.get_by_role('button',name='Edit Form interval',exact=True).click()
+                    page.get_by_role('button',name='Add time rule',exact=True).click()
+                    rule2 = page.get_by_role('group',name='Time rule 2',exact=True)
+                    rule2.get_by_label('Time rule type',exact=True).select_option('once')
+                    rule2.get_by_label('Scheduled time (RFC3339)',exact=True).fill('2027-11-02T00:00:12.123456789Z')
+                    interval = save_source('Form interval')
+                    stable_rules = [r['ruleId'] for r in interval['config']['rules']]
+                    assert len(set(stable_rules))==2
+                    # Two independently created subscriptions select the same Creator ID.
+                    def subscription(name):
+                        page.get_by_role('tab',name='Trigger',exact=True).click()
+                        page.get_by_role('button',name='创建 Triggers',exact=True).click()
+                        page.get_by_label('名称',exact=True).fill(name)
+                        page.get_by_label('Target canonical Job',exact=True).select_option(job['id'])
+                        page.get_by_label('Scheduler sources',exact=True).select_option([interval['id']])
+                        page.get_by_label('Check State after Event',exact=True).check()
+                        page.get_by_label('State field',exact=True).fill('workers.runningCount')
+                        page.get_by_label('Compare value',exact=True).fill('0')
+                        page.get_by_role('button',name='保存定义',exact=True).click()
+                        expect(page.get_by_role('article',name='Triggers '+name,exact=True)).to_be_visible()
+                    subscription('Form subscription A');subscription('Form subscription B')
+                    page.get_by_role('button',name='编辑 Form subscription A',exact=True).click()
+                    page.get_by_label('Compare value',exact=True).fill('2')
+                    page.get_by_role('button',name='保存定义',exact=True).click()
+                    expect(page.get_by_role('form',name='编辑 Triggers',exact=True)).to_have_count(0)
+                    updated_trigger = next(t for t in client.get('/api/triggers').json()['items'] if t['name']=='Form subscription A')
+                    assert updated_trigger['condition'] == {'field':'workers.runningCount','op':'eq','value':2}
+                    assert updated_trigger['creatorSelector'] == {'mode':'ids','ids':[interval['id']]}
+                    assert updated_trigger['targetJobId'] == job['id']
+                    refs = client.get('/api/event-creators/'+interval['id']+'/references').json()
+                    assert len(refs['references'])==2
+                    page.get_by_role('tab',name='Event Register',exact=True).click()
+                    page.get_by_role('button',name='Refresh',exact=True).click()
+                    expect(page.get_by_role('article',name='Scheduler Form interval',exact=True).get_by_role('heading',name='2 referencing subscribers')).to_be_visible()
+                    page.get_by_role('button',name='Edit Form interval',exact=True).click()
+                    page.get_by_label('Interval seconds',exact=True).fill('0.250000000000000001')
+                    expect(page.get_by_role('button',name='Save Scheduler',exact=True)).to_be_disabled()
+                    page.get_by_label('I reviewed the affected subscribers.').check()
+                    from packages.jobs.final_service import definition
+                    current = client.get('/api/event-creators/'+interval['id']).json()
+                    response = client.put('/api/event-creators/'+interval['id'],json={'definition':{**definition('event_creator',current),'name':'Form interval server'},'expectedRevision':current['revision'],'requestKey':'external-form-conflict'})
+                    response.raise_for_status()
+                    page.get_by_role('button',name='Save Scheduler',exact=True).click()
+                    expect(page.get_by_role('button',name='Keep draft against latest source revision')).to_be_visible()
+                    expect(page.get_by_label('Interval seconds',exact=True)).to_have_value('0.250000000000000001')
+                    page.get_by_role('button',name='Keep draft against latest source revision').click()
+                    expect(page.get_by_role('button',name='Save Scheduler',exact=True)).to_be_disabled()
+                    page.get_by_label('I reviewed the affected subscribers.').check()
+                    interval = save_source('Form interval')
+                    assert [r['ruleId'] for r in interval['config']['rules']]==stable_rules
+                    assert interval['config']['rules'][0]['anchor']=='2027-11-01T00:00:12.123456789+08:00'
+                    # Commit reaches the real server, then the browser loses the receipt.
+                    page.get_by_role('button',name='Edit Form interval',exact=True).click()
+                    page.get_by_label('Grace period (seconds)',exact=True).fill('2.125')
+                    page.get_by_label('I reviewed the affected subscribers.').check()
+                    put_keys=[]
+                    def lose_receipt(route):
+                        if route.request.method=='PUT':
+                            put_keys.append(route.request.post_data_json['requestKey'])
+                            committed=route.fetch()
+                            assert committed.status==200
+                            route.fulfill(status=503,content_type='application/json',body=json.dumps({'error':{'code':'storage_unavailable'}}))
+                        else: route.continue_()
+                    page.route('**/api/event-creators/'+interval['id'],lose_receipt)
+                    page.get_by_role('button',name='Save Scheduler',exact=True).click()
+                    expect(page.get_by_role('button',name='Query original operation')).to_be_visible()
+                    expect(page.get_by_role('button',name='Save Scheduler',exact=True)).to_be_disabled()
+                    expect(page.get_by_label('Grace period (seconds)',exact=True)).to_have_value('2.125')
+                    page.get_by_role('button',name='Query original operation').click()
+                    expect(page.get_by_role('button',name='Query original operation')).to_have_count(0)
+                    assert len(put_keys)==1
+                    assert client.get('/api/event-creators/'+interval['id']).json()['config']['graceSeconds']=='2.125'
+                    assert any('/api/operations?operation=update&requestKey='+put_keys[0] in path for _,path in requests)
+                    for width in (390,1440):
+                        page.set_viewport_size({'width':width,'height':1100})
+                        assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth')
+                        page.screenshot(path=str(out/f'forms-{width}.png'))
+                    assert not errors, errors
+                    assert not any('scheduler/event-sources' in path for _,path in requests)
+                    assert client.get('/test/ready').json()['providerCalls']==0
+                    result['ordinaryJSONFills'] = page.evaluate('window.__definitionJSONEdits')
+                    assert result['ordinaryJSONFills'] == 0
+                    result.update({'kindsCreatedEdited':['interval','once','weekly','cron'],'multiRuleStableIds':True,
+                        'jobCreatedWithForm':create_job_with_form,'jobStepsStableIds':create_job_with_form,'jobRetentionDefinitionPin':create_job_with_form,'typedBindingAndMoveValidation':create_job_with_form,'nativeSubscriptions':2,'triggerEditedWithForm':True,
+                        'sharedConflictDraftRebase':True,'unknownCommittedOriginalQuery':True,'unknownPutCalls':len(put_keys),
+                        'legacySourceRequests':0,'pageErrors':errors,'providerCalls':0})
+                finally:
+                    result['writeRequests'] = [(method,path) for method,path in requests if method in {'POST','PUT','DELETE'} and '/login' not in path]
+                    result['invalidFields'] = page.evaluate("[...document.querySelectorAll('form input,form select,form textarea')].filter(e => !e.validity.valid).map(e => ({label:e.labels?.[0]?.textContent?.slice(0,80),message:e.validationMessage,value:e.type==='password'?'[redacted]':e.value}))")
+                    page.screenshot(path=str(out/'browser-last-state.png'))
+                    (out/'browser-last-state.html').write_text(page.content(),encoding='utf-8')
+                    browser.close()
+    finally:
+        child.terminate()
+        try: child.wait(timeout=15)
+        except subprocess.TimeoutExpired: child.kill();child.wait(timeout=10)
+        log.close()
+        for _ in range(50):
+            with socket.socket() as check:
+                check.settimeout(.2)
+                released = check.connect_ex(('127.0.0.1',port))!=0
+            if released: break
+            time.sleep(.1)
+        result['portReleased']=released
+        (out/('browser-result-full.json' if create_job_with_form else 'browser-result-sources.json')).write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
+        assert released

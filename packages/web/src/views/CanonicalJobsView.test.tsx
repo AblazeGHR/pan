@@ -64,6 +64,7 @@ beforeEach(() => {
       }
       if (failure) return response({ error: { code: 'authorization_denied' } }, failure);
       if (url.includes('operations')) return response(receipt());
+      if (url === '/api/jobs/actions') return response({ items: [], references: {}, nextCursor: null });
       if (url.includes('/runs?'))
         return response({
           items: [

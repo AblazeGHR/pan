@@ -23,6 +23,7 @@ import type {
 } from '@/types/canonicalJobs';
 import { newId, type EventCreator } from '@/types/automationJobs';
 import { useAutomationDraft } from '@/components/automation/DraftBoundary';
+import { CanonicalDefinitionFields, canonicalFormErrors } from '@/components/automation/CanonicalDefinitionFields';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -143,6 +144,8 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
   } | null>(null);
   const [creatorRevisions, setCreatorRevisions] = useState<Record<string, number>>({});
   const [conflict, setConflict] = useState(false);
+  const [structuredEdited, setStructuredEdited] = useState(false);
+  const [advancedEditing, setAdvancedEditing] = useState(false);
   const [enabling, setEnabling] = useState<CanonicalObject | null>(null);
   const [enableReviewed, setEnableReviewed] = useState(false);
   const [retiring, setRetiring] = useState<CanonicalObject | null>(null);
@@ -223,7 +226,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           onClick={() => {
             const definition = { ...examples[kind] };
             delete definition.name;
-            setConflict(false); setCreatorRevisions({}); setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
+            setAdvancedEditing(false); setStructuredEdited(false); setConflict(false); setCreatorRevisions({}); setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
           }}
         >
           创建 {labels[kind]}
@@ -241,6 +244,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           onChange={(value) => {
             setPending(value);
             if (value.receipt?.status === 'completed') {
+              setError('');
               setEditor(null);
               setRetiring(null);
               setEnabling(null);
@@ -257,6 +261,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
             e.preventDefault();
             try {
               const definition = { ...objectJson(editor.json), name: editor.name };
+              if (structuredEdited && canonicalFormErrors(kind, definition).length) throw new Error(canonicalFormErrors(kind, definition).join(' '));
               void mutate(editor.item ? 'update' : 'create', (key) =>
                 canonicalJobs.write(kind, editor.item, definition, key, undefined, kind === 'triggers' && reviewSourceRefs ? creatorRevisions : undefined),
               );
@@ -276,19 +281,21 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               onChange={(e) => setEditor({ ...editor, name: e.target.value })}
             />
           </label>
-          <label className="block text-sm">
+          {(kind === 'jobs' || kind === 'triggers') && <fieldset hidden={advancedEditing} disabled={busy || advancedEditing} className="min-w-0">
+            {(() => { try { return <CanonicalDefinitionFields kind={kind} value={objectJson(editor.json)} targetJob={jobs.find((job) => job.id === objectJson(editor.json).targetJobId)} onChange={(value) => { setStructuredEdited(true); setEditor({ ...editor, json: JSON.stringify(value, null, 2) }); }} />; } catch { return <p role="status">Fix the advanced definition before using the form. Your draft is retained.</p>; } })()}
+          </fieldset>}
+          <details><summary>Advanced definition JSON</summary><label className="block text-sm">
             定义 JSON（名称单独填写）
             <textarea
               disabled={busy}
               spellCheck={false}
               className={`${field} h-72 font-mono`}
               value={editor.json}
-              onChange={(e) => setEditor({ ...editor, json: e.target.value })}
+              onChange={(e) => { setAdvancedEditing(true); setStructuredEdited(false); setEditor({ ...editor, json: e.target.value }); }}
             />
-          </label>
+          </label>{advancedEditing && <Button type="button" disabled={busy} onClick={() => { try { objectJson(editor.json); setAdvancedEditing(false); } catch (failure) { setError(canonicalError(failure)); } }}>Use structured form</Button>}</details>
           <p className="text-xs text-text-secondary">
-            只提交定义字段。引用需包含服务端的
-            id、revision、digest；空示例需要补全。编辑使用打开时的版本{' '}
+            保存使用打开时的定义版本{' '}
             {editor.item ? revisionOf(editor.item) : 0}。
           </p>
           <details>
@@ -317,18 +324,20 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
             }}>Load server definition</Button>
           </section>}
           {kind === 'jobs' && <ActionCatalog />}
-          {kind === 'triggers' && <div className="space-y-3">
-            <label className="block">Target canonical Job<select className={field} value={String(previewObject(editor.json).targetJobId ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), targetJobId: e.target.value }, null, 2) })}><option value="">Choose a Job</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.name} · {job.state}</option>)}</select></label>
-            <label className="block">Scheduler sources<select multiple className={field} value={((previewObject(editor.json).creatorSelector as { ids?: string[] })?.ids ?? [])} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => o.value); setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); const value = previewObject(editor.json); setEditor({ ...editor, json: JSON.stringify({ ...value, creatorSelector: { mode: 'ids', ids }, eventTypes: [...new Set([...(Array.isArray(value.eventTypes) ? value.eventTypes as string[] : []), ...sources.filter((s) => ids.includes(s.id)).flatMap((s) => s.eventTypes)])] }, null, 2) }); }}>
+          {kind === 'triggers' && <fieldset disabled={busy} className="min-w-0 space-y-3">
+            <label className="block">Target canonical Job<select aria-label="Target canonical Job" className={field} value={String(previewObject(editor.json).targetJobId ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), targetJobId: e.target.value }, null, 2) })}><option value="">Choose a Job</option>{jobs.map((job) => <option key={job.id} value={job.id} disabled={job.state === 'draft' || job.state === 'retired'}>{job.name} · {job.state}</option>)}</select></label>
+            <label className="block">Creator selection<select aria-label="Creator selection" className={field} value={String((previewObject(editor.json).creatorSelector as { mode?: string })?.mode ?? 'ids')} onChange={(e) => { setCreatorRevisions({}); setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), creatorSelector: e.target.value === 'ids' ? { mode: 'ids', ids: [] } : { mode: 'registeredType', providerType: 'time' } }, null, 2) }); }}><option value="ids">Selected source instances</option><option value="registeredType">Registered provider type</option></select></label>
+            {(previewObject(editor.json).creatorSelector as { mode?: string })?.mode === 'registeredType' ? <label className="block">Provider type<input required className={field} value={String((previewObject(editor.json).creatorSelector as { providerType?: string })?.providerType ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), creatorSelector: { ...(objectJson(editor.json).creatorSelector as object), providerType: e.target.value } }, null, 2) })} /></label> : <>
+            <label className="block">Scheduler sources<select aria-label="Scheduler sources" multiple className={field} value={((previewObject(editor.json).creatorSelector as { ids?: string[] })?.ids ?? [])} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => o.value); setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); const value = previewObject(editor.json); setEditor({ ...editor, json: JSON.stringify({ ...value, creatorSelector: { mode: 'ids', ids }, eventTypes: [...new Set([...(Array.isArray(value.eventTypes) ? value.eventTypes as string[] : []), ...sources.filter((s) => ids.includes(s.id)).flatMap((s) => s.eventTypes)])] }, null, 2) }); }}>
               {sources.map((source) => <option key={source.id} value={source.id}>{source.name} · Revision {source.revision} · {source.state}</option>)}
-            </select></label>
+            </select></label></>}
             {reviewSourceRefs && <Button type="button" disabled={busy} onClick={() => {
               const ids = (previewObject(editor.json).creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
               setCreatorRevisions(Object.fromEntries(sources.filter((source) => ids.includes(source.id)).map((source) => [source.id, source.revision])));
             }}>Review selected source revisions</Button>}
-          </div>}
+          </fieldset>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (structuredEdited && canonicalFormErrors(kind, previewObject(editor.json)).length > 0)}>
               保存定义
             </Button>
             <Button type="button" disabled={busy} onClick={() => { if (window.confirm('Discard this definition draft?')) { setEditor(null); setConflict(false); } }}>
@@ -391,7 +400,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling}
                 onClick={() => {
-                  setConflict(false); const definition = definitionOf(kind, item);
+                  setAdvancedEditing(false); setStructuredEdited(false); setConflict(false); const definition = definitionOf(kind, item);
                   delete definition.name;
                   const ids = (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? []; setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
                 }}

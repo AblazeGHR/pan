@@ -123,7 +123,7 @@ export const canonicalJobs = {
         ? `operations/${part(operationId)}`
         : `operations?operation=${part(operation)}&requestKey=${part(requestKey)}`,
     ),
-  actions: () => canonicalRequest<CanonicalPage<JsonObject>>('actions'),
+  actions: () => canonicalRequest<CanonicalPage<JsonObject> & { references?: Record<string, JsonObject> }>('actions'),
   creatorReferences: (id: string) => canonicalRequest<import('@/types/automationJobs').CreatorReferences>(`event-creators/${part(id)}/references`),
   creatorProviders: () => canonicalRequest<{ items: import('@/types/automationJobs').SchedulerProvider[] }>('event-creators/providers'),
   controlDefinition: (kind: CanonicalKind, item: CanonicalObject, operation: string, requestKey: string, expectedReferences?: string) =>
