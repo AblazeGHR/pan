@@ -131,7 +131,7 @@ it('edits one rule without converting or truncating other rule IDs, precision, o
   expect((screen.getByLabelText('Interval seconds') as HTMLInputElement).value).toBe(
     '0.000000123456789',
   );
-  expect((screen.getByLabelText('Scheduled time (RFC3339)') as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText('Scheduled date and time') as HTMLInputElement).value).toBe(
     '2027-11-01T00:00:13.123456789+05:30',
   );
 });
@@ -151,7 +151,7 @@ it('adds and removes multiple rules and changes type with stable IDs, including 
     'cron',
     id,
   ]);
-  expect((screen.getByLabelText('Anchor (RFC3339)') as HTMLInputElement).value).toBe(
+  expect((screen.getByLabelText('Anchor date and time') as HTMLInputElement).value).toBe(
     (full.rules as JsonObject[])[0]!.anchor,
   );
 });

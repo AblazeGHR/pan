@@ -204,6 +204,53 @@ class TimeProvider:
     def health(self):
         return {"status": "available", "capabilities": list(self.capabilities)}
 
+    def resolve_input(self, value, timezone_name=None):
+        """Read-only local input preview. No cursor, rule or confirmation state.
+
+        Resolve the whole wall second with the existing DST calculator, then add
+        the original Decimal fraction without passing it through datetime/float.
+        """
+        if not isinstance(value, str) or not 1 <= len(value) <= 256:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        text = value.strip()
+        if _TIMESTAMP.fullmatch(text):
+            try:
+                contracts.check_timestamp(text, "value")
+                return {"status": "resolved", "at": timestamp(text), "zoneSelection": "explicit-offset",
+                        "timezone": None, "input": text}
+            except (ValueError, OverflowError, contracts.ContractError):
+                return {"status": "invalid", "reason": "invalid_datetime"}
+        match = re.fullmatch(r"(\d{4}-\d{2}-\d{2})[Tt ](\d{2}:\d{2})(?::(\d{2})(?:\.(\d+))?)?", text)
+        if not match:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        try:
+            wall = datetime.fromisoformat(match[1] + "T" + match[2] + ":" + (match[3] or "00"))
+        except ValueError:
+            return {"status": "invalid", "reason": "invalid_datetime"}
+        try:
+            zone = self.zone(timezone_name)
+        except contracts.ContractError as exc:
+            return {"status": "unavailable", "reason": exc.details.get("reason", "timezone_unavailable")}
+        evidence = {"timezone": str(zone), "zoneSelection": timezone_name or "host", "input": text}
+        try:
+            first = _wall_instant(wall, zone, "gap-skip-fold-first")
+            second = _wall_instant(wall, zone, "gap-skip-fold-second")
+        except (ValueError, OverflowError):
+            return {"status": "invalid", "reason": "invalid_datetime", **evidence}
+        if first is None:
+            return {"status": "nonexistent", "reason": "dst_gap", **evidence}
+        fraction = Decimal("0." + match[4]) if match[4] else Decimal(0)
+        points = [first] if first["at"] == second["at"] else [first, second]
+        options = []
+        for point in points:
+            at = timestamp(_decimal_add(point["at"], fraction))
+            local = wall.replace(tzinfo=zone, fold=point["fold"]).isoformat()
+            offset = local[len(wall.isoformat()):]
+            options.append({"at": at, "localTime": wall.isoformat() + ("." + match[4] if match[4] else "") + offset})
+        if len(options) == 2:
+            return {"status": "ambiguous", "reason": "dst_fold", "options": options, **evidence}
+        return {"status": "resolved", **options[0], **evidence}
+
     def zone(self, name: str):
         try:
             text = str(name or self.host_zone()).strip()

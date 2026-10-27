@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button';
 import { newId } from '@/types/automationJobs';
 import type { JsonObject } from '@/types/canonicalJobs';
 import { fieldClass } from './fields';
+import { SchedulerInstantInput } from './SchedulerInstantInput';
 
 export const schedulerRule = (type: string, ruleId = newId('rule')): JsonObject => ({
   ruleId,
@@ -51,9 +52,7 @@ export function CanonicalSchedulerFields({
             <input
               required={key !== 'timezone'}
               pattern={
-                key === 'at' || key === 'anchor'
-                  ? '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+\\-][0-9]{2}:[0-9]{2})'
-                  : key === 'seconds'
+                key === 'seconds'
                     ? '(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?'
                     : key === 'time'
                       ? '(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]'
@@ -101,7 +100,7 @@ export function CanonicalSchedulerFields({
             {rule.type === 'interval' && (
               <>
                 {text('seconds', 'Interval seconds', '0.125')}
-                {text('anchor', 'Anchor (RFC3339)', '2026-11-01T09:00:00.125+08:00')}
+                <SchedulerInstantInput value={String(rule.anchor ?? '')} label="Anchor date and time" onChange={(at) => update('anchor', at)} />
                 <label className="block text-sm">
                   Interval advance mode
                   <select
@@ -118,11 +117,7 @@ export function CanonicalSchedulerFields({
             )}
             {rule.type === 'once' && (
               <>
-                {text('at', 'Scheduled time (RFC3339)', '2026-11-01T09:00:12.125+08:00')}
-                <p className="text-xs">
-                  Enter an explicit UTC offset to resolve the local time, including repeated or
-                  missing DST times.
-                </p>
+                <SchedulerInstantInput value={String(rule.at ?? '')} label="Scheduled date and time" onChange={(at) => update('at', at)} />
               </>
             )}
             {rule.type === 'weekly' && (

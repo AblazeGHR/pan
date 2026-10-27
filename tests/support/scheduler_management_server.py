@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-def app_for(root, *, seed_time_template_target=False):
+def app_for(root, *, seed_time_template_target=False, time_test_host_zone=None):
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
     from fastapi.responses import FileResponse
     from packages.core import config, session, background_jobs
@@ -33,6 +33,9 @@ def app_for(root, *, seed_time_template_target=False):
     automation.auth = CanonicalUserAuth(root / "automation")
     automation.auth.key()
     final = bind(app, automation, root / "canonical")
+    if time_test_host_zone:
+        # Owned fixture only: exercise DST without changing the OS timezone.
+        final.creators.registry.providers[("time", "scheduler")].host_zone = lambda: time_test_host_zone
     # UI lifecycle tests are independent of wall-clock due fires. Time/DST and
     # effect recovery run in their dedicated real coordinator/provider tests.
     final.creators.clock = lambda: "2026-10-27T00:00:00Z"
@@ -90,8 +93,10 @@ if __name__ == "__main__":
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--seed-time-template-target", action="store_true")
+    parser.add_argument("--time-test-host-zone")
     args = parser.parse_args()
     if args.port in (8767,8768) or not args.root.is_absolute():
         raise SystemExit("Owned absolute root and non-protected port required")
     args.root.mkdir(parents=True, exist_ok=True)
-    uvicorn.run(app_for(args.root, seed_time_template_target=args.seed_time_template_target), host="127.0.0.1", port=args.port, log_level="warning")
+    uvicorn.run(app_for(args.root, seed_time_template_target=args.seed_time_template_target,
+                       time_test_host_zone=args.time_test_host_zone), host="127.0.0.1", port=args.port, log_level="warning")

@@ -15,7 +15,7 @@ from packages.jobs.window import command_window_options
 def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_path):
     from playwright.sync_api import sync_playwright, expect
     repo = Path(__file__).resolve().parents[1]
-    evidence = repo / "evidence/time-creator-rev2"
+    evidence = repo / "evidence/time-creator-rev4"
     evidence.mkdir(exist_ok=True)
     root = tmp_path / "profile"
     with socket.socket() as owned:
@@ -71,14 +71,14 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         page.get_by_role("button", name="New Scheduler", exact=True).click()
                         page.get_by_label("Scheduler name", exact=True).fill("Offset once")
                         page.get_by_label("Time rule type", exact=True).select_option("once")
-                        field = page.get_by_label("Scheduled time (RFC3339)", exact=True)
-                        field.fill("2027-11-07T01:30:00")
-                        assert not field.evaluate("e => e.checkValidity()")
+                        field = page.get_by_label("Scheduled date and time", exact=True)
                         field.fill("2027-11-07T01:30:00.123456789-04:00")
+                        expect(page.get_by_text("Resolved instant: 2027-11-07T01:30:00.123456789-04:00", exact=True)).to_be_visible()
                         assert field.evaluate("e => e.checkValidity()")
                         page.get_by_role("button", name="Save Scheduler", exact=True).click()
                         expect(page.get_by_role("article", name="Scheduler Offset once", exact=True)).to_be_visible()
                         once = next(c for c in client.get("/api/event-creators").json()["items"] if c["name"] == "Offset once")
+                        assert once["config"]["rules"][0]["at"] == "2027-11-07T01:30:00.123456789-04:00"
                         with sqlite3.connect((root / "canonical/event-creators/creators.sqlite3").as_uri() + "?mode=ro", uri=True) as db:
                             stored = json.loads(db.execute("SELECT document FROM creators WHERE id=?", (once["id"],)).fetchone()[0])
                         assert stored["cursor"]["rules"][once["config"]["rules"][0]["ruleId"]]["nextFireAt"] == "2027-11-07T05:30:00.123456789Z"
@@ -117,7 +117,7 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         (evidence / "browser-result.json").write_text(json.dumps({"productionBundle": True,
                             "authenticated": True, "chromiumVersion": browser.version,
                             "hostDefault": True, "override": True, "offsetOnceFullFraction": True,
-                            "naiveOnceRejected": True, "passiveTemplateNativeFields": True,
+                            "explicitOffsetOncePreserved": True, "passiveTemplateNativeFields": True,
                             "nativePublishAndInstantiateDisabledGraph": True,
                             "pageErrors": errors, "ownedServerStoppedInFinally": True}, indent=2))
                     finally:

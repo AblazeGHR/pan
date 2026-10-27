@@ -353,6 +353,13 @@ class FinalService:
             return self._operation(db, actor, "instantiate-template", body["requestKey"],
                                    {"templateId": template_id, **request}, "template", mutate)
 
+    def resolve_time_input(self, body, *, actor):
+        self._permit(actor, "event_creator", "read")
+        provider = self.creators.registry.providers.get(("time", "scheduler"))
+        if provider is None:
+            error("provider_unavailable", "Time provider is unavailable")
+        return provider.resolve_input(body["value"], body.get("timezone"))
+
     def _creator_references(self, db, creator_id):
         creator = self.creators.get(creator_id)
         if creator is None:
