@@ -1,0 +1,912 @@
+{
+  "schema": "pan.job-retirement-successors/v2",
+  "baseline": "add4bef7773216dd79793733a50a2ec19a6869c3",
+  "originalNodes": [
+    {
+      "node": "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime",
+      "category": "history-fixture",
+      "followup": "以非执行 historical records 替代 start_message/start_broadcast fixture，保留混合列表、过滤和排序断言；不可重新开放旧创建入口。",
+      "successorEvidence": "tests/test_scheduler_history_read.py; tests/test_jobs_completed_retention.py",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_structured_identity_new_records",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime",
+      "category": "retired-positive",
+      "followup": "旧 kind 双写已退役；改验 native Job ID + frozen Action/target provenance，同时保留旧扁平 ID 只读投影的独立覆盖。",
+      "successorEvidence": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "旧 kind 双写已退役；改验 native Job ID + frozen Action/target provenance，同时保留旧扁平 ID 只读投影的独立覆盖。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_rename_and_description",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "旧 PATCH 已退役；迁为 canonical PUT expectedRevision，并保留 name/description roundtrip/CAS。",
+      "successorEvidence": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_closure_successors.py::test_rename_description_roundtrip_cas_and_original_operation"
+      ],
+      "boundary": "Native definition/CAS/frozen Run with recording Session provider; no real CLI consumption"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_blank_name_rejected",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "用 canonical 定义校验替代旧 PATCH ok envelope，保留空名称拒绝与无写入断言。",
+      "successorEvidence": "tests/test_job_final_contracts.py",
+      "originalNode": "retained-failed",
+      "status": "product-gap",
+      "strictSuccessors": [
+        "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk"
+      ],
+      "boundary": "Empty string rejected; whitespace-only values accepted and committed: strict successor red"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_target_switch_updates_flat_and_struct",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "旧 flat target 写语义不再执行；显式修改 native Step 参数绑定，验证 revision 及未来 Run 冻结，历史不改。",
+      "successorEvidence": "tests/test_job_final_http_service.py; tests/test_handoff_job_retarget.py",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs"
+      ],
+      "boundary": "Native definition/CAS/frozen Run with recording Session provider; no real CLI consumption"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_enable_disable_stops_entries",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "迁为 native lifecycle config/state CAS；已准入 Run 与 future Creator events 分开验证，不能恢复旧 entries 驱动。",
+      "successorEvidence": "tests/test_scheduler_management_browser.py; tests/test_job_final_creators.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "迁为 native lifecycle config/state CAS；已准入 Run 与 future Creator events 分开验证，不能恢复旧 entries 驱动。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_action_template_default_assign",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?",
+      "category": "retired-positive",
+      "followup": "删除旧默认 assign 期望的执行含义；显式 Action ref 与 typed args 在统一 Run 路径验收。",
+      "successorEvidence": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "删除旧默认 assign 期望的执行含义；显式 Action ref 与 typed args 在统一 Run 路径验收。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_action_template_send_session",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?",
+      "category": "retired-positive",
+      "followup": "用 product_session_message + frozen Step 替代 run_due_scheduled_tasks，保留一次效果及原 effectKey 收据断言。",
+      "successorEvidence": "tests/test_job_attempt_epoch.py; evidence/r6i-repair/candidate-epoch-green.json",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "用 product_session_message + frozen Step 替代 run_due_scheduled_tasks，保留一次效果及原 effectKey 收据断言。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_action_template_unknown_falls_back_to_assign",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "此正向 fallback 与终局明确冲突；后继必须拒绝未知 Action/legacy 字段，不能迁回默认 assign。",
+      "successorEvidence": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "此正向 fallback 与终局明确冲突；后继必须拒绝未知 Action/legacy 字段，不能迁回默认 assign。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "迁为明确 native Session operation/provider；保留 effect admission 时冻结合法候选和 run-again 显式新 Run。该具体动态选择后继尚未在本次证明。",
+      "successorEvidence": "tests/test_job_final_runtime.py::test_fr01_retry_run_again_and_clone_have_distinct_identities (仅身份相关)",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "迁为明确 native Session operation/provider；保留 effect admission 时冻结合法候选和 run-again 显式新 Run。该具体动态选择后继尚未在本次证明。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_resume_legal_running_empty_scan_is_successful_noop",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "旧 route 410 正确；空候选是否完成必须在 native typed provider 契约补精确测试，本次不声称覆盖该业务效果。",
+      "successorEvidence": "未验证精确后继",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "旧 route 410 正确；空候选是否完成必须在 native typed provider 契约补精确测试，本次不声称覆盖该业务效果。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "迁 Creator publication 与 Job admission 分离；补空选择不新增 backlog/effect 的 native provider 断言。",
+      "successorEvidence": "tests/test_job_final_creators.py (只证明来源计数不依赖效果)",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "迁 Creator publication 与 Job admission 分离；补空选择不新增 backlog/effect 的 native provider 断言。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "改 native Step 的显式 query/fixed text；保留动态 target，不借 metadata flat 字段重建 legacy dispatcher。",
+      "successorEvidence": "未验证精确后继",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "改 native Step 的显式 query/fixed text；保留动态 target，不借 metadata flat 字段重建 legacy dispatcher。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_resume_legal_running_keeps_per_fire_client_message_id_stable",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime",
+      "category": "retired-positive",
+      "followup": "不再调用已退役 _execute_job_action；保留同 Run/Step/target effectKey 和 provider 去重键断言。",
+      "successorEvidence": "tests/test_scheduler_source_migration.py::test_explicit_host_adoption_continues_same_grid_and_effect_keys (相关 identity)",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "不再调用已退役 _execute_job_action；保留同 Run/Step/target effectKey 和 provider 去重键断言。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_runs_and_next_and_run_now",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "拆为 readonly 原 ID/runs 与 native manual admission/Creator nextFire；旧 run-now URL 应保持 410。",
+      "successorEvidence": "tests/test_scheduler_history_read.py; tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "拆为 readonly 原 ID/runs 与 native manual admission/Creator nextFire；旧 run-now URL 应保持 410。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_partial_failed_event_emitted",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime",
+      "category": "retired-positive",
+      "followup": "以 native partial/uncertain effect + 唯一 outbox 验收，不恢复 start_broadcast 或重复 terminal notice。",
+      "successorEvidence": "tests/test_job_final_runtime.py::test_fr05_single_outbox_ack_delete_guard_and_pin_cleanup; tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "以 native partial/uncertain effect + 唯一 outbox 验收，不恢复 start_broadcast 或重复 terminal notice。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_post_creates_scheduled_task_multi_entry",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "用独立 Creator 多规则 + Job/Trigger 显式定义；保留各 ruleId/occurrence，旧 scheduled-task POST 不再合法。",
+      "successorEvidence": "tests/test_job_final_creators.py; tests/test_scheduler_creator_management.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "用独立 Creator 多规则 + Job/Trigger 显式定义；保留各 ruleId/occurrence，旧 scheduled-task POST 不再合法。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "用 product_process native Action 参数和 independent execution intent；保留未执行前不分配实际 runner 的断言。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py::test_fe02_concurrent_admission_never_calls_legacy_create_retry",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "用 product_process native Action 参数和 independent execution intent；保留未执行前不分配实际 runner 的断言。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "迁 typed channel Action 参数/schema，保留 bot/target 持久及非自报授权。未连接真实 QQ provider。",
+      "successorEvidence": "tests/test_job_final_contracts.py; tests/test_job_final_http_service.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "迁 typed channel Action 参数/schema，保留 bot/target 持久及非自报授权。未连接真实 QQ provider。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_scheduled_qq_action_is_strict_and_editable",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "用 native Job revision 更新 typed channel arguments；保持严格 schema、编辑不更改历史 frozen plan。",
+      "successorEvidence": "tests/test_job_final_contracts.py; tests/test_job_final_http_service.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "用 native Job revision 更新 typed channel arguments；保持严格 schema、编辑不更改历史 frozen plan。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "通过 typed channel executor 保留明确成功/离线拒绝，不用 legacy kind dispatcher；精确 bot 业务效果需 provider 专项后继。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py (仅 typed receipt 相关)",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "通过 typed channel executor 保留明确成功/离线拒绝，不用 legacy kind dispatcher；精确 bot 业务效果需 provider 专项后继。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "manual Run 不伪造时间 Event；显式 provider reject 与未知结果区分。旧 route 410 保持。",
+      "successorEvidence": "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "manual Run 不伪造时间 Event；显式 provider reject 与未知结果区分。旧 route 410 保持。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_scheduled_qq_backlog_retry_runs_without_session_target",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "不恢复旧 undelivered backlog；用同 Run/Step/effectKey 新 Attempt，unknown 必须查询。本次未证明 QQ 专属重试。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py::test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history (相关)",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "不恢复旧 undelivered backlog；用同 Run/Step/effectKey 新 Attempt，unknown 必须查询。本次未证明 QQ 专属重试。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_post_accepts_session_message_and_rejects_empty_schedule",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "旧 kind POST 不合法；native Job 手动可无时间来源，Creator 空 rules 另行严格拒绝，不能照搬旧 combined schema。",
+      "successorEvidence": "tests/test_job_final_contracts.py; tests/test_job_final_creators.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "旧 kind POST 不合法；native Job 手动可无时间来源，Creator 空 rules 另行严格拒绝，不能照搬旧 combined schema。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_post_requires_existing_session",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "native API 的目标检查在对应 typed provider/业务层；保留无效 Session 不发生效果；精确业务检查需 Session provider 专项。",
+      "successorEvidence": "未验证精确后继",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "native API 的目标检查在对应 typed provider/业务层；保留无效 Session 不发生效果；精确业务检查需 Session provider 专项。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_schedule_replaces_entries",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "时间配置归 Creator，不在 Job PATCH 替换 schedule；Creator revision/CAS/anchor/cursor 回归继续验。",
+      "successorEvidence": "tests/test_job_final_creators.py; tests/test_scheduler_creator_management.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "时间配置归 Creator，不在 Job PATCH 替换 schedule；Creator revision/CAS/anchor/cursor 回归继续验。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_schedule_rejects_bad_spec",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "保留 invalid time config 的无写入拒绝，入口改 canonical Creator schema。",
+      "successorEvidence": "tests/test_job_final_creators.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "保留 invalid time config 的无写入拒绝，入口改 canonical Creator schema。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_target_clear_enters_undeliverable",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "旧 undeliverable/backlog 不再作为新执行状态；native 定义/入场严格拒绝无效必要参数，不能猜目标。",
+      "successorEvidence": "tests/test_job_final_contracts.py",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "旧 undeliverable/backlog 不再作为新执行状态；native 定义/入场严格拒绝无效必要参数，不能猜目标。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_patch_text_updates_dispatch_body",
+      "baselineFailure": "KeyError: 'ok'",
+      "category": "retired-positive",
+      "followup": "改 native literal/input binding；编辑只影响未来 frozen plan，历史不变。",
+      "successorEvidence": "packages/web/src/views/AutomationWorkspace.test.tsx::preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs"
+      ],
+      "boundary": "Native definition/CAS/frozen Run with recording Session provider; no real CLI consumption"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_run_records_carry_entry_id",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?",
+      "category": "retired-positive",
+      "followup": "旧 entryId 只读历史必须保留；新来源用 creatorId/occurrenceKey/driveId，不伪造旧执行记录。",
+      "successorEvidence": "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+      "originalNode": "retained-failed",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "旧 entryId 只读历史必须保留；新来源用 creatorId/occurrenceKey/driveId，不伪造旧执行记录。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_failure_keeps_disk_and_emits_nothing",
+      "baselineFailure": "KeyError: 'error'",
+      "category": "stale-injection",
+      "followup": "原 fixture 注入 background_jobs._atomic_write 已不在 JsonPins 实际写路径；保留原红，新增实际 coordinator.atomic_write 失败后继，证明 pins 字节不变、无广播、GET 仍 pinned。",
+      "successorEvidence": "tests/test_job_retained_pin_successor.py::test_retained_pin_persistence_failure_keeps_disk_and_emits_nothing (已实跑)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retained_pin_successor.py::test_retained_pin_persistence_failure_keeps_disk_and_emits_nothing"
+      ],
+      "boundary": "原 fixture 注入 background_jobs._atomic_write 已不在 JsonPins 实际写路径；保留原红，新增实际 coordinator.atomic_write 失败后继，证明 pins 字节不变、无广播、GET 仍 pinned。"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]",
+      "baselineFailure": "assert 503 == 200\n +  where 503 = <Response [503 Service Unavailable]>.status_code",
+      "category": "retained-metadata-gap",
+      "followup": "原旧 POST 创建 fixture 先返回 503，尚未到损坏 pins 后已提交操作断言。需改 native/offline非执行 fixture，保留每个 kind/failure 分支的配置持久、单次广播、metadata unavailable 和不改损坏文件断言；本次未证明全部六分支。",
+      "successorEvidence": "tests/test_jobs_completed_retention.py (相关保留策略，不替代这六项)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]"
+      ],
+      "boundary": "P24 offline historical fixture; no canonical WS CRUD or executable legacy writer claim"
+    },
+    {
+      "node": "tests/test_scheduler_legacy_bridge.py::test_run_now_does_not_move_periodic_next_fire",
+      "baselineFailure": "AttributeError: <module 'packages.jobs.system_actions' from 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pan-r6i-baseline-04kafk3n\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'",
+      "category": "retained-bridge-gap",
+      "followup": "bridge 本轮保留；卡在退役 system_actions.execute 注入。需改非执行桥接 fixture 并保留 manual run 不推进周期/原 receipt 断言，不能把 bridge 整体删掉消红。",
+      "successorEvidence": "tests/test_scheduler_source_migration.py (仅来源同网格续跑相关，未替代该 bridge 节点)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retained_history_bridge.py::test_run_now_does_not_move_periodic_next_fire_retained_successor"
+      ],
+      "boundary": "P24 synthetic same-identity owner/cursor/receipt; real cohorts remain unverified"
+    },
+    {
+      "node": "tests/test_job_delete_safety.py::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime",
+      "category": "retained-safety-gap",
+      "followup": "卡在退役 _reconcile_scheduled_processes。需 canonical late terminal receipt/cleanup 后继，明确原 parent ID 删除后不被重建；不能仅去掉最终 reconcile 调用。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py (仅 receipt/fence 相关；尚缺此精确删除后继)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor"
+      ],
+      "boundary": "P23 public Run cancel then logical retire; no physical definition purge claim"
+    },
+    {
+      "node": "tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[False]",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?",
+      "category": "retained-safety-gap",
+      "followup": "旧 start 退役导致未到实际清理；需 canonical owned independent intent + 真实 DELETE/retire cleanup proof、PID/birth/FILETIME、unknown 首次拒绝再确认的完整 HTTP 后继。现有真实 owned 树删除精确后继仍缺。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py (相关，不冒充完整 owned tree DELETE 验收)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]"
+      ],
+      "boundary": "P23 public Run cancel then logical retire; no physical definition purge claim"
+    },
+    {
+      "node": "tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[True]",
+      "baselineFailure": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?",
+      "category": "retained-safety-gap",
+      "followup": "旧 start 退役导致未到实际清理；需 canonical owned independent intent + 真实 DELETE/retire cleanup proof、PID/birth/FILETIME、unknown 首次拒绝再确认的完整 HTTP 后继。现有真实 owned 树删除精确后继仍缺。",
+      "successorEvidence": "tests/test_job_final_independent_execution.py (相关，不冒充完整 owned tree DELETE 验收)",
+      "originalNode": "retained-failed",
+      "status": "strict-successor",
+      "strictSuccessors": [
+        "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]"
+      ],
+      "boundary": "P23 public Run cancel then logical retire; no physical definition purge claim"
+    },
+    {
+      "node": "tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt",
+      "category": "additional-original-red",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "Unbound automatic recovery is unsupported; full bound policy revocation/budget successor missing"
+    },
+    {
+      "node": "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+      "category": "additional-original-red",
+      "status": "gap",
+      "strictSuccessors": [],
+      "boundary": "Original NameError before HTTP; canonical query/control real TCP successor missing; do not restore retired Job POST"
+    }
+  ],
+  "retirementItems": [
+    {
+      "id": "E01",
+      "originalScope": "`packages/web/server.py:10941/10973/10991/11001/11083/11128` 的 start/list/get/cancel/update/retry",
+      "requirement": "`delete` 六 handlers 与 decorators；当前仍写。先停 start/update/retry；list/get/cancel 过渡保留至 G2–G4。不能把 cancel 当可无条件删除的旧写",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_retirement.py",
+      "remaining": "G2 old Runner query/cancel ownership must remain",
+      "currentObservation": "server.py retains read/cancel; retired write wrappers coexist with canonical API"
+    },
+    {
+      "id": "E02",
+      "originalScope": "`packages/web/server.py:11025` session-message start，11069/11076 仍 start_message/start_broadcast",
+      "requirement": "`delete` POST；调用者先迁显式 Job+Creator+Trigger",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_retirement.py",
+      "remaining": "Real Session/QQ provider-specific exact successors remain incomplete",
+      "currentObservation": "Legacy session-message producer removed/refused; native typed message remains"
+    },
+    {
+      "id": "E03",
+      "originalScope": "`packages/web/server.py:10909/10923` `_legacy_mcp_authority/_legacy_action_job`；`Runtime.create_legacy` 213",
+      "requirement": "`delete` 伪身份/builder；通用可信主体/授权先接管，历史审计主体 `read-only` 不升级为 user",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Do not elevate legacy history owner to trusted caller",
+      "currentObservation": "Legacy identity must remain audit-only; canonical User/Agent scope separate"
+    },
+    {
+      "id": "E04",
+      "originalScope": "`packages/jobs/api.py:131/495/711/773/814/827/848/1121/1159/1174`；`final_api.py:384/403/411/418`",
+      "requirement": "`migrate` 管理能力后整文件 `delete`，删除 `/api/legacy/jobs` 与原路径余量；canonical `/api/jobs` keep，不得按前缀批删",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py",
+      "remaining": "Cannot delete mixed facade before history/control parity",
+      "currentObservation": "jobs/api.py remains imported facade/history; final_api owns native definitions"
+    },
+    {
+      "id": "E05",
+      "originalScope": "`packages/jobs/api.py:747/753/765`；`packages/jobs/templates.py:39/55/60/106`",
+      "requirement": "`migrate` 内置/自定义时间模板为完整被动 Template，保存 provenance；旧 API/store `delete`，原数据 read-only",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Full custom/builtin provenance migration not established",
+      "currentObservation": "Old template writes refused; native passive Template supported"
+    },
+    {
+      "id": "E06",
+      "originalScope": "`packages/scheduler/api.py:298/309/362/374/386/447/470/485/500/525/539/556`",
+      "requirement": "`delete` 全 router；374 owner-switch 先禁止新切换，未完成切换按原 operation 恢复。list/get/runs 先迁审计；其余写先撤",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py",
+      "remaining": "History/read authorization and real owner settlement required before router removal",
+      "currentObservation": "Scheduler read router remains; old writes 410; owner-switch absent"
+    },
+    {
+      "id": "E07",
+      "originalScope": "`packages/mcp/server.py:2213/2389/2409/2432/2447`",
+      "requirement": "`delete` agent_background_start/get/list/cancel/retry 五工具；先迁客户端；读/取消出口与 HTTP 同门禁",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_retirement.py",
+      "remaining": "Body/registry de-registration is not full producer file retirement",
+      "currentObservation": "background start/retry absent from catalog, read/cancel retained"
+    },
+    {
+      "id": "E08",
+      "originalScope": "`packages/mcp/server.py:2258/2304/2327/2349/2377`",
+      "requirement": "`delete` agent_message_job_create/get/list/update/cancel 五工具；禁止永久同名 wrapper",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_retirement.py",
+      "remaining": "Real existing Runner identities not inspected",
+      "currentObservation": "message create/update absent from catalog, read/cancel retained"
+    },
+    {
+      "id": "E09",
+      "originalScope": "`packages/mcp/server.py:2516/2593/2622/2644/2691/2705/2722/2736/2753`",
+      "requirement": "`delete` scheduler_create/list/get/update/delete/pause/resume/run_now/runs 九工具；清常量、helper 和 catalog 描述",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py",
+      "remaining": "Read MCP tools intentionally remain; full nine-tool removal not true",
+      "currentObservation": "Six scheduler write bodies absent; list/get/runs retained"
+    },
+    {
+      "id": "E10",
+      "originalScope": "`packages/web/server.py:4019/4025/4353/4359` restart/exit status/POST；4089/4413 create_service_job",
+      "requirement": "`migrate` 受保护固定系统 Action+canonical supervisor/receipt 后 `delete` 四路由和旧 Job writer；保留跨服务停止的原 operation 查询",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Protected lifecycle receipt handoff and old owner inventory incomplete",
+      "currentObservation": "server.py still contains create_service_job/transition_service_job lifecycle compatibility"
+    },
+    {
+      "id": "E11",
+      "originalScope": "`packages/web/src/views/JobsView.tsx:65/470/856/1046/1419`；`components/jobs/LegacyJobDetails.tsx:7`；`JobDetailDrawer.tsx:351`",
+      "requirement": "`delete` legacy tab/form/details/branch；`migrate` JobsView 其余管理能力到 canonical UI。不得整删 JobsView 造成 pin/retention/批量查询丢失",
+      "status": "partial-blocked",
+      "currentEvidence": "R6_I_REPAIR_20261027.md",
+      "remaining": "Current full management/pin dual-source UI acceptance absent; CP-X3 scope untouched",
+      "currentObservation": "React canonical management inherited; this task does not modify or rerun UI"
+    },
+    {
+      "id": "E12",
+      "originalScope": "`packages/web/src/services/api.ts:2444` 起旧 Scheduler transports；`stores/scheduleStore.ts:9`",
+      "requirement": "`migrate` 来源管理到 Creator 客户端；删除 10 个旧 transport、旧类型/store（反向引用为零才整文件删）",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py",
+      "remaining": "No browser rebuild/retest this round; no real source migration claim",
+      "currentObservation": "Creator source client inherited; scheduler dynamic catalog tested"
+    },
+    {
+      "id": "E13",
+      "originalScope": "`packages/web/src/services/api.ts:2627/2637/2644/2652/2663/2744/2753/2799/2805/2812`",
+      "requirement": "`migrate` list/detail/history/control/pin/delete；旧 create/patch/run/cancel/retry/fetchLegacy transport `delete`，canonicalJobs service keep",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retirement_closure_successors.py",
+      "remaining": "Two new strict reds; complete control/pin/retention/handoff UI not accepted",
+      "currentObservation": "Native PUT/operation editing works; whitespace names commit unexpectedly"
+    },
+    {
+      "id": "E14",
+      "originalScope": "`packages/core/cli.py:98/101/106`；`console_exit.py:67/72`；`host_console.py:146`；`scripts/restart.bat:4/stop.bat:8`；`api.ts:2052` 附近 lifecycle transport",
+      "requirement": "`migrate` CLI lifecycle/console/scripts/Settings 到固定系统操作；删旧 URL 和 JSON 轮询，保留进程身份/端口/readiness/no-auto-retry 校验。不能删整个 CLI/host console",
+      "status": "partial-blocked",
+      "currentEvidence": "inventory.json surfaceCandidates",
+      "remaining": "No lifecycle restart/exit executed; no claim of full client cutover",
+      "currentObservation": "CLI/console/setup scripts remain entrypoints; lifecycle helpers retain old registry"
+    },
+    {
+      "id": "E15",
+      "originalScope": "`packages/jobs/independent_service.py:72/123/240/251/261/266/275/359`；`pan_bridge.py:41/61`",
+      "requirement": "`migrate` canonical executor；旧 JobStore.create/retry 与 `/jobs*`/`/events*` `delete`；既有 read/cancel/ack/recover 先保留至 owner/outbox 清零；不删整个独立 service",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "Keep canonical executor/cleanup/query; old cohort read/cancel/ack clearance missing",
+      "currentObservation": "independent_service still hosts JobStore/ServiceLock and canonical /executions"
+    },
+    {
+      "id": "S01",
+      "originalScope": "`packages/core/background_jobs.py:66/92/218/258/268/281/338/800/1139/1176/1208/1263/3139`",
+      "requirement": "`migrate` registry get/write/locks 给 canonical storage 后整文件 `delete`；旧 start/update/retry先撤。`action_runtime.py:9`、`final_runtime/coordinator.py:8/38`、`automation/chain_engine.py:65` 仍依赖，不能先删 store",
+      "status": "partial-blocked",
+      "currentEvidence": "inventory.json dependencyEdges",
+      "remaining": "Store/path/history/locks consumers must be separated before file deletion",
+      "currentObservation": "29 import edges to background_jobs remain across packages/scripts"
+    },
+    {
+      "id": "S02",
+      "originalScope": "同文件 `1275/2219/2231/2615/2740/2755/2810/2936` 两时间 pass、dispatcher、redelivery",
+      "requirement": "`delete` 旧执行链；`_entry_next_fire:2425` 是被新 time_events 使用的 pure calculator，先 `migrate`，不能随 dispatcher 同删",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_source_migration.py; test_scheduler_dependency_cutover.py",
+      "remaining": "Unknown missing commit stays uncertain; no real activation inventory",
+      "currentObservation": "Canonical source cold recovery runs same identity; legacy pass does not tick injected runtime"
+    },
+    {
+      "id": "S03",
+      "originalScope": "同文件 `1467/1477/2106/2139/2480/2517/2531` hooks/历史/hidden child 对账",
+      "requirement": "hooks/pass `delete`；runs JSONL 历史 `read-only`，索引/原 dispatch key `migrate`；子进程结算后再删唯一 reconciler",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py; test_jobs_api.py",
+      "remaining": "Real hidden-child receipt/owner cohort settlement absent",
+      "currentObservation": "P23 late receipt leaves retired parent unchanged; P24 historical IDs retained"
+    },
+    {
+      "id": "S04",
+      "originalScope": "`packages/scheduler/store.py:63/73/118/170/199/231/239/256/283/346/378/489/624/633/678/705/711/742/775/835`",
+      "requirement": "`migrate` data_root、pure calculators 与历史查询；CRUD/projection `delete`；742/775/835 importer/merge 到离线包 `read-only` 至 R6，生产 R6 整文件 `delete`。启动隐式导入先移除，不等到 R6 再关",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_dependency_cutover.py",
+      "remaining": "Offline migration tooling/rollback archive and real history transfer still required",
+      "currentObservation": "store.py retained, no package host import in current dependency inventory"
+    },
+    {
+      "id": "S05",
+      "originalScope": "`packages/scheduler/engine.py:105/122/138/143/148/159/171/263`",
+      "requirement": "startup `_ensure_registered`/`start_loop` 与旧 dispatch `delete`；status/config/preview 能力迁 Creator；stop_loop/drain 桩随调用方撤除；最终整文件 `delete`",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_dependency_cutover.py",
+      "remaining": "Removal of engine alone does not establish all hosts retirement",
+      "currentObservation": "scheduler engine removed by inherited work; source engine semantics moved canonical"
+    },
+    {
+      "id": "S06",
+      "originalScope": "`packages/jobs/legacy_compat.py:24/42/81/94/113`；`packages/scheduler/legacy_bridge.py:21/106/133/181/207`",
+      "requirement": "`delete` 两整文件；`project_cursor` 最后一次推进/receipt 及老切换 operation 完成后撤，R6 不保留 bridge 壳",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_history_bridge.py",
+      "remaining": "Real original switch operations/owner/receipt finality unknown",
+      "currentObservation": "legacy_bridge.py retained; P24 synthetic manual Run preserves cursor/receipt"
+    },
+    {
+      "id": "S07",
+      "originalScope": "`packages/jobs/system_actions.py:16/34/68/74/90/112/152/166/176/214/225/236/252/274`",
+      "requirement": "old KINDS/definition/validate/install/arguments/prepare/finish/sync/invoke/settle/recovery_ready/notify/wait_process/execute `delete`；`execute_typed:19` `keep`（或调用者直接 TypedExecutor 后删除空壳）。`packages/actions/store.py:121` immutable/system validation 必须先迁，不能失去固定系统授权",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Immutable lifecycle authority and bound automatic recovery parity incomplete",
+      "currentObservation": "system_actions retains execute_typed and legacy helpers guarded by owner contract"
+    },
+    {
+      "id": "S08",
+      "originalScope": "`packages/jobs/action_runtime.py:49/80/192/213/698/735/742/839/922/942`；`packages/jobs/unified.py:8/59/64`",
+      "requirement": "`migrate` 活 Runtime 生命周期到 FinalService/FinalRuntime，旧 config_job/create_legacy、inline schedule、投影 `delete`；不可按“event_targets”字串删 canonical ledger 的准入方法。config_job 已不调 `_job_from_payload`，但 52 仍依赖 store calculator，旧 inventory 此处须校正",
+      "status": "partial-blocked",
+      "currentEvidence": "inventory.json dependencyEdges; test_scheduler_source_migration.py",
+      "remaining": "Cannot remove whole Runtime while facade/history/authorization helpers depend on it",
+      "currentObservation": "18 imports of action_runtime remain; canonical FinalService drives native runs"
+    },
+    {
+      "id": "S09",
+      "originalScope": "`packages/automation/engine.py:68/118/174`；`store.py:22/34/196/210/231/242/246`；`chain_engine.py:8/12/51/62`",
+      "requirement": "R1 的 Engine.run_attempt/drain、Ledger.claim/finish/prepare_action/sync_attempt、run_chain 已退场；`keep` Event matching/State/admission/Trigger CRUD，历史 Run `read-only`。`chain_engine.py` 现为 JobAdmission，不能按旧表整删；迁 target 隐式 managed Job 创建与 registry 锁后保持 admission port",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_source_migration.py",
+      "remaining": "Matching/admission/store are not leaf execution hosts; preserve",
+      "currentObservation": "Automation Trigger admission remains a required canonical consumer"
+    },
+    {
+      "id": "S10",
+      "originalScope": "`background_jobs.py:3177/3193/3242/3301`；`packages/core/main_lifecycle.py:27/85/183/199/233/266`",
+      "requirement": "`delete` 旧 lifecycle writer/supervisor 分支；`keep` ProtectedLifecycleExecutor/run_canonical_supervisor、进程/端口身份和 ready/offline 检查。旧 run_supervisor/run_exit_supervisor 排空后删除，不能整删 main_lifecycle",
+      "status": "partial-blocked",
+      "currentEvidence": "inventory.json surfaceCandidates",
+      "remaining": "No cross-service lifecycle receipt/owner settlement proof this round",
+      "currentObservation": "main_lifecycle canonical and legacy registry compatibility remain"
+    },
+    {
+      "id": "S11",
+      "originalScope": "`background_jobs.py:3504/3547/3567/3625/3707/3719/3728`；`pan_bridge.py:61`",
+      "requirement": "`migrate` 通知原 event/effect/terminal key、durable enqueue→ack 与恢复证据；旧 producer、loop、bridge `delete`；canonical outbox `keep`，pending/uncertain 不丢或重投",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_canonical_pins.py",
+      "remaining": "Production send_final_notice WS/CLI actual consumption absent",
+      "currentObservation": "P24 outbox pending/ack failure original key and real queue persistence pass"
+    },
+    {
+      "id": "S12",
+      "originalScope": "`independent_service.py:72/123/251/275`；`independent_runner.py:252/339`；`core/background_runner.py:14`",
+      "requirement": "`delete` 第二 Job 生命周期/旧 runner；`migrate` ServiceLock 与 Windows structs 依赖后才整删旧 runner；`independent_executor.py:44/295/321`、`independent_execution_runner.py:13/87` `keep`，仍负责同 Attempt/effect 恢复",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "Do not delete canonical /executions with old /jobs lifecycle; old owner clearance absent",
+      "currentObservation": "independent_runner remains for ServiceLock/compat; native executor lives separately"
+    },
+    {
+      "id": "S13",
+      "originalScope": "`background_jobs.py:546/1507/1654/1831/1953`；`jobs/api.py:211/217/827`；`pins.py:5/19/37/45`",
+      "requirement": "`migrate` handoff/安全删除/retention/pin 到 canonical metadata 与操作；旧 schema 分支 `delete`。显式证明 pinned/active/unknown/cleanup_pending 都不能被 GC；Settings 读写不能无声丢失",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_canonical_pin_resolution.py; test_job_retained_safety_canonical.py",
+      "remaining": "Settings/retention/handoff complete management and transport evidence missing",
+      "currentObservation": "P24 config/runtime pin holds both protect delete/GC; P23 public owned cleanup passes"
+    },
+    {
+      "id": "S14",
+      "originalScope": "`jobs/process_cleanup.py:16/80/111`；`owned_process.py:11`；`cleanup.py:19`；`background_jobs.py:3061/3123/3340/3379/3422`",
+      "requirement": "`keep` birth/树/guard/cleanup proof 算法；`migrate` 平台接口与 canonical effect identity，再 `delete` 旧 runner storage glue。Windows Job Object 与 POSIX 采用相同行为契约，不降低断言",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "Windows only; no new process owner code or three-platform acceptance",
+      "currentObservation": "P23 original PID/FILETIME/tree proof succeeds using specified venv"
+    },
+    {
+      "id": "U01",
+      "originalScope": "`packages/automation/authorization.py` object_path 与 canonical_path；`server.py:10909`",
+      "requirement": "`migrate` 授权后 `delete` 旧 URL allowlist；不得放宽 canonical grants",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py",
+      "remaining": "Legacy read scopes cannot disappear before G2/G3",
+      "currentObservation": "Canonical HTTP Agent/User authorization remains independent of legacy scope"
+    },
+    {
+      "id": "U02",
+      "originalScope": "`background_jobs.py:3075` cancel",
+      "requirement": "`migrate` 原 ID 安全取消后删旧实现，活资源存在时 keep 控制",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "Synthetic canonical cancel does not clear unknown real old owners",
+      "currentObservation": "Old safe cancel remains for existing Runner ownership"
+    },
+    {
+      "id": "U03",
+      "originalScope": "同文件 `855/878` start_action_process/start_scheduled_process",
+      "requirement": "`delete` hidden child builder；先处理父子进程/receipt",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "No physical old cohort cleanup claim",
+      "currentObservation": "Hidden child producer retired; old late callback must not recreate parent"
+    },
+    {
+      "id": "U04",
+      "originalScope": "同文件 `855/878` start_action_process/start_scheduled_process",
+      "requirement": "`delete` hidden child builder；先处理父子进程/receipt",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_safety_canonical.py",
+      "remaining": "Keep history and original receipt semantics",
+      "currentObservation": "Scheduled child producer retired; terminal successor uses same canonical identity"
+    },
+    {
+      "id": "U05",
+      "originalScope": "同文件 `3309` claim_hidden_runner",
+      "requirement": "`delete` 旧认领；canonical Attempt fence keep",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_pending_adoption.py",
+      "remaining": "No real old lease inventory",
+      "currentObservation": "Canonical Attempt fence remains; stale original fence must not acquire new identity"
+    },
+    {
+      "id": "U06",
+      "originalScope": "`system_actions.py:68/74/225/236/252`",
+      "requirement": "按 S07；安全 validation 先迁",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Lifecycle/recovery authority needs MA coordination",
+      "currentObservation": "Typed system execution kept; old helpers cannot authorize new parallel owner"
+    },
+    {
+      "id": "U07",
+      "originalScope": "`jobs/api.py:283/366/439`",
+      "requirement": "`delete` 旧 payload validators；canonical schema validation keep",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_contracts.py",
+      "remaining": "Whitespace-name semantic gap requires shared contract change",
+      "currentObservation": "Native schema refuses legacy fields; old validators mixed in facade"
+    },
+    {
+      "id": "U08",
+      "originalScope": "`scheduler/store.py:118/170/199/239`",
+      "requirement": "`migrate` pure calculator 后删除副本；DST/秒/分数/anchor/误点策略不可漂移",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_source_migration.py",
+      "remaining": "No actual real source activation/cleanup proof",
+      "currentObservation": "schedule_calculations and data_paths extracted; cold same-grid recovery passes"
+    },
+    {
+      "id": "U09",
+      "originalScope": "`scheduler/store.py:705/711`",
+      "requirement": "append `delete`；list `read-only`→审计导入后删 runtime reader",
+      "status": "partial-blocked",
+      "currentEvidence": "test_jobs_api.py; test_job_retained_history_bridge.py",
+      "remaining": "History audit export/real index transfer before reader removal",
+      "currentObservation": "P24 original task/job/run/dispatch/entry IDs readable and bytes unchanged"
+    },
+    {
+      "id": "U10",
+      "originalScope": "`scheduler/cron.py:1`",
+      "requirement": "`delete` shim，`jobs/cron.py` keep",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_dependency_cutover.py",
+      "remaining": "Pure calculator remains required; no broad file-name deletion",
+      "currentObservation": "scheduler cron shim removed; jobs cron/calculator retained"
+    },
+    {
+      "id": "U11",
+      "originalScope": "`jobs/templates.py:30` 附近 BUILTIN_TEMPLATES",
+      "requirement": "`migrate` 完整被动 Template，无 enable/隐式执行",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Full builtin/custom template provenance not reaccepted",
+      "currentObservation": "Native Template passive composition supported"
+    },
+    {
+      "id": "U12",
+      "originalScope": "`jobs/pins.py:5/19/37`",
+      "requirement": "`migrate` canonical pin metadata；同 S13",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_retained_canonical_pins.py; test_job_retained_canonical_pin_resolution.py",
+      "remaining": "Old pins historical view still separate; UI/Settings parity missing",
+      "currentObservation": "P24 independent config and metadata pin holds protect delete/GC"
+    },
+    {
+      "id": "U13",
+      "originalScope": "`server.py` `_snapshot_main_lifecycle_options`、`_launch_main_restart_supervisor`、`_watch_main_restart`（manifest 精确行）",
+      "requirement": "`migrate` 选项/身份/receipt，旧 Job 分支 delete；不整删 canonical supervisor",
+      "status": "partial-blocked",
+      "currentEvidence": "inventory.json surfaceCandidates",
+      "remaining": "Original cross-stop operation settlement missing; keep until coordinated",
+      "currentObservation": "server lifecycle helpers still query/create old service Job records"
+    },
+    {
+      "id": "U14",
+      "originalScope": "`mcp/server.py:3331` job_config_drafts，3351 仍 `/api/jobs/action-jobs`",
+      "requirement": "当前是旧 Action transport 客户端，`migrate` 到 `mcp/final_tools.py` 的 canonical 工具再撤导出；不能误当早期 19 个旧工具一并清掉而丢配置功能",
+      "status": "partial-blocked",
+      "currentEvidence": "packages/mcp/server.py::job_config_drafts",
+      "remaining": "Do not claim complete legacy configuration wrapper removal",
+      "currentObservation": "job_config_drafts remains guarded; canonical final_tools available"
+    },
+    {
+      "id": "U15",
+      "originalScope": "`jobs/action_api.py:1`、`final_api.py:403`",
+      "requirement": "`migrate` Action/Template schema 与运行控制后整旧 router delete；final_api 与 `/api/jobs/actions` keep",
+      "status": "partial-blocked",
+      "currentEvidence": "test_job_final_http_service.py",
+      "remaining": "Mixed read/history/authorization dependencies block entire router deletion",
+      "currentObservation": "action_api and final_api coexist; native schema/operation owns new execution"
+    },
+    {
+      "id": "U16",
+      "originalScope": "`packages/mcp/manifest.json:29/38/39` 附近工具提示",
+      "requirement": "`migrate` 系统提示/目录与 release note；静态加动态目录验证无旧工具宣传",
+      "status": "partial-blocked",
+      "currentEvidence": "test_scheduler_surface_retirement.py; packages/mcp/manifest.json",
+      "remaining": "Manifest still intentionally advertises retained legacy controls; full retirement false",
+      "currentObservation": "MCP manifest explicitly describes retained reads/cancel and refuses old writes"
+    }
+  ],
+  "p23OriginalThree": "Subset of originalNodes, not three additional red nodes",
+  "claim": "Strict successors are scoped semantic evidence; never whole migration or deletion acceptance"
+}

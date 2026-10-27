@@ -1,0 +1,39 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retained_safety_canonical.py",
+    "-p",
+    "tests.job_retirement_closure_capture",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\p23.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 32.122,
+  "nodes": [
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 3,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}
