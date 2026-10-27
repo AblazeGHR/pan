@@ -4,11 +4,13 @@ on:
   push:
     branches: [main, test, "feat/**"]
   pull_request:
+  # Explicitly authorized manual runs can select integration/feature refs.
+  # The workflow must first be registered on the default branch (see CP_X1 report).
+  workflow_dispatch:
 
 jobs:
   pytest:
-    # Project is Windows-centric (npm .CMD shim resolution, drive-letter paths
-    # as test data, process-tree handling); run on Windows for fidelity.
+    # Keep both existing Windows full-suite gates alongside the three-OS fast layer.
     strategy:
       fail-fast: false
       matrix:
@@ -71,15 +73,13 @@ jobs:
           path: pytest-results.xml
           if-no-files-found: warn
 
-  posix-fast:
-    # Cross-platform Phase A fast layer (docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md):
-    # import the real server, collect, and run the platform unit subset on real
-    # macOS/Linux. The Windows job above stays the fidelity/full-suite gate.
-    name: posix-fast (${{ matrix.os }})
+  platform-fast:
+    name: platform-fast (${{ matrix.os }}, Python 3.12)
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -88,27 +88,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r minimal-requirements.txt
-          pip install pytest-timeout
-
-      - name: Import server on POSIX
-        run: python -c "import packages.web.server"
-
-      - name: Collect platform subset
+      - name: Install fast gate and full-collection dependencies
+        # No browser download, Node build or provider CLI needed in this layer.
         run: >
-          python -m pytest --collect-only -q
-          tests/test_platform_layer.py
-          tests/test_platform_api.py
-          tests/test_platform_import_chain.py
-          tests/test_portability_paths.py
+          python -m pip install -r minimal-requirements.txt
+          -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
 
-      - name: Run platform subset
-        run: >
-          python -m pytest -q
-          tests/test_platform_layer.py
-          tests/test_platform_api.py
-          tests/test_platform_import_chain.py
-          tests/test_portability_paths.py
+      - name: Real server import, full collection and core contracts
+        run: python scripts/platform_fast_gate.py --output evidence/cp-x1-ci
+
+      - name: Upload fast gate logs, collection errors and platform skips
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-fast-${{ matrix.os }}-py312
+          path: evidence/cp-x1-ci/
+          if-no-files-found: warn
