@@ -1,0 +1,14 @@
+{
+  "candidateSha": "recorded by git rev-parse HEAD after commit",
+  "baseline": "52ce2fc531714e9300b1d8368dd337215007f809",
+  "scope": "v2 thin Action adapter only",
+  "source": ["packages/actions/qq_channel_provider.py"],
+  "tests": ["tests/test_job_qq_native_provider.py"],
+  "testCommand": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_job_qq_native_provider.py -q -o addopts=",
+  "testResult": "7 passed",
+  "integration": "owned ephemeral HTTP listener -> existing _send_scheduled_qq -> plugin.py -> OneBotChannel; final gateway fake",
+  "sharedEntry": "evidence/job-qq-native/shared-entry-proposal.md",
+  "unverified": ["MA composition of shared executor/final_service entry", "real QQ account/gateway", "remote CI", "deployment", "backlog/run-now production acceptance"],
+  "excluded": ["new transport", "receipt query", "retry protocol", "ledger", "SQLite", "shared product files"]
+}
+
