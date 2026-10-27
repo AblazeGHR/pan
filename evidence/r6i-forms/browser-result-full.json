@@ -1,0 +1,103 @@
+{
+  "port": 59303,
+  "ownedRoot": true,
+  "productionBundle": true,
+  "actionReferenceMetadataPresent": true,
+  "chromiumVersion": "153.0.8010.12",
+  "pageErrors": [],
+  "ordinaryJSONFills": 0,
+  "kindsCreatedEdited": [
+    "interval",
+    "once",
+    "weekly",
+    "cron"
+  ],
+  "multiRuleStableIds": true,
+  "jobCreatedWithForm": true,
+  "jobStepsStableIds": true,
+  "jobRetentionDefinitionPin": true,
+  "typedBindingAndMoveValidation": true,
+  "nativeSubscriptions": 2,
+  "triggerEditedWithForm": true,
+  "sharedConflictDraftRebase": true,
+  "unknownCommittedOriginalQuery": true,
+  "unknownPutCalls": 1,
+  "legacySourceRequests": 0,
+  "providerCalls": 0,
+  "writeRequests": [
+    [
+      "POST",
+      "/api/main/startup-recovery/claim"
+    ],
+    [
+      "POST",
+      "/api/jobs"
+    ],
+    [
+      "PUT",
+      "/api/jobs/job_6ec52afe7280447c9ad8cd1d"
+    ],
+    [
+      "POST",
+      "/api/jobs/job_6ec52afe7280447c9ad8cd1d/operations"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "POST",
+      "/api/event-creators"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_94f1d1d8074cd1e66a51b6bf"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_a6ce8e700905b8904f4726c6"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_d73a5302494091d7a01bd185"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_fe43683f8d72adb489f91338"
+    ],
+    [
+      "POST",
+      "/api/triggers"
+    ],
+    [
+      "POST",
+      "/api/triggers"
+    ],
+    [
+      "PUT",
+      "/api/triggers/trigger_a1e3bd3980a340a4b04472de"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_fe43683f8d72adb489f91338"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_fe43683f8d72adb489f91338"
+    ],
+    [
+      "PUT",
+      "/api/event-creators/creator_fe43683f8d72adb489f91338"
+    ]
+  ],
+  "invalidFields": [],
+  "portReleased": true
+}

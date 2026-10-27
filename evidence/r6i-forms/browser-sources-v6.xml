@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="9.406" timestamp="2026-10-27T10:59:18.882337+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]" time="9.082"><failure message="AssertionError: Locator expected to be visible&#10;Actual value: None&#10;Error: element(s) not found &#10;Call log:&#10;  - Expect &quot;to_be_visible&quot; get_by_role(&quot;article&quot;, name=&quot;Triggers Form subscription A&quot;, exact=True) with timeout 5000ms&#10;  - waiting for get_by_role(&quot;article&quot;, name=&quot;Triggers Form subscription A&quot;, exact=True)&#10;&#10;Aria snapshot:&#10;- complementary:&#10;  - heading &quot;Pan&quot; [level=1]&#10;  - button &quot;App settings&quot;&#10;  - button &quot;Switch to light theme&quot;&#10;  - button &quot;Collapse sidebar&quot;&#10;  - navigation &quot;界面入口&quot;:&#10;    - button &quot;上一组界面入口&quot;&#10;    - link &quot;Locker&quot;:&#10;      - /url: /react/locker&#10;    - link &quot;Actions&quot;:&#10;      - /url: /react/actions&#10;    - link &quot;Automation&quot;:&#10;      - /url: /react/automation&#10;    - button &quot;下一组界面入口&quot; [disabled]&#10;  - button &quot;New&quot;&#10;  - button &quot;New with settings&quot;&#10;  - button &quot;Import&quot;&#10;  - textbox &quot;Search sessions&quot;:&#10;    - /placeholder: Filter...&#10;  - button &quot;Special filters&quot;&#10;  - 'button &quot;Sort sessions: recent&quot;': recent&#10;  - button &quot;Collapse all groups&quot;&#10;  - paragraph: No sessions yet&#10;  - paragraph: Click + New to create your first session&#10;- button &quot;收起侧边栏&quot;&#10;- button &quot;全部&quot;&#10;- main:&#10;  - region &quot;Automation management&quot;:&#10;    - heading &quot;Automation&quot; [level=1]&#10;    - paragraph: Jobs, event subscriptions and reusable time sources&#10;    - link &quot;Canonical Jobs&quot;:&#10;      - /url: /react/automation/canonical&#10;    - link &quot;Manage Actions&quot;:&#10;      - /url: /react/actions&#10;    - region &quot;Job user authorization&quot;:&#10;      - paragraph: User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.&#10;      - button &quot;Log out&quot;&#10;    - button &quot;Refresh&quot;&#10;    - tablist &quot;Automation subpages&quot;:&#10;      - tab &quot;Job&quot;&#10;      - tab &quot;Trigger&quot; [selected]&#10;      - tab &quot;Event Register&quot;&#10;    - button &quot;Pause Everything template&quot;&#10;    - heading &quot;Canonical Triggers&quot; [level=2]&#10;    - button &quot;刷新列表&quot;&#10;    - button &quot;创建 Triggers&quot; [disabled]&#10;    - alert: 引用不存在或版本不匹配。 [reference_conflict]&#10;    - region &quot;操作回执&quot;:&#10;      - status: 请求已拒绝；请修正问题后重新提交。&#10;      - paragraph: &quot;requestKey: operation_ab9e834e189f4ae4b5136b2a9cd8e1a3&quot;&#10;      - button &quot;查询原操作&quot;&#10;    - form &quot;编辑 Triggers&quot;:&#10;      - text: 名称&#10;      - textbox &quot;名称&quot;: Form subscription A&#10;      - group:&#10;        - region &quot;Structured Trigger definition&quot;:&#10;          - text: Description&#10;          - textbox &quot;Description&quot;&#10;          - region &quot;Events (OR)&quot;:&#10;            - text: scheduler.time.v2&#10;            - button &quot;Remove Event scheduler.time.v2&quot;: Remove Event&#10;            - text: Event type&#10;            - combobox &quot;Event type&quot;&#10;            - button &quot;Add Event&quot; [disabled]&#10;          - checkbox &quot;Check State after Event&quot; [checked]&#10;          - text: Check State after Event Condition type&#10;          - combobox &quot;Condition type&quot;:&#10;            - option &quot;Compare State&quot; [selected]&#10;            - option &quot;AND&quot;&#10;            - option &quot;OR&quot;&#10;            - option &quot;NOT&quot;&#10;          - text: State field&#10;          - textbox &quot;State field&quot;: workers.runningCount&#10;          - text: Comparison&#10;          - combobox &quot;Comparison&quot;:&#10;            - option &quot;eq&quot; [selected]&#10;            - option &quot;ne&quot;&#10;            - option &quot;gt&quot;&#10;            - option &quot;gte&quot;&#10;            - option &quot;lt&quot;&#10;            - option &quot;lte&quot;&#10;          - text: Compare value (JSON)&#10;          - textbox &quot;Compare value (JSON)&quot;: &quot;0&quot;&#10;          - heading &quot;Trigger parameter bindings&quot; [level=3]&#10;          - region &quot;Parameter bindings&quot;:&#10;            - text: Add parameter&#10;            - combobox &quot;Add parameter&quot;:&#10;              - option &quot;Choose a parameter&quot; [selected]&#10;            - group: Additional parameter&#10;          - group: Event field filters&#10;      - group: Advanced definition JSON&#10;      - paragraph: 只提交定义字段。引用需包含服务端的 id、revision、digest；空示例需要补全。编辑使用打开时的版本 0。&#10;      - group: 定义字段与约束&#10;      - group:&#10;        - text: Target canonical Job&#10;        - combobox &quot;Target canonical Job&quot;:&#10;          - option &quot;Choose a Job&quot;&#10;          - option &quot;Form Job · draft&quot; [selected]&#10;        - text: Creator selection&#10;        - combobox &quot;Creator selection&quot;:&#10;          - option &quot;Selected source instances&quot; [selected]&#10;          - option &quot;Registered provider type&quot;&#10;        - text: Scheduler sources&#10;        - listbox &quot;Scheduler sources&quot;:&#10;          - option &quot;Form cron · Revision 2 · draft&quot;&#10;          - option &quot;Form once · Revision 2 · draft&quot;&#10;          - option &quot;Form weekly · Revision 2 · draft&quot;&#10;          - option &quot;Form interval · Revision 2 · draft&quot; [selected]&#10;        - button &quot;Review selected source revisions&quot;&#10;      - button &quot;保存定义&quot;&#10;      - button &quot;关闭编辑&quot;&#10;    - paragraph: 暂无 canonical Triggers。&#10;    - group: Runtime diagnostics&#10;- complementary">tests\test_scheduler_structured_browser.py:163: in test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown
+    subscription('Form subscription A');subscription('Form subscription B')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_structured_browser.py:162: in subscription
+    expect(page.get_by_role('article',name='Triggers '+name,exact=True)).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: None
+E   Error: element(s) not found
+E   Call log:
+E     - Expect "to_be_visible" get_by_role("article", name="Triggers Form subscription A", exact=True) with timeout 5000ms
+E     - waiting for get_by_role("article", name="Triggers Form subscription A", exact=True)
+E
+E   Aria snapshot:
+E   - complementary:
+E     - heading "Pan" [level=1]
+E     - button "App settings"
+E     - button "Switch to light theme"
+E     - button "Collapse sidebar"
+E     - navigation "界面入口":
+E       - button "上一组界面入口"
+E       - link "Locker":
+E         - /url: /react/locker
+E       - link "Actions":
+E         - /url: /react/actions
+E       - link "Automation":
+E         - /url: /react/automation
+E       - button "下一组界面入口" [disabled]
+E     - button "New"
+E     - button "New with settings"
+E     - button "Import"
+E     - textbox "Search sessions":
+E       - /placeholder: Filter...
+E     - button "Special filters"
+E     - 'button "Sort sessions: recent"': recent
+E     - button "Collapse all groups"
+E     - paragraph: No sessions yet
+E     - paragraph: Click + New to create your first session
+E   - button "收起侧边栏"
+E   - button "全部"
+E   - main:
+E     - region "Automation management":
+E       - heading "Automation" [level=1]
+E       - paragraph: Jobs, event subscriptions and reusable time sources
+E       - link "Canonical Jobs":
+E         - /url: /react/automation/canonical
+E       - link "Manage Actions":
+E         - /url: /react/actions
+E       - region "Job user authorization":
+E         - paragraph: User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+E         - button "Log out"
+E       - button "Refresh"
+E       - tablist "Automation subpages":
+E         - tab "Job"
+E         - tab "Trigger" [selected]
+E         - tab "Event Register"
+E       - button "Pause Everything template"
+E       - heading "Canonical Triggers" [level=2]
+E       - button "刷新列表"
+E       - button "创建 Triggers" [disabled]
+E       - alert: 引用不存在或版本不匹配。 [reference_conflict]
+E       - region "操作回执":
+E         - status: 请求已拒绝；请修正问题后重新提交。
+E         - paragraph: "requestKey: operation_ab9e834e189f4ae4b5136b2a9cd8e1a3"
+E         - button "查询原操作"
+E       - form "编辑 Triggers":
+E         - text: 名称
+E         - textbox "名称": Form subscription A
+E         - group:
+E           - region "Structured Trigger definition":
+E             - text: Description
+E             - textbox "Description"
+E             - region "Events (OR)":
+E               - text: scheduler.time.v2
+E               - button "Remove Event scheduler.time.v2": Remove Event
+E               - text: Event type
+E               - combobox "Event type"
+E               - button "Add Event" [disabled]
+E             - checkbox "Check State after Event" [checked]
+E             - text: Check State after Event Condition type
+E             - combobox "Condition type":
+E               - option "Compare State" [selected]
+E               - option "AND"
+E               - option "OR"
+E               - option "NOT"
+E             - text: State field
+E             - textbox "State field": workers.runningCount
+E             - text: Comparison
+E             - combobox "Comparison":
+E               - option "eq" [selected]
+E               - option "ne"
+E               - option "gt"
+E               - option "gte"
+E               - option "lt"
+E               - option "lte"
+E             - text: Compare value (JSON)
+E             - textbox "Compare value (JSON)": "0"
+E             - heading "Trigger parameter bindings" [level=3]
+E             - region "Parameter bindings":
+E               - text: Add parameter
+E               - combobox "Add parameter":
+E                 - option "Choose a parameter" [selected]
+E               - group: Additional parameter
+E             - group: Event field filters
+E         - group: Advanced definition JSON
+E         - paragraph: 只提交定义字段。引用需包含服务端的 id、revision、digest；空示例需要补全。编辑使用打开时的版本 0。
+E         - group: 定义字段与约束
+E         - group:
+E           - text: Target canonical Job
+E           - combobox "Target canonical Job":
+E             - option "Choose a Job"
+E             - option "Form Job · draft" [selected]
+E           - text: Creator selection
+E           - combobox "Creator selection":
+E             - option "Selected source instances" [selected]
+E             - option "Registered provider type"
+E           - text: Scheduler sources
+E           - listbox "Scheduler sources":
+E             - option "Form cron · Revision 2 · draft"
+E             - option "Form once · Revision 2 · draft"
+E             - option "Form weekly · Revision 2 · draft"
+E             - option "Form interval · Revision 2 · draft" [selected]
+E           - button "Review selected source revisions"
+E         - button "保存定义"
+E         - button "关闭编辑"
+E       - paragraph: 暂无 canonical Triggers。
+E       - group: Runtime diagnostics
+E   - complementary</failure></testcase></testsuite></testsuites>
