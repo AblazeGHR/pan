@@ -66,3 +66,10 @@ backlog retry、existing-session 业务校验、automatic recovery revocation，
 它们分别需要 native provider/real HTTP/
 owner-policy 的精确后继；本批没有用现有泛化测试冒充，也没有改共享产品代码。三个 scheduler host、
 unknown owner、真实迁移和 51/60 集合边界继续保持阻塞。
+
+追加验证：`test_canonical_qq_manual_run_is_targetless_to_session_but_preserves_channel_target`
+使用自有 `TypedExecutor(channel_provider=...)` 与临时 FinalService，证明 manual Run 不绑定
+Session target、保留 numeric QQ target/botUin，并得到一次 provider receipt；该测试已通过。
+同一 fixture 发现 canonical PUT 会保存非法 QQ literal、在 admission 阶段才拒绝，不能替代原
+QQ 写入口“立即拒绝不可信字段”的严格后继，所以 QQ target persistence/edit 节点仍保持 gap，
+未把支撑测试登记为关闭。
