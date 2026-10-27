@@ -12,6 +12,44 @@ Run cancel，`canonicalCleanupRequested=true`，无诊断 fallback 依赖。默�
 的原 identity 查询恢复、真实资源清理门禁和 venv redirector 身份验证已补齐。** 原三个 legacy
 测试、断言及原红证据保留，扩大矩阵仍显式显示这三红；未恢复 legacy start/dispatcher/reconcile。
 
+## MA 固定 a700 快照反馈后的指定 venv 补验
+
+MA 反馈固定 `a700f220` 的14项为8pass/6fail，失败停在旧 fixture 将 Windows venv
+launcher PID 等同真实 supervisor PID 的断言。该结果属于旧快照；本树此前已普通提交
+`4d9ab1c8`（源码/测试）和 `260f2418`（报告/证据），本轮开始实查为 clean，并非仍有五个
+未提交产品文件。所有在途成果已保留，没有 reset 或追基线合并。
+
+本次直接使用 MA 指定 `D:/project/Pan-main/.venv/Scripts/python.exe`，与 system Python 各跑
+四个 retained-safety 文件26项（protocol8 + owned3 + canonical3 + public12），均通过隔离 wrapper。
+精确 argv、实际 exit、逐 node JUnit、用时和资源证明见
+[ma-venv-recheck/validation.json](../../evidence/p23-retained-safety/ma-venv-recheck/validation.json)。
+这是指定既有 venv 入口补验，与前轮自行创建的隔离 venv 证据分开；没有安装或修改该 venv。
+
+| 本次入口（源码4d9ab1c8） | protocol | owned | canonical | public | 合计 | fail/error/skip | exit |
+|---|---:|---:|---:|---:|---:|---|---:|
+| system Python 3.14.5 | 8 | 3 | 3 | 12 | 26 passed | 0/0/0 | 0 |
+| D:/project/Pan-main/.venv/Scripts/python.exe 3.14.5 | 8 | 3 | 3 | 12 | 26 passed | 0/0/0 | 0 |
+
+system 用时117.170秒，指定 venv 用时122.830秒。
+两种入口各13份资源工件，均 portReleased=true、ownedProcessesRemaining=[]；公共HTTP False/True
+均 canonicalCleanupRequested=true、effect=1、cleanupCalls=1。指定venv实际观察到
+launcherIsSupervisor=false、ownershipRootIsScript=false，原生FILETIME/祖先关系断言全部通过。
+本次原始JUnit/log字节保存在新目录raw-output.zip；validation.json列归档与审阅文本SHA256。
+
+本轮不修改产品代码/测试，源码仍为 `4d9ab1c8`；此前所有原红和资源工件字节保持不变。
+
+身份修复分别采集 launcher、可信 execution document 中真实 supervisor、owned root、脚本
+parent/child 的原始 FILETIME，并逐项 native verify。发生 PID 差异时核验真实祖先关系；再比较
+trusted document 中 birth 与 native identity。没有无条件允许 PID 不同，也没有用路径字符串猜测。
+正常结束须 business owned tree 无剩余、真实 supervisor 与 launcher 都退出且随机端口释放；
+异常 teardown 先用已核验 supervisor identity 清理，再等待保留的 Popen launcher，不能只收 launcher。
+
+`execution_host.supervisor_exit_evidence` 的职责及严格 unknown/PID复用边界补充到
+[本次 capability 矩阵](../../evidence/p23-retained-safety/ma-venv-recheck/CAPABILITY_MATRIX.md)。
+沿用 processOwner，不新增平台能力。该查询不 kill；原 supervisor 仍活或状态未决时不确认完成，
+PID absence 只作退出后置证明。真实延迟 supervisor 测试与缺 proof 负控保留。Windows 实测，
+POSIX/三平台CI仍未验。MA 重新验收和集成组合尚未完成；本 TA 不自行宣称接受。
+
 ## 当前逐 node 映射
 
 | 原 node（tests/ 下） | 精确 canonical 后继（tests/ 下） | 当前结果 |

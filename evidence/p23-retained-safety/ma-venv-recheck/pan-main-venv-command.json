@@ -1,0 +1,250 @@
+{
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retained_safety_protocol.py",
+    "tests/test_job_retained_safety_owned.py",
+    "tests/test_job_retained_safety_canonical.py",
+    "tests/test_job_retained_safety_public.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=evidence/p23-retained-safety/ma-venv-recheck/pan-main-venv.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+  "exit": 0,
+  "seconds": 122.83,
+  "counts": {
+    "passed": 26
+  },
+  "nodes": [
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_concurrency_retains_one_request_and_requires_explicit_unknown_recheck",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[rootExited]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[identityCheck]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[ownedTree]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_incomplete_cleanup_cannot_be_confirmed[confirmed]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_lost_supervisor_cleanup_is_unknown_and_cannot_authorize_root_only_recovery",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_unavailable_capability_fails_explicitly_without_mutation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_protocol.py::test_cleanup_http_rejects_self_asserted_proof_and_exposes_unsupported",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[False]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_owned.py::test_real_executor_cleanup_http[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_owned.py::test_real_partial_cleanup_waits_for_explicit_recheck",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_default_pending_cold_reopen_resolves_original_uncertain_attempt",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_public_unknown_query_explicit_recheck_and_lost_response_identity",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_process_cancel_release_is_additive_and_frozen_old_action_unchanged",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_public_cancel_waits_for_original_supervisor_exit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_public_queued_cancel_does_not_create_attempt_or_process",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_original_uncertain_reconcile_rejects_old_epoch_generation_and_lease",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[ownedTree]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[identityVerified]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[treeTerminated]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[supervisorExitProof]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_cancel_completion_requires_all_resource_proofs[confirmed]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_public.py::test_product_default_executor_has_owned_receipt_and_no_second_lifecycle",
+      "status": "passed"
+    }
+  ],
+  "resources": [
+    {
+      "path": "pan-main-venv/backend-partial-ack.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/backend-unknown-false.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/backend-unknown-true.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/canonical-delete-unknown-false.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/canonical-delete-unknown-true.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/canonical-late-terminal.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/owned.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-default-pending-cold.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-default-unknown-recheck.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-original-fence.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-product-default-executor.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-queued-cancel.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    },
+    {
+      "path": "pan-main-venv/public-supervisor-exit-gate.json",
+      "portReleased": true,
+      "ownedProcessesRemaining": []
+    }
+  ],
+  "priorEvidence": [
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-partial-ack.json",
+      "sha256": "8e3c2cb538786e122d148b0e7162adf79db8f47d816f9e5fb53eedd9af97c24c"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-unknown-false.json",
+      "sha256": "e1cd9c832fa14d1e0afd073af41c0b61a9ab394848231cde1074cda30c1632dc"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-unknown-true.json",
+      "sha256": "6c944ffd6fb0cf09bb56b863602fec4e4f547e2a98158e4b6a640a9a2421c1c3"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-false.json",
+      "sha256": "1ab5b4779717d6f616e4b14bb1e734069564b518933bd7e61d2c89dc04238474"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-true.json",
+      "sha256": "7fb6cacee69c9004f5286efa6794d64063e28783cacda8e3f88e7102d0b2f364"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-late-terminal.json",
+      "sha256": "a5062924f2b04e2acc25438ae89ef7785fbf5905fefe8bc4bcff0ac78d01ba0e"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/owned.json",
+      "sha256": "ad2c6eeb2f1b825ae063bc8bb050611e39796f2bb524100d856bfb30dc99fe05"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-default-pending-cold.json",
+      "sha256": "475522d6dfcc4e1e9cdfc4605411dbb1062a3dcf3376694e0c1650c4a2ea27d9"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-default-unknown-recheck.json",
+      "sha256": "dd623895d1904bacd73d805f54d566ba0aa619799001dee1309dde64a762b2d3"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-original-fence.json",
+      "sha256": "1039d38d985f6bb0db972845bee25200f86893d00d5b8ad89a03310c588e47f7"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-product-default-executor.json",
+      "sha256": "5e0b30fb8882c53150d5481cff6bc2278a3d71bea7514f3e1e8e1161074ea18e"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-queued-cancel.json",
+      "sha256": "e74a13bdf5de5662c791f6c7a114973f6acd8fcd1103d28f9d596a94f3657599"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-supervisor-exit-gate.json",
+      "sha256": "4df83bbc7145e9f162afeed22c4e6886015208d6dcd2a7d1b5454f23f2657247"
+    }
+  ]
+}
