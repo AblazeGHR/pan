@@ -53,3 +53,14 @@ def test_action_validation_happens_before_transport(qq_http,target_type,target_i
 def test_unknown_original_failure_is_not_reclassified_as_success():
     async def sender(**_kwargs): return {"ok":False,"error":{"code":"connection_error","message":"lost"}}
     assert run(QQChannelProvider(sender).send("user","123456","hello",effect_key=KEY))=={"ok":False,"error":{"code":"connection_error","message":"lost"}}
+
+def test_host_injection_binds_existing_sender_once():
+    from types import SimpleNamespace
+    from packages.web import server
+    empty = SimpleNamespace(executor=SimpleNamespace(channel_provider=None))
+    provider = server._bind_qq_channel_provider(empty)
+    assert isinstance(provider, QQChannelProvider)
+    assert provider._sender is server._send_scheduled_qq
+    custom = object()
+    existing = SimpleNamespace(executor=SimpleNamespace(channel_provider=custom))
+    assert server._bind_qq_channel_provider(existing) is custom
