@@ -1,0 +1,24 @@
+{
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+    "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations",
+    "tests/test_job_retained_history_bridge.py",
+    "tests/test_job_retained_pin_successor.py",
+    "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle",
+    "tests/test_jobs_api.py::test_pin_validation_and_independent_owner",
+    "tests/test_jobs_api.py::test_multiple_pins_filter_and_corrupt_metadata",
+    "tests/test_jobs_api.py::test_empty_list_exposes_pin_metadata_failure",
+    "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-retained-history\\final.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+  "exit": 0
+}

@@ -91,6 +91,25 @@ class PinMetadataUnavailable(ValueError):
     """Unreadable pins must never be interpreted as an empty set for GC."""
 
 
+def effective_pin(job, *, pinned=False):
+    """Union of independent config and runtime holds; missing means false.
+
+    Neither source may conceal corruption in the other. Config revision and
+    metadata revision remain independent; both holds must be explicitly cleared.
+    """
+    metadata = job.get("runtimeMetadata", {})
+    config = job.get("config", {})
+    if not isinstance(metadata, dict) or not isinstance(config, dict):
+        raise PinMetadataUnavailable("invalid canonical pin container")
+    retention = config.get("retention", {})
+    if not isinstance(retention, dict):
+        raise PinMetadataUnavailable("invalid canonical pin container")
+    values = (metadata.get("pinned", False), retention.get("pinned", False), pinned)
+    if any(type(value) is not bool for value in values):
+        raise PinMetadataUnavailable("invalid canonical pin metadata")
+    return any(values)
+
+
 class JsonPins:
     """Compatibility metadata backend, fenced once a profile has an owner."""
     def __init__(self, root):
@@ -238,22 +257,33 @@ class FinalRuntime:
 
     def metadata(self, job_id):
         job = self.store.get(job_id)
+        pinned = effective_pin(job)
         metadata = copy.deepcopy(job.get("runtimeMetadata", {}))
         metadata.setdefault("revision", 0)
-        pinned = metadata.get("pinned", job.get("config", {}).get("retention", {}).get("pinned", False))
-        if type(pinned) is not bool:
-            raise PinMetadataUnavailable("invalid canonical pin metadata")
+        if metadata.get("pinned", False) != pinned:
+            metadata["metadataPinned"] = metadata.get("pinned", False)
         return {**metadata, "pinned": pinned}
 
     def set_pin(self, job_id, pinned, *, expected_revision):
-        """Metadata CAS is independent from the immutable Run/config snapshot."""
+        """CAS only the runtime hold; return effective protection and its revision.
+
+        If config still holds the pin, pinned remains true and metadataPinned
+        reports this write's runtime hold. No config CAS or notification occurs.
+        """
         if type(pinned) is not bool:
             raise contracts.ContractError("invalid_schema", "pinned must be boolean")
         def change(job):
             metadata = job.setdefault("runtimeMetadata", {})
+            if not isinstance(metadata, dict):
+                raise PinMetadataUnavailable("invalid canonical pin container")
             contracts.check_revision(metadata.get("revision", 0), expected_revision)
             metadata.update(pinned=pinned, revision=expected_revision + 1)
-            return metadata
+            effective = effective_pin(job)
+            receipt = copy.deepcopy(metadata)
+            receipt["pinned"] = effective
+            if effective != pinned:
+                receipt["metadataPinned"] = pinned
+            return receipt
         return self.store.mutate(job_id, change)
 
     def register_original(self, job_id, original_id, *, source_digest, source_path, expected_revision):
@@ -385,11 +415,15 @@ class FinalRuntime:
         """Fail closed for every kind, regardless of its top-level projection."""
         blockers = []
         metadata = job.get("runtimeMetadata", {})
-        pin = metadata.get("pinned", job.get("config", {}).get("retention", {}).get("pinned", pinned))
-        if type(pin) is not bool or type(pinned) is not bool:
+        try:
+            pin = effective_pin(job, pinned=pinned)
+        except PinMetadataUnavailable:
             blockers.append("pin_metadata_unknown")
-        elif pin or pinned:
-            blockers.append("pinned")
+        else:
+            if pin:
+                blockers.append("pinned")
+        if not isinstance(metadata, dict):
+            metadata = {}
         if job.get("status") in {"starting", "running", "unknown", "uncertain", "cleanup_pending", "cleaning", "deleting"}:
             blockers.append("active_or_unknown")
         if job.get("execution") or job.get("activeExecutions") or job.get("pendingRuns"):

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retained_canonical_pins.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\canonical.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+  "exit": 0
+}

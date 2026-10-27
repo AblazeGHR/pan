@@ -1,0 +1,50 @@
+[
+  {
+    "path": "final.log",
+    "rawSha256": "76088b72c42eda46e56b6490bb968fedb86be32bb9b21f782fd74c30201959c9",
+    "reviewSha256": "3d15ebfe79a6ab7e66d6bace2d91ffa1daa3906913e7573b0a13580a7daba04c",
+    "changed": true
+  },
+  {
+    "path": "final.xml",
+    "rawSha256": "fd5d5e8e0ba91532a2c35b292fa83e937c7c30dbfbd3eaa8eb5e5dc179dec4bb",
+    "reviewSha256": "48156e633bf109681ec5218fffeaca2f23833ce6870ea13633bda4a43ea2aff0",
+    "changed": true
+  },
+  {
+    "path": "first.log",
+    "rawSha256": "13e94d8c4e862d3474a668688097a11fcb1ee15dfc8d754874f6c685dd927e36",
+    "reviewSha256": "13e94d8c4e862d3474a668688097a11fcb1ee15dfc8d754874f6c685dd927e36",
+    "changed": false
+  },
+  {
+    "path": "first.xml",
+    "rawSha256": "d1664fff4e3883129e09aaf7f35767295a7226615e33e8686c0d977989fd0179",
+    "reviewSha256": "d1664fff4e3883129e09aaf7f35767295a7226615e33e8686c0d977989fd0179",
+    "changed": false
+  },
+  {
+    "path": "second.log",
+    "rawSha256": "50a6d65c512ad762a30b37c7983e52fadf518e6b833f74e955becfaab6d01a70",
+    "reviewSha256": "50a6d65c512ad762a30b37c7983e52fadf518e6b833f74e955becfaab6d01a70",
+    "changed": false
+  },
+  {
+    "path": "second.xml",
+    "rawSha256": "a1ed5a1160e199155dda9b09298d2bd290adf445b7efec22c05ddab0ce599d39",
+    "reviewSha256": "a1ed5a1160e199155dda9b09298d2bd290adf445b7efec22c05ddab0ce599d39",
+    "changed": false
+  },
+  {
+    "path": "session-boundary.log",
+    "rawSha256": "cb615a69b48402b1ee74b3bd93547c480a22d54ecd775365376d242bc86522f0",
+    "reviewSha256": "cb615a69b48402b1ee74b3bd93547c480a22d54ecd775365376d242bc86522f0",
+    "changed": false
+  },
+  {
+    "path": "session-boundary.xml",
+    "rawSha256": "eb16944a7bf1e9ba5438d802d2b9c284e2d5b78beb98b2b232d993a6e41c0313",
+    "reviewSha256": "eb16944a7bf1e9ba5438d802d2b9c284e2d5b78beb98b2b232d993a6e41c0313",
+    "changed": false
+  }
+]

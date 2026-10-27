@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.015" timestamp="2026-10-27T10:45:51.455699+08:00" hostname="ablaze"><testcase classname="tests.test_job_retained_history_bridge" name="test_run_now_does_not_move_periodic_next_fire_retained_successor" time="0.487"><failure message="packages.jobs.final_contracts.ContractError: Review all original source links before continuation">tests\test_job_retained_history_bridge.py:91: in test_run_now_does_not_move_periodic_next_fire_retained_successor
+    enable(service, "event_creator", service.creators.get(cid), "enable-periodic")
+tests\test_scheduler_source_migration.py:38: in enable
+    return service.control(kind, item["id"], {"operation": "enable",
+packages\jobs\final_service.py:397: in control
+    return self._operation(db, actor, op, body["requestKey"], {"kind": kind, "id": object_id, **body}, kind, mutate)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:211: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:379: in mutate
+    validate_successors(self, source)
+packages\scheduler\source_migration.py:27: in validate_successors
+    raise fc.ContractError("reference_conflict", "Review all original source links before continuation")
+E   packages.jobs.final_contracts.ContractError: Review all original source links before continuation</failure></testcase></testsuite></testsuites>

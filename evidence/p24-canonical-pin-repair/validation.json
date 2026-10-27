@@ -1,0 +1,1606 @@
+{
+  "baselineSha": "e2c12fad1021584cda8a9e2a00f0bde841e7b375",
+  "sourceSha": "24054a11c1d7c71fc676e2bf6cee9272d61d8f82",
+  "branch": "r6/p24-retained-history-20261027",
+  "sourcePaths": [
+    "packages/jobs/final_runtime/coordinator.py",
+    "tests/test_job_retained_canonical_pin_resolution.py"
+  ],
+  "interfaceBaseline": "bdd4c778d55daff58529635b2adc464c03a1393c",
+  "integrationBaseline": "bac726cf84c0510dff8618afb82e227e660f590c",
+  "runs": [
+    {
+      "label": "new",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retained_canonical_pin_resolution.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\new.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+      "exit": 0,
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 40,
+      "nodes": [
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-config-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-metadata-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-config-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-metadata-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-config-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-metadata-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-config-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-metadata-first]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_unrelated_http_edit_and_stale_cas_never_clear_other_hold",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-value1]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-value3]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-1]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-value8]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-0]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-value1]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-value3]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-1]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-value8]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-None]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-0]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[http-config]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[runtime-metadata]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job0]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job1]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job2]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job3]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job4]",
+          "result": "passed"
+        }
+      ]
+    },
+    {
+      "label": "canonical",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retained_canonical_pins.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\canonical.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+      "exit": 0,
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 18,
+      "nodes": [
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[json]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[encoding]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[read]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_lost_pin_response_queries_original_operation_without_reposting",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state0-pin_metadata_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state1-pinned]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state2-cleanup_or_ownership_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state3-active_or_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[delete]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[gc]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_notification_ack_commit_failure_recovers_uncertain_without_resending",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_unknown_run_queries_original_operation_and_never_resends_effect",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_canonical_pins.py::test_session_notice_is_durable_before_ack_and_settles_original_row_after_restart",
+          "result": "passed"
+        }
+      ]
+    },
+    {
+      "label": "retained",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations",
+        "tests/test_job_retained_history_bridge.py",
+        "tests/test_job_retained_pin_successor.py",
+        "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle",
+        "tests/test_jobs_api.py::test_pin_validation_and_independent_owner",
+        "tests/test_jobs_api.py::test_multiple_pins_filter_and_corrupt_metadata",
+        "tests/test_jobs_api.py::test_empty_list_exposes_pin_metadata_failure",
+        "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+        "-q",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\retained.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+      "exit": 0,
+      "tests": 17,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 17,
+      "nodes": [
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_history_bridge.py::test_run_now_does_not_move_periodic_next_fire_retained_successor",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_pin_successor.py::test_retained_pin_persistence_failure_keeps_disk_and_emits_nothing",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[session-message]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[session-broadcast]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[background-process]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[main-lifecycle]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[scheduled-task]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_validation_and_independent_owner",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_multiple_pins_filter_and_corrupt_metadata",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_empty_list_exposes_pin_metadata_failure",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+          "result": "passed"
+        }
+      ]
+    },
+    {
+      "label": "retained-final",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+        "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations",
+        "tests/test_job_retained_history_bridge.py",
+        "tests/test_job_retained_pin_successor.py",
+        "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle",
+        "tests/test_jobs_api.py::test_pin_validation_and_independent_owner",
+        "tests/test_jobs_api.py::test_multiple_pins_filter_and_corrupt_metadata",
+        "tests/test_jobs_api.py::test_empty_list_exposes_pin_metadata_failure",
+        "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\retained-final.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+      "exit": 0,
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 18,
+      "nodes": [
+        {
+          "node": "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_history_bridge.py::test_run_now_does_not_move_periodic_next_fire_retained_successor",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_retained_pin_successor.py::test_retained_pin_persistence_failure_keeps_disk_and_emits_nothing",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[session-message]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[session-broadcast]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[background-process]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[main-lifecycle]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_persists_without_touching_lifecycle[scheduled-task]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_pin_validation_and_independent_owner",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_multiple_pins_filter_and_corrupt_metadata",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_jobs_api.py::test_empty_list_exposes_pin_metadata_failure",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+          "result": "passed"
+        }
+      ]
+    },
+    {
+      "label": "safety",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_runtime_registry.py::test_atomic_replace_fault_preserves_bytes_and_cleans_temp",
+        "tests/test_job_runtime_registry.py::test_json_writers_and_pins_are_fenced_but_old_bytes_remain_readable",
+        "tests/test_job_runtime_registry.py::test_legacy_retention_obeys_pin_and_corrupt_metadata",
+        "tests/test_job_runtime_registry.py::test_canonical_metadata_cas_uses_owner_transaction",
+        "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent",
+        "tests/test_job_runtime_registry.py::test_retention_rechecks_pins_and_activity_even_when_config_revision_unchanged",
+        "tests/test_job_runtime_registry.py::test_log_retention_cannot_collect_pinned_resources",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\safety.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+      "exit": 0,
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 16,
+      "nodes": [
+        {
+          "node": "tests/test_job_runtime_registry.py::test_atomic_replace_fault_preserves_bytes_and_cleans_temp",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_json_writers_and_pins_are_fenced_but_old_bytes_remain_readable",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_legacy_retention_obeys_pin_and_corrupt_metadata",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_canonical_metadata_cas_uses_owner_transaction",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation0-pinned]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation1-pin_metadata_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation2-active_or_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation3-active_or_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation4-active_resources]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation5-cleanup_or_ownership_unknown]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation6-active_or_unknown_run]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation7-unsettled_effect]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation8-unacknowledged_outbox]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent[mutation9-unacknowledged_outbox]",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_retention_rechecks_pins_and_activity_even_when_config_revision_unchanged",
+          "result": "passed"
+        },
+        {
+          "node": "tests/test_job_runtime_registry.py::test_log_retention_cannot_collect_pinned_resources",
+          "result": "passed"
+        }
+      ]
+    }
+  ],
+  "originalCanonicalNodeMapping": [
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[json]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[json]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[encoding]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[encoding]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[read]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[read]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_lost_pin_response_queries_original_operation_without_reposting",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_lost_pin_response_queries_original_operation_without_reposting",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state0-pin_metadata_unknown]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state0-pin_metadata_unknown]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state1-pinned]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state1-pinned]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state2-cleanup_or_ownership_unknown]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state2-cleanup_or_ownership_unknown]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state3-active_or_unknown]",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state3-active_or_unknown]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[delete]",
+      "oldResult": "failed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[delete]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[gc]",
+      "oldResult": "failed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[gc]",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_notification_ack_commit_failure_recovers_uncertain_without_resending",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_notification_ack_commit_failure_recovers_uncertain_without_resending",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_unknown_run_queries_original_operation_and_never_resends_effect",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_unknown_run_queries_original_operation_and_never_resends_effect",
+      "result": "passed",
+      "assertionsUnchanged": true
+    },
+    {
+      "oldNode": "tests/test_job_retained_canonical_pins.py::test_session_notice_is_durable_before_ack_and_settles_original_row_after_restart",
+      "oldResult": "passed",
+      "successorNode": "tests/test_job_retained_canonical_pins.py::test_session_notice_is_durable_before_ack_and_settles_original_row_after_restart",
+      "result": "passed",
+      "assertionsUnchanged": true
+    }
+  ],
+  "preserved": [
+    {
+      "path": "docs/reports/P24_CANONICAL_PINS_20261027.md",
+      "gitBlob": "11b5413b98c2743c0340b92dd6c4f75bbab0758a",
+      "unchanged": true
+    },
+    {
+      "path": "docs/reports/P24_RETAINED_HISTORY_20261027.md",
+      "gitBlob": "a6a76a1b36e7daf807ad912632551bcd6daa9c46",
+      "unchanged": true
+    },
+    {
+      "path": "docs/reports/R6_I_REPAIR_20261027.md",
+      "gitBlob": "3a1179e2e024f7225f043c164c639b3f4fa66999",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/artifact-whitespace.json",
+      "gitBlob": "a4fdd88fa25f1bd1b07f551b152199361c2f365c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/final.json",
+      "gitBlob": "2f5f61b1dde0539cb71ce45bf152410bbd497156",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/final.log",
+      "gitBlob": "8759cfe6f94bc0e72bf535b7b4e9f562ba167526",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/final.xml",
+      "gitBlob": "f608f8da11053f6e80e5637d576ad123982a8401",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/first.json",
+      "gitBlob": "302650885197e62381b3f554a35faeb7880b0195",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/first.log",
+      "gitBlob": "c81af318a113c2f7e0c7e56d4c02a88280ad1ee6",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/first.xml",
+      "gitBlob": "af7988cfeeb0c24bfb1d1fc57c8a2d3a9d6f88bc",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/manifest.py",
+      "gitBlob": "6a42635f619954d68fb081fef4ba44859a15e3ce",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/normalize_evidence.py",
+      "gitBlob": "8643619912250d2e4255852799695a17e3f458ee",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/raw-output.zip",
+      "gitBlob": "5b32a10e0e8cbbf96e8cc10af38342ce90a8118d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/run_matrix.py",
+      "gitBlob": "253815554e46f1871cdde8e29b845d4a8d223db2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/second.json",
+      "gitBlob": "322526c57c24039d147df478eef6cce44680a950",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/second.log",
+      "gitBlob": "6e8e9d2579f602c066a2071a945d371704b85512",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/second.xml",
+      "gitBlob": "63b6c4b3a31cc2aadb111f6672a495672199ea5d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/session-boundary.json",
+      "gitBlob": "bcaee7a5d1557f8b985706639ddbb5f93362677f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/session-boundary.log",
+      "gitBlob": "6a3728d20964035d5b63fd792428d279e7260506",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/session-boundary.xml",
+      "gitBlob": "f8ff340f5801570f6292a10b9ec263b4d6d958c6",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-canonical-pins/validation.json",
+      "gitBlob": "ffe6a036f26e752153c1a83bf4d6d2b7c7c14c46",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/baseline.json",
+      "gitBlob": "0e494288c77e67442f06bd1d912f6bdd83d2f134",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/baseline.log",
+      "gitBlob": "dc56b4cdfe1271341e6500caab6c361e78ab8cdf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/baseline.xml",
+      "gitBlob": "7262c64e854a93d87f0e5fbe39fe688c5679ca50",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v1.json",
+      "gitBlob": "111abf2b3cc197c843cdc9f4028584ec744af742",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v1.log",
+      "gitBlob": "05180126c1975d11b2fdbc19ef6404d6ce2c07ad",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v1.xml",
+      "gitBlob": "22c5bbd6cd0d79cc8fcf8d355dc71d3d06c4182d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v2.json",
+      "gitBlob": "bdb12cce6e5684a015b11d8887d44f23510ea0c2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v2.log",
+      "gitBlob": "1213b01744a1b92a1ddb02e73fb0bfe27a3633aa",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v2.xml",
+      "gitBlob": "16fbb59ff2732a9bf2f98f61c7a2dbe9c294eafd",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v3.json",
+      "gitBlob": "f0ea3e43491beda3b2506a11c985ba06e101d07f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v3.log",
+      "gitBlob": "6a3728d20964035d5b63fd792428d279e7260506",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/bridge-v3.xml",
+      "gitBlob": "31804307a58d5348307b0f018204f322d9036903",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/final.json",
+      "gitBlob": "5be0f2a84dd49d51d79bce7899883323451dd802",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/final.log",
+      "gitBlob": "91f1d6b9fbc1c08bf6a00399b6c6b24a0779d5a8",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/final.xml",
+      "gitBlob": "67c715c625910ed7bce29604d855760853c4dd5b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/focused-final.json",
+      "gitBlob": "7cbc2806b3ffbf02b9f203e9e3468ba173ea5712",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/focused-final.log",
+      "gitBlob": "91f1d6b9fbc1c08bf6a00399b6c6b24a0779d5a8",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/focused-final.xml",
+      "gitBlob": "e7ebd74ebe470029edfbf3166abc0211d7b37758",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v1.json",
+      "gitBlob": "52c16e14f8dbad50e50e68eba70939b7d1168ca1",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v1.log",
+      "gitBlob": "ed82b2ef91ff7ad48541a155fea26cea20f43c6d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v1.xml",
+      "gitBlob": "605520c90c3af261db828b6ad295565a020a7563",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v2.json",
+      "gitBlob": "0491ae26c16bee6a69f46263212f7e90289a1c46",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v2.log",
+      "gitBlob": "77dc1d72c2ec680312bbaacc49093ba1e9bd9346",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/history-metadata-v2.xml",
+      "gitBlob": "478e038be8c1ae568d1fa19f8e551d9b4a821935",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/manifest.py",
+      "gitBlob": "e99be30e55bb0ce78f854f6fb23f2313c9f20818",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/original-bridge-preserved.json",
+      "gitBlob": "380b5d20791aaa0986c7cbcacdf7607aeb05534c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/original-bridge-preserved.log",
+      "gitBlob": "531a06b698688bd18567cc2e8917972f0186f6e4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/original-bridge-preserved.xml",
+      "gitBlob": "01dababf1143b64fc0b04da3f286c89e990e75c9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/original-test-sources.zip",
+      "gitBlob": "6b1775e91e62d9b785efa10e28aeb55c312f480d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/run_matrix.py",
+      "gitBlob": "253815554e46f1871cdde8e29b845d4a8d223db2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/strengthened-final.json",
+      "gitBlob": "4534374b19bdb751063e326bd377ac9d8ebd6a2a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/strengthened-final.log",
+      "gitBlob": "4dbedcc5e2949fc25610e841bbbffc40652ee6cb",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/strengthened-final.xml",
+      "gitBlob": "1aa68d4e50652d5191d30871ef8b4f32dedf6c5a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/p24-retained-history/validation.json",
+      "gitBlob": "18a594dad44a926242b2812a0f915d6af520c62b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/archive_raw_outputs.py",
+      "gitBlob": "bbbae6768aae565a06510d99763e5d13c890b071",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/artifact-whitespace.json",
+      "gitBlob": "a67d3fdf0301e104f169c209aa6668d5197029a2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/assess_original_red.py",
+      "gitBlob": "5310b2d1f35dd758fb2ac50210341f1d5889bd71",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final-v2.log",
+      "gitBlob": "cd3750f954d4c658f12778e5b9cbf7b1d0891828",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final-v2.xml",
+      "gitBlob": "592e5c189133ee6fc369115ddf164c5556312609",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final.log",
+      "gitBlob": "69ef29c5930ea46d7b40d764d48286953e05422f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/backend-final.xml",
+      "gitBlob": "adf51b0ce2b6ced76d7eced093263e973ce53a1d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional-command.json",
+      "gitBlob": "7a82d5ba4120cb1cb011743bafac61a779aab218",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional.log",
+      "gitBlob": "7a1c5b68c4fe4559d9a134e7b17d43fcb563360b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-additional.xml",
+      "gitBlob": "c0379e12ca1943b5da5e8a4bc698a254bcadfe3c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.json",
+      "gitBlob": "d0d36d2ca68af0e2e8a1778277f191e6eebedf8a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.log",
+      "gitBlob": "5993b3cf0cd5c19d9a53d7aa7aa55f2144bb5bc9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/baseline-routes.xml",
+      "gitBlob": "7eecce73816e724786c42761efbf9a837cac519a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v2.log",
+      "gitBlob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v2.xml",
+      "gitBlob": "e669def788de58b1b5251fda5af12917f5ea4c69",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v3.log",
+      "gitBlob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v3.xml",
+      "gitBlob": "9dda8f2391a6c4d7434b59fc90362a88e4bcee5c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v4.log",
+      "gitBlob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final-v4.xml",
+      "gitBlob": "767c7f20a996b2e95756b909c0fc092cd0201a45",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final.log",
+      "gitBlob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-final.xml",
+      "gitBlob": "51123689545afcc8e72e784c59a197e61f97b41b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-initial.log",
+      "gitBlob": "9fd6b6fc2e43a99a9ededfe4c9ac648636ee5f64",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-initial.xml",
+      "gitBlob": "bafa928136e5f432cb8ff5be8620502302c6f067",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-result.json",
+      "gitBlob": "d75e8934274875bd814f7cfd5243b0826e77d094",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-server.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v2.log",
+      "gitBlob": "c132f1e8d7b95f43c8c902d50cf4b727a42b368c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v2.xml",
+      "gitBlob": "9e22e0720526778f02e6a31c32b2b24dbf065be7",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v3.log",
+      "gitBlob": "18a69dbb80ce0f3532ce9ada33f13942465b3083",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v3.xml",
+      "gitBlob": "8d51d584d896b4cd635625d2dc22bbff6d8ed6c8",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v4.log",
+      "gitBlob": "fb1f5e5af0ace30a5cc5ba3b3183a03fc2a8a05c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/browser-v4.xml",
+      "gitBlob": "22f6b6127a52caaa28e56f62a5a63eb969086fe0",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v2.log",
+      "gitBlob": "3558dbf4bcb113c22ebc7e5eb667def641cf827a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v3.log",
+      "gitBlob": "ceb7c101e132e9356d84eefaed181a233eae03ef",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final-v4.log",
+      "gitBlob": "42d5052e0213490c85bacb412d97679434039e5f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build-final.log",
+      "gitBlob": "235451c3ea3a81d367980f690802b5c86e2777ac",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/build_manifest.py",
+      "gitBlob": "ea0f7b8c8f0d18bae350d01607116991a828317b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-final.json",
+      "gitBlob": "a14937524b628a14599ab579db16bae342382793",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-final.log",
+      "gitBlob": "db1bdaedbc1993ac9ac24ef87d5424cf9fcfb552",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-green.json",
+      "gitBlob": "a14937524b628a14599ab579db16bae342382793",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/candidate-epoch-green.log",
+      "gitBlob": "db1bdaedbc1993ac9ac24ef87d5424cf9fcfb552",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final-v2.log",
+      "gitBlob": "7289d7f5098c71d00516943f46162de0b55ea96c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final-v2.xml",
+      "gitBlob": "6df3cd2bc94ad22753cab9fc543b6da3cffca5f2",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final.log",
+      "gitBlob": "b4664a17f909be950eda0aca8f1b08d289209808",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/consumers-final.xml",
+      "gitBlob": "6cc4ba94b3519c633f413acf72b5fb9765121101",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/dependencies-final.json",
+      "gitBlob": "6e8271880a3b0fa68d4595ab14a49c06078e468a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/epoch-initial.log",
+      "gitBlob": "0e30f3bbf4d728411e5aba8c4ca7a64c9d4a5df1",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/epoch-initial.xml",
+      "gitBlob": "576f56130e3b2997954d557799227ca4ec7c561d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/identity-positive.json",
+      "gitBlob": "40aebdc7afb2fb10128672069cf260d4522a682b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/identity-positive.log",
+      "gitBlob": "a4f9ae2c3c4238256b0b145ea1b03a5724c71971",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-initial.log",
+      "gitBlob": "66a31f67186ce8cd6bd7a9bd7c728d690189ce8c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-initial.xml",
+      "gitBlob": "19e6bd998aad1e4d330e721c2ad8cbe745c59bb5",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-v2.log",
+      "gitBlob": "52092303d829a7a0bb30ad6c67b6721402db847f",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/management-v2.xml",
+      "gitBlob": "225b6cf73ec5f85fa9aa97ca79cdd66d91364ae4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-assessment.json",
+      "gitBlob": "55b27b4cb617a65de7abdf7d223d03920639a5af",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-assessment.md",
+      "gitBlob": "9a972eef8cc0abfe4d0da5c26a15207bf0820d1c",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-command.json",
+      "gitBlob": "b0ea1488cb9baf3becda7d35b5ba4109d2587706",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-current.log",
+      "gitBlob": "8779013f14efeb75c27f221053012467c452ef2d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-current.xml",
+      "gitBlob": "ff4eff75aee226f3bf5745911bdda2d68b57dfaf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-http-owned-recheck.json",
+      "gitBlob": "c941c79e00b11e65cfa89efeafde3f5d1ebb6cca",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/original-red-http-owned.json",
+      "gitBlob": "796716eebfe413c6260eb7b86a145e5f10824a1a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/owner_epoch_probe.py",
+      "gitBlob": "b2fc7a01febe17554331a251054b6704a032536d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/pnpm-install.log",
+      "gitBlob": "d845251954bc2c76722708be7ec9f7afe7fb0770",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/prior-automation-view-tests.txt",
+      "gitBlob": "0f26c14d57b85f9c047f235bcc26792f464df098",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/prior-automation-workspace-tests.txt",
+      "gitBlob": "50c85c760a6dd1c535774d61b7aeb32135e107bf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/raw-output.zip",
+      "gitBlob": "431f42b246c8552f7279e000ba791506990ab482",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/repair-delta-final.log",
+      "gitBlob": "7f041b765a8bdf18a4869a9109a478d8525a83a5",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/repair-delta-final.xml",
+      "gitBlob": "ce41faac1368b82515f0deb59f42715fd10aa681",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/retained-contracts-final.log",
+      "gitBlob": "88c39e4c7ac64e284740cb4abfca5ce1d9e3e3f4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/retained-contracts-final.xml",
+      "gitBlob": "fb2fd16093be7fa5f8a782983bdb2d0179545358",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/route-snapshot-delta.json",
+      "gitBlob": "ce4e74c01f183d1781f0ded30e4b36d056bfc6c3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/run_original_red.py",
+      "gitBlob": "96a3d947537eaa1be8be746bbd910c09b603edca",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/scheduler-remaining-final.log",
+      "gitBlob": "4c8a3d8d031ba1d10b7937723716d3f3458664ee",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/scheduler-remaining-final.xml",
+      "gitBlob": "e6e1ff780c16015932412b7f769a9f3369398414",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/source-commit.log",
+      "gitBlob": "4d69e6d5302e35d6569575eb35929c81e2f60c10",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/startup-final.log",
+      "gitBlob": "1d97430001539679d3d16e95e39e74f3315993d0",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/startup-final.xml",
+      "gitBlob": "5fb94b52b6d6ec17228150f2967b90601b57df46",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/strengthened-final.log",
+      "gitBlob": "47a589caf101b671014128cc8779872217edceee",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/strengthened-final.xml",
+      "gitBlob": "f281c795a4a4f91f2c3b4c17588ac2f28a173758",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/surface-final.log",
+      "gitBlob": "db4a3cb50ae8f02c967d210d3df0172a53031f94",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/surface-final.xml",
+      "gitBlob": "63b7dd2d2bc4163807224429bc50f6cac7436122",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v2.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v3.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v4.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final-v5.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-final.log",
+      "gitBlob": "b4e5fbf1b688b8c0e066328079eb8aea26550871",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-initial.log",
+      "gitBlob": "3178cc662e7e9bbca24bf9c44ce71400d40a403b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-v2.log",
+      "gitBlob": "660c1f7082a9fc7d4398866239f26f43e72c61b7",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/tsc-v3.log",
+      "gitBlob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/ui-test-successors.json",
+      "gitBlob": "67c7db9308b79ba7ec1a0a55194e33c628e5a3b9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/ui_test_successors.py",
+      "gitBlob": "4d38936b93f48d867073343cda0adf2e4eed95cd",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/update_route_snapshot.py",
+      "gitBlob": "1df2ea1b4a0f9ee98c13ecbeb4efa104e8209826",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/validation.json",
+      "gitBlob": "fb26533b730b2dda4a4cb08a809c4fb9a0ca21e4",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/verify_additional_baseline.py",
+      "gitBlob": "161c26a9c1acb0c0c4201c8f04331d314ebecd6b",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/verify_baseline_routes.py",
+      "gitBlob": "6c5a040fea58f08f9a9e62157a51f7edfbc7ccb9",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-canonical-initial.log",
+      "gitBlob": "a5960be3a756653216426402133fa3df6962428a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v2.log",
+      "gitBlob": "16d6a022ea71468e586fdce354905317ebd41853",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v3.log",
+      "gitBlob": "7a8d0f04616e811ced69b28d196abfdfa8fb7e8a",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final-v4.log",
+      "gitBlob": "65b0735978bc06cdb62494d6351f8567a21ecea3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-final.log",
+      "gitBlob": "5d0b03d865fb7bb841bced04203fa15fb80be518",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-initial.log",
+      "gitBlob": "a1707d9d56956225cbea5bf222afeccab82e53cf",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-v2.log",
+      "gitBlob": "6be639eeb949febcdec8d8a4313db4d09fb5454d",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/r6i-repair/vitest-workspace-v3.log",
+      "gitBlob": "672328d8ee3edbd7907c2b8bd237b9ed3dc3ff8c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_retained_canonical_pins.py",
+      "gitBlob": "f985e503084eae9abab4defb807a56a99c2ca375",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_retained_history_bridge.py",
+      "gitBlob": "6700c5faa6035e55d1e58ed042601e786aa4c393",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_retained_history_fixtures.py",
+      "gitBlob": "9c0f911a1dfd063eaf59692c91d5c06445b5030c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_job_retained_pin_successor.py",
+      "gitBlob": "d81d7a6eb08a6c1575663b2379d62022c37813ef",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_jobs_api.py",
+      "gitBlob": "07e5225d5c4ee4dc4aa32406b6aac3ac8be44640",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_scheduler_legacy_bridge.py",
+      "gitBlob": "a64a3a48792a12c9c7d842d9c58a1181c899eb05",
+      "unchanged": true
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "evidence/p24-canonical-pin-repair/canonical.json",
+      "sha256": "f7c2c6165aaeabf82fb6764586a163cbcef4d94b80a95eb23eda046a531f8479"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/canonical.log",
+      "sha256": "aad58b2ee91a838252859d7d6240c7429009cf027f959b156495f9a4673d0713"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/canonical.xml",
+      "sha256": "4a385bf155217110efca28e09106e5160dbc7cdfeda8d3ac63deae47d2f0cac7"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/manifest.py",
+      "sha256": "72a84107302f6b3ef23087f56312204bf2a70cf20bea2f93af45bf262f2872f4"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/new.json",
+      "sha256": "b14292504f4293e056ff0085915c332739a5fd65c237818c2115263e00db90d5"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/new.log",
+      "sha256": "e66d384498a7e6f9920fef2d8dc28f6b238b986b34ef9e1ee599e1cc8f191d63"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/new.xml",
+      "sha256": "a706276cbdce0e84382fe546943ed59793825020da296aff7f20e742c45e08db"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained-final.json",
+      "sha256": "19e66e02e826c3bca8b0d300888341976e799d5e9616445521d4646687fba161"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained-final.log",
+      "sha256": "aad58b2ee91a838252859d7d6240c7429009cf027f959b156495f9a4673d0713"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained-final.xml",
+      "sha256": "eec14310b71b7d4e15b3462230ca9601bebe8256b3830540c8827192cd973a99"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained.json",
+      "sha256": "c96e5db0bebc28fd6e9e97f26cd7542731072bb5224d38d227adfcabe36a2656"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained.log",
+      "sha256": "2578d84a6a847021a0560212580b662a5048cdbf58a30e3dd6a8a19f622c7671"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/retained.xml",
+      "sha256": "5ab81cf23c5e352ab9966c0774182ef7e7d489e03311f8d5bf47da98b926108e"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/run_matrix.py",
+      "sha256": "44cb6fd18ecbe62cdaaab932ac38d3a376ae211d63d69133f0f27bf8ca44a0f8"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/safety.json",
+      "sha256": "9e962693fe48beeeed71043fc27781ac15dafc1f390421e4e422e2d83615111f"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/safety.log",
+      "sha256": "50feda496ea3ecf3894e423e9989e5ae04625100701c0c4236f7feb41b2148ac"
+    },
+    {
+      "path": "evidence/p24-canonical-pin-repair/safety.xml",
+      "sha256": "303ffe7e52f54c024e7456fe6f6a66c59a9dcfb031e7f49eb15a74588c8a1e4a"
+    }
+  ]
+}

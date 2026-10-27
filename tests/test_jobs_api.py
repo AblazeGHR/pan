@@ -153,19 +153,41 @@ def _make_message_job(monkeypatch, tmp_path, name=None):
 
 
 def test_list_jobs_mixed_kinds_and_filters(client, monkeypatch, tmp_path):
-    task = _make_scheduled_task(name="定时甲")
-    msg = _make_message_job(monkeypatch, tmp_path, name="消息乙")
+    from tests.test_job_retained_history_fixtures import archive_job, forbid_legacy_effects, snapshot
+    forbid_legacy_effects(monkeypatch)
+    root = data_paths.job_root()
+    task = archive_job(root, "job_history_task", jobs.SCHEDULED_TASK_KIND,
+                       name="定时甲", taskId="sch_original", updatedAt=1)
+    msg = archive_job(root, "job_history_message", jobs.SESSION_MESSAGE_KIND,
+                      name="消息乙", status="unknown", updatedAt=9)
+    archive_job(root, "job_history_failed", jobs.SESSION_MESSAGE_KIND,
+                status="failed", updatedAt=2)
+    archive_job(root, "job_history_active", jobs.SESSION_MESSAGE_KIND,
+                status="running", updatedAt=8)
+    archive_job(root, "job_history_older", jobs.SCHEDULED_TASK_KIND,
+                taskId="sch_older", updatedAt=0)
+    run = {"run_id": "original_dispatch", "task_id": "sch_original",
+           "entry_id": "original_entry", "status": "unknown", "dispatch_key": "original_dispatch"}
+    (root / "runs.jsonl").write_text(json.dumps(run) + "\n", encoding="utf-8")
+    before = snapshot(root)
 
     body = client.get("/api/jobs").json()
     assert body["ok"] is True
     kinds = {j["kind"] for j in body["jobs"]}
     assert kinds == {jobs.SCHEDULED_TASK_KIND, jobs.SESSION_MESSAGE_KIND}
-    by_task = [j for j in body["jobs"] if j.get("taskId") == task["id"]]
+    assert [j["jobId"] for j in body["jobs"]] == ["job_history_active", "job_history_older", task["jobId"], "job_history_failed", msg["jobId"]]
+    by_task = [j for j in body["jobs"] if j.get("taskId") == task["taskId"]]
     assert by_task and by_task[0]["name"] == "定时甲"
 
     filtered = client.get("/api/jobs", params={"kind": jobs.SESSION_MESSAGE_KIND}).json()
-    assert [j["jobId"] for j in filtered["jobs"]] == [msg["jobId"]]
+    assert [j["jobId"] for j in filtered["jobs"]] == ["job_history_active", "job_history_failed", msg["jobId"]]
     assert all(j["kind"] == jobs.SESSION_MESSAGE_KIND for j in filtered["jobs"])
+    assert [j["jobId"] for j in client.get("/api/jobs?status=unknown").json()["jobs"]] == [msg["jobId"]]
+    assert task["jobId"] not in [j["jobId"] for j in client.get("/api/jobs?includeCompleted=false").json()["jobs"]]
+    for identity in (task["jobId"], task["taskId"]):
+        assert client.get(f"/api/jobs/{identity}").json()["job"]["jobId"] == task["jobId"]
+        assert client.get(f"/api/jobs/{identity}/runs").json()["runs"] == [run]
+    assert snapshot(root) == before
 
 
 def test_kinds_endpoint(client):
@@ -1082,9 +1104,10 @@ def test_multiple_pins_filter_and_corrupt_metadata(client):
 @pytest.mark.parametrize("failure", ["json", "encoding", "read"])
 @pytest.mark.parametrize("kind", ["session-message", "scheduled-task"])
 def test_pin_metadata_failure_does_not_fail_committed_operations(
-        client, monkeypatch, fake_session_repository, failure, kind):
+        client, monkeypatch, failure, kind):
     from pathlib import Path
-    fake_session_repository("s")
+    from tests.test_job_retained_history_fixtures import history_record, forbid_legacy_effects
+    forbid_legacy_effects(monkeypatch)
     root = scheduler_store.data_root()
     root.mkdir(parents=True, exist_ok=True)
     pin_path = root / "pins.json"
@@ -1099,27 +1122,32 @@ def test_pin_metadata_failure_does_not_fail_committed_operations(
         monkeypatch.setattr(Path, "read_text", read_error)
     events = []
     monkeypatch.setitem(jobs_api._state, "broadcast", events.append)
-    payload = {"kind": kind, "target": {"sessionId": "s"}, "name": "created once",
-               "text": "x", "schedule": ({"type": "interval", "intervalSeconds": 60}
-                   if kind == "session-message" else [{"kind": "interval", "intervalSec": 60}])}
-    response = client.post("/api/jobs", json=payload)
-    assert response.status_code == 200
-    created = response.json()
-    assert created["ok"] is True
-    job_id = created["job"]["jobId"]
-    assert created["job"]["pinned"] is None
-    assert created["job"]["pinMetadataStatus"] == "unavailable"
+    jobs.register_scheduled_tasks(on_event=jobs_api._emit)
+    # Explicit offline historical storage, never a retired producer/API. The
+    # real storage publisher emits only after its atomic commit succeeds.
+    committed = jobs._create(history_record("job_history_metadata", kind,
+                             name="created once"), registry_root=root)
+    created = jobs_api._view(committed)
+    job_id = created["jobId"]
+    assert created["name"] == "created once" and created["status"] == "completed"
+    assert created["enabled"] is False
+    assert created["pinned"] is None
+    assert created["pinMetadataStatus"] == "unavailable"
     assert len(list((root / "jobs").glob("job_*.json"))) == 1
     assert len([ev for ev in events if ev["type"] == "job.created"]) == 1
-    changed = client.patch(f"/api/jobs/{job_id}", json={"name": "modified once"})
-    assert changed.status_code == 200
-    assert changed.json()["ok"] is True
-    assert changed.json()["job"]["name"] == "modified once"
+    assert events[0]["jobId"] == job_id
+    assert json.loads((root / "jobs" / (job_id + ".json")).read_text(encoding="utf-8"))["name"] == "created once"
+    changed = jobs.update_job_field(job_id, {"name": "modified once"}, registry_root=root)
+    assert changed["name"] == "modified once"
+    assert [event["type"] for event in events] == ["job.created", "job.updated"]
+    assert events[1]["job"]["name"] == "modified once"
+    assert jobs_api._view(changed)["pinMetadataStatus"] == "unavailable"
+    assert json.loads((root / "jobs" / (job_id + ".json")).read_text(encoding="utf-8"))["name"] == "modified once"
     assert jobs.get(job_id, registry_root=root)["name"] == "modified once"
     fetched = client.get(f"/api/jobs/{job_id}")
     assert fetched.status_code == 200 and fetched.json()["ok"] is True
     assert fetched.json()["job"]["pinMetadataStatus"] == "unavailable"
-    listed = client.get("/api/jobs", params={"kind": kind, "status": created["job"]["status"]})
+    listed = client.get("/api/jobs", params={"kind": kind, "status": created["status"]})
     assert listed.status_code == 200 and listed.json()["ok"] is True
     assert listed.json()["pinMetadataStatus"] == "unavailable"
     assert [job["jobId"] for job in listed.json()["jobs"]] == [job_id]
