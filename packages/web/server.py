@@ -335,6 +335,7 @@ async def _owned_lifespan(app: FastAPI, owner):
                     bind_objects(plugin_runtime, app)
                     try:
                         final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
+                        _bind_qq_channel_provider(final_jobs)
                         async def send_final_notice(row):
                             if row['channel'] == 'ws':
                                 await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
@@ -13131,6 +13132,14 @@ async def _send_scheduled_qq(*, target_type: str, target_id: str,
     if bot_uin:
         body["bot_uin"] = bot_uin
     return await _qq_plugin_post("/api/qq/send", body)
+
+
+def _bind_qq_channel_provider(final_jobs):
+    """Bind the canonical Action to the existing QQ plugin sender once."""
+    if getattr(final_jobs.executor, "channel_provider", None) is None:
+        from packages.actions.qq_channel_provider import QQChannelProvider
+        final_jobs.executor.channel_provider = QQChannelProvider(_send_scheduled_qq)
+    return final_jobs.executor.channel_provider
 
 
 _wechat_plugin_client: httpx.AsyncClient | None = None
