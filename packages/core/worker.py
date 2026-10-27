@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import AsyncExitStack
-from packages.jobs.window import command_window_options
+from . import platform as _platform
+from .platform.worker_runtime import spawn_options as _worker_spawn_options
 from packages.plugins.lifecycle import startup as _admit_plugin_startup
 from packages.plugins.lifecycle import native_admission as _plugin_native_admission
 import copy
@@ -7726,7 +7727,7 @@ async def _consumer_oneshot(w: Worker, text: str, source: str, s, *, on_handoff=
                         cwd=s.workdir or None,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.STDOUT,
-                        **command_window_options(),
+                        **_worker_spawn_options(),
                     )
                 except Exception as exc:
                     raise _OneShotSpawnFailed(str(exc)) from exc
@@ -8240,6 +8241,17 @@ async def _apply_pending_native_configuration(s) -> None:
     await _bcast({"type": "session.updated", "sessionId": s.id})
 
 
+def _native_platform_error(s, *, pending: bool = True) -> str | None:
+    if s is None:
+        return None
+    desired = s.adapter_config.get("native_control")
+    if pending and type(s.adapter_config.get("native_control_next")) is bool:
+        desired = s.adapter_config["native_control_next"]
+    if desired is True and not _platform.supports("terminal.native"):
+        return "unsupported_platform: Native Terminal TUI requires terminal.native"
+    return None
+
+
 def _native_transport_adapter(adapter):
     """Native-mode adapter wrapper for adapters whose TUI needs another transport.
 
@@ -8265,6 +8277,10 @@ async def _create_worker(session_id: str) -> Worker | str:
     s = _sess.get(session_id)
     if not s:
         return f"Session {session_id} not found"
+
+    error = _native_platform_error(s)
+    if error:
+        return error
 
     # 防重复 spawn（立项 4.5）：已有活 worker 直接复用，不重复建。
     alive = find_alive_worker_by_session(session_id)
@@ -9169,6 +9185,10 @@ async def _spawn_process(session_id: str,
     if not s:
         return f"Session {session_id} not found"
 
+    error = _native_platform_error(s, pending=False)
+    if error:
+        return error
+
     try:
         from packages.plugins.lifecycle import capture_async, io
         await capture_async(s)
@@ -9197,7 +9217,7 @@ async def _spawn_process(session_id: str,
             stderr=asyncio.subprocess.STDOUT,
             cwd=s.workdir or None,
               **({'env': await io(pending.environment)} if pending else {}),
-            **command_window_options(),
+            **_worker_spawn_options(),
             )
             if pending:
                 proc._provider_launch = pending
@@ -9271,6 +9291,9 @@ async def _restart_worker_unlocked(worker_id: str) -> str | None:
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    error = _native_platform_error(_sess.get(w.session_id))
+    if error:
+        return error
     _cancel_pending_restart(w)
     retiring_owner = _offline.owner(w)
 
@@ -9396,6 +9419,9 @@ async def _respawn_worker_unlocked(worker_id: str, extra_args: list[str] | None 
     w = workers.get(worker_id)
     if not w:
         return "Worker not found"
+    error = _native_platform_error(_sess.get(w.session_id), pending=False)
+    if error:
+        return error
     _cancel_pending_restart(w)
     retiring_owner = _offline.owner(w)
 
@@ -9501,6 +9527,9 @@ async def branch_worker(worker_id: str, new_session_id: str) -> Worker | str:
     s = _sess.get(new_session_id)
     if not s:
         return "New session not found"
+    error = _native_platform_error(s, pending=False)
+    if error:
+        return error
 
     # inherit model/mode/thinking and adapter-specific session settings from
     # the original session.  Provider-owned identity/usage cursors are
