@@ -1,0 +1,87 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-worker-capability-20261027
+F                                                                        [100%]
+================================== FAILURES ===================================
+__________________ test_history_terminal_production_browser ___________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5763/test_history_terminal_producti0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002250F63B360>
+
+    def test_history_terminal_production_browser(tmp_path, monkeypatch):
+        assert base.PORT not in {8767, 8768}, "Use scripts/run_tests_isolated.py"
+        monkeypatch.setattr(base, "FAKE_CLI", Path(__file__).parent / "support/history_terminal_fake_cli.py")
+        monkeypatch.setattr(base, "SERVER_LAUNCHER", Path(__file__).parent / "support/automation_http_server.py")
+        rt = base._PanRuntime(tmp_path / "owned-history-profile")
+        rt.data_root.mkdir()
+        (rt.data_root / "config.json").write_text(json.dumps({"plugin_manifests": [],
+            "scheduler": {"enabled": False}, "memory": {"enabled": False}}), encoding="utf-8")
+        out = Path("artifacts/history-terminal/http").resolve()
+        out.mkdir(parents=True, exist_ok=True)
+        evidence = {"port": base.PORT, "ownedProfile": str(rt.data_root)}
+        try:
+            rt.start()
+            env = {**os.environ, "PAN_TEST_HISTORY_KEY": (
+                rt.data_root / "automation/user.key").read_text(encoding="utf-8")}
+            result = subprocess.run(["node", "packages/web/e2e/history-terminal-live.mjs", rt.base_url, str(out)],
+                cwd=base.ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=150,
+                **command_window_options())
+            (out / "browser.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+            evidence["browserExit"] = result.returncode
+>           assert result.returncode == 0, result.stdout + result.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             ExpectError: expect(locator).toHaveCount(expected) failed
+E             
+E             Locator:  locator('[data-terminal-status="error"]')
+E             Expected: 1
+E             Received: 0
+E             Timeout:  5000ms
+E             
+E             Call log:
+E               - Expect "toHaveCount" locator('[data-terminal-status="error"]') with timeout 5000ms
+E               - waiting for locator('[data-terminal-status="error"]')
+E                 14 �� locator resolved to 0 elements
+E                    - unexpected value "0"
+E             
+E                 at captureRawStack (D:\project\pan-worktrees\job-r1-integration-20261025\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+E                 at callMatcherAsStep (D:\project\pan-worktrees\job-r1-integration-20261025\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+E                 at Object.toHaveCount (D:\project\pan-worktrees\job-r1-integration-20261025\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+E                 at assertDisplay (D:\project\pan-worktrees\xplat-worker-capability-20261027\packages\web\e2e\history-terminal-live.mjs:75:66)
+E                 at D:\project\pan-worktrees\xplat-worker-capability-20261027\packages\web\e2e\history-terminal-live.mjs:90:9 {
+E               matcherResult: {
+E                 actual: 0,
+E                 expected: 1,
+E                 message: 'expect(locator).toHaveCount(expected) failed\n' +
+E                   '\n' +
+E                   `Locator:  locator('[data-terminal-status="error"]')\n` +
+E                   'Expected: 1\n' +
+E                   'Received: 0\n' +
+E                   'Timeout:  5000ms\n' +
+E                   '\n' +
+E                   'Call log:\n' +
+E                   `  - Expect "toHaveCount" locator('[data-terminal-status="error"]') with timeout 5000ms\n` +
+E                   `  - waiting for locator('[data-terminal-status="error"]')\n` +
+E                   '    14 �� locator resolved to 0 elements\n' +
+E                   '       - unexpected value "0"\n',
+E                 name: 'toHaveCount',
+E                 pass: false,
+E                 log: [
+E                   `  - Expect "toHaveCount" locator('[data-terminal-status="error"]') with timeout 5000ms`,
+E                   `  - waiting for locator('[data-terminal-status="error"]')`,
+E                   '    14 �� locator resolved to 0 elements',
+E                   '       - unexpected value "0"'
+E                 ],
+E                 timeout: 5000,
+E                 ariaSnapshot: undefined
+E               }
+E             }
+E             
+E             Node.js v24.22.1
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/history-terminal-live.mjs', 'http://127.0.0.1:57268', 'D:\\project\\p...      - unexpected value "0"\'\n    ],\n    timeout: 5000,\n    ariaSnapshot: undefined\n  }\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_history_terminal_http.py:31: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_history_terminal_http.py::test_history_terminal_production_browser

@@ -1,0 +1,18 @@
+{
+  "freshBuildBeforeHistory": true,
+  "buildExit": 0,
+  "sourceSHA": "cf7510f5152655992e376092d946962812950137",
+  "servedWorktree": "D:\\project\\pan-worktrees\\xplat-worker-capability-20261027",
+  "assets": [
+    {
+      "path": "D:\\project\\pan-worktrees\\xplat-worker-capability-20261027\\packages\\web\\dist\\index.html",
+      "mtime": 1793171599.9807515,
+      "sha256": "86d4d93339ee87052cb7ef5ac844d8d0a0d375dd5cc7f4b9d9269c7d7791417b"
+    },
+    {
+      "path": "D:\\project\\pan-worktrees\\xplat-worker-capability-20261027\\packages\\web\\dist\\assets\\index-JbINMieB-pc2.js",
+      "mtime": 1793171599.976749,
+      "sha256": "713b4d6f6695689ccf19efce8fc4461917d85ff615dbaa80c23ef998cf728dd3"
+    }
+  ]
+}

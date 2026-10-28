@@ -1,0 +1,36 @@
+{
+  "productionBundle": true,
+  "fakeCLI": true,
+  "authenticated": true,
+  "actualWsFrames": [
+    {
+      "status": "error",
+      "id": "terminal:seq:1",
+      "taskSeq": 1
+    },
+    {
+      "status": "done",
+      "id": "terminal:seq:2",
+      "taskSeq": 2
+    }
+  ],
+  "delayedOldErrorAfterDone": true,
+  "duplicateFrame": true,
+  "refresh": true,
+  "sessionSwitch": true,
+  "diagnosticsExpanded": true,
+  "terminalIds": [
+    "terminal:seq:1",
+    "terminal:seq:2",
+    "terminal:seq:3"
+  ],
+  "sessionId": "ses_84d134e523fd17ec",
+  "fixedAnchor": true,
+  "order": [
+    1,
+    2
+  ],
+  "pageErrors": [],
+  "pagination": true,
+  "virtualization": true
+}
