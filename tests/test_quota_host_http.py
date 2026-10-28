@@ -42,13 +42,13 @@ from tests.test_quota_host import limits, stamp
 
 def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
     assert real_http.PORT not in (8767,8768)
-    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+    monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
     rt=real_http._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
     now=float(int(time.time()))
     profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
     store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
     store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
-    before=store.patreal_http.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
+    before=store.path.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
     try:
         rt.start();evidence['serverPid']=rt.process.pid
         key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
@@ -101,7 +101,7 @@ def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path
             assert client.post(rt.base_url+'/api/automation/logout',headers=headers).json()=={'ok':True}
             assert client.put(url+'/host',json=body,headers=headers).status_code==401
             assert trace.read_text(encoding='utf-8')==lines
-            assert store.patreal_http.read_bytes()==before
+            assert store.path.read_bytes()==before
             evidence.update(policy=recovered,cliCommands=[json.loads(line) for line in lines.splitlines()])
             assert 'fixture-secret' not in json.dumps(evidence) and 'private-label' not in json.dumps(evidence)
     finally:

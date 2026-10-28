@@ -1,0 +1,80 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="10.841" timestamp="2026-10-28T15:20:37.863765+08:00" hostname="windows-local"><testcase classname="tests.test_agent_inbox_http" name="test_real_http_mcp_fake_cli" time="5.674" /><testcase classname="tests.test_interaction_card_http" name="test_http_mcp_user_response_and_directed_trigger" time="2.305"><failure message="urllib.error.HTTPError: HTTP Error 500: Internal Server Error">tmp_path = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/evidence/cp-x1-fixture-batch-20261028/owned-http-tmp/test_http_mcp_user_response_an0')
+
+    def test_http_mcp_user_response_and_directed_trigger(tmp_path):
+&gt;       run_http_mcp(tmp_path)
+
+tests\test_interaction_card_http.py:197: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_interaction_card_http.py:73: in run_http_mcp
+    assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_interaction_card_http.py:48: in call
+    with urllib.request.urlopen(request,timeout=15) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:187: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:493: in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:602: in http_response
+    response = self.parent.error(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:531: in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:464: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;urllib.request.HTTPDefaultErrorHandler object at 0x00000183D3F4D7F0&gt;
+req = &lt;urllib.request.Request object at 0x00000183D6173AD0&gt;
+fp = &lt;http.client.HTTPResponse object at 0x00000183D62AA5F0&gt;, code = 500
+msg = 'Internal Server Error'
+hdrs = &lt;http.client.HTTPMessage object at 0x00000183D3F0B930&gt;
+
+    def http_error_default(self, req, fp, code, msg, hdrs):
+&gt;       raise HTTPError(req.full_url, code, msg, hdrs, fp)
+E       urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:611: HTTPError</failure></testcase><testcase classname="tests.test_interaction_card_http" name="test_no_answer_http_stdio_production_browser" time="2.353"><failure message="urllib.error.HTTPError: HTTP Error 500: Internal Server Error">tmp_path = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/evidence/cp-x1-fixture-batch-20261028/owned-http-tmp/test_no_answer_http_stdio_prod0')
+
+    def test_no_answer_http_stdio_production_browser(tmp_path):
+&gt;       run_http_mcp(tmp_path,no_answer=True)
+
+tests\test_interaction_card_http.py:201: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_interaction_card_http.py:73: in run_http_mcp
+    assert call('POST','/__test/interaction-trigger',{'ownerSessionId':owner['id']})['ok']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_interaction_card_http.py:48: in call
+    with urllib.request.urlopen(request,timeout=15) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:187: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:493: in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:602: in http_response
+    response = self.parent.error(
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:531: in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:464: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;urllib.request.HTTPDefaultErrorHandler object at 0x00000183D3F4D7F0&gt;
+req = &lt;urllib.request.Request object at 0x00000183D6173E10&gt;
+fp = &lt;http.client.HTTPResponse object at 0x00000183D62AB6A0&gt;, code = 500
+msg = 'Internal Server Error'
+hdrs = &lt;http.client.HTTPMessage object at 0x00000183D6229130&gt;
+
+    def http_error_default(self, req, fp, code, msg, hdrs):
+&gt;       raise HTTPError(req.full_url, code, msg, hdrs, fp)
+E       urllib.error.HTTPError: HTTP Error 500: Internal Server Error
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\urllib\request.py:611: HTTPError</failure></testcase></testsuite></testsuites>

@@ -22,13 +22,14 @@ server._PROJECT_DIR = root.parent
 @server.app.get("/__test/inbox-identity")
 async def identity():
     from packages.core import session, config, background_jobs
-    from packages.scheduler import store
+    from packages.core.platform import data_paths
     from packages.core.terminal import registry
     from packages.core.inbox_service import get_inbox
     return {"pid": os.getpid(), "port": port, "cwd": str(Path.cwd()), "roots": {
         "data": str(server.DATA_DIR), "sessions": str(session.SESSION_DIR),
-        "config": str(config.CONFIG_FILE), "jobs": str(background_jobs.DEFAULT_ROOT),
-        "scheduler": str(store.DEFAULT_ROOT), "terminal": str(registry.DEFAULT_REGISTRY_ROOT),
+        "config": str(config.CONFIG_FILE),
+        "jobs": str(Path(os.environ.get("PAN_BACKGROUND_JOBS_DIR") or background_jobs.DEFAULT_ROOT).expanduser()),
+        "scheduler": str(data_paths.job_root()), "terminal": str(registry.DEFAULT_REGISTRY_ROOT),
         "gateway": str(gateway_plugins.MANIFEST), "inbox": str(get_inbox().path),
         "attachments": str(server.ATTACHMENTS_DIR), "workdirs": str(server.WORKDIRS_DIR),
         "errorLog": os.environ["PAN_SESSION_ERROR_LOG_PATH"],

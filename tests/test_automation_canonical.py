@@ -23,11 +23,13 @@ class SessionProvider:
     def __init__(self):
         self.calls, self.fail_once, self.unknown, self.after_send = [], None, False, None
         self.targets, self.sources = [], []
+        self.source_session_ids = []
 
-    async def send_session(self, session_id, text, *, effect_key, source):
+    async def send_session(self, session_id, text, *, effect_key, source, source_session_id=None):
         self.calls.append((text, copy.deepcopy(effect_key)))
         self.targets.append(session_id)
         self.sources.append(source)
+        self.source_session_ids.append(source_session_id)
         if self.after_send:
             self.after_send()
         if self.unknown:

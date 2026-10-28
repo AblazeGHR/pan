@@ -42,7 +42,7 @@ from tests import test_real_queue_http_e2e as real_http
 
 def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):
     assert real_http.PORT not in (8767,8768)
-    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+    monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
     rt=real_http._PanRuntime(tmp_path/'owned-quota-http');rt.data_root.mkdir()
     (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
     evidence={'port':real_http.PORT,'profile':str(rt.data_root),'providerCalls':0,'switches':0,'restarts':0}

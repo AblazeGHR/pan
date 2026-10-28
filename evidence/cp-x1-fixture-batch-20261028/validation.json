@@ -1,0 +1,65 @@
+{
+  "sourceSha": "982bf6076a913ccf6d68b2f1adfe4b7911151291",
+  "mergeBaseline": "264af19d0c854039e16bda7b598dfeb281fea85b",
+  "integratedParent": "284abf3ca195149bd3746027203f566de40ab8cb",
+  "python": "3.14.5",
+  "platform": "win32",
+  "checks": {
+    "core": {
+      "counts": {
+        "passed": 44,
+        "failed": 2
+      },
+      "exitCode": 1,
+      "reds": [
+        {
+          "node": "tests.test_quota_host_http::test_owned_host_configuration_read_projection_and_restart_real_http",
+          "message": "AttributeError: 'CodexQuotaStore' object has no attribute 'patreal_http'"
+        },
+        {
+          "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+          "message": "KeyError: 'ok'"
+        }
+      ],
+      "seconds": 18.593
+    },
+    "owned-http": {
+      "counts": {
+        "passed": 1,
+        "failed": 2
+      },
+      "exitCode": 1,
+      "reds": [
+        {
+          "node": "tests.test_interaction_card_http::test_http_mcp_user_response_and_directed_trigger",
+          "message": "urllib.error.HTTPError: HTTP Error 500: Internal Server Error"
+        },
+        {
+          "node": "tests.test_interaction_card_http::test_no_answer_http_stdio_production_browser",
+          "message": "urllib.error.HTTPError: HTTP Error 500: Internal Server Error"
+        }
+      ],
+      "seconds": 10.841
+    },
+    "quota-host-after-path": {
+      "counts": {
+        "failed": 1
+      },
+      "exitCode": 1,
+      "reds": [
+        {
+          "node": "tests.test_quota_host_http::test_owned_host_configuration_read_projection_and_restart_real_http",
+          "message": "AssertionError: timed out waiting for host read-only projection: None"
+        }
+      ],
+      "seconds": 20.94
+    }
+  },
+  "build": {
+    "frozenInstallExit": 0,
+    "freshBuildExit": 0
+  },
+  "remoteCi": "not_run",
+  "old485Classification": "unchanged",
+  "browser": "fresh built; original card browser test failed in prepare_trigger before Chromium launch"
+}
