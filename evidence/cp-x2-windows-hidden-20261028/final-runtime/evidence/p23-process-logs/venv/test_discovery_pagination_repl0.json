@@ -1,0 +1,12 @@
+{
+  "originalFence": true,
+  "ownedTreeConfirmed": true,
+  "supervisorExited": true,
+  "discoveryPagination": true,
+  "crossPrincipalCursorRejected": true,
+  "crossProfileCursorRejected": true,
+  "legacyUnavailableExplicit": true,
+  "portReleased": true,
+  "supervisorsRemaining": [],
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+}

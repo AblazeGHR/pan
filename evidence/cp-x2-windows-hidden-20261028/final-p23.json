@@ -1,0 +1,25 @@
+{
+  "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retained_safety_protocol.py",
+    "tests/test_job_retained_safety_owned.py",
+    "tests/test_job_retained_safety_canonical.py",
+    "tests/test_job_retained_safety_public.py",
+    "tests/test_job_final_executors.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-job-posix-safety-20261027\\evidence\\cp-x2-windows-hidden-20261028\\final-p23.xml"
+  ],
+  "exit": 0,
+  "seconds": 122.904
+}

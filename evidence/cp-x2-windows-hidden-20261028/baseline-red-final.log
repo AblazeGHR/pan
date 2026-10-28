@@ -1,0 +1,22 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-posix-safety-20261027
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__________ test_hidden_tree_identity_stdio_and_desktop_cleanup[base] __________
+tests\test_platform_process_windows_hidden.py:78: in test_hidden_tree_identity_stdio_and_desktop_cleanup
+    assert name.startswith('PanJob_') and name != original
+E   AssertionError: assert (False)
+E    +  where False = <built-in method startswith of str object at 0x0000020C380FEC70>('PanJob_')
+E    +    where <built-in method startswith of str object at 0x0000020C380FEC70> = 'Default'.startswith
+__________ test_atomic_membership_precedes_resume_and_no_late_assign __________
+tests\test_platform_process_windows_hidden.py:169: in test_atomic_membership_precedes_resume_and_no_late_assign
+    with closing(owner.spawn([sys.executable, '-c', 'from pathlib import Path; Path('+repr(str(marker))+').touch()'])) as owned:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<exact-a9d236c1-process.py>:589: in spawn
+    ???
+tests\test_platform_process_windows_hidden.py:166: in forbidden
+    pytest.fail('post-create assignment must never authorize an owned command')
+E   Failed: post-create assignment must never authorize an owned command
+=========================== short test summary info ===========================
+FAILED tests/test_platform_process_windows_hidden.py::test_hidden_tree_identity_stdio_and_desktop_cleanup[base]
+FAILED tests/test_platform_process_windows_hidden.py::test_atomic_membership_precedes_resume_and_no_late_assign
+2 failed in 0.47s

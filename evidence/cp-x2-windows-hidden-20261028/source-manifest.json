@@ -1,0 +1,52 @@
+{
+  "baseline": "a9d236c1c16159ca27697cfe090e3b7256c8c417",
+  "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "files": [
+    {
+      "path": "docs/reports/CP_X2_CAPABILITIES_WINDOWS_20261028.md",
+      "sha256": "315acfa49ef4d03d64da858765cc45a59ecd4ae1597398fcb0a45d1024e6cb85"
+    },
+    {
+      "path": "packages/core/platform/desktop_win.py",
+      "sha256": "579f057fd804b44761ecb671c281e9ea0bf206acc018dec4685270e3d56dbe7c"
+    },
+    {
+      "path": "packages/core/platform/process.py",
+      "sha256": "03d9fe71b8b006a557798e2f413a5392199edaa97c4df20edccb74357c2785e5"
+    },
+    {
+      "path": "packages/core/platform/process_creation_win.py",
+      "sha256": "03da5be5db6b4c1312a70d7340d5df2bc32502eea96e83e6dc77b3e99ddffdcd"
+    },
+    {
+      "path": "packages/jobs/owned_process.py",
+      "sha256": "cefdf5baf0e9e2366f5d51a0f08847620978ddf72a70527dedd2eaa550b94f23"
+    },
+    {
+      "path": "tests/helpers/process_owner_hidden_probe.py",
+      "sha256": "906c8b8736e184a986c43c7fafd372b8d04572ab4522ca663c1f4f9d6f4c076c"
+    },
+    {
+      "path": "tests/test_platform_process_windows_hidden.py",
+      "sha256": "34df3eb4a6b47359ba99e87c7a59243331478626f2da6a6d06b2a4a614beaa60"
+    }
+  ],
+  "cpX1CombinedPublicNodes": {
+    "file": "tests/test_lifecycle_controller_publication.py",
+    "node": "test_canonical_job_cancel_after_controller_crash",
+    "parameters": [
+      "before-claim-base",
+      "before-claim-named-venv",
+      "after-running-base",
+      "after-running-named-venv"
+    ],
+    "options": [
+      "-p",
+      "tests.support.lifecycle_strict_options",
+      "--cpx1-require-hidden-desktop"
+    ],
+    "status": "not in baseline; MA combined verification pending"
+  }
+}
