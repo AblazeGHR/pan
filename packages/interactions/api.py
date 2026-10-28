@@ -3,7 +3,9 @@
 Uses the host's existing Automation UserAuth; an explicit verifier may override
 it for other trusted hosts. No independent login or client-supplied identity.
 """
+import asyncio
 import inspect
+import logging
 from fastapi import HTTPException, Request
 from packages.core import session
 from .contracts import InteractionError, SCHEMA
@@ -21,6 +23,43 @@ def failure(exc):
 
 
 def register(app):
+    # A read mutation is a FULL SQLite write, including store initialization.
+    # Admit one at a time before entering a worker thread so a Read all burst
+    # does not occupy the shared pool with competing SQLite writers.
+    read_writer = asyncio.Lock()
+    read_tasks = set()
+
+    async def write_read(method, principal, item_id, value):
+        started = False
+        async def execute():
+            nonlocal started
+            async with read_writer:
+                started = True
+                def write():
+                    return getattr(get_store(), method)(principal, item_id, value)
+                return await asyncio.to_thread(write)
+
+        # The task owns the slot through actual thread completion even if the
+        # HTTP caller disconnects; a cancelled response cannot imply rollback.
+        task = asyncio.create_task(execute())
+        read_tasks.add(task)
+        detached = False
+        def finish(done):
+            read_tasks.discard(done)
+            if not done.cancelled():
+                error = done.exception()
+                if detached and error is not None:
+                    logging.getLogger(__name__).error(
+                        "Detached Locker read mutation failed", exc_info=(type(error), error, error.__traceback__))
+        task.add_done_callback(finish)
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            detached = True
+            if not started:
+                task.cancel()
+            raise
+
     async def user(request):
         verifier=getattr(app.state,'user_inbox_principal',None)
         if verifier is None:
@@ -243,7 +282,7 @@ def register(app):
         if set(data)!={'read'}:
             raise HTTPException(422,detail={'code':'invalid'})
         try:
-            return {'message':get_store().mark_message_read(principal,message_id,data['read'])}
+            return {'message':await write_read('mark_message_read',principal,message_id,data['read'])}
         except InteractionError as exc:
             raise failure(exc) from exc
 
@@ -282,7 +321,7 @@ def register(app):
         if set(data)!={'read'}:
             raise HTTPException(422,detail={'code':'invalid'})
         try:
-            return {'card':get_store().mark_read(principal,card_id,data['read'])}
+            return {'card':await write_read('mark_read',principal,card_id,data['read'])}
         except InteractionError as exc:
             raise failure(exc) from exc
 
