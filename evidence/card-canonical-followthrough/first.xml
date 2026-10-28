@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="10" time="10.363" timestamp="2026-10-28T15:37:53.057914+08:00" hostname="ablaze"><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-message]" time="0.490"><failure message="KeyError: 'plans'">tests\test_interaction_canonical_binding.py:90: in test_canonical_fixed_card_directed_once_original_identity
+    assert asyncio.run(h.adapter.lookup(admission['cause']['eventId']))['receiptId'] == done['delivery']['receiptId']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:86: in lookup
+    return await resolve(self.find_receipt(event_id))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:7: in resolve
+    return await value if inspect.isawaitable(value) else value
+           ^^^^^^^^^^^
+packages\interactions\runtime.py:173: in lookup
+    return await service.engine.io(original)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\engine.py:88: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:163: in original
+    frozen_event = state['plans'][rid]['frozen']['event']
+                   ^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[assign]" time="0.421"><failure message="KeyError: 'plans'">tests\test_interaction_canonical_binding.py:90: in test_canonical_fixed_card_directed_once_original_identity
+    assert asyncio.run(h.adapter.lookup(admission['cause']['eventId']))['receiptId'] == done['delivery']['receiptId']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:86: in lookup
+    return await resolve(self.find_receipt(event_id))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:7: in resolve
+    return await value if inspect.isawaitable(value) else value
+           ^^^^^^^^^^^
+packages\interactions\runtime.py:173: in lookup
+    return await service.engine.io(original)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\engine.py:88: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:163: in original
+    frozen_event = state['plans'][rid]['frozen']['event']
+                   ^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-broadcast]" time="0.402"><failure message="KeyError: 'plans'">tests\test_interaction_canonical_binding.py:90: in test_canonical_fixed_card_directed_once_original_identity
+    assert asyncio.run(h.adapter.lookup(admission['cause']['eventId']))['receiptId'] == done['delivery']['receiptId']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:86: in lookup
+    return await resolve(self.find_receipt(event_id))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\bridge.py:7: in resolve
+    return await value if inspect.isawaitable(value) else value
+           ^^^^^^^^^^^
+packages\interactions\runtime.py:173: in lookup
+    return await service.engine.io(original)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\engine.py:88: in io
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\interactions\runtime.py:163: in original
+    frozen_event = state['plans'][rid]['frozen']['event']
+                   ^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_dynamic_graph_rejected" time="0.314" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[trigger]" time="0.370" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[job]" time="0.415" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[action]" time="0.386" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[scope]" time="0.369" /><testcase classname="tests.test_interaction_canonical_binding" name="test_unknown_lost_admission_receipt_queries_original_after_graph_disabled" time="0.438"><failure message="AssertionError: assert ('unknown' == 'accepted'&#10;  &#10;  - accepted&#10;  + unknown)">tests\test_interaction_canonical_binding.py:144: in test_unknown_lost_admission_receipt_queries_original_after_graph_disabled
+    assert done['delivery']['state'] == 'accepted' and calls == [1]
+E   AssertionError: assert ('unknown' == 'accepted'
+E     
+E     - accepted
+E     + unknown)</failure></testcase><testcase classname="tests.test_interaction_card_http" name="test_http_mcp_user_response_and_directed_trigger" time="6.390" /></testsuite></testsuites>

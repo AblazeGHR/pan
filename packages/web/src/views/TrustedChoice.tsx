@@ -19,8 +19,23 @@ export function TrustedChoice({
             <p>Target: {binding.targetIds.join(', ')}</p>
             <details>
               <summary>Operation details</summary>
-              <p>Action: {binding.actionId}</p>
-              <code>{binding.actionDigest}</code>
+              {binding.version === 2 ? (
+                <>
+                  <p>Job: {binding.jobId} · configRevision {binding.jobRevision}</p>
+                  <code>{binding.jobDigest}</code>
+                  {binding.actions.map((action) => (
+                    <div key={`${action.id}:${action.revision}`}>
+                      <p>Action: {action.id} · revision {action.revision}</p>
+                      <code>{action.digest}</code>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <p>Action: {binding.actionId}</p>
+                  <code>{binding.actionDigest}</code>
+                </>
+              )}
             </details>
           </>
         ) : (
