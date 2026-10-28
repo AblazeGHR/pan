@@ -97,7 +97,12 @@ def test_controller_crash_retains_original_supervisor_and_cleans_owned_tree(tmp_
         assert all(abs(psutil.Process(row["pid"]).create_time() - row["birth"]) < .01 for row in members)
         assert psutil.Process(members[1]["pid"]).ppid() == members[0]["pid"]
         root_pid = doc["evidence"]["processIdentity"]["pid"]
-        assert root_pid in [p.pid for p in psutil.Process(members[0]["pid"]).parents()]
+        # The persisted process identity may name the tree root itself. On
+        # Windows a launcher can also insert an interpreter shim; preserve the
+        # ownership assertion in either representation without requiring a
+        # process to list itself as its own parent.
+        assert (root_pid == members[0]["pid"] or
+                root_pid in [p.pid for p in psutil.Process(members[0]["pid"]).parents()])
         actual_controller = psutil.Process(controller_id["pid"])
         assert abs(actual_controller.create_time() - controller_id["birth"]) < .01
         assert (actual_controller.pid == controller.pid or
