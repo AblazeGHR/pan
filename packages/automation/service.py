@@ -48,9 +48,9 @@ class Service:
         self.job_runtime = None
         self.engine_started = False
         from .quota_policy import Runtime as QuotaPolicy
-        # Configuration/evaluation stay available without starting the retired
-        # query scheduler. Effects require a separately bound host adapter.
         self.quota_policy = QuotaPolicy(root, Path(root).parent / 'background_jobs')
+        from .quota_host import bind_readonly
+        bind_readonly(self.quota_policy, worker, Path(root).parent)
 
     def canonical(self):
         final = getattr(self, 'final_jobs', None)

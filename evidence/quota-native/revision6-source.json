@@ -1,0 +1,41 @@
+{
+  "parent": "550c150d8112655d3f6627fa66edbf23a17472ac",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "sourceSha256": {
+    "packages/automation/service.py": "71edcd3fdaadad24159185eeb34d082a0a679efa5c10733ec856315b6750348b",
+    "packages/automation/quota_host.py": "2258b9dc8da2443d5de5f505bab3fbfd8666eb83e31cf5d1415266fe4abfda39",
+    "tests/support/quota_host_http_server.py": "8e5b5b97f6afd2494eb76a7a65815e292bfd5f3281be324a0011891bcb20fa18",
+    "tests/test_quota_native_admission.py": "cac302270646ebd0fc3e2da1c0c0a3da6649900c4a020677348eb61cf0f7e6aa",
+    "evidence/quota-native/production_http_server.py": "a8370ffccb2412d45475de4b27c66a2af0df3dac5675785dc2e66337fdcdde92",
+    "tests/test_quota_host_http.py": "f463991f1b54f9dd8553967c20249c74b04c485c753e1e8e01d0857a593619c6",
+    "tests/test_quota_policy_http.py": "f674c137551586c62f8267bb98854d1cc428e46879a24e2c211e2a68434fba2c",
+    "tests/test_job_retirement_quota_transport.py": "b1805396aad0735c340a7cd2c09dce25212b788b0f908e0551301ab6160a7df3",
+    "packages/automation/api.py": "04e64a8a040231c46daf6564634329734d12de4597e5fedcf92a00b6c05638f4",
+    "packages/web/server.py": "14149c1befc46e23d1db6ad120b37acc44d2299a320bec544482ce5a54e40f57",
+    "packages/jobs/final_service.py": "ffe630b8b8d029b7302250452f0a8e268b5a55fadb7b8ad6b288111691905c10",
+    "packages/actions/typed_executor.py": "43aece7616cadf35d306d34a4b8a7952f262b9a6ca517aea6157d9bd39bfecf5"
+  },
+  "commands": [
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_native_admission.py -q -o addopts= --tb=short -W ignore 2>&1 | Tee-Object evidence/quota-native/revision6-native.log",
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_host_http.py tests/test_quota_host.py tests/test_quota_provider_source.py -q -o addopts= --tb=short -W ignore --basetemp=evidence/quota-native/revision6-owned-temp 2>&1 | Tee-Object evidence/quota-native/revision6-host.log",
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_automation_canonical.py tests/test_quota_policy.py -q -o addopts= --tb=short -W ignore 2>&1 | Tee-Object evidence/quota-native/revision6-service.log",
+    "git diff --check"
+  ],
+  "results": {
+    "native": {
+      "passed": 20,
+      "exitCode": 0
+    },
+    "host": {
+      "passed": 84,
+      "exitCode": 0
+    },
+    "service": {
+      "passed": 19,
+      "exitCode": 0
+    }
+  },
+  "protectedFilesUnchanged": true,
+  "ownedPidBirthAndPortCleanupVerified": true
+}

@@ -307,3 +307,19 @@ class HostAdapter(Adapter):
 
 def production(store, worker, root):
     return HostAdapter(store,ReadSource(root),Bindings(worker))
+
+
+def bind_readonly(policy, worker, root):
+    """Construct the default-off host once; preserve every injected adapter.
+
+    Construction only wires existing ports. Query/inventory retain enabled/CAS
+    gates, and no business mutation port is available on this production seam.
+    """
+    if type(policy.adapter) is not Adapter:
+        return policy.adapter
+    adapter = production(policy.store, worker, Path(root))
+    if not isinstance(adapter, HostAdapter) or adapter.ports:
+        raise ValueError('Read-only quota host requires HostAdapter with zero mutation ports')
+    adapter.runtime = policy
+    policy.adapter = adapter
+    return adapter

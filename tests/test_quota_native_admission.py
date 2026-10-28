@@ -650,3 +650,80 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
                 g.get('portReleased') for g in evidence['generations'])
             Path('evidence/quota-native/process-tcp.json').write_text(
                 json.dumps(evidence,indent=2)+'\n',encoding='utf-8')
+
+
+def test_readonly_binding_construction_disabled_and_custom(tmp_path,monkeypatch):
+    from packages.automation import quota_host
+    from packages.automation.quota_policy import Runtime, Unavailable
+    from packages.cc_switch_bridge.provider import Bridge
+    def forbidden(*args,**kwargs):raise AssertionError('construction/disabled host performed IO')
+    monkeypatch.setattr(Bridge,'read_only',forbidden)
+    monkeypatch.setattr(quota_host.ReadSource,'read',forbidden)
+    monkeypatch.setattr(quota_host,'retained_process',forbidden)
+    rt=Runtime(tmp_path/'policy',tmp_path/'jobs')
+    adapter=quota_host.bind_readonly(rt,SimpleNamespace(),tmp_path)
+    assert isinstance(adapter,quota_host.HostAdapter) and adapter.runtime is rt and adapter.ports=={}
+    assert quota_host.bind_readonly(rt,SimpleNamespace(),tmp_path) is adapter
+    assert not rt.store.path.exists()
+    assert rt.store.read()['host']=={'enabled':False,'sessionRoles':{}}
+    for operation in (adapter.query,adapter.inventory):
+        with pytest.raises(Unavailable,match='quota_host_disabled'):asyncio.run(operation())
+    with pytest.raises(Unavailable,match='unbound'):
+        asyncio.run(adapter.perform({'operation':'wake_ma'},'unused'))
+    custom=RecordingQuota(time.time(),95)
+    rt.adapter=custom
+    monkeypatch.setattr(quota_host,'production',forbidden)
+    assert quota_host.bind_readonly(rt,SimpleNamespace(),tmp_path) is custom
+
+
+def test_readonly_binding_rejects_mutation_ports(tmp_path,monkeypatch):
+    from packages.automation import quota_host
+    from packages.automation.quota_policy import Runtime
+    rt=Runtime(tmp_path/'policy',tmp_path/'jobs');original=rt.adapter
+    forbidden=quota_host.HostAdapter(rt.store,None,None,ports={'wake_ma':lambda:None})
+    monkeypatch.setattr(quota_host,'production',lambda *args:forbidden)
+    with pytest.raises(ValueError,match='zero mutation ports'):
+        quota_host.bind_readonly(rt,SimpleNamespace(),tmp_path)
+    assert rt.adapter is original and forbidden.runtime is None
+
+
+def test_service_readonly_host_admission_sample_once_reopen(tmp_path,monkeypatch):
+    from packages.automation import quota_host
+    counts={'constructed':0,'sample':0}
+    root=tmp_path/'owned'
+    class Source:
+        def read_for_policy(self,disabled):
+            counts['sample']+=1
+            return {'observedAt':time.time(),'managed':{'status':'unknown'},'native':{'status':'unknown'},
+                'provider':{'status':'unknown'},'binding':'unknown','reason':'owned-unavailable',
+                'policySnapshot':{'status':'unknown'},'profileBindings':{}}
+    def factory(store,worker,profile):
+        assert Path(profile)==root
+        counts['constructed']+=1
+        return quota_host.HostAdapter(store,Source(),None)
+    monkeypatch.setattr(quota_host,'production',factory)
+    with owned_tcp(root) as h:
+        assert counts=={'constructed':1,'sample':0}
+        assert h.policy.adapter.runtime is h.policy and not h.policy.adapter.ports
+        assert asyncio.run(h.policy.query())['status']=='unknown'
+        assert counts['sample']==0
+        state=h.client.get(URL).json()
+        response=h.client.put(URL+'/host',json={'enabled':True,'sessionRoles':{},'expectedRevision':state['revision']})
+        assert response.status_code==200,response.text
+        automatic(h)
+        request={'kind':'once','expectedRevision':h.client.get(URL).json()['revision']}
+        job=h.client.post(URL+'/query-jobs',json=request).json()['job'];jid=job['jobId']
+        wait(lambda:h.service.runs(jid,actor=USER)['items'] and h.service.runs(jid,actor=USER)['items'][0]['state']=='uncertain')
+        original=h.service.final.store.get(jid)['finalRuntime']
+        assert counts['sample']==1
+        assert h.client.post(URL+'/query-jobs',json=request).json()['job']==job
+        assert counts['sample']==1 and not h.policy.store.read()['commands']
+    with owned_tcp(root) as h:
+        assert counts=={'constructed':2,'sample':1}
+        assert h.client.post(URL+'/query-jobs',json=request).json()['job']==job
+        agg=h.service.final.store.get(jid)['finalRuntime']
+        assert agg['attempts']==original['attempts'] and agg['effects']==original['effects']
+        state=h.client.get(URL).json()
+        assert h.client.put(URL+'/host',json={'enabled':False,'sessionRoles':{},'expectedRevision':state['revision']}).status_code==200
+        assert asyncio.run(h.policy.query())['status']=='unknown'
+        assert counts['sample']==1 and not h.policy.store.read()['commands']

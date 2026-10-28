@@ -1,5 +1,10 @@
 # Quota host binding diagnosis and canonical HTTP followthrough
 
+Historical revision5 report. MA subsequently selected and authorized the Service
+construction seam; [REVISION6.md](REVISION6.md) records its actual implementation
+and original host HTTP verification through product binding. The unimplemented
+shared-seam proposal and fixture-only limits below describe revision5 only.
+
 Requested combination baseline: `ea0b71a888c9180401b2214ee517eca683ed98ac`.
 Merged normally into the existing clean task branch, preserving both parents:
 merge `9cc715137a1fab92a2e7cdac835db1f4b20ea55d`, prior task HEAD

@@ -1,0 +1,4 @@
+{"phase": "factory-constructed-readonly", "pid": 28200, "at": 1793173276.8779678, "adapter": "HostAdapter", "mutationPorts": 0}
+{"phase": "sample-start", "pid": 28200, "at": 1793173280.2755494}
+{"phase": "sample-end", "pid": 28200, "at": 1793173280.6073308, "providerStatus": "known", "nativeStatus": "known"}
+{"phase": "factory-constructed-readonly", "pid": 34336, "at": 1793173283.9621532, "adapter": "HostAdapter", "mutationPorts": 0}

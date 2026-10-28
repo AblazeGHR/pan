@@ -13,6 +13,7 @@ data = Path(os.environ['PAN_E2E_DATA_ROOT']).resolve()
 # Instrumentation is confined to this owned test process. Delegate unchanged
 # unavailable behavior, recording no arguments, accounts, credentials or payloads.
 from packages.automation.quota_policy import Adapter
+from packages.automation.quota_host import HostAdapter
 
 
 def observed(name, original):
@@ -23,7 +24,8 @@ def observed(name, original):
     return call
 
 
-for method in ('query', 'inventory', 'perform'):
-    setattr(Adapter, method, observed(method, getattr(Adapter, method)))
+for adapter in (Adapter, HostAdapter):
+    for method in ('query', 'inventory', 'perform'):
+        setattr(adapter, method, observed(method, getattr(adapter, method)))
 
 runpy.run_path(str(ROOT / 'tests/support/automation_http_server.py'), run_name='__main__')
