@@ -6,6 +6,7 @@ import {
   buildShortcutActions,
   getShortcutActions,
 } from './registry';
+import { findBindingConflicts, isReservedBinding } from './bindings';
 
 const panel = (pluginId: string, id: string, title: string) => ({
   pluginId,
@@ -93,6 +94,7 @@ describe('dynamic panel shortcut registry', () => {
         'app.commandPalette',
         'app.historySearch',
         'app.globalHistorySearch',
+        'chat.scrollToBottom',
         'queue.selectPrevious',
         'queue.selectNext',
         'queue.editSelected',
@@ -124,5 +126,20 @@ describe('dynamic panel shortcut registry', () => {
     }
     expect(actions.find((action) => action.id === 'app.historySearch')?.defaultBinding).toBe('Mod+F');
     expect(actions.find((action) => action.id === 'app.globalHistorySearch')?.defaultBinding).toBe('Mod+G');
+  });
+
+  it('ships the chat scroll action on an unreserved, unambiguous Mod+End default', () => {
+    const actions = buildShortcutActions(entries);
+    const scrollAction = actions.find((action) => action.id === 'chat.scrollToBottom');
+    expect(scrollAction?.label).toBe('Scroll chat to bottom');
+    expect(scrollAction?.defaultBinding).toBe('Mod+End');
+    expect(isReservedBinding(scrollAction?.defaultBinding ?? null, scrollAction?.id)).toBe(false);
+    // The default must not steal an existing action's chord, and no other
+    // default may already own Mod+End.
+    expect(findBindingConflicts(actions, {}).size).toBe(0);
+    // The chat scroll action is not a composer action: the dispatcher keeps
+    // caret/editor chords native in every editable target.
+    expect(scrollAction?.allowInComposer).not.toBe(true);
+    expect(scrollAction?.composerOnly).not.toBe(true);
   });
 });

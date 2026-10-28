@@ -9,6 +9,7 @@ import { useUIStore } from '@/stores/uiStore';
 import type { AgentQueueItem } from '@/types';
 import { registerLockedEnqueueHandler } from './composerBridge';
 import { registerQueueSelectedEditHandler } from './queueBridge';
+import { registerChatScrollToBottomHandler } from './chatScrollBridge';
 import {
   setShortcutRecording,
   shouldIgnoreShortcutEvent,
@@ -198,6 +199,94 @@ describe('central shortcut dispatcher', () => {
     press({ key: 'g', code: 'KeyG', ctrlKey: true }, input);
     expect(globalHistory).toHaveBeenCalledTimes(1);
     window.removeEventListener('pan:shortcut:global-history-search', globalHistory);
+  });
+});
+
+describe('chat scroll-to-bottom shortcut', () => {
+  function editableTargets() {
+    const input = document.createElement('input');
+    const textarea = document.createElement('textarea');
+    const editable = document.createElement('div');
+    editable.setAttribute('contenteditable', 'true');
+    const monaco = document.createElement('div');
+    monaco.className = 'monaco-editor';
+    const monacoInput = document.createElement('textarea');
+    monaco.appendChild(monacoInput);
+    const xterm = document.createElement('div');
+    xterm.className = 'xterm';
+    const xtermInput = document.createElement('textarea');
+    xterm.appendChild(xtermInput);
+    // The chat composer is an editor too: Ctrl+End must keep moving its caret.
+    const composer = document.createElement('div');
+    composer.className = 'composer-editor';
+    composer.setAttribute('contenteditable', 'true');
+    document.body.append(input, textarea, editable, monaco, xterm, composer);
+    return [input, textarea, editable, monacoInput, xtermInput, composer];
+  }
+
+  it('runs on Mod+End from the message list and never from an editable target', () => {
+    const scroll = vi.fn(() => true);
+    const unregister = registerChatScrollToBottomHandler('s1', scroll);
+    try {
+      render(<Harness navigate={vi.fn()} />);
+      expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(false);
+      expect(scroll).toHaveBeenCalledTimes(1);
+
+      for (const target of editableTargets()) {
+        expect(press({ key: 'End', code: 'End', ctrlKey: true }, target)).toBe(true);
+      }
+      expect(scroll).toHaveBeenCalledTimes(1);
+
+      // IME, a recorder and an open modal keep the chord by the same guard as
+      // every other action.
+      expect(press({
+        key: 'End', code: 'End', ctrlKey: true, isComposing: true,
+      })).toBe(true);
+      setShortcutRecording(true);
+      expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+      setShortcutRecording(false);
+      expect(scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      unregister();
+    }
+  });
+
+  it('releases the chord without a visible list, for another Session, and after rebinding', () => {
+    render(<Harness navigate={vi.fn()} />);
+    // No chat list mounted at all.
+    expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+
+    // A list mounted for a Session the user is not viewing never accepts it.
+    const other = vi.fn(() => true);
+    const unregisterOther = registerChatScrollToBottomHandler('s2', other);
+    try {
+      expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+      expect(other).not.toHaveBeenCalled();
+    } finally {
+      unregisterOther();
+    }
+
+    const scroll = vi.fn(() => true);
+    const unregister = registerChatScrollToBottomHandler('s1', scroll);
+    try {
+      // A bare End still moves the caret or scrolls natively.
+      expect(press({ key: 'End', code: 'End' })).toBe(true);
+
+      useAppSettingsStore.setState({
+        shortcuts: { 'chat.scrollToBottom': 'Mod+Shift+L' },
+      });
+      expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+      expect(scroll).not.toHaveBeenCalled();
+      expect(press({ key: 'l', code: 'KeyL', ctrlKey: true, shiftKey: true })).toBe(false);
+      expect(scroll).toHaveBeenCalledTimes(1);
+
+      // Clearing the binding releases the chord entirely.
+      useAppSettingsStore.setState({ shortcuts: { 'chat.scrollToBottom': null } });
+      expect(press({ key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+      expect(scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      unregister();
+    }
   });
 });
 

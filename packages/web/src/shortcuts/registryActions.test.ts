@@ -6,6 +6,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { buildShortcutActions } from './registry';
 import { entries } from '@/components/layout/viewEntries';
 import { registerLockedEnqueueHandler } from './composerBridge';
+import { registerChatScrollToBottomHandler } from './chatScrollBridge';
 import { runSessionToggleShortcut } from '@/utils/sessionQuickActions';
 
 vi.mock('@/utils/sessionQuickActions', async (importOriginal) => {
@@ -99,6 +100,34 @@ describe('shortcut action semantics', () => {
     } finally {
       unregister();
     }
+  });
+
+  it('routes the chat scroll action only through a list mounted for the selected Session', () => {
+    const scroll = vi.fn(() => true);
+    // No visible chat list: the action stays disabled and never runs.
+    expect(action('chat.scrollToBottom').isEnabled?.()).toBe(false);
+    action('chat.scrollToBottom').run({ navigate: vi.fn() });
+    expect(scroll).not.toHaveBeenCalled();
+
+    const unregister = registerChatScrollToBottomHandler('s1', scroll);
+    try {
+      expect(action('chat.scrollToBottom').isEnabled?.()).toBe(true);
+      action('chat.scrollToBottom').run({ navigate: vi.fn() });
+      expect(scroll).toHaveBeenCalledTimes(1);
+
+      // A switched selection must neither dispatch to the old list nor look
+      // enabled before the successor list has registered.
+      useSessionStore.setState({
+        currentSessionId: 's2',
+        sessions: [session('s1'), session('s2')] as never,
+      });
+      expect(action('chat.scrollToBottom').isEnabled?.()).toBe(false);
+      action('chat.scrollToBottom').run({ navigate: vi.fn() });
+      expect(scroll).toHaveBeenCalledTimes(1);
+    } finally {
+      unregister();
+    }
+    expect(action('chat.scrollToBottom').isEnabled?.()).toBe(false);
   });
 
   it('keeps panel navigation and session toggle targeting stable', () => {

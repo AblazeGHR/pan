@@ -13,6 +13,7 @@ import { isValidMessageTs } from '@/utils/messageTimestamp';
 import type { Message } from '@/types';
 import { ArrowDown, Loader2 } from 'lucide-react';
 import { SearchTextContext } from './searchText';
+import { registerChatScrollToBottomHandler } from '@/shortcuts/chatScrollBridge';
 
 // Keep the follow zone small enough that scrolling up to read older content
 // opts out, while absorbing normal wheel/touch settling and sub-pixel layout
@@ -940,6 +941,25 @@ export const ChatMessages = forwardRef<ChatMessagesHandle, ChatMessagesProps>(fu
     clearUserScrollActivity();
     scrollToBottom();
   }, [clearUserScrollActivity, scrollToBottom]);
+
+  // Keyboard entry point for the same explicit recovery the button runs. The
+  // bridge stores the Session that mounted this list, so a request can never
+  // retarget a successor Session or an unmounted/route-hidden list. With no
+  // rendered row (empty chat, filtered tail) nothing is registered and the
+  // dispatcher leaves the chord alone.
+  useEffect(() => {
+    if (!currentSessionId || grouped.length === 0) return;
+    const registeredSessionId = currentSessionId;
+    return registerChatScrollToBottomHandler(registeredSessionId, () => {
+      if (currentSessionIdRef.current !== registeredSessionId) return false;
+      const el = parentRef.current;
+      if (!el) return false;
+      // Already at the true bottom: no scroll, no follow/suppression churn.
+      if (el.scrollHeight - el.scrollTop - el.clientHeight <= 1) return true;
+      recoverToBottom();
+      return true;
+    });
+  }, [currentSessionId, grouped.length, recoverToBottom]);
 
   const markLayoutChange = useCallback(() => {
     layoutChangePendingRef.current = true;
