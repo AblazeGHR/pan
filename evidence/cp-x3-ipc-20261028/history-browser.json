@@ -1,0 +1,17 @@
+{
+  "productionBundle": true,
+  "fakeCLI": true,
+  "authenticated": true,
+  "actualWsFrames": [
+    {
+      "status": "error",
+      "id": "terminal:seq:1",
+      "taskSeq": 1
+    },
+    {
+      "status": "done",
+      "id": "terminal:seq:2",
+      "taskSeq": 2
+    }
+  ]
+}
