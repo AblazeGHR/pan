@@ -2,6 +2,7 @@ import React, { createContext, memo, useContext, useMemo, useRef, useState } fro
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import { CodeWindow } from './CodeWindow';
@@ -16,6 +17,8 @@ import { normalizeLegacyAttachmentLinks } from '@/utils/attachmentMarkdown';
 import { isSafeAttachmentHref, serverAttachmentDownloadHref } from '@/utils/attachmentMarkdown';
 import { writeAttachmentDragPayload } from '@/utils/attachmentDrag';
 import 'highlight.js/styles/github-dark.css';
+import 'katex/dist/katex.min.css';
+import './markdownMath.css';
 import { SearchTextContext, searchTextPlugin } from './searchText';
 import { beginForegroundRequest } from '@/services/foregroundActivity';
 
@@ -288,7 +291,7 @@ interface MarkdownRendererProps {
 
 // Keep plugin identity stable so react-markdown does not rebuild its unified
 // pipeline when an unrelated message or sidebar state changes.
-const REMARK_PLUGINS = [remarkGfm];
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
 const REHYPE_PLUGINS = [rehypeBoundCodeHighlight, rehypeHighlight, rehypeKatex];
 
 

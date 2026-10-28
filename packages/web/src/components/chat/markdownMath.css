@@ -1,0 +1,6 @@
+/* Wide display equations scroll inside the message on narrow screens. */
+.prose-kimi .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.2em;
+}
