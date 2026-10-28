@@ -36,3 +36,15 @@ def test_real_child_collection_failure_stays_red_and_fast_evidence_survives(tmp_
 def test_unknown_phase_is_rejected(tmp_path):
     with pytest.raises(ValueError, match="unknown phase"):
         gate.phase_command("subset-collection", tmp_path)
+
+
+def test_integrated_worker_quota_and_log_contracts_execute_in_fast_gate(tmp_path):
+    command = gate.phase_command("fast", tmp_path)
+    for target in ("tests/test_worker_platform_admission.py",
+                   "tests/test_quota_native_admission.py",
+                   "tests/test_job_process_logs.py"):
+        assert command.count(target) == 1
+        assert (gate.ROOT / target).is_file()
+    assert "--collect-only" not in command
+    assert not any(arg.startswith(("--ignore", "--deselect")) for arg in command)
+    assert "-k" not in command
