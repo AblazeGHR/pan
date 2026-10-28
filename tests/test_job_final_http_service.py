@@ -27,9 +27,11 @@ class SessionProvider:
         self.fail_once = None
         self.unknown = False
         self.after_send = None
+        self.source_session_ids = []
 
-    async def send_session(self, session_id, text, *, effect_key, source):
+    async def send_session(self, session_id, text, *, effect_key, source, source_session_id=None):
         self.calls.append((text, copy.deepcopy(effect_key)))
+        self.source_session_ids.append(source_session_id)
         if self.after_send:
             self.after_send()
         if self.unknown:
@@ -42,6 +44,10 @@ class SessionProvider:
 
 @pytest.fixture
 def h(tmp_path):
+    # Native product Actions validate literal Session existence at admission.
+    # Preserve the same fixture ID used by job_def; no Worker is started.
+    from packages.core import session
+    session.save(session.Session(id="owned-test-session", name="Owned fixture target"))
     app = FastAPI()
     automation = Automation(tmp_path / "automation", SimpleNamespace(workers={}), None)
     automation.auth = api.CanonicalUserAuth(tmp_path / "automation")
