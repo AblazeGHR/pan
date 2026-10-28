@@ -10,6 +10,13 @@ import sys
 import time
 
 
+def publish(path, payload):
+    """Publish complete fixture identity before readers observe the filename."""
+    temporary = path.with_name(path.name + '.' + str(os.getpid()) + '.tmp')
+    temporary.write_text(json.dumps(payload), encoding='utf-8')
+    os.replace(temporary, path)
+
+
 def desktop():
     user = ctypes.WinDLL('user32', use_last_error=True)
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -48,7 +55,7 @@ def main():
         child = None
         if depth:
             child = subprocess.Popen([sys.executable, __file__, 'tree', str(root), str(depth-1)], creationflags=0x08000000)
-        (root / f'{depth}.json').write_text(json.dumps({'pid': os.getpid(), 'birth': filetime(), 'desktop': desktop()}), encoding='utf-8')
+        publish(root / f'{depth}.json', {'pid': os.getpid(), 'birth': filetime(), 'desktop': desktop()})
         until(lambda: (root / 'release').exists())
         if child:
             assert child.wait(10) == 0
@@ -66,8 +73,8 @@ def main():
         original_create = HiddenJobToken.create_process
         def gate(token, *args):
             process, thread, pid = original_create(token, *args)
-            (root / 'suspended.json').write_text(json.dumps({
-                'pid': pid, 'birth': read_creation_filetime(process), 'desktop': names[0]}), encoding='utf-8')
+            publish(root / 'suspended.json', {
+                'pid': pid, 'birth': read_creation_filetime(process), 'desktop': names[0]})
             until(lambda: (root / 'release').exists())
             return process, thread, pid
         HiddenJobToken.create_process = gate
@@ -79,7 +86,7 @@ def main():
         owner = WindowsProcessOwner()
         with closing(owner.spawn([sys.executable, __file__, 'tree', str(root), '2'])) as owned:
             until(lambda: (root / '0.json').exists())
-            (root / 'runner.json').write_text(json.dumps({'pid': owned.pid, 'birth': owned.identity.birth, 'desktop': owned.popen.desktop.name}), encoding='utf-8')
+            publish(root / 'runner.json', {'pid': owned.pid, 'birth': owned.identity.birth, 'desktop': owned.popen.desktop.name})
             until(lambda: (root / 'release').exists())
             assert owner.wait(owned, timeout=10).exited
     else:
