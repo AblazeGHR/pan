@@ -1,50 +1,60 @@
 {
-  "port": 53564,
+  "port": 53574,
   "launcher": "D:\\project\\pan-worktrees\\quota-native-admission-20261028\\evidence\\quota-native\\production_http_server.py",
   "generations": [
     {
-      "pid": 18256,
-      "birthTime": 1793161869.565302,
+      "pid": 37816,
+      "birthTime": 1793172887.9529445,
       "listeners": [
         {
-          "pid": 18256,
-          "birthTime": 1793161869.565302
+          "pid": 22748,
+          "birthTime": 1793172887.9779732
         }
       ],
       "exitCode": 0,
       "ownedProcesses": [
         {
-          "pid": 18256,
-          "birthTime": 1793161869.565302,
+          "pid": 37816,
+          "birthTime": 1793172887.9529445,
           "retired": true
         },
         {
-          "pid": 34416,
-          "birthTime": 1793161869.5762107,
+          "pid": 36368,
+          "birthTime": 1793172887.9631891,
+          "retired": true
+        },
+        {
+          "pid": 22748,
+          "birthTime": 1793172887.9779732,
           "retired": true
         }
       ],
       "portReleased": true
     },
     {
-      "pid": 27292,
-      "birthTime": 1793161877.8439755,
+      "pid": 34440,
+      "birthTime": 1793172896.2219987,
       "listeners": [
         {
-          "pid": 27292,
-          "birthTime": 1793161877.8439755
+          "pid": 9924,
+          "birthTime": 1793172896.24167
         }
       ],
       "exitCode": 0,
       "ownedProcesses": [
         {
-          "pid": 27292,
-          "birthTime": 1793161877.8439755,
+          "pid": 34440,
+          "birthTime": 1793172896.2219987,
           "retired": true
         },
         {
-          "pid": 37212,
-          "birthTime": 1793161877.8507984,
+          "pid": 37076,
+          "birthTime": 1793172896.2280896,
+          "retired": true
+        },
+        {
+          "pid": 9924,
+          "birthTime": 1793172896.24167,
           "retired": true
         }
       ],
@@ -53,25 +63,25 @@
   ],
   "realAccountQueries": 0,
   "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
-  "jobId": "job_649342a9afb2dc97e35dd60c",
-  "runId": "run_793d0a0f7a7a4208890acc16",
-  "attemptId": "attempt_bab7cc8f4a66497ba4c6a9a3",
+  "jobId": "job_93a4493603274ee762542f1b",
+  "runId": "run_d2d44459c2db4ecda75ba66a",
+  "attemptId": "attempt_1fcccfbe6fa149c9814e573e",
   "effectKey": {
     "operationOrdinal": 0,
-    "runId": "run_793d0a0f7a7a4208890acc16",
+    "runId": "run_d2d44459c2db4ecda75ba66a",
     "stepId": "query",
     "targetId": "system_quota_query_v1"
   },
   "adapterCalls": [
     {
       "method": "query",
-      "pid": 18256,
-      "at": 1793161872.9063776
+      "pid": 22748,
+      "at": 1793172891.1945112
     },
     {
       "method": "query",
-      "pid": 18256,
-      "at": 1793161874.0901544
+      "pid": 22748,
+      "at": 1793172892.4506044
     }
   ],
   "queryCalls": 2,
@@ -82,5 +92,11 @@
   "attempts": 1,
   "unknownPreserved": true,
   "noResendAfterProcessRestart": true,
+  "eventId": "evt_00686229e998a90b5851fd5d72c370580b658d3ce87c6809",
+  "eventFactDigest": "066dc1d8165e587ea4f00b32979c47ee6ac1d57fda57fb30baa4821c1c3c4d88",
+  "eventUnchanged": true,
+  "unknownRetryRejected": true,
+  "retiredFacadeAuthFirst": true,
+  "manualGatePreserved": true,
   "allOwnedProcessesStopped": true
 }

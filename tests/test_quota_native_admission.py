@@ -504,6 +504,12 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
         evidence['generations'].append({'pid':process.pid,'birthTime':process.create_time(),
             'listeners':listeners})
 
+    def event_facts():
+        path=rt.data_root/'job-final/canonical-events.sqlite3'
+        with sqlite3.connect(path.as_uri()+'?mode=ro',uri=True) as db:
+            db.execute('PRAGMA query_only=ON')
+            return db.execute('SELECT eventId,factDigest,record FROM events ORDER BY eventId').fetchall()
+
     def stopped():
         handle=rt.process
         if handle is None:return
@@ -566,6 +572,8 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert client.get('/api/job-runs/'+rid,headers=invalid).status_code==401
             assert client.get('/api/job-runs/'+rid,headers=headers).json()==run
             original=aggregate(jid)
+            facts=event_facts()
+            assert len(facts)==1
             assert len(original['runs'])==len(original['attempts'])==len(original['effects'])==1
             attempt=next(iter(original['attempts'].values()))
             effect=original['effects'][0]
@@ -573,6 +581,18 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert effect['attemptId']==attempt['attemptId'] and effect['effectKey']['runId']==rid
             assert effect['outcome']=='unknown'
             assert effect['receipt']['receipt']['code']=='quota_provider_unavailable'
+            # Exact successor for the retired facade's old manual-confirmation
+            # envelope. Never reopen those routes or expect legacy {ok,error}.
+            assert client.patch('/api/jobs/'+jid,json={'enabled':True},headers=headers).status_code==405
+            for method,path,body in [('PATCH','/api/legacy/jobs/'+jid,{'enabled':True}),
+                    ('POST','/api/legacy/jobs/'+jid+'/run-now',{}),('DELETE','/api/legacy/jobs/'+jid,None)]:
+                assert client.request(method,path,json=body,headers=invalid).status_code==401
+                retired=client.request(method,path,json=body,headers=headers)
+                assert retired.status_code==410 and retired.json()['detail']['code']=='retired'
+            retry={'operation':'retry','expectedStateRevision':run['stateRevision'],'requestKey':'owned-quota-unknown-retry'}
+            assert client.post('/api/job-runs/'+rid+'/operations',json=retry,headers=invalid).status_code==401
+            refused=client.post('/api/job-runs/'+rid+'/operations',json=retry,headers=headers)
+            assert refused.status_code==409 and refused.json()['error']['code']=='reconciliation_required'
             assert calls() and [c['method'] for c in calls()]==['query','query']
             before_calls=calls()
             assert {c['pid'] for c in before_calls}<={p['pid'] for p in evidence['generations'][0]['listeners']}
@@ -602,11 +622,27 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert calls()==before_calls
             recovered=aggregate(jid)
             for field in ('runs','attempts','effects'):assert recovered[field]==original[field]
+            assert event_facts()==facts
             assert Store(rt.data_root/'automation').read()==policy
+            refused=client.post('/api/job-runs/'+rid+'/operations',json=retry,headers=headers)
+            assert refused.status_code==409 and refused.json()['error']['code']=='reconciliation_required'
+            state=client.get(URL).json()
+            manual={'mode':'manual','maSessionId':'owned-ma','expectedRevision':state['revision']}
+            assert client.put(URL,json=manual,headers=invalid).status_code==401
+            assert client.put(URL,json=manual,headers=headers).status_code==200
+            assert client.put(URL,json=manual,headers=headers).status_code==409
+            blocked=client.post(URL+'/query-jobs',json=request,headers=headers)
+            assert blocked.status_code==409 and 'Automatic policy required' in blocked.text
+            assert client.get('/api/job-runs/'+rid,headers=headers).json()==run
+            assert event_facts()==facts and calls()==before_calls
+            assert aggregate(jid)['effects']==original['effects']
+            assert not Store(rt.data_root/'automation').read()['commands']
             assert not rt.fake_records()
             evidence.update(jobId=jid,runId=rid,attemptId=attempt['attemptId'],effectKey=effect['effectKey'],
                 adapterCalls=before_calls,queryCalls=2,onceExecutionQueries=1,monitorBindingQueries=1,
                 wakeCalls=0,effects=1,attempts=1,unknownPreserved=True,noResendAfterProcessRestart=True)
+            evidence.update(eventId=facts[0][0],eventFactDigest=facts[0][1],eventUnchanged=True,
+                unknownRetryRejected=True,retiredFacadeAuthFirst=True,manualGatePreserved=True)
     finally:
         try:stopped()
         finally:

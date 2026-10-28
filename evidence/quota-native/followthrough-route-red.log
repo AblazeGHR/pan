@@ -1,0 +1,13 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+F                                                                        [100%]
+================================== FAILURES ===================================
+______________ test_unknown_production_process_restart_real_http ______________
+tests\test_quota_native_admission.py:588: in test_unknown_production_process_restart_real_http
+    assert client.request(method,path,json=body,headers=invalid).status_code==401
+E   AssertionError: assert 405 == 401
+E    +  where 405 = <Response [405 Method Not Allowed]>.status_code
+E    +    where <Response [405 Method Not Allowed]> = request('PATCH', '/api/jobs/job_b1eb507b3e958e5033cc02db', json={'enabled': True}, headers={'Authorization': 'Bearer invalid'})
+E    +      where request = <httpx.Client object at 0x000001D794C4B6F0>.request
+=========================== short test summary info ===========================
+FAILED tests/test_quota_native_admission.py::test_unknown_production_process_restart_real_http
+1 failed in 7.37s
