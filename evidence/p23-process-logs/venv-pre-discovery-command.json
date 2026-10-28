@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_process_logs.py",
+    "tests/test_job_retained_safety_protocol.py",
+    "tests/test_job_retained_safety_owned.py",
+    "tests/test_job_retained_safety_canonical.py",
+    "tests/test_job_retained_safety_public.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=evidence/p23-process-logs/venv-final.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027",
+  "exit": 0,
+  "seconds": 215.796,
+  "sourceBase": "67d125de794132f72011012d8c6814110aafe8ef"
+}

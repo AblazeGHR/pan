@@ -1,0 +1,84 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p23-retained-safety-20261027
+.....FFFF.....F.F.....F..................................F.............. [ 80%]
+..................                                                       [100%]
+================================== FAILURES ===================================
+_______ test_fe02_success_unknown_partial_cannot_be_replayed[succeeded] _______
+tests\test_job_final_independent_execution.py:91: in test_fe02_success_unknown_partial_cannot_be_replayed
+    assert admit(store, plan, retry=True)[0]["result"] == receipt
+E   AssertionError: assert {'effectKey':...k': True, ...} == {'effectKey':...k': True, ...}
+E
+E     Omitting 4 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'messageId': 'external-31', 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'messageId': 'external-31'}}
+E     Use -v to get more diff
+________ test_fe02_success_unknown_partial_cannot_be_replayed[unknown] ________
+tests\test_job_final_independent_execution.py:91: in test_fe02_success_unknown_partial_cannot_be_replayed
+    assert admit(store, plan, retry=True)[0]["result"] == receipt
+E   AssertionError: assert {'effectKey':...': False, ...} == {'effectKey':...': False, ...}
+E
+E     Omitting 4 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'messageId': 'external-31', 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'messageId': 'external-31'}}
+E     Use -v to get more diff
+________ test_fe02_success_unknown_partial_cannot_be_replayed[partial] ________
+tests\test_job_final_independent_execution.py:91: in test_fe02_success_unknown_partial_cannot_be_replayed
+    assert admit(store, plan, retry=True)[0]["result"] == receipt
+E   AssertionError: assert {'effectKey':...': False, ...} == {'effectKey':...': False, ...}
+E
+E     Omitting 4 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'messageId': 'external-31', 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'messageId': 'external-31'}}
+E     Use -v to get more diff
+_____ test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history ______
+tests\test_job_final_independent_execution.py:106: in test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history
+    assert retried["history"][0]["result"] == receipt
+E   AssertionError: assert {'effectKey':...': False, ...} == {'effectKey':...': False, ...}
+E
+E     Omitting 5 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'exitCode': 1, 'processIdentity': {'pid': 2, 'birth': 'original'}, 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'exitCode': 1, 'processIdentity': {'pid': 2, 'birth': 'original'}}}
+E     Use -v to get more diff
+_________ test_fe02_live_supervisor_survives_host_reload_and_ack_loss _________
+tests\test_job_final_independent_execution.py:199: in test_fe02_live_supervisor_survives_host_reload_and_ack_loss
+    assert event["result"] == receipt
+E   AssertionError: assert {'effectKey':...k': True, ...} == {'effectKey':...k': True, ...}
+E
+E     Omitting 5 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'messageId': 'msg-original', 'processIdentity': {'pid': 8, 'birth': 'original'}, 'logRef': {'kind': 'proc...sion': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'messageId': 'msg-original', 'processIdentity': {'pid': 8, 'birth': 'original'}}}
+E     Use -v to get more diff
+_ test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt _
+tests\test_job_final_independent_execution.py:234: in test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt
+    assert final["reconciliationHistory"] == [unknown]
+E   AssertionError: assert [{'effectKey'...: False, ...}] == [{'effectKey'...: False, ...}]
+E
+E     At index 0 diff: {'effectKey': {'runId': 'run_original', 'stepId': 'step_original', 'targetId': 'original', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, 'receipt': {'messageId': 'remote-original-123', 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', 'effectId': 'effect_5358834f82d27525ca08ba3a54bd013687c64b4ad352dbe2c47e5b797cf8eb56', 'effectKey': {'runId': 'run_original', 'stepId': 'step_original', 'targetId': 'original', 'operationOr...
+E
+E     ...Full output truncated (2 lines hidden), use '-vv' to show
+_ test_fe02_pending_typed_executor_requeries_host_instead_of_caching_unknown __
+tests\test_job_final_independent_execution.py:362: in test_fe02_pending_typed_executor_requeries_host_instead_of_caching_unknown
+    assert run(typed.execute(**args)) == final
+E   AssertionError: assert {'effectKey':...k': True, ...} == {'effectKey':...k': True, ...}
+E
+E     Omitting 5 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'processIdentity': {'pid': 8, 'birth': 'proof'}, 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'processIdentity': {'pid': 8, 'birth': 'proof'}}}
+E     Use -v to get more diff
+______ test_r5_ack_crash_rolls_back_and_redelivers_same_original_receipt ______
+tests\test_job_final_independent_execution.py:583: in test_r5_ack_crash_rolls_back_and_redelivers_same_original_receipt
+    assert reopened.get(doc["effectId"])["result"] == result
+E   AssertionError: assert {'effectKey':...k': True, ...} == {'effectKey':...k': True, ...}
+E
+E     Omitting 5 identical items, use -vv to show
+E     Differing items:
+E     {'receipt': {'externalReceiptId': 'original-receipt', 'logRef': {'kind': 'process-log', 'version': 1, 'id': 'log_3cd67b6cb8402b021ce7d45477cc29fa7e4139f2ea377b5c00cb22a6047200dd', 'jobId': 'job_original', ...}}} != {'receipt': {'externalReceiptId': 'original-receipt'}}
+E     Use -v to get more diff
+=========================== short test summary info ===========================
+FAILED tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[succeeded]
+FAILED tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[unknown]
+FAILED tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed[partial]
+FAILED tests/test_job_final_independent_execution.py::test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history
+FAILED tests/test_job_final_independent_execution.py::test_fe02_live_supervisor_survives_host_reload_and_ack_loss
+FAILED tests/test_job_final_independent_execution.py::test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt
+FAILED tests/test_job_final_independent_execution.py::test_fe02_pending_typed_executor_requeries_host_instead_of_caching_unknown
+FAILED tests/test_job_final_independent_execution.py::test_r5_ack_crash_rolls_back_and_redelivers_same_original_receipt
