@@ -86,6 +86,7 @@ class FinalService:
         self.admission = TriggerAdmission(self)
         self.executor = executor or TypedExecutor(session_provider=WorkerSessionProvider(), assign_provider=WorkerAssignProvider())
         self._product_executor = self.executor if executor is None else None
+        self.quota_native = None
         self.task = None
         self.closed = False
         self.diagnostics = []
@@ -292,6 +293,35 @@ class FinalService:
             "generation": provider.generation, "releaseDigest": provider.release_digest},
             "configSchemaRef": provider.config_schema_ref, "requiredCapabilities": list(provider.capabilities),
             "eventTypes": ["scheduler.time.v2"], "configSchema": fc.schema_artifacts()["scheduler_config.schema.json"]}]}
+
+    def admit_quota(self, request_key, policy, at, *, actor):
+        """Quota business adapter over the existing canonical composition port."""
+        for kind in ("job", "event_creator", "trigger"):
+            self._permit(actor, kind, "create")
+            self._permit(actor, kind, "lifecycle", execution=True)
+        self._permit(actor, "job", "execute", execution=True)
+        self._permit(actor, "action", "manageSystemActions", execution=True)
+        with self.transaction() as db:
+            def mutate(operation_id):
+                from packages.automation.quota_native import ACTION
+                action = self._get(db, "action", ACTION)
+                key = "quota-compose:" + fc.digest({"scope": self._scope(actor, "create"), "key": request_key})
+                prior = self.creators.composition_for_key(key)
+                graph = prior["desiredGraph"] if prior else self.quota_native.graph(policy, at, action, key)
+                composed = self.compositions.compose(request_key=key, desired_graph=graph,
+                    authorization_evidence={"principal": principal(actor), "authority": copy.deepcopy(actor)}, activate=True)
+                ids = composed["objectIds"]
+                source = self.creators.get(ids["creators"]["clock"])
+                if policy["purpose"] != "monitor95" and not source["cursor"]["rules"]["query"]["nextFireAt"]:
+                    error("provider_unavailable", "Quota once time expired during admission; retry original request")
+                objects = [("job", ids["job"]), ("event_creator", ids["creators"]["clock"]),
+                           ("trigger", ids["triggers"]["query"])]
+                for kind, oid in objects:
+                    db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, oid, fc.canonical_json(actor)))
+                refs = [object_ref(kind, self._object(db, kind, oid)) for kind, oid in objects]
+                return {"jobId": ids["job"], "compositionKey": key, "quotaPolicy": policy,
+                        "nativeRefs": refs}, refs, False
+            return self._operation(db, actor, "create", request_key, policy, "job", mutate)
 
     def instantiate_time_template(self, template_id, body, *, actor):
         """Thin time-composition admission; no Run or second operation ledger.
@@ -840,6 +870,8 @@ class FinalService:
             return item
 
     def _install_product_actions(self):
+        from packages.automation.quota_native import ACTION, action_definition
+        self.publish_action(ACTION, action_definition())
         products = [("process", "write_local", "process-exit"),
                                      ("session-message", "write_local", "durable-queue-accepted"),
                                      ("session-broadcast", "write_local", "durable-queue-accepted")]
@@ -1553,5 +1585,10 @@ def bind(app, automation, root, *, owner=None):
     service.state_reader = automation.engine.state_reader
     automation.events.owner_fence = service.owner
     automation.final_jobs = service
+    from packages.automation.quota_native import NativeQuota
+    service.quota_native = NativeQuota(automation.quota_policy, service)
+    automation.quota_policy.native = service.quota_native
+    if service._product_executor is not None:
+        service._product_executor.quota_provider = service.quota_native.query
     app.state.job_final_service = service
     return service

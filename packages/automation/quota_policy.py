@@ -1,6 +1,7 @@
 """Durable quota policy with a fail-closed, host-only effects adapter.
 
-Uses the existing scheduled-task registry/tick. No account CLI, provider request,
+Canonical-bound hosts use Creator/Trigger/Job admission. Pre-cutover fixtures
+retain their original fenced registry path. No account CLI, provider request,
 restart or Session send is performed by the default adapter.
 """
 import asyncio
@@ -178,12 +179,13 @@ class Store:
             return effect()
         finally:_LOCK.release()
 
-    def configure(self, mode, ma, expected):
+    def configure(self, mode, ma, expected, authority=None):
         if mode not in ('manual','automatic') or not isinstance(ma,str) or not 1<=len(ma)<=128:
             raise ValueError('Expected mode manual/automatic and MA Session ID')
         def update(s):
             if type(expected) is not int or s['revision']!=expected:raise ValueError('Quota policy revision changed')
             s.update(mode=mode,maSessionId=ma,epoch=s['epoch']+1)
+            if authority is not None:s['nativeAuthority']=copy.deepcopy(authority)
             for c in s['commands'].values():
                 if c['status'] in ('ready','blocked'):c['status']='cancelled'
             return {'mode':mode,'epoch':s['epoch']}
@@ -198,7 +200,8 @@ class Runtime:
     def __init__(self, root, job_root, adapter=None, clock=time.time):
         self.store=Store(root);self.root=Path(job_root);self.adapter=adapter or Adapter();self.clock=clock
         self.pending=asyncio.Queue(128);self.closed=False;self.gate=asyncio.Lock()
-        self.diagnostics=[];self.monitor_lock=threading.RLock()
+        self.diagnostics=[];self.monitor_lock=threading.RLock();self.native=None
+        self.admission_gate=asyncio.Lock()
 
     def observe(self, mapping):
         if self.closed:return
@@ -519,13 +522,30 @@ class Runtime:
                     c.update(status='blocked',diagnostic='legacy_identity_missing')
         await io(self.store.change,update)
 
+    async def create_monitor(self, kind='monitor95', expected=None, actor=None):
+        if self.native is None:
+            return await self._legacy_create_monitor(kind,expected,actor)
+        async with self.admission_gate:
+            return await self._create_monitor(kind,expected,actor)
+
     @legacy_writer(lambda self, *a, **kw: self.root.parent)
-    async def create_monitor(self, kind='monitor95', expected=None):
+    async def _legacy_create_monitor(self, kind, expected, actor):
+        return await self._create_monitor(kind,expected,actor)
+
+    async def _create_monitor(self, kind, expected, actor):
         state=await io(self.store.read)
         if self.closed:raise ValueError('Quota policy closed')
         if state['mode']!='automatic':raise ValueError('Automatic policy required')
-        if expected is not None and (type(expected) is not int or expected!=state['revision']):raise ValueError('Quota policy revision changed')
         if kind not in ('monitor95','once'):raise ValueError('Unknown quota query Job kind')
+        if self.native is not None:
+            prior=await io(self.native.lookup,state,kind,actor or state.get('nativeAuthority') or {})
+            if prior:
+                accepted=prior['result']['quotaPolicy']['acceptedRevision']
+                if expected is not None and (type(expected) is not int or expected not in (accepted,state['revision'])):
+                    raise ValueError('Quota policy revision changed')
+                await io(self.native.remember,prior['result'])
+                return prior['result']
+        if expected is not None and (type(expected) is not int or expected!=state['revision']):raise ValueError('Quota policy revision changed')
         account=None;wake_target=None
         if kind=='monitor95':
             quota=await self.query()
@@ -539,16 +559,21 @@ class Runtime:
         if self.closed or latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
             raise ValueError('Quota policy changed during query')
         if account in latest['disabledAccountIds']:raise ValueError('Cannot monitor disabled account')
-        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account,wake_target)
+        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account,wake_target,actor)
 
-    @legacy_writer(lambda self, *a, **kw: self.root.parent, reservation=True)
-    def ensure_job(self,state,purpose,at,account=None,wake_target=None):
+    def ensure_job(self,state,purpose,at,account=None,wake_target=None,actor=None):
         if purpose=='monitor95':
             # Profile-local query Job admission only; called off the event loop.
-            with self.monitor_lock:return self._ensure_job(state,purpose,at,account,wake_target)
-        return self._ensure_job(state,purpose,at,account,wake_target)
+            with self.monitor_lock:return self._ensure_job(state,purpose,at,account,wake_target,actor)
+        return self._ensure_job(state,purpose,at,account,wake_target,actor)
 
-    def _ensure_job(self,state,purpose,at,account=None,wake_target=None):
+    def _ensure_job(self,state,purpose,at,account=None,wake_target=None,actor=None):
+        if self.native is not None:
+            return self.native.ensure(state,purpose,at,account,wake_target,actor)
+        return self._legacy_ensure_job(state,purpose,at,account,wake_target)
+
+    @legacy_writer(lambda self, *a, **kw: self.root.parent, reservation=True)
+    def _legacy_ensure_job(self,state,purpose,at,account=None,wake_target=None):
         from packages.jobs.scheduled_records import build_record
         jid='job_'+fingerprint([str(self.root),state['epoch'],purpose,account])[:24]
         existing=jobs.get(jid,self.root)
@@ -573,15 +598,60 @@ class Runtime:
         self.store.change(lambda s:s['jobs'].update({purpose:jid}))
         return jobs.job_public_view(job)
 
-    async def cancel_obsolete_jobs(self):
-        # Configuration writes must not run a second scheduler/query concurrently.
+    async def cancel_obsolete_jobs(self,actor=None):
+        if self.native is not None:await io(self.native.cancel_obsolete,actor)
+        else:await self._legacy_cancel_obsolete_jobs()
+
+    @legacy_writer(lambda self, *a, **kw: self.root.parent)
+    async def _legacy_cancel_obsolete_jobs(self):
         state=await io(self.store.read)
         for job in await io(jobs.list_jobs,self.root):
             if protected(job) and (state['mode']!='automatic' or job['quotaPolicy']['epoch']!=state['epoch']):
                 await io(jobs._update,job['jobId'],{'enabled':False,'status':'cancelled'},registry_root=self.root)
 
-    @legacy_writer(lambda self, *a, **kw: self.root.parent)
+    async def native_result(self, job_id, policy, snapshot):
+        # Existing quota business mapping; canonical owns execution receipts.
+        latest=await io(self.store.read)
+        if self.closed or latest['mode']!='automatic' or latest['epoch']!=policy['epoch']:
+            return {'thresholdReached':False,'unknown':True,'stop':True,'reason':'policy_changed'}
+        trigger=False
+        if snapshot['status']=='known':
+            if policy.get('expectedAccountId') and policy['expectedAccountId']!=snapshot['currentAccountId']:
+                return {'thresholdReached':False,'unknown':True,'stop':True,'reason':'account_changed'}
+            row=next(r for r in snapshot['accounts'] if r['id']==snapshot['currentAccountId'])
+            trigger=policy['purpose']=='reset' or (policy['purpose']=='monitor95' and row['fiveHour']['usedPercent']>=95)
+        job={'jobId':job_id}
+        if trigger:
+            inventory=await self.inventory()
+            original=policy.get('wakeTarget');target=original;restart_id=None
+            ma=identity.current(inventory,target) if inventory and target else None
+            if inventory and original and ma is None:
+                # Only a persisted verified restart can transfer this exact task.
+                for c in latest['commands'].values():
+                    successor=c.get('successor');current=identity.current(inventory,successor) if successor else None
+                    if identity.recovery_eligible(original,self.restart_proof(latest,c['id']),current,snapshot['currentAccountId']):
+                        target=successor;ma=current;restart_id=c['id']
+                        break
+            def wake(s):
+                if s['mode']=='automatic' and s['epoch']==policy['epoch'] and snapshot['currentAccountId'] not in s['disabledAccountIds']:
+                    proof=self.restart_proof(s,restart_id)
+                    eligible=(identity.recovery_eligible(original,proof,ma,snapshot['currentAccountId'])
+                              if restart_id else identity.wake_eligible(original,ma))
+                    if eligible:
+                        recovery={'restartCommandId':restart_id} if restart_id else {}
+                        self.command(s,job['jobId'],'wake_ma',worker=target,original=original,**recovery,runtimeEpoch=inventory['runtimeEpoch'],reason=policy['purpose'],expectedAccountId=snapshot['currentAccountId'])
+                    else:s['lastWakeDiagnostic']={'jobId':job['jobId'],'reason':'blocked_missing_current_unfinished_ma'}
+            await io(self.store.change,wake)
+        return {'thresholdReached':trigger,'stop':trigger,'reason':'threshold_reached' if trigger else 'observed'}
+
     async def tick_jobs(self):
+        if self.native is not None:
+            await self.cancel_obsolete_jobs()
+            return
+        await self._legacy_tick_jobs()
+
+    @legacy_writer(lambda self, *a, **kw: self.root.parent)
+    async def _legacy_tick_jobs(self):
         if self.closed:return
         from datetime import datetime
         state=await io(self.store.read)
