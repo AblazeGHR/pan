@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import os
 import time
+from contextlib import ExitStack
 
 from packages.actions.typed_executor import EffectReceipt, TypedExecutor
 from packages.core.platform.execution_host import supervisor_identity
@@ -13,6 +14,8 @@ from packages.jobs.independent_executor import ExecutionConflict, ExecutionStore
 
 async def execute_claimed(store, doc, *, executor=None):
     identity, attempt, claim = doc["effectId"], doc["attempt"], doc["claim"]
+    resources = ExitStack()
+    capture = executor is None and doc["frozenPlan"].get("operation") in {"process", "background-process", "command"}
     try:
         if doc["frozenPlan"]["operation"] in {"service.restart", "service.exit"}:
             from packages.core.main_lifecycle import run_canonical_supervisor
@@ -24,6 +27,10 @@ async def execute_claimed(store, doc, *, executor=None):
             if executor is None:
                 from packages.core.platform.process import default_process_owner
                 owner = default_process_owner()
+                from packages.jobs.process_logs import open_log
+                # Trusted original execution record chooses the path. argv,
+                # frozen arguments and caller-provided paths never select logs.
+                log = resources.enter_context(open_log(store.root, doc, write=True))
 
                 class RecordingOwner:
                     cleanup_tree = None
@@ -34,6 +41,10 @@ async def execute_claimed(store, doc, *, executor=None):
                     def spawn(self, argv, **kwargs):
                         env = {name: value for name, value in os.environ.items()
                                if not name.upper().startswith("PAN_") and name.upper() != "PYTHONPATH"}
+                        # Preserve the old background_runner merged file sink:
+                        # kernel writes, no PIPE buffer or reader daemon.
+                        import subprocess
+                        kwargs.update(stdout=log, stderr=subprocess.STDOUT)
                         return owner.spawn(argv, env=env, **kwargs)
 
                     def recoverable_identity(self, handle):
@@ -85,6 +96,8 @@ async def execute_claimed(store, doc, *, executor=None):
             tree_proof = store.get(identity).get("evidence", {}).get("treeCleanupProof")
             if tree_proof is not None:
                 result.setdefault("cleanupProof", {})["ownedTree"] = tree_proof
+            if capture and "logRef" in doc:
+                result.setdefault("receipt", {})["logRef"] = doc["logRef"]
         return store.finish(identity, attempt, claim, result)
     except ExecutionConflict:
         # A pre-effect cancellation may win the phase transaction. A stale
@@ -94,7 +107,11 @@ async def execute_claimed(store, doc, *, executor=None):
         result = EffectReceipt(doc["effectKey"], "unknown", {
             "code": "supervisor_error", "message": str(exc), "phase": "uncertain"},
             {"confirmed": False}).as_dict()
+        if capture and "logRef" in doc:
+            result["receipt"]["logRef"] = doc["logRef"]
         return store.finish(identity, attempt, claim, result)
+    finally:
+        resources.close()
 
 
 def run(root, identity, bootstrap_receipt=None):

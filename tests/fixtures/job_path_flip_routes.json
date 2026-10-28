@@ -530,11 +530,27 @@
       "deprecated": false
     },
     {
+      "path": "/api/job-templates/{template_id}/instantiate",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.instantiate_time_template",
+      "deprecated": false
+    },
+    {
       "path": "/api/event-creators/providers",
       "methods": [
         "GET"
       ],
       "handler": "packages.jobs.final_api.creator_providers",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/time-input/resolve",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.resolve_time_input",
       "deprecated": false
     },
     {
@@ -762,6 +778,22 @@
       "deprecated": false
     },
     {
+      "path": "/api/job-runs/{run_id}/attempts/{attempt_id}/log",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.process_log",
+      "deprecated": false
+    },
+    {
+      "path": "/api/job-runs/{run_id}/logs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.process_log_references",
+      "deprecated": false
+    },
+    {
       "path": "/api/job-runs/{run_id}/operations",
       "methods": [
         "POST"
@@ -794,11 +826,27 @@
       "deprecated": true
     },
     {
+      "path": "/api/final/job-templates/{template_id}/instantiate",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.instantiate_time_template",
+      "deprecated": true
+    },
+    {
       "path": "/api/final/event-creators/providers",
       "methods": [
         "GET"
       ],
       "handler": "packages.jobs.final_api.creator_providers",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/time-input/resolve",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.resolve_time_input",
       "deprecated": true
     },
     {
@@ -1023,6 +1071,22 @@
         "GET"
       ],
       "handler": "packages.jobs.final_api.run_detail",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-runs/{run_id}/attempts/{attempt_id}/log",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.process_log",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/job-runs/{run_id}/logs",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.process_log_references",
       "deprecated": true
     },
     {

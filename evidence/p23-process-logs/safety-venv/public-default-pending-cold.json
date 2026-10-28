@@ -1,0 +1,22 @@
+{
+  "executorPort": 55059,
+  "label": "public-default-pending-cold",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 5,
+  "launcherIsSupervisor": false,
+  "ownershipRootIsScript": false,
+  "defaultPending": true,
+  "coldReopen": true,
+  "originalAttemptPreserved": true,
+  "runState": "completed",
+  "effects": 1,
+  "cleanupCalls": 1,
+  "noResubmit": true,
+  "canonicalPort": 55060,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "venv"
+}

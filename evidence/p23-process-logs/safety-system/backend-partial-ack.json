@@ -1,0 +1,19 @@
+{
+  "executorPort": 64732,
+  "label": "backend-partial-ack",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 3,
+  "launcherIsSupervisor": true,
+  "ownershipRootIsScript": true,
+  "firstCleanupActuallyEndedTree": true,
+  "lostAcknowledgementKeptUnknown": true,
+  "noAutomaticCleanupRetry": true,
+  "explicitRecheckConfirmed": true,
+  "cleanupCalls": 2,
+  "effects": 1,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "native"
+}

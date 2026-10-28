@@ -1,0 +1,29 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p23-retained-safety-20261027
+F............F                                                           [100%]
+================================== FAILURES ===================================
+____ test_default_real_large_unicode_combined_log_cold_reopen_and_archive _____
+tests\test_job_process_logs.py:162: in test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+    assert len(raw) > 150000 and b"child-output\n" in raw
+E   AssertionError: assert (196171 > 150000 and b'child-output\n' in b'\xe8\xbe\x93\xe5\x87\xba\xf0\x9f\x99\x82 stderr\xe4\xbd\xa0\xe5\xa5\xbd\nERR\n\xe8\xbe\x93\xe5\x87\xba\xf0\x9f\x99\x...'child-output\r\n                               ^\r\nSyntaxError: unterminated string literal (detected at line 1)\r\n')
+E    +  where 196171 = len(b'\xe8\xbe\x93\xe5\x87\xba\xf0\x9f\x99\x82 stderr\xe4\xbd\xa0\xe5\xa5\xbd\nERR\n\xe8\xbe\x93\xe5\x87\xba\xf0\x9f\x99\x...'child-output\r\n                               ^\r\nSyntaxError: unterminated string literal (detected at line 1)\r\n')
+____________ test_public_log_authentication_and_revoked_agent_read ____________
+tests\test_job_process_logs.py:303: in test_public_log_authentication_and_revoked_agent_read
+    assert asyncio.run(c.service.read_process_log(c.rid, c.aid, actor=agent))["text"] == "private-output\n"
+E   AssertionError: assert 'private-output\r\n' == 'private-output\n'
+E
+E     - private-output
+E     + private-output
+E     ?               +
+============================== warnings summary ===============================
+tests/test_job_process_logs.py::test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_process_logs.py::test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_process_logs.py::test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+FAILED tests/test_job_process_logs.py::test_public_log_authentication_and_revoked_agent_read
