@@ -1,0 +1,20 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "results": [
+    {
+      "phase": "import",
+      "exitCode": 0,
+      "seconds": 0.744,
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-c",
+        "\nimport sys, tempfile\nfrom pathlib import Path\nwith tempfile.TemporaryDirectory(prefix='pan-fast-import-') as owned:\n    from packages.core import config\n    config.CONFIG_FILE = Path(owned) / 'config.json'\n    import packages.web.server as server\n    assert server.app is not None\n    print('real server imported; sys.platform=' + sys.platform)\n"
+      ],
+      "log": "import.log"
+    }
+  ]
+}

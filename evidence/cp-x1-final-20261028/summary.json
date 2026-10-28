@@ -1,0 +1,83 @@
+{
+  "sourceSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "platform": "win32",
+  "python": "3.14.5",
+  "localAdded": {
+    "argv": [
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "D:/project/Pan-main/.venv/Scripts/python.exe",
+      "-m",
+      "pytest",
+      "tests/test_platform_fast_gate.py",
+      "tests/test_worker_platform_admission.py",
+      "tests/test_quota_native_admission.py",
+      "tests/test_job_process_logs.py",
+      "-q",
+      "-ra",
+      "--durations=15",
+      "--junitxml=evidence/cp-x1-final-20261028/local-added.xml"
+    ],
+    "exitCode": 0,
+    "tests": 55,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 204.219,
+    "groups": {
+      "tests.test_platform_fast_gate": {
+        "passed": 4,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests.test_worker_platform_admission": {
+        "passed": 14,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests.test_quota_native_admission": {
+        "passed": 17,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests.test_job_process_logs": {
+        "passed": 20,
+        "failed": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "collection": {
+    "count": 7834,
+    "exitCode": 0,
+    "roots": [
+      "tests/",
+      "packages/qq/",
+      "packages/wechat/"
+    ]
+  },
+  "import": {
+    "exitCode": 0,
+    "realServer": true
+  },
+  "remote": {
+    "repository": "https://github.com/AblazeGHR/pan.git",
+    "proposedRef": "refs/heads/feat/job-unification-validation-20261028",
+    "proposedSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+    "executed": false,
+    "expectedJobs": 6
+  },
+  "notRun": [
+    "expanded fast combined suite",
+    "Windows full suites",
+    "frontend build",
+    "Ubuntu browser",
+    "Linux/macOS/Python3.12",
+    "remote CI"
+  ]
+}
