@@ -123,6 +123,9 @@ class ExecutionStore:
                    "effectKey": dict(effect_key), "frozenPlan": copy.deepcopy(dict(frozen_plan)),
                    "planDigest": plan_digest, "phase": "admitted", "cancellable": True,
                    "claim": None, "result": None, "history": history, "phases": ["admitted"]}
+            if frozen_plan.get("operation") in {"process", "background-process", "command"}:
+                from packages.jobs.process_logs import reference
+                doc["logRef"] = reference(doc)
             self._save(db, doc)
             db.commit()
             return doc, True
@@ -352,6 +355,16 @@ class ExecutionStore:
                     {"confirmed": False}).as_dict())
             db.commit()
 
+    def read_execution_log(self, identity, attempt, *, offset=0, limit=65536):
+        """Read original history; current active lease/epoch is irrelevant."""
+        from packages.jobs.process_logs import read_log
+        doc = self.get(identity)
+        original = next((row for row in [doc, *doc.get("history", [])]
+                         if fence(row["attempt"]) == fence(attempt)), None)
+        if original is None:
+            raise ExecutionConflict("Original log Attempt identity not found")
+        return read_log(self.root, original, offset=offset, limit=limit)
+
 
 def launch_execution(root, identity):
     """Launch the fixed one-shot worker, with no inherited Pan profile/settings."""
@@ -365,6 +378,18 @@ class IndependentExecutor:
 
     def __init__(self, *, job_id, client):
         self.job_id, self.client = job_id, client
+
+    async def read_log(self, *, attempt, effect_key, offset=0, limit=65536):
+        from packages.jobs.process_logs import bounds, validate_page
+        bounds(offset, limit)
+        result = await asyncio.to_thread(self.client.read_execution_log, effect_id(effect_key),
+                                        dict(attempt), offset=offset, limit=limit)
+        ref = result.get("logRef", {})
+        if (ref.get("jobId") != self.job_id or ref.get("effectKey") != dict(effect_key)
+                or ref.get("effectId") != effect_id(effect_key) or fence(ref.get("attempt")) != fence(attempt)):
+            raise ExecutionConflict("Original log reference identity/fence mismatch")
+        return validate_page(result, {"jobId": self.job_id, "effectId": effect_id(effect_key),
+                             "effectKey": effect_key, "attempt": attempt}, offset=offset, limit=limit)
 
     async def lookup_execution(self, *, attempt, effect_key):
         from packages.core.platform.execution_host import supervisor_exit_evidence
@@ -421,7 +446,8 @@ class IndependentExecutor:
         from packages.actions.typed_executor import EffectReceipt
         return EffectReceipt(dict(effect_key), "unknown", {
             "code": "execution_pending", "effectId": doc["effectId"],
-            "attemptId": attempt["attemptId"], "phase": doc["phase"]}).as_dict()
+            "attemptId": attempt["attemptId"], "phase": doc["phase"],
+            **({"logRef": copy.deepcopy(doc["logRef"])} if "logRef" in doc else {})}).as_dict()
 
 
 class ExecutionHost:
@@ -438,6 +464,9 @@ class ExecutionHost:
 
     def get_execution(self, identity):
         return self.store.get(identity)
+
+    def read_execution_log(self, identity, attempt, *, offset=0, limit=65536):
+        return self.store.read_execution_log(identity, attempt, offset=offset, limit=limit)
 
     def cancel_execution(self, identity, attempt):
         return self.store.cancel(identity, attempt)

@@ -568,6 +568,94 @@ class FinalService:
         with self.transaction(readonly=True) as db:
             return copy.deepcopy(self._find_run(db, run_id)[1])
 
+    def _process_log_records(self, run_id):
+        """One trusted live/archive locator for both authorized log queries."""
+        with self.transaction(readonly=True) as db:
+            job = next((j for kind in ("job", "runtime_archive") for j in self._all(db, kind)
+                        if run_id in j.get("finalRuntime", {}).get("runs", {})), None)
+            if job is None:
+                raise KeyError(run_id)
+            state = job["finalRuntime"]
+            records = []
+            for attempt in state["attempts"].values():
+                if attempt["runId"] != run_id:
+                    continue
+                rows = [row for row in state["effects"] if row["attemptId"] == attempt["attemptId"]]
+                rows += [row for row in state["effectAdmissions"].values() if row["attemptId"] == attempt["attemptId"]]
+                records.append({"attempt": copy.deepcopy(attempt), "rows": copy.deepcopy(rows)})
+            return job["jobId"], sorted(records, key=lambda r: (r["attempt"]["stepId"], r["attempt"]["generation"], r["attempt"]["attemptId"]))
+
+    async def process_log_references(self, run_id, *, actor, cursor=None, limit=100):
+        """Discover ORIGINAL references, including pending and archived output."""
+        from packages.jobs.process_logs import reference
+        self._permit(actor, "job", "read")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            error("invalid_schema", "Log reference limit must be 1..100")
+        job_id, records = self._process_log_records(run_id)
+        page = self._page(records, "process-logs:" + run_id, cursor, limit, actor)
+        items = []
+        adapter = self._external_adapter(job_id)
+        for record in page["items"]:
+            attempt, rows = record["attempt"], record["rows"]
+            item = {"attemptId": attempt["attemptId"], "status": "unavailable", "logRef": None, "href": None}
+            if len(rows) == 1:
+                row = rows[0]
+                key = row["effectKey"]
+                item["effectKey"] = copy.deepcopy(key)
+                ref = row.get("receipt", {}).get("receipt", {}).get("logRef")
+                pending = attempt["state"] in {"running", "uncertain"}
+                # An admitted execution may have a persisted reference before
+                # its pending receipt returns to the canonical aggregate.
+                if ref is None and "receipt" not in row:
+                    lookup = getattr(adapter, "lookup_execution", None)
+                    if lookup is not None:
+                        try:
+                            doc = await lookup(attempt=attempt, effect_key=key)
+                            ref = doc.get("logRef")
+                            pending = doc.get("result") is None
+                        except (OSError, ValueError, RuntimeError):
+                            item["reason"] = "original_execution_unavailable"
+                if ref is not None:
+                    from packages.jobs.independent_executor import effect_id
+                    expected = reference({"jobId": job_id, "effectId": effect_id(key), "effectKey": key, "attempt": attempt})
+                    if ref == expected:
+                        item.update(status="pending" if pending else "available", logRef=copy.deepcopy(ref),
+                                    href=f"/api/job-runs/{run_id}/attempts/{attempt['attemptId']}/log")
+                    else:
+                        item["reason"] = "original_reference_inconsistent"
+            if item["status"] == "unavailable":
+                item.setdefault("reason", "original_log_reference_unavailable")
+            items.append(item)
+        self._permit(actor, "job", "read")
+        return {"items": items, "nextCursor": page["nextCursor"]}
+
+    async def read_process_log(self, run_id, attempt_id, *, offset=0, limit=65536, actor):
+        """Read only an original live/archived Attempt under existing grants."""
+        from packages.jobs.process_logs import bounds
+        bounds(offset, limit)
+        self._permit(actor, "job", "read")
+        job_id, records = self._process_log_records(run_id)
+        target = next((r for r in records if r["attempt"]["attemptId"] == attempt_id), None)
+        if target is None:
+            raise KeyError(attempt_id)
+        attempt, rows = target["attempt"], target["rows"]
+        if len(rows) != 1:
+            error("reference_conflict", "Original process effect reference unavailable")
+        key = rows[0]["effectKey"]
+        adapter = self._external_adapter(job_id)
+        reader = getattr(adapter, "read_log", None)
+        if reader is None:
+            error("provider_unavailable", "Original executor log reader unavailable")
+        try:
+            result = await reader(attempt=attempt, effect_key=key, offset=offset, limit=limit)
+        except fc.ContractError:
+            raise
+        except (OSError, ValueError, RuntimeError):
+            error("provider_unavailable", "Original process log cannot be read; execution is not retried")
+        # Permission may have been revoked while the external read awaited.
+        self._permit(actor, "job", "read")
+        return result
+
     def runs(self, job_id, *, actor, cursor=None, limit=100):
         self._permit(actor, "job", "read")
         return self._page(self.final.runs(job_id), "runs:" + job_id, cursor, limit, actor)

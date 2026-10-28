@@ -33,6 +33,9 @@ class IndependentJobClient:
     def health(self): return self._request("GET", "/health")
     def submit_execution(self, request): return self._request("POST", "/executions", request)
     def get_execution(self, effect_id): return self._request("GET", "/executions/" + quote(effect_id, safe=""))
+    def read_execution_log(self, effect_id, attempt, *, offset=0, limit=65536):
+        return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/log",
+                             {"attempt": attempt, "offset": offset, "limit": limit})
     def cancel_execution(self, effect_id, attempt):
         return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/cancel", {"attempt": attempt})
     def cleanup_execution(self, effect_id, attempt):
