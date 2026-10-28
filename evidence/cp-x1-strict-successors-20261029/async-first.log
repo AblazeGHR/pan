@@ -1,0 +1,251 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+....FFFFF.FFFF................                                           [100%]
+================================== FAILURES ===================================
+_ test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-True-True] _
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_freeze_before_gate_and...0f22e81aadb38ef7b21995cf4a89efd38398f18')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x0000029704314D10>)
+operation = 'exit', strategy = 'ask', choice = True, mark = True
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+        assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+        args = prepared.events[1][1]
+        assert args["mark_legal_offline"] is True
+        assert list(args["mark_legal_offline_session_ids"]) == (["running-a", "running-b"] if mark else [])
+        assert list(args["preserve_legal_running_session_ids"]) == ([] if mark else ["running-a", "running-b"])
+        doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(result["effectId"])
+        options = doc["frozenPlan"]["arguments"]["options"]
+        assert options["exitStrategy"] == strategy and options["markRunningSessionsOffline"] is mark
+>       assert options["runningSessionIds"] == ["running-a", "running-b"] and doc["result"] is None
+E       AssertionError: assert (['running-a', 'running-b'] == ['running-a', 'running-b']
+E         
+E         Use -v to get more diff and {'effectKey': {'runId': 'run_bbd9a940734eacb8ab17e0eb', 'stepId': 'step_main_lifecycle', 'targetId': 'main', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, ...} is None)
+
+tests\test_lifecycle_canonical_preparation.py:75: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:33:59] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+_ test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-False-False] _
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_freeze_before_gate_and...c101f3582cfa49587cc24b68cbc9892deecb059')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x000002970430A650>)
+operation = 'exit', strategy = 'ask', choice = False, mark = False
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+        assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+        args = prepared.events[1][1]
+        assert args["mark_legal_offline"] is True
+        assert list(args["mark_legal_offline_session_ids"]) == (["running-a", "running-b"] if mark else [])
+        assert list(args["preserve_legal_running_session_ids"]) == ([] if mark else ["running-a", "running-b"])
+        doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(result["effectId"])
+        options = doc["frozenPlan"]["arguments"]["options"]
+        assert options["exitStrategy"] == strategy and options["markRunningSessionsOffline"] is mark
+>       assert options["runningSessionIds"] == ["running-a", "running-b"] and doc["result"] is None
+E       AssertionError: assert (['running-a', 'running-b'] == ['running-a', 'running-b']
+E         
+E         Use -v to get more diff and {'effectKey': {'runId': 'run_3aaba78c4a576782c504ad99', 'stepId': 'step_main_lifecycle', 'targetId': 'main', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, ...} is None)
+
+tests\test_lifecycle_canonical_preparation.py:75: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:33:59] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+_ test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-offline-False-True] _
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_freeze_before_gate_and...a72d99ea1952320b98fae97c15af3b8f78f0468')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x000002970430A550>)
+operation = 'exit', strategy = 'offline', choice = False, mark = True
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+        assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+        args = prepared.events[1][1]
+        assert args["mark_legal_offline"] is True
+        assert list(args["mark_legal_offline_session_ids"]) == (["running-a", "running-b"] if mark else [])
+        assert list(args["preserve_legal_running_session_ids"]) == ([] if mark else ["running-a", "running-b"])
+        doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(result["effectId"])
+        options = doc["frozenPlan"]["arguments"]["options"]
+        assert options["exitStrategy"] == strategy and options["markRunningSessionsOffline"] is mark
+>       assert options["runningSessionIds"] == ["running-a", "running-b"] and doc["result"] is None
+E       AssertionError: assert (['running-a', 'running-b'] == ['running-a', 'running-b']
+E         
+E         Use -v to get more diff and {'effectKey': {'runId': 'run_925664901720c2f693810333', 'stepId': 'step_main_lifecycle', 'targetId': 'main', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, ...} is None)
+
+tests\test_lifecycle_canonical_preparation.py:75: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:33:59] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+_ test_freeze_before_gate_and_worker_shutdown_before_supervisor[restart-preserve-running-True-False] _
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_freeze_before_gate_and...8dbd8ddc07507f64ce02f74009b09b33a77ac0a')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000297042F0B90>)
+operation = 'restart', strategy = 'preserve-running', choice = True
+mark = False
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+        assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+        args = prepared.events[1][1]
+        assert args["mark_legal_offline"] is True
+        assert list(args["mark_legal_offline_session_ids"]) == (["running-a", "running-b"] if mark else [])
+        assert list(args["preserve_legal_running_session_ids"]) == ([] if mark else ["running-a", "running-b"])
+        doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(result["effectId"])
+        options = doc["frozenPlan"]["arguments"]["options"]
+        assert options["exitStrategy"] == strategy and options["markRunningSessionsOffline"] is mark
+>       assert options["runningSessionIds"] == ["running-a", "running-b"] and doc["result"] is None
+E       AssertionError: assert (['running-a', 'running-b'] == ['running-a', 'running-b']
+E         
+E         Use -v to get more diff and {'effectKey': {'runId': 'run_4cc8ed6924707010e1862328', 'stepId': 'step_main_lifecycle', 'targetId': 'main', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, ...} is None)
+
+tests\test_lifecycle_canonical_preparation.py:75: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:34:00] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+__ test_duplicate_and_cross_operation_reject_while_original_effect_queryable __
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_duplicate_and_cross_op..., 'legal_state_source': 'pan/main-exit'})], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x0000029704359B80>)
+
+    def test_duplicate_and_cross_operation_reject_while_original_effect_queryable(prepared):
+        async def exercise():
+            first = await server.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": True}})
+            duplicate = await server.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": False}})
+            other = await server.api_system_main_lifecycle({"operation": "restart", "options": {"markRunningSessionsOffline": True}})
+            return first, duplicate, other
+        first, duplicate, other = asyncio.run(exercise())
+        assert first["accepted"] and not duplicate["ok"] and duplicate["status"] == "busy"
+        assert not other["ok"] and other["status"] == "busy"
+        assert duplicate["effectId"] == other["effectId"] == first["effectId"]
+>       assert [item[0] for item in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['gate', 'shutdown'] == ['gate', 'shutdown', 'launch']
+E         
+E         Right contains one more item: 'launch'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:88: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:34:00] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+______ test_lost_memory_still_fences_duplicate_or_cross_operation[exit] _______
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_lost_memory_still_fenc...ef2cb4f8677fc838acbed5b803cd2dd503206dd')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000297042C7E70>)
+again = 'exit'
+
+    @pytest.mark.parametrize("again", ["exit", "restart"])
+    def test_lost_memory_still_fences_duplicate_or_cross_operation(prepared, again):
+        async def exercise():
+            first = await server.api_system_main_lifecycle({"operation": "exit",
+                "options": {"markRunningSessionsOffline": True}})
+            server._canonical_lifecycle_pending.clear()
+            # A conflicting choice must query the original effect; it must not
+            # change the frozen plan or create a new operation after memory loss.
+            second = await server.api_system_main_lifecycle({"operation": again,
+                "options": {"markRunningSessionsOffline": False}})
+            return first, second
+        first, second = asyncio.run(exercise())
+        assert first["accepted"] and not second["accepted"] and second["status"] == "busy"
+        assert second["effectId"] == first["effectId"] and second["requestId"] == first["requestId"]
+        assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
+        doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(first["effectId"])
+        assert doc["frozenPlan"]["arguments"]["options"]["markRunningSessionsOffline"] is True
+>       assert doc["result"] is None
+E       AssertionError: assert {'effectKey': {'runId': 'run_0d6446d3d239cbb4a7a40609', 'stepId': 'step_main_lifecycle', 'targetId': 'main', 'operationOrdinal': 0}, 'outcome': 'unknown', 'status': 'unknown', 'ok': False, ...} is None
+
+tests\test_lifecycle_canonical_preparation.py:131: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:34:00] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+_____ test_lost_memory_still_fences_duplicate_or_cross_operation[restart] _____
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_lost_memory_still_fenc..., 'legal_state_source': 'pan/main-exit'})], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000297042C3790>)
+again = 'restart'
+
+    @pytest.mark.parametrize("again", ["exit", "restart"])
+    def test_lost_memory_still_fences_duplicate_or_cross_operation(prepared, again):
+        async def exercise():
+            first = await server.api_system_main_lifecycle({"operation": "exit",
+                "options": {"markRunningSessionsOffline": True}})
+            server._canonical_lifecycle_pending.clear()
+            # A conflicting choice must query the original effect; it must not
+            # change the frozen plan or create a new operation after memory loss.
+            second = await server.api_system_main_lifecycle({"operation": again,
+                "options": {"markRunningSessionsOffline": False}})
+            return first, second
+        first, second = asyncio.run(exercise())
+        assert first["accepted"] and not second["accepted"] and second["status"] == "busy"
+        assert second["effectId"] == first["effectId"] and second["requestId"] == first["requestId"]
+>       assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['gate', 'shutdown'] == ['gate', 'shutdown', 'launch']
+E         
+E         Right contains one more item: 'launch'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:128: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:34:00] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+____ test_partial_worker_failure_is_unknown_and_never_launches_or_reopens _____
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_partial_worker_failure..., 'legal_state_source': 'pan/main-exit'})], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000297042AAA50>)
+
+    def test_partial_worker_failure_is_unknown_and_never_launches_or_reopens(prepared):
+        async def fail_after_partial(**kwargs):
+            prepared.events.append(("partial-shutdown", kwargs))
+            raise RuntimeError("owned Worker shutdown failed")
+        prepared.monkeypatch.setattr(worker, "shutdown_all", fail_after_partial)
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True}}))
+>       assert result["accepted"] is False and result["error"]["code"] == "worker_preparation_failed"
+E       assert (True is False)
+
+tests\test_lifecycle_canonical_preparation.py:141: AssertionError
+_______ test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed _______
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5853/test_ambiguous_supervisor_l..., 'legal_state_source': 'pan/main-exit'})], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000297042AA2D0>)
+
+    def test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed(prepared):
+        def ambiguous(root, eid):
+            doc = ExecutionStore(root).get(eid)
+            assert doc["launchAttempted"] is True and "preparationToken" not in doc
+            prepared.events.append(("launch-attempt", eid))
+            raise OSError("ambiguous detached launch")
+        prepared.monkeypatch.setattr(independent_executor, "launch_execution", ambiguous)
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True}}))
+>       assert result["accepted"] is False and result["error"]["code"] == "launch_unconfirmed"
+E       assert (True is False)
+
+tests\test_lifecycle_canonical_preparation.py:165: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[20:34:00] [main-lifecycle] cancelled task prelaunch settlement: ExecutionConflict
+=========================== short test summary info ===========================
+FAILED tests/test_lifecycle_canonical_preparation.py::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-True-True]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-False-False]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-offline-False-True]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_freeze_before_gate_and_worker_shutdown_before_supervisor[restart-preserve-running-True-False]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_duplicate_and_cross_operation_reject_while_original_effect_queryable
+FAILED tests/test_lifecycle_canonical_preparation.py::test_lost_memory_still_fences_duplicate_or_cross_operation[exit]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_lost_memory_still_fences_duplicate_or_cross_operation[restart]
+FAILED tests/test_lifecycle_canonical_preparation.py::test_partial_worker_failure_is_unknown_and_never_launches_or_reopens
+FAILED tests/test_lifecycle_canonical_preparation.py::test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed

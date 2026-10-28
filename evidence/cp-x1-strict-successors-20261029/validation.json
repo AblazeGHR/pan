@@ -1,0 +1,33 @@
+{
+  "baseline": "a9d236c1c16159ca27697cfe090e3b7256c8c417",
+  "codeSha": "10e6fd08fe009aeb8cd6c234e85acd865b9ad884",
+  "platform": "Windows Python 3.14.5",
+  "fullLocal": {
+    "tests": 41,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0
+  },
+  "genuineMainFinalSafe": {
+    "passed": 1,
+    "exitCode": 0
+  },
+  "priorTwoHostEvidence": {
+    "passed": 2,
+    "exitCode": 0,
+    "source": "before final callback-only fix"
+  },
+  "originalFive": {
+    "passed": 0,
+    "failed": 5,
+    "exitCode": 1,
+    "meaning": "legacy observation assertions remain red"
+  },
+  "originalDesktop": {
+    "passed": 0,
+    "failed": 1,
+    "exitCode": 1,
+    "actualDesktop": "Default"
+  },
+  "remoteCI": "not run"
+}

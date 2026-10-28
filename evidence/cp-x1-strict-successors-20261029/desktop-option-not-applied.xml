@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="1.952" timestamp="2026-10-28T22:41:05.136006+08:00" hostname="windows-local"><testcase classname="tests.test_lifecycle_controller_publication" name="test_canonical_job_cancel_after_controller_crash[after-running-base]" time="1.671" /></testsuite></testsuites>

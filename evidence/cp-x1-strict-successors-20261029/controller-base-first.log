@@ -1,0 +1,103 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_canonical_job_cancel_after_controller_crash_before_supervisor_publication[base] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5856/test_canonical_job_cancel_afte0')
+runtime_kind = 'base'
+
+    @pytest.mark.parametrize("runtime_kind", ["base", "named-venv"])
+    def test_canonical_job_cancel_after_controller_crash_before_supervisor_publication(tmp_path, runtime_kind):
+        runtime = Path(sys._base_executable)
+        if runtime_kind == "named-venv":
+            envdir = tmp_path / "named-cpx1-venv"
+            venv.EnvBuilder(with_pip=False, system_site_packages=True).create(envdir)
+            runtime = envdir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            assert runtime.is_file() and (envdir / "pyvenv.cfg").is_file()
+        app = FastAPI()
+        automation = Automation(tmp_path / "automation", SimpleNamespace(workers={}), None)
+        automation.auth = final_api.CanonicalUserAuth(tmp_path / "automation")
+        service = bind(app, automation, tmp_path / "canonical")
+        app.state.automation = automation
+        from packages.jobs.action_api import router as actions
+        from packages.jobs.api import router as jobs
+        final_api.install(app, actions, jobs)
+        auth = automation.auth.login(automation.auth.key())
+        controller = None
+        controller_id = runner_id = None
+        store = None
+        eid = attempt = None
+        members = []
+        with TestClient(app, headers={"Authorization": "Bearer " + auth}) as client:
+            try:
+                action = next(a for a in service.actions(actor={"type": "user", "id": "local"})["items"]
+                              if a["id"] == "product_process_cleanup_v1")
+                tree = Path(__file__).parent / "support" / "lifecycle_strict_job_tree.py"
+                body = {"name": "owned publication crash", "steps": [{"stepId": "process",
+                    "actionRef": object_ref("action", action), "arguments": {
+                        "argv": {"from": "literal", "value": [sys.executable, str(tree), str(tmp_path), "2"]},
+                        "cwd": {"from": "literal", "value": str(tmp_path)}},
+                    "completion": {"contract": "process-exit"}}], "retention": {"policyRef": "test"}}
+                response = client.post("/api/jobs", json={"definition": body, "expectedRevision": 0, "requestKey": "create"})
+                assert response.status_code == 201, response.text
+                job = response.json()["result"]["object"]
+                response = client.post("/api/jobs/" + job["id"] + "/operations", json={"operation": "enable",
+                    "expectedRevision": job["configRevision"], "expectedStateRevision": job["stateRevision"],
+                    "parameters": {}, "requestKey": "enable"})
+                assert response.status_code == 200, response.text
+                job = response.json()["result"]["object"]
+                response = client.post("/api/jobs/" + job["id"] + "/runs", json={"expectedRevision": job["configRevision"],
+                    "requestKey": "run", "input": {}, "cause": {"type": "manual"}})
+                assert response.status_code == 202, response.text
+                rid = response.json()["runId"]
+                helper = Path(__file__).parent / "support" / "lifecycle_canonical_job_controller.py"
+                controller = subprocess.Popen([sys.executable, str(helper), str(service.root),
+                    str(tmp_path / "automation"), str(runtime), str(tmp_path)],
+                    cwd=str(Path(__file__).resolve().parents[1]), stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, **command_window_options())
+                wrapper_birth = psutil.Process(controller.pid).create_time()
+                runner_ready, controller_ready = tmp_path / "runner-ready.json", tmp_path / "controller-ready.json"
+                wait(lambda: runner_ready.exists() and controller_ready.exists(), bool)
+                runner_id = json.loads(runner_ready.read_text(encoding="utf-8"))
+                controller_id = json.loads(controller_ready.read_text(encoding="utf-8"))
+                assert runner_id["stage"] == "after_bootstrap_before_claim" and runner_id["bootstrapExited"]
+                assert runner_id["bootstrapExitCode"] == 0 and alive(runner_id) and alive(controller_id)
+                store = ExecutionStore(service.root / "executions")
+                with store.connect() as db:
+                    documents = [json.loads(row[0]) for row in db.execute("SELECT document FROM executions")]
+                assert len(documents) == 1
+                before = documents[0]
+                eid, attempt = before["effectId"], before["attempt"]
+                assert before["jobId"] == job["id"] and attempt["runId"] == rid
+                assert before["phase"] == "admitted" and before["claim"] is None and "supervisorIdentity" not in before
+                actual_controller = psutil.Process(controller_id["pid"])
+                assert actual_controller.pid == controller.pid or actual_controller.pid in [p.pid for p in psutil.Process(controller.pid).children(recursive=True)]
+                actual_controller.kill()
+                controller.wait(timeout=5)
+                assert alive(runner_id) and store.get(eid)["claim"] is None
+                (tmp_path / "runner-release").touch()
+                doc = wait(lambda: store.get(eid), lambda value: value["phase"] == "running" and all(
+                    (tmp_path / f"member-{i}.json").exists() for i in range(3)))
+                assert doc["attempt"] == attempt and doc["supervisorIdentity"]["pid"] == runner_id["pid"]
+                members = [json.loads((tmp_path / f"member-{i}.json").read_text()) for i in range(3)]
+                assert all(alive(row) for row in members)
+>               assert psutil.Process(members[0]["pid"]).ppid() == members[1]["pid"]
+E               AssertionError: assert 26088 == 19200
+E                +  where 26088 = ppid()
+E                +    where ppid = psutil.Process(pid=35548, name='python.exe', status='running', started='20:37:25').ppid
+E                +      where psutil.Process(pid=35548, name='python.exe', status='running', started='20:37:25') = <class 'psutil.Process'>(35548)
+E                +        where <class 'psutil.Process'> = psutil.Process
+
+tests\test_lifecycle_controller_publication.py:118: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash_before_supervisor_publication[base]

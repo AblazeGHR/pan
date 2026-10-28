@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="2" time="0.802" timestamp="2026-10-28T20:33:41.376442+08:00" hostname="windows-local"><testcase classname="tests.test_lifecycle_strict_successors" name="test_scheduled_response_does_not_wait_for_worker_shutdown[exit]" time="0.050" /><testcase classname="tests.test_lifecycle_strict_successors" name="test_scheduled_response_does_not_wait_for_worker_shutdown[restart]" time="0.043" /></testsuite></testsuites>
