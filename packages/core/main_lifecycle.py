@@ -69,6 +69,48 @@ class ProtectedLifecycleExecutor:
         doc, created = await asyncio.to_thread(self.store.admit, job_id=self.job_id,
             attempt=attempt, effect_key=effect_key, frozen_plan=frozen_plan, retry=retry)
         if created:
+            prepare = getattr(self, "prepare", None)
+            if prepare is not None:
+                import secrets
+                from packages.jobs.independent_executor import ExecutionConflict
+                token = secrets.token_hex(24)
+                # Only the caller that actually created this intent installs
+                # the token. Reopening an admitted record cannot infer that a
+                # prior detached launch did not happen.
+                with self.store.connect() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    original = self.store._load(db, doc["effectId"])
+                    self.store._check(original, attempt)
+                    if (original["phase"] != "admitted" or original.get("claim")
+                            or original.get("result") is not None or original.get("launchAttempted")
+                            or original.get("preparationToken")):
+                        raise ExecutionConflict("preparation ownership unavailable")
+                    original["preparationToken"] = token
+                    self.store._save(db, original)
+                    db.commit()
+                try:
+                    await prepare(copy.deepcopy(original))
+                except BaseException as exc:
+                    # Worker shutdown can have partially changed state. Main
+                    # stop/start has not been called, but recovery is unknown.
+                    failed = await asyncio.shield(asyncio.to_thread(
+                        self.store.reject_prelaunch, doc["effectId"], attempt,
+                        preparation_token=token,
+                        error={"type": type(exc).__name__, "message": str(exc)}))
+                    if isinstance(exc, asyncio.CancelledError):
+                        raise
+                    return failed["result"]
+                with self.store.connect() as db:
+                    db.execute("BEGIN IMMEDIATE")
+                    original = self.store._load(db, doc["effectId"])
+                    self.store._check(original, attempt)
+                    if (original.get("preparationToken") != token or original["phase"] != "admitted"
+                            or original.get("claim") or original.get("result") is not None):
+                        raise ExecutionConflict("preparation fence lost before launch")
+                    original.pop("preparationToken")
+                    original["launchAttempted"] = True
+                    self.store._save(db, original)
+                    db.commit()
             try:
                 await asyncio.to_thread(self.launch, self.store.root, doc["effectId"])
             except Exception:

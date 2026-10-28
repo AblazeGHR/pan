@@ -219,6 +219,39 @@ class ExecutionStore:
             db.commit()
             return doc
 
+    def reject_prelaunch(self, identity, attempt, *, preparation_token, error):
+        """Settle only the original, locally fenced preparation before launch.
+
+        The caller must have created the admission and installed this one-shot
+        token in the same execute call. An admitted phase by itself is never
+        evidence that a detached launch was not attempted.
+        """
+        from packages.actions.typed_executor import EffectReceipt
+        if not isinstance(preparation_token, str) or not preparation_token:
+            raise ExecutionConflict("preparation token required")
+        if not isinstance(error, Mapping):
+            raise ValueError("preparation error must be an object")
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            doc = self._load(db, identity)
+            self._check(doc, attempt)
+            if doc.get("preparationToken") != preparation_token or doc.get("launchAttempted"):
+                raise ExecutionConflict("prelaunch ownership unavailable or launch attempted")
+            result = EffectReceipt(doc["effectKey"], "unknown", {
+                "code": "worker_preparation_failed", "phase": "uncertain",
+                "error": dict(error), "mainEffectStarted": False,
+                "preparationMayHaveChanged": True,
+            }, {"confirmed": False, "mainEffectStarted": False}).as_dict()
+            if doc.get("result") is not None:
+                if doc["result"] != result:
+                    raise ExecutionConflict("prelaunch receipt already settled differently")
+                return doc
+            if doc.get("phase") != "admitted" or doc.get("claim"):
+                raise ExecutionConflict("prelaunch admission already claimed")
+            self._settle(db, doc, result)
+            db.commit()
+            return doc
+
     def reconcile(self, identity, attempt, lookup):
         """Explicit trusted lookup of the ORIGINAL external identity, no replay.
 

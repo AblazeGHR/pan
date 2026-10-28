@@ -4031,6 +4031,19 @@ async def _canonical_lifecycle_handoff(operation: str, options: dict,
         job_id=job_id, store=ExecutionStore(lifecycle_action.receipt_root(root)),
         authorize=grant,
     )
+    async def prepare_original_lifecycle(document):
+        """The sealed original plan precedes the Worker gate and shutdown."""
+        frozen = document["frozenPlan"]["arguments"]["options"]
+        mark_offline = _resolve_main_lifecycle_job_choice(frozen, operation)
+        running_ids = list(frozen["runningSessionIds"])
+        worker.begin_shutdown()
+        await worker.shutdown_all(
+            mark_legal_offline=True,
+            mark_legal_offline_session_ids=running_ids if mark_offline else (),
+            preserve_legal_running_session_ids=() if mark_offline else running_ids,
+            legal_state_source="pan/main-" + operation,
+        )
+    protected.prepare = prepare_original_lifecycle
     result = await TypedExecutor(lifecycle_executor=protected).execute(
         attempt=identity["attempt"], effect_key=identity["effectKey"],
         frozen_plan=plan,
@@ -4080,8 +4093,10 @@ async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = No
 
     async with _lifecycle_operation_lock:
         for pending in _canonical_lifecycle_pending.values():
-            if pending.get("operation") == operation:
-                return dict(pending)
+            # Both operations share one service and Worker gate. Even a
+            # different choice or operation must query the original effect.
+            return {**pending, "ok": False, "accepted": False, "status": "busy", "pending": True}
+        options = await _snapshot_main_lifecycle_options(options, operation)
         # Stable across a lost HTTP response/reloaded host; the canonical
         # effect fence then returns the original receipt instead of relaunching.
         request_id = "request_" + hashlib.sha256(
@@ -4094,10 +4109,13 @@ async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = No
         if (receipt.get("outcome") == "rejected"
                 or (receipt.get("outcome") == "unknown"
                     and (receipt.get("receipt") or {}).get("code") != "execution_pending")):
-            return {"ok": False, "accepted": False, "actionId": lifecycle_action.ACTION_ID,
-                    "operation": operation, "error": receipt.get("receipt", {})}
+            pending = {"ok": False, "accepted": False, "actionId": lifecycle_action.ACTION_ID,
+                       "operation": operation, "requestId": request_id, "jobId": result["jobId"],
+                       "effectId": result["effectId"], "error": receipt.get("receipt", {})}
+            _canonical_lifecycle_pending[result["effectId"]] = pending
+            return pending
         pending = {"ok": True, "accepted": True,
-                   "actionId": lifecycle_action.ACTION_ID, "operation": operation,
+                   "actionId": lifecycle_action.ACTION_ID, "operation": operation, "status": "scheduled",
                    "requestId": request_id, "jobId": result["jobId"],
                    "effectId": result["effectId"]}
         _canonical_lifecycle_pending[result["effectId"]] = pending
