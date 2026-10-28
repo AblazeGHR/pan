@@ -1,0 +1,832 @@
+{
+  "sourceSHA": "e3fceb50fa1f059299b7fa179fee5cc069888c03",
+  "platform": "Windows",
+  "python": "3.14.5",
+  "exitCodes": {
+    "controller-hidden": 0,
+    "protocol": 0,
+    "capability-ux": 0
+  },
+  "suites": [
+    {
+      "file": "combined-controller-hidden.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "21",
+      "time": "14.706",
+      "timestamp": "2026-10-29T02:57:04.502952+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "combined-protocol.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "21",
+      "tests": "178",
+      "time": "25.652",
+      "timestamp": "2026-10-29T02:57:19.695040+08:00",
+      "hostname": "ablaze"
+    }
+  ],
+  "nodes": [
+    {
+      "node": "tests/test_lifecycle_followthrough.py::test_observation_requires_existing_store_and_never_creates_it",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_followthrough.py::test_observation_verifies_original_fence_and_persisted_frozen_options",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_followthrough.py::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[after-submit-return]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_followthrough.py::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[before-submit-return]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-base]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-named-venv]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-base]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-named-venv]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_hidden_tree_identity_stdio_and_desktop_cleanup[base]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_hidden_tree_identity_stdio_and_desktop_cleanup[named-venv]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_normal_exit_env_cwd_pipes_merge_and_private_desktop",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_visible_intent_does_not_allocate_hidden_desktop",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_atomic_membership_precedes_resume_and_no_late_assign",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_creation_failure_closes_real_resources_without_execution[before-create]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_creation_failure_closes_real_resources_without_execution[after-create]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_creation_failure_closes_real_resources_without_execution[after-return]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_runner_hard_death_releases_whole_tree_and_desktop",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_runner_death_inside_create_before_return_runs_no_child_instruction",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_close_failure_retains_desktop_and_allows_retry",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_hidden_owner_preserves_existing_token_restriction",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_process_handle_close_failure_remains_retryable",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_platform_endpoint_is_read_only_and_minimal",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_platform_endpoint_matches_capability_matrix",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_rewind_returns_unsupported_platform",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_main_lifecycle_actions_return_unsupported_platform[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_main_lifecycle_actions_return_unsupported_platform[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_main_lifecycle_status_marks_unsupported[_main_exit_status]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_main_lifecycle_status_marks_unsupported[_main_restart_status]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_api.py::test_terminal_api_marks_non_windows_as_unsupported",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[False-codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[False-cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[False-kimi]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[True-codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[True-cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_start_rejected_before_recovery_or_spawn[True-kimi]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_direct_spawn_rejects_native_before_adapter_or_plugin_io",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_stream_spawn_preserves_literal_cwd_and_argv",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_worker_spawn_options_isolate_host_signals[linux]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_worker_spawn_options_isolate_host_signals[darwin]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_worker_spawn_options_preserve_windows_policy",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_restart_rejects_before_stopping_existing_runtime[_restart_worker_unlocked]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_native_restart_rejects_before_stopping_existing_runtime[_respawn_worker_unlocked]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_worker_platform_admission.py::test_unknown_capability_probe_is_not_reported_as_unsupported",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_native_projection_obeys_platform[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_native_projection_obeys_platform[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_native_projection_obeys_platform[kimi]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_creation_rejects_native_before_session_write",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_creation_rejects_native_before_resolving_workdir",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_platform_projection.py::test_explicit_stream_creation_remains_supported",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_explicit_platform_denial_precedes_configuration_side_effects",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_passthrough_saved_offline_and_strict_codex_only",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_passthrough_lost_receipt_is_pending_then_same_worker_retry",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_passthrough_persistence_failure_never_sends_to_kernel",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_default_and_other_adapters_reject_without_spawning",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_invalid_modes_do_not_call_worker[body0]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_invalid_modes_do_not_call_worker[body1]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_invalid_modes_do_not_call_worker[body2]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_output_offsets_gap_and_no_private_transport[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_output_offsets_gap_and_no_private_transport[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_write_requires_current_worker_and_real_ack[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_write_requires_current_worker_and_real_ack[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_native_spawn_fences_queue_before_consumer_is_created[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_native_spawn_fences_queue_before_consumer_is_created[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_origin_gate_runs_before_session_lookup",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_invalid_unicode_input_is_rejected_without_worker_write[codex]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_invalid_unicode_input_is_rejected_without_worker_write[cbc]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_native_control_api.py::test_creation_is_explicit_native_adapter_and_old_session_data_stays_unchanged",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_plugin_ipc_endpoint.py::test_long_caller_path_concurrent_bridges_roundtrip_and_cleanup",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_plugin_ipc_endpoint.py::test_long_temp_root_uses_short_private_endpoint",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_plugin_ipc_endpoint.py::test_listener_failure_cleans_only_its_endpoint",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_plugin_ipc_endpoint.py::test_private_endpoint_refuses_recursive_cleanup_of_unknown_entries",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_plugin_ipc_endpoint.py::test_start_exception_restores_environment_and_retires_bridge",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_run_request_key_replays_after_restart_without_new_run",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_revoke_between_steps_prevents_next_effect",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[kind-background-process]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[source-user]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[enabled-True]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[authorization-value3]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_service_invalid_definitions_do_not_write[configRevision-999]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_real_http_401_403_404_409_and_cookie_same_origin",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_concurrent_cas_allows_exactly_one_writer",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_failed_creator_or_cross_reference_rolls_back_every_table",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft03_old_facade_retires_writes_and_keeps_reads",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_new_trigger_never_consumes_old_wp04_event",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_forbid_is_durable_skipped_admission_not_a_second_run",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_creator_runtime_rechecks_lifecycle_grant_before_new_publication",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_real_agent_http_uses_existing_matrix_and_scoped_operations",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_bound_background_driver_survives_reload_without_resend",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft02_unbound_automatic_recovery_is_explicit_unsupported",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_recovery_never_reports_lost_cancelling_effect_as_cancelled",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_queue_keeps_admission_order_after_sorted_json_reload",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_unknown_effect_holds_queue_capacity_but_queued_cancel_can_settle",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_ask_requires_choice[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_ask_requires_choice[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown[exit-ask-True-True]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown[exit-ask-False-False]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown[exit-offline-False-True]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown[restart-preserve-running-True-False]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_original_identity_after_memory_loss[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_original_identity_after_memory_loss[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_prelaunch_partial_failure_stays_unknown",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_cancel_during_ambiguous_launch_stays_unknown",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_real_host_reports_lifecycle_unsupported_without_effect[exit]",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_lifecycle_fast_contract.py::test_fast_real_host_reports_lifecycle_unsupported_without_effect[restart]",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_scheduled_response_does_not_wait_for_worker_shutdown[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_scheduled_response_does_not_wait_for_worker_shutdown[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_task_creation_failure_preserves_original_unknown_without_launch",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_cancelled_before_task_starts_is_fenced_and_durable",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_cancel_during_ambiguous_launch_preserves_original_unknown",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_admission_failure_never_closes_worker_gate",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_duplicate_during_original_admission_waits_then_returns_original_busy",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_spawn_binds_exact_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_identity_by_pid_matches_spawn_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_identity_of_own_process_is_readable",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_returns_exit_code",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_timeout_does_not_terminate",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_wait_after_exit_is_stable",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_terminate_stops_process",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_terminate_is_idempotent",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_kill_tree_removes_grandchild",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_check_detects_reused_pid",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_refuses_mismatched_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recoverable_identity_roundtrip",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_verify_rejects_foreign_platform_record",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_terminates_verified_process",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_can_verify_without_terminating",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_recover_reports_already_dead",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_close_is_idempotent",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestWindowsProcessOwnerContract.py::test_handle_cannot_cross_owner",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_spawn_binds_exact_identity",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_identity_by_pid_matches_spawn_identity",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_identity_of_own_process_is_readable",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_returns_exit_code",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_timeout_does_not_terminate",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_wait_after_exit_is_stable",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_terminate_stops_process",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_terminate_is_idempotent",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_kill_tree_removes_grandchild",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_check_detects_reused_pid",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_refuses_mismatched_identity",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recoverable_identity_roundtrip",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_verify_rejects_foreign_platform_record",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_terminates_verified_process",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_can_verify_without_terminating",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_recover_reports_already_dead",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_close_is_idempotent",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract/TestPosixProcessOwnerContract.py::test_handle_cannot_cross_owner",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract.py::test_default_process_owner_matches_platform",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract.py::test_posix_owner_rejects_calls_on_windows",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract.py::test_windows_owner_rejects_construction_on_posix",
+      "result": "skipped"
+    },
+    {
+      "node": "tests/test_platform_process_contract.py::test_identity_record_requires_known_fields",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_contract.py::test_identity_mismatch_error_is_process_owner_error",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe02_cross_host_lookup_keeps_run_and_effect_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m03_source_metadata_reaches_original_session_provider",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m03_missing_provider_status_stays_unknown",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m04_broadcast_uses_per_target_provider_receipts_without_extra_store_rows",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m04_broadcast_target_effect_keys_are_stable_and_parent_scoped",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m05_assign_reuses_task_and_source_identity",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m05_assign_reuses_effect_derived_task_id_on_replay",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m05_assign_preserves_rejection_and_unknown[error-rejected]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m05_assign_preserves_rejection_and_unknown[unknown-unknown]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_m05_assign_missing_session_is_rejected_by_original_worker_boundary",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_invalid_qq_identity_is_rejected_before_provider_call",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining0-False]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining1-False]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_cleanup_close_failure_cannot_be_success_or_retry",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes0]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes1]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes2]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes3]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses0-unknown]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses1-partial]",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_terminal_persistence_crash_retains_unknown_intent_without_resend",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_failed_intent_persistence_prevents_provider_call",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice",
+      "result": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_unrelated_receipt_host_cannot_authorize_ephemeral_message_executor",
+      "result": "passed"
+    }
+  ]
+}

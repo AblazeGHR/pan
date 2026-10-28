@@ -1,0 +1,20 @@
+{
+  "sourceSha": "e3fceb50fa1f059299b7fa179fee5cc069888c03",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "identity": {
+    "pid": 52620,
+    "kind": "filetime",
+    "birth": "134376874373300905",
+    "platform": "windows",
+    "boot_id": null,
+    "pgid": null,
+    "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+  },
+  "desktop": "PanJob_2423c7eae952f3cfadad4984bd78beaf",
+  "desktopGone": true,
+  "exitCode": 0,
+  "mergedStdio": true,
+  "unicodeEnv": true,
+  "cwd": true
+}

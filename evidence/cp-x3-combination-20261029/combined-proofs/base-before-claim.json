@@ -1,0 +1,132 @@
+{
+  "runtimeKind": "base",
+  "crashPoint": "before-claim",
+  "controller": {
+    "pid": 44516,
+    "birth": 1793213827.7005725,
+    "stage": "dispatch_returned"
+  },
+  "controllerWrapperPid": 42156,
+  "controllerWrapperBirth": 1793213827.6772316,
+  "beforeClaim": {
+    "phase": "admitted",
+    "claim": null,
+    "supervisorPublished": false
+  },
+  "runnerBeforeClaim": {
+    "pid": 49796,
+    "birth": 1793213828.3853605,
+    "stage": "after_bootstrap_before_claim",
+    "bootstrapExited": true,
+    "bootstrapPid": 37392,
+    "bootstrapExitCode": 0,
+    "prefix": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314",
+    "basePrefix": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314",
+    "executable": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+  },
+  "jobId": "job_16927f45587441aaaf5bd9f7",
+  "runId": "run_bc046ba463c74d3090f03c5e",
+  "effectId": "effect_289d03197abc76719cd59b9ac5714519dfcc423ca12eeb78a8ace19161a9e1a1",
+  "attempt": {
+    "attemptId": "attempt_235ca6394b0a452b84809f1a",
+    "runId": "run_bc046ba463c74d3090f03c5e",
+    "stepId": "process",
+    "state": "running",
+    "ownerEpoch": 1,
+    "generation": 1,
+    "leaseId": "lease_afbbfed91c5248b3b6fe90d7",
+    "startedAt": "2026-10-28T18:57:08.264029Z"
+  },
+  "supervisor": {
+    "schema": "pan.process-identity/1",
+    "platform": "windows",
+    "pid": 49796,
+    "kind": "filetime",
+    "birth": "134376874283853604",
+    "boot_id": null,
+    "pgid": null,
+    "image": null
+  },
+  "members": [
+    {
+      "pid": 55000,
+      "birth": 1793213829.0003855,
+      "depth": 0,
+      "desktop": "PanJob_9117bfe835c7cbbed64f0820f31c8a3b"
+    },
+    {
+      "pid": 35356,
+      "birth": 1793213828.9342563,
+      "depth": 1,
+      "desktop": "PanJob_9117bfe835c7cbbed64f0820f31c8a3b"
+    },
+    {
+      "pid": 33672,
+      "birth": 1793213828.8645205,
+      "depth": 2,
+      "desktop": "PanJob_9117bfe835c7cbbed64f0820f31c8a3b"
+    }
+  ],
+  "cleanup": {
+    "revision": 1,
+    "status": "confirmed",
+    "proof": {
+      "confirmed": true,
+      "rootExited": true,
+      "identityCheck": {
+        "status": "alive",
+        "ours": true,
+        "expected": {
+          "pid": 44960,
+          "kind": "filetime",
+          "birth": "134376874288251031",
+          "platform": "windows",
+          "boot_id": null,
+          "pgid": null,
+          "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+        },
+        "observed": {
+          "pid": 44960,
+          "kind": "filetime",
+          "birth": "134376874288251031",
+          "platform": "windows",
+          "boot_id": null,
+          "pgid": null,
+          "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+        },
+        "detail": "FILETIME \u7cbe\u786e\u5339\u914d"
+      },
+      "ownedTree": {
+        "owned": [
+          28148,
+          33672,
+          35356,
+          40992,
+          44960,
+          52368,
+          55000
+        ],
+        "remaining": [],
+        "confirmed": true,
+        "detail": "TerminateJobObject + active==0 \u53cc\u8bc1\u636e"
+      }
+    }
+  },
+  "runState": "cancelled",
+  "supervisorExit": {
+    "confirmed": true,
+    "reason": "pid_absent",
+    "identity": {
+      "schema": "pan.process-identity/1",
+      "platform": "windows",
+      "pid": 49796,
+      "kind": "filetime",
+      "birth": "134376874283853604",
+      "boot_id": null,
+      "pgid": null,
+      "image": null
+    }
+  },
+  "membersExited": true,
+  "effectCount": 1
+}
