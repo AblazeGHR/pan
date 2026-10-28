@@ -1,0 +1,61 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="3.657" timestamp="2026-10-28T18:08:10.213991+08:00" hostname="windows-local"><testcase classname="tests.test_terminal_guard" name="test_holder_hard_kill_kills_tree" time="2.198" /><testcase classname="tests.test_canonical_form_metadata" name="test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job" time="0.391"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000243AE5DEA50&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='1FxLfU_CvzGX2zp9u2sfFnemwhJagwIt0jOmOtg2HpU')
+
+    def test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job(h):
+        response = h.client.get('/api/jobs/actions')
+        assert response.status_code == 200
+        page = response.json()
+        item = next(a for a in page['items'] if a['id'] == 'product_session_message')
+        ref = page['references'][item['id']]
+        assert ref == object_ref('action', item)
+        definition = job_def(h)
+        definition['steps'][0]['actionRef'] = ref
+        created = h.client.post('/api/jobs', json={'definition':definition,'expectedRevision':0,'requestKey':'form-job'})
+&gt;       assert created.status_code == 201, created.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_canonical_form_metadata.py:16: AssertionError</failure></testcase><testcase classname="tests.test_job_retirement_closure_successors" name="test_target_and_text_edit_only_changes_future_frozen_runs" time="0.405"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_486768a7ac404f11a5b462a7&quot;,&quot;requestKey&quot;:&quot;after-edit&quot;,&quot;status&quot;:&quot;completed&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_d5cb69f4332245a195ebf0d6&quot;,&quot;revision&quot;:2,&quot;digest&quot;:&quot;a3a04ac27524021c10d448cc6fc2d1a4fc75685827f4dd83a17f65eec239952b&quot;}],&quot;result&quot;:{&quot;admissionId&quot;:&quot;adm_21fca349c3294c86917cf653&quot;,&quot;configRevision&quot;:2,&quot;skipped&quot;:true},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_486768a7ac404f11a5b462a7&quot;},&quot;admissionId&quot;:&quot;adm_21fca349c3294c86917cf653&quot;}&#10;assert 200 == 202&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000243AE80FE00&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='hlhIAciP2ITgz1p_AUwMscxHP2AJ_uAYg4xoeve5BaU')
+
+    def test_target_and_text_edit_only_changes_future_frozen_runs(h):
+        item = enabled(h)
+        first = launch(h, item, 'before-edit')
+        frozen = copy.deepcopy(h.service.final.get(item['id'])['runs'][first['runId']])
+        calls = []
+        send = h.provider.send_session
+    
+        async def record(session_id, text, **kwargs):
+            calls.append((session_id, text, copy.deepcopy(kwargs['effect_key'])))
+            return await send(session_id, text, **kwargs)
+    
+        h.provider.send_session = record
+        value = job_def(h)
+        value['steps'][0]['arguments'] = {
+            'sessionId': {'from': 'literal', 'value': 'second-owned-session'},
+            'text': {'from': 'literal', 'value': 'edited text'}}
+        response = h.client.put('/api/jobs/' + item['id'], json=dict(
+            definition=value, expectedRevision=1, requestKey='edit-target-text'))
+        assert response.status_code == 200, response.text
+        edited = response.json()['result']['object']
+        assert h.service.final.get(item['id'])['runs'][first['runId']] == frozen
+        asyncio.run(h.service.dispatch_once())
+&gt;       second = launch(h, edited, 'after-edit')
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retirement_closure_successors.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000243AE80FE00&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='hlhIAciP2ITgz1p_AUwMscxHP2AJ_uAYg4xoeve5BaU')
+item = {'name': 'job', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'test_message', 'revision': 1, 'digest': '42d8fe290ad12... {'contract': 'durable-queue-accepted'}}], 'retention': {'policyRef': 'test', 'pinned': False}, 'description': '', ...}
+key = 'after-edit'
+
+    def launch(h, item, key="run"):
+        response = h.client.post(BASE + "/jobs/" + item["id"] + "/runs", json={
+            "expectedRevision": item["configRevision"], "requestKey": key, "input": {}, "cause": {"type": "manual"}})
+&gt;       assert response.status_code == 202, response.text
+E       AssertionError: {"operationId":"op_486768a7ac404f11a5b462a7","requestKey":"after-edit","status":"completed","objectRefs":[{"id":"job_d5cb69f4332245a195ebf0d6","revision":2,"digest":"a3a04ac27524021c10d448cc6fc2d1a4fc75685827f4dd83a17f65eec239952b"}],"result":{"admissionId":"adm_21fca349c3294c86917cf653","configRevision":2,"skipped":true},"links":{"self":"/api/operations/op_486768a7ac404f11a5b462a7"},"admissionId":"adm_21fca349c3294c86917cf653"}
+E       assert 200 == 202
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests\test_job_final_http_service.py:100: AssertionError</failure></testcase></testsuite></testsuites>
