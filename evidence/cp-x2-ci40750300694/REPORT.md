@@ -108,8 +108,8 @@ The supplementary P23 owned/canonical/public/final-executor group passed
 **46 nodes, zero failures/skips, exit 0**, starting at 28764e26; the start SHA is
 retained in p23.json and is explicitly not final-source evidence.
 
-Final runtime proof archive includes 29 JSON files (13 P23, 6 original
-controller/followthrough, and 10 hidden-process proofs including unchanged
+Final runtime proof archive includes 29 JSON files (13 P23, 7 original
+controller/followthrough, and 9 hidden-process proofs including unchanged
 historical proofs). Each retains its own source metadata. Only the final-source
 files are used for dd3ea8d8 direct/ancestor and cleanup claims. After byte-identical
 copy checks, 23 tracked generated files were restored to dd3ea8d8 and three exact
