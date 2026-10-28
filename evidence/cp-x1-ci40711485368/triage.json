@@ -1,0 +1,41 @@
+{
+  "runId": "40711485368",
+  "sourceRunJson": "D:/project/Pan/.workflow/job-unification-review-20261028/remote-ci-40711485368/run.json",
+  "sourceFailureLog": "D:/project/Pan/.workflow/job-unification-review-20261028/remote-ci-40711485368/failed-steps.log",
+  "matrix": {
+    "platformFast": {
+      "windowsPy312": "passed",
+      "ubuntuPy312": "passed",
+      "macosPy312": "passed"
+    },
+    "ubuntuAuthenticatedBrowser": "passed",
+    "pytestPy312": "failed_full_repository",
+    "pytestPy314": "failed_full_repository"
+  },
+  "pytestFailureShape": {
+    "py312FailedLines": 223,
+    "py312SetupErrors": 13,
+    "py314FailedLines": 224,
+    "py314SetupErrors": 13,
+    "interpretation": "parameterized/full-repository failure lines, not independent product-defect count"
+  },
+  "ownedRepair": {
+    "file": "tests/test_lifecycle_followthrough.py",
+    "reason": "processIdentity may equal owned tree root; root cannot be its own parent",
+    "localCommand": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_lifecycle_followthrough.py -q -ra",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "evidence": "evidence/cp-x1-ci40711485368/lifecycle-followthrough-local.xml"
+  },
+  "lifecycleClassification": {
+    "mainServiceTransition": "known baseline/retired observation red",
+    "ownedHostExit": "fixture/environment mismatch in full pytest; genuine-main evidence already passed",
+    "legacyController": "retired legacy entrypoint or old fixture; canonical successor evidence exists",
+    "windowsHiddenDesktop": "CP-X2 platform-owned actual gap",
+    "newLifecycleProductGap": false
+  },
+  "remoteCiRerun": false,
+  "push": false
+}
