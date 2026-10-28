@@ -654,7 +654,7 @@ def test_darwin_native_abi_layout_and_single_generation_copyout(monkeypatch):
     darwin, calls = native_copyout(monkeypatch)
     assert darwin.abi_valid()
     identity, state = darwin.read_darwin_identity(4321)
-    assert identity.kind == 'proc_uniqueid' and identity.birth == '9123456789:19:1700000000:123456'
+    assert identity.kind == 'proc_uniqueid' and identity.birth == 'lifetime-v1:9123456789:1700000000:123456'
     assert identity.boot_id == 'a1234567-1234-1234-1234-123456789abc'
     assert identity.pgid == 4321 and state == 'S'
     assert calls == [(4321, 18, 1, 192)]
@@ -702,7 +702,7 @@ def test_darwin_strong_identity_fences_stale_generation(owner, monkeypatch, chan
     identity, _ = darwin.read_darwin_identity(4321)
     install(monkeypatch, identity=identity)
     assert owner.check(identity).verified_alive
-    stale = dataclasses.replace(identity, **{changed: getattr(identity, changed) + '-old'})
+    stale = dataclasses.replace(identity, **{changed: identity.boot_id + '-old' if changed == 'boot_id' else 'lifetime-v1:9123456790:1700000000:123456'})
     assert owner.check(stale).ours is False
     group = FakeGroup(die_on=set())
     install(monkeypatch, identity=identity, group=group)
@@ -745,14 +745,12 @@ def test_darwin_boot_uuid_native_size_and_parse_boundary(raw, size, rc):
             darwin._boot_uuid(System())
 
 
-def test_darwin_exec_version_change_is_unknown_not_pid_reuse_or_exit(owner, monkeypatch):
+def test_darwin_legacy_format_is_unknown_not_pid_reuse_or_exit(owner, monkeypatch):
     from packages.core.platform import execution_host, process
     import psutil
     darwin, _ = native_copyout(monkeypatch)
     identity, _ = darwin.read_darwin_identity(4321)
-    values = identity.birth.split(':')
-    values[1] = str(int(values[1]) + 1)
-    executed = dataclasses.replace(identity, birth=':'.join(values))
+    executed = dataclasses.replace(identity, birth='9123456789:20:1700000000:123456')
     install(monkeypatch, identity=executed)
     check = owner.check(identity)
     assert check.status is ProcessStatus.UNKNOWN and check.ours is None
@@ -829,3 +827,80 @@ def test_macos_native_spawn_path_admits_only_strong_bound_identity(owner, monkey
     assert handle.identity.boot_id == identity.boot_id and handle.pgid == handle.pid == 4321
     assert len(calls) == 1 and calls[0][1]['start_new_session'] is True
     handle.close()
+
+
+def test_darwin_same_lifetime_across_exec_preserves_exact_birth(owner, monkeypatch):
+    darwin, _ = native_copyout(monkeypatch)
+    first, _ = darwin.read_darwin_identity(4321)
+    darwin, _ = native_copyout(monkeypatch, mutation=lambda info: setattr(info.unique, 'idversion', 20))
+    second, _ = darwin.read_darwin_identity(4321)
+    assert first.matches(second) and first.birth.startswith('lifetime-v1:')
+    group = FakeGroup(die_on={SIGKILL})
+    install(monkeypatch, identity=second, group=group)
+    assert owner.check(first).verified_alive
+    owner._signal_authority(first, 4321)
+    # No signal is sent merely by the authority/read-only checks.
+    assert group.calls == []
+
+
+@pytest.mark.parametrize('birth', ['lifetime-v2:9123456789:1700000000:123456',
+    'lifetime-v1:bad:1700000000:123456', 'lifetime-v1:0:1700000000:123456',
+    'lifetime-v1:9123456789:1700000000:1000000', '9123456789:19:1700000000:123456'])
+def test_darwin_unknown_or_legacy_format_never_authorizes_signal(owner, monkeypatch, birth):
+    darwin, _ = native_copyout(monkeypatch)
+    observed, _ = darwin.read_darwin_identity(4321)
+    expected = dataclasses.replace(observed, birth=birth)
+    group = FakeGroup(die_on={SIGKILL})
+    install(monkeypatch, identity=observed, group=group)
+    check = owner.check(expected)
+    assert check.status is ProcessStatus.UNKNOWN and check.ours is None
+    with pytest.raises(OwnershipUnknownError):
+        owner._signal_authority(expected, 4321)
+    result = owner.recover(_record(expected))
+    assert result.action == 'unknown' and not result.terminated
+    assert group.calls == []
+
+
+@pytest.mark.parametrize('field', ['uniqueid', 'start_sec', 'start_usec', 'boot_id', 'pgid'])
+def test_darwin_lifetime_components_cannot_cross_adopt(owner, monkeypatch, field):
+    darwin, _ = native_copyout(monkeypatch)
+    original, _ = darwin.read_darwin_identity(4321)
+    if field == 'boot_id':
+        observed = dataclasses.replace(original, boot_id='b1234567-1234-1234-1234-123456789abc')
+    elif field == 'pgid':
+        observed = dataclasses.replace(original, pgid=9999)
+    else:
+        def mutate(info):
+            target = info.unique if field == 'uniqueid' else info.bsd
+            setattr(target, field, getattr(target, field) + 1)
+        darwin, _ = native_copyout(monkeypatch, mutation=mutate)
+        observed, _ = darwin.read_darwin_identity(4321)
+    group = FakeGroup(die_on={SIGKILL})
+    install(monkeypatch, identity=observed, group=group)
+    with pytest.raises((IdentityMismatchError, OwnershipUnknownError)):
+        owner._signal_authority(original, 4321)
+    assert group.calls == []
+    if field in {'start_sec', 'start_usec'}:
+        assert owner.check(original).status is ProcessStatus.UNKNOWN
+        assert owner._member_remaining((original,)) == (original.pid,)
+
+
+def test_ci_process_proof_is_bounded_and_omits_business_data(tmp_path, monkeypatch):
+    import json
+    from tests import job_posix_diagnostics as diagnostics
+    monkeypatch.chdir(tmp_path)
+    secret = 'DO-NOT-PERSIST-BUSINESS-OR-TOKEN'
+    doc = {'effectId': 'owned-effect', 'phase': 'unknown',
+           'attempt': {'attemptId': 'original-attempt', 'leaseId': 'original-lease', 'ownerEpoch': 1, 'generation': 1},
+           'frozenPlan': {'argv': [secret]}, 'env': {'TOKEN': secret},
+           'result': {'outcome': 'unknown', 'receipt': {'message': secret},
+                      'cleanupProof': {'confirmed': False, 'error': secret,
+                                       'ownedTree': {'owned': list(range(1000)), 'remaining': [1], 'confirmed': False}}}}
+    path = diagnostics.save_process_proof('bounded-test', documents=[doc] * 20)
+    raw = path.read_text(encoding='utf-8')
+    result = json.loads(raw)
+    assert len(raw.encode('utf-8')) <= 32768 and secret not in raw
+    assert len(result['executions']) == 4
+    assert len(result['executions'][0]['cleanupProof']['ownedTree']['owned']) == 64
+    assert result['executions'][0]['attempt']['attemptId'] == 'original-attempt'
+    assert result['executions'][0]['cleanupProof']['confirmed'] is False

@@ -99,8 +99,9 @@ def read_darwin_identity(pid: int) -> tuple[ProcessIdentity | None, str | None]:
                 or bsd.start_usec >= 1_000_000 or unique.uniqueid == 0
                 or bsd.status not in {1, 2, 3, 4, 5, 6}):
             return None, None
-        # The executable UUID is deliberately excluded: exec is not a new proc.
-        birth = f'{unique.uniqueid}:{unique.idversion}:{bsd.start_sec}:{bsd.start_usec}'
+        # Executable UUID and idversion can change on exec, not process birth.
+        # Versioned lifetime encoding never silently adopts legacy exec-bound records.
+        birth = f'lifetime-v1:{unique.uniqueid}:{bsd.start_sec}:{bsd.start_usec}'
         return ProcessIdentity(pid=int(pid), kind='proc_uniqueid', birth=birth,
                                platform=PLATFORM_POSIX, boot_id=before,
                                pgid=int(bsd.pgid)), 'Z' if bsd.status == 5 else 'S'
