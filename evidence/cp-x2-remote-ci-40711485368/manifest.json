@@ -1,0 +1,37 @@
+[
+  {
+    "path": "failed-steps.log",
+    "bytes": 2235032,
+    "sha256": "57ef88d89f0177bd4d24cef5b9e893474ff0eec03c863b48fa9e2bb707a17bf7"
+  },
+  {
+    "path": "pytest-3.12-failures.json",
+    "bytes": 118749,
+    "sha256": "c71b5998c83e853257e2327b94df9184292fcbcfb497438ee44e6bcba522bb9d"
+  },
+  {
+    "path": "pytest-3.14-failures.json",
+    "bytes": 119236,
+    "sha256": "69bff709aa49ebb0e03bb0243dee56370fdb13acbb4f04a1f1a8e0dbd681bf32"
+  },
+  {
+    "path": "REPORT.md",
+    "bytes": 3852,
+    "sha256": "3af64f76b06450cb1847f3a924b261bfb10b627f9ae124fc6bedc42cdc2483ac"
+  },
+  {
+    "path": "result.json",
+    "bytes": 186,
+    "sha256": "aa4a2b28aeac2034de716ef4a9ef74f281593d4305be232fabbb1a8c195b24e9"
+  },
+  {
+    "path": "run.json",
+    "bytes": 14876,
+    "sha256": "8dbebc7f1c8f004530d56c94c4b419a829d7e28fce32629a73d7a3a7ade81b95"
+  },
+  {
+    "path": "summary.json",
+    "bytes": 59505,
+    "sha256": "9acc558294627ec2c389eccf5d4900d0e84f944ef51c96c99a08690157dc671a"
+  }
+]

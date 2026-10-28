@@ -1,0 +1,946 @@
+[
+  {
+    "node": "tests.test_authorization_runtime::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt",
+    "detail": "name = 'execute'      def __getattr__(name):         from packages.jobs.retired import missing >       return missing(name, _RETIRED_ENTRYPOINTS)                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  packages\\jobs\\system_actions.py:209:  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _  name = 'execute', retired_names = frozenset"
+  },
+  {
+    "node": "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice",
+    "detail": "make_runtime = <function make_runtime.<locals>.build at 0x0000013AFB9FAF20>      @pytest.mark.timeout(180)     def test_real_job_terminal_auto_force_steers_system_notice(make_runtime):         runtime = make_runtime(steer=True)         recorder = _events(runtime)         try:             manager = _create(runtime, \"manager-job\")             _spawn(runtime, m"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_start_reports_missing_session",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801B9A60>      def test_http_start_reports_missing_session(monkeypatch):         def missing(*args, **kwargs):             raise ValueError(\"target session does not exist\") >       monkeypatch.setattr(web_server.background_jobs, \"start\", missing) E       AttributeError: <module 'packages.core"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801CF470>      def test_http_start_invalid_argv_and_cwd(monkeypatch):         def invalid(*args, **kwargs):             raise ValueError(\"argv must be a non-empty string array\") >       monkeypatch.setattr(web_server.background_jobs, \"start\", invalid) E       AttributeError: <module 'packages"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801CDA00>      def test_http_start_forwards_creator_and_target_separately(monkeypatch):         calls = []              def start(*args, **kwargs):             calls.append((args, kwargs))             return {\"jobId\": \"job_t046\", \"targetSessionId\": args[0],                     \"creatorSession"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_retry_rejects_running_job",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801CD070>      def test_http_retry_rejects_running_job(monkeypatch):         def running(job_id):             raise ValueError(\"running jobs cannot be retried; cancel them first\") >       monkeypatch.setattr(web_server.background_jobs, \"retry\", running) E       AttributeError: <module 'packag"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801CE540>      def test_http_message_job_creation_preserves_source_and_text(monkeypatch):         calls = []              class Target:             def __init__(self, sid):                 self.id = sid                 self.readonly_session = False                 self.managed_by = None      "
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A801C6B70>      def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(monkeypatch):         calls = []              class Target:             def __init__(self, sid):                 self.id = sid                 self.readonly_session = False                 self.manage"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]",
+    "detail": "payload = {}      @pytest.mark.parametrize(\"payload\", [{}, {\"name\": \"\"}, {\"name\": \"   \"}, {\"name\": \"x\" * 201}])     def test_http_process_name_required_before_spawn(payload): >       result = asyncio.run(web_server.api_background_job_start({\"targetSessionId\": \"owned\", \"argv\": [\"python\"], \"cwd\": \".\", **payload}))                              ^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]",
+    "detail": "payload = {'name': ''}      @pytest.mark.parametrize(\"payload\", [{}, {\"name\": \"\"}, {\"name\": \"   \"}, {\"name\": \"x\" * 201}])     def test_http_process_name_required_before_spawn(payload): >       result = asyncio.run(web_server.api_background_job_start({\"targetSessionId\": \"owned\", \"argv\": [\"python\"], \"cwd\": \".\", **payload}))                              ^^^^^^^"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]",
+    "detail": "payload = {'name': '   '}      @pytest.mark.parametrize(\"payload\", [{}, {\"name\": \"\"}, {\"name\": \"   \"}, {\"name\": \"x\" * 201}])     def test_http_process_name_required_before_spawn(payload): >       result = asyncio.run(web_server.api_background_job_start({\"targetSessionId\": \"owned\", \"argv\": [\"python\"], \"cwd\": \".\", **payload}))                              ^^^^"
+  },
+  {
+    "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]",
+    "detail": "payload = {'name': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}      @pytest.mark.parametrize(\"payload\", [{}, {\"name\": \"\"}, {\"name\": \"   \"}, {\"name\": \"x\" * 201}])     def test_http_process_name_requir"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8019FA60> reason = 'cancelled', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication="
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80229A80> reason = 'dependency-unavailable', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, d"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80229760> reason = 'failed', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Te"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022A340> reason = 'interrupted', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplicatio"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022A7A0> reason = 'orphaned', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022A840> reason = 'timeout', match = 'cancelled'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"T"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022AE80> reason = 'cancelled', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, d"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022B380> reason = 'dependency-unavailable', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022A340> reason = 'failed', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, dedu"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022BB00> reason = 'interrupted', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2,"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026C040> reason = 'orphaned', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, de"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8022AA20> reason = 'timeout', match = 'dependency-unavailable'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, ded"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026C400> reason = 'cancelled', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Te"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026C7C0> reason = 'dependency-unavailable', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, dedu"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026CC20> reason = 'failed', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Test "
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026D080> reason = 'interrupted', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026D4E0> reason = 'orphaned', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Tes"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026D580> reason = 'timeout', match = 'failed'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Test"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026DA80> reason = 'cancelled', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplicatio"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026E020> reason = 'dependency-unavailable', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2,"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026DD00> reason = 'failed', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026E520> reason = 'interrupted', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplicat"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026E980> reason = 'orphaned', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026EDE0> reason = 'timeout', match = 'interrupted'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication="
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026F240> reason = 'cancelled', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026F7E0> reason = 'dependency-unavailable', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, de"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026C0E0> reason = 'failed', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Tes"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026F9C0> reason = 'interrupted', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026FE20> reason = 'orphaned', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"T"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A8026CEA0> reason = 'timeout', match = 'orphaned'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Te"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E40E0> reason = 'cancelled', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"T"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E45E0> reason = 'dependency-unavailable', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, ded"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E4A40> reason = 'failed', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Test"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E4EA0> reason = 'interrupted', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication="
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5300> reason = 'orphaned', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Te"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E53A0> reason = 'timeout', match = 'timeout'      @pytest.mark.parametrize(\"reason\", sorted(retry.REASONS))     @pytest.mark.parametrize(\"match\", sorted(retry.REASONS))     def test_reason_match_matrix(factory, reason, match): >       job = factory(retry_if=[match], max_retries=2, deduplication=\"Tes"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_default_side_effects_never_retry",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013AFF927240>      def test_default_side_effects_never_retry(factory): >       job = factory()               ^^^^^^^^^  tests\\test_background_job_retry_if.py:61:  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ tests\\test_background_job_retry_if.py:33: in create     return j"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E4400> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80093A10>      def test_zero_budget_and_spawn_failure_consume_no_extra_attempt(factory, monkeypatch): >       job = factory(retry_if=[\"failed\"], max_retries=0, idempotency_key=\"no-op\")               ^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5620> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8023C6B0>      def test_retry_does_not_swallow_registry_failure(factory, monkeypatch): >       job = factory(retry_if=[\"failed\"], max_retries=1, idempotency_key=\"no-op\")               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5940> options = {'retry_if': ['orphaned']}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5DA0> options = {'retry_if': ['unknown']}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float("
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E6200> options = {'retry_if': 'failed'}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"in"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5E40> options = {'max_retries': True}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E4400> options = {'max_retries': -1}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf\")"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E65C0> options = {'max_retries': 1.5}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E6A20> options = {'backoff_sec': True}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E6E80> options = {'backoff_sec': inf}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E72E0> options = {'backoff_sec': nan}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf\""
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E51C0> options = {'backoff_sec': -1}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"inf\")"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E5E40> options = {'idempotency_key': ''}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"i"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E79C0> options = {'deduplication': ' '}      @pytest.mark.parametrize(\"options\", [         {\"retry_if\": [\"orphaned\"]}, {\"retry_if\": [\"unknown\"]}, {\"retry_if\": \"failed\"},         {\"max_retries\": True}, {\"max_retries\": -1}, {\"max_retries\": 1.5},         {\"backoff_sec\": True}, {\"backoff_sec\": float(\"in"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A802E7EC0> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80277200>      def test_restart_reconcile_persists_count_backoff_and_limit(factory, monkeypatch):         clock = [1000.0]         monkeypatch.setattr(jobs.time, \"time\", lambda: clock[0]) >       job = factory(retry_if=[\"orpha"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80370360>      def test_cancel_during_backoff_prevents_retry(factory): >       job = factory(retry_if=[\"failed\", \"cancelled\"], max_retries=3, backoff_sec=60,                       deduplication=\"No-op command\")  tests\\test_background_job_retry_if.py:136:  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A803707C0>      def test_accepted_cancel_beats_orphan_recovery(factory): >       job = factory(retry_if=list(retry.REASONS), max_retries=3, deduplication=\"No-op command\")               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  tests\\test_background_job_retry_if"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80370860>      def test_concurrent_recovery_and_late_runner_are_fenced(factory): >       job = factory(retry_if=[\"failed\"], max_retries=1, deduplication=\"No-op command\")               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  tests\\test_background_job_retry_if.py:155: "
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80370AE0>      def test_orphan_does_not_duplicate_live_task(factory): >       job = factory(retry_if=[\"orphaned\"], max_retries=1, deduplication=\"No-op command\")               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  tests\\test_background_job_retry_if.py:170:  _ _ _ "
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_http_policy_and_public_status",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80370F40>      def test_http_policy_and_public_status(factory):         from packages.web import server >       result = asyncio.run(server.api_background_job_start(dict(                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^             targetSessionId=\"ses_target\", argv=[sys.executable], cwd=st"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80371440> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803CA120> error = TimeoutError('runner timeout'), reason = 'timeout'      @pytest.mark.parametrize(\"error, reason\", [         (TimeoutError(\"runner timeout\"), \"timeout\"),         (subprocess.TimeoutExpired(\"owned command\", 1),"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80371DA0> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80384FB0> error = TimeoutExpired('owned command', 1), reason = 'timeout'      @pytest.mark.parametrize(\"error, reason\", [         (TimeoutError(\"runner timeout\"), \"timeout\"),         (subprocess.TimeoutExpired(\"owned command\","
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A803722A0> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80386720> error = KeyboardInterrupt(), reason = 'interrupted'      @pytest.mark.parametrize(\"error, reason\", [         (TimeoutError(\"runner timeout\"), \"timeout\"),         (subprocess.TimeoutExpired(\"owned command\", 1), \"timeo"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80372520> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C8A40> error = OSError('spawn failed'), reason = 'failed'      @pytest.mark.parametrize(\"error, reason\", [         (TimeoutError(\"runner timeout\"), \"timeout\"),         (subprocess.TimeoutExpired(\"owned command\", 1), \"timeou"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80372AC0> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80277260>      def test_unavailable_independent_policy_fails_before_remote_start(factory, monkeypatch):         from packages.jobs import pan_bridge         remote = Mock()         monkeypatch.setattr(pan_bridge, \"configured_c"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once",
+    "detail": "factory = <function factory.<locals>.create at 0x0000013A80372E80> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80385A90>      def test_recovery_notifies_final_outcome_once(factory, monkeypatch): >       job = factory(retry_if=[\"failed\"], max_retries=1, backoff_sec=60,                       deduplication=\"No-op command\")  tests\\test_bac"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_separate_recovery_process0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80385CA0> recovery_reason = 'orphaned'      @pytest.mark.parametrize(\"recovery_reason\", [\"orphaned\", \"failed\"])     def test_separate_recovery_process_after_runner_"
+  },
+  {
+    "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_separate_recovery_process1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8033C170> recovery_reason = 'failed'      @pytest.mark.parametrize(\"recovery_reason\", [\"orphaned\", \"failed\"])     def test_separate_recovery_process_after_runner_lo"
+  },
+  {
+    "node": "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8033F620> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_accepted_cancel_wins_runn0')      def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):         _session(tmp_path)         monkeypatch.setattr(jobs, \"_spawn_backgroun"
+  },
+  {
+    "node": "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80387350> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_finishes_accepted_0')      def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tmp_path):         _session(tmp_path)         monkeypatch.setattr(jobs,"
+  },
+  {
+    "node": "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803CB4A0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_cancel_survives_runner_di0')      def test_cancel_survives_runner_disappearing_during_tree_lookup(monkeypatch, tmp_path):         import psutil              _session(tmp_path)        "
+  },
+  {
+    "node": "tests.test_background_jobs::test_start_persists_metadata_and_detaches",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8033DF70> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_start_persists_metadata_a0')      def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):         _session(tmp_path)         _session(tmp_path, \"ses_creator\")         pr"
+  },
+  {
+    "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_rejects_invalid_command_a0') argv = [], cwd = 'x'      @pytest.mark.parametrize(\"argv,cwd\", [([], \"x\"), ([\"python\"], \"\"), ([\"python\"], \"missing\")])     def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):         _session(tmp_path)         with pytes"
+  },
+  {
+    "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_rejects_invalid_command_a1') argv = ['python'], cwd = ''      @pytest.mark.parametrize(\"argv,cwd\", [([], \"x\"), ([\"python\"], \"\"), ([\"python\"], \"missing\")])     def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):         _session(tmp_path)         wit"
+  },
+  {
+    "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_rejects_invalid_command_a2') argv = ['python'], cwd = 'missing'      @pytest.mark.parametrize(\"argv,cwd\", [([], \"x\"), ([\"python\"], \"\"), ([\"python\"], \"missing\")])     def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):         _session(tmp_path)     "
+  },
+  {
+    "node": "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_external_cwd_runs_and_pro0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8033E240>      def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):         from packages.core import background_runner            "
+  },
+  {
+    "node": "tests.test_background_jobs::test_terminal_notification_is_idempotent",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80275460> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_terminal_notification_is_0')      def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):         target = _session(tmp_path)         job = {             \"jobId\": \"job_te"
+  },
+  {
+    "node": "tests.test_background_jobs::test_retry_rejects_running_job",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_retry_rejects_running_job0')      def test_retry_rejects_running_job(tmp_path):         _session(tmp_path)         jobs._save({\"jobId\": \"job_running\", \"targetSessionId\": \"ses_target\", \"status\": \"running\",                     \"argv\": [\"python\"], \"cwd\": str(tmp_"
+  },
+  {
+    "node": "tests.test_background_jobs::test_retry_inherits_creator_and_target",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C3620> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_retry_inherits_creator_an0')      def test_retry_inherits_creator_and_target(monkeypatch, tmp_path):         _session(tmp_path)         jobs._save({             \"jobId\": \"job_finished"
+  },
+  {
+    "node": "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803B8CE0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_terminal_broadcast0')      def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):         \"\"\"\u72ec\u7acb runner \u843d\u76d8\u7ec8\u6001\u540e\uff0c\u6062\u590d\u5faa\u73af\u9996\u6b21\u89c2\u6d4b\u5373\u8865\u53d1\u4e00\u6b21 job.updated\u3002\"\"\"         _sessio"
+  },
+  {
+    "node": "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803B8D70> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_terminal_broadcast_retrie0')      def test_terminal_broadcast_retries_after_channel_failure(monkeypatch, tmp_path):         \"\"\"\u6210\u529f\u53d1\u5e03\u540e\u624d\u6301\u4e45\u5316\u6807\u8bb0\uff1a\u5e7f\u64ad\u901a\u9053\u6545\u969c\u4fdd\u6301\u53ef\u91cd\u8bd5\uff0c\u4e0b\u4e00 tick \u6062\u590d\u5373\u6536\u655b\u3002              job."
+  },
+  {
+    "node": "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C01D0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_terminal_broadcast_skips_0')      def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):         \"\"\"scheduled \u5b50\u8fdb\u7a0b\u4f5c\u4e1a\u4e0d\u5728 /api/jobs \u5217\u8868\u5185\uff1a\u4e0d\u5f97\u7ecf upsert \u8fdb\u5165 GUI store\u3002\"\"\"  "
+  },
+  {
+    "node": "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C1580> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_independent_terminal_broa0')      def test_independent_terminal_broadcast_uses_local_ledger_and_retries(monkeypatch, tmp_path):         \"\"\"\u72ec\u7acb Job \u670d\u52a1\u8def\u5f84\uff1a\u8fdc\u7a0b\u7ec8\u6001\u8865\u53d1 + \u672c\u5730 ledger \u5e42\u7b49 + \u5931\u8d25\u53ef\u91cd\u8bd5\u3002  "
+  },
+  {
+    "node": "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C3980> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_hidden_runner_claim_is_on0')      @pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')     def test_hidden_runner_claim_is_once_and_refuses_unknown(monkeypatc"
+  },
+  {
+    "node": "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803BB470> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_hidden_runner_claim_finis0')      @pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')     def test_hidden_runner_claim_finishes_already_accepted_cancel(monke"
+  },
+  {
+    "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803867B0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_agent_message_job_registr0') kind = 'single'      @pytest.mark.parametrize(\"kind\", [\"single\", \"broadcast\"])     def test_agent_message_job_registry_commits_publish_full_lifecycle(monk"
+  },
+  {
+    "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803C01A0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_agent_message_job_registr1') kind = 'broadcast'      @pytest.mark.parametrize(\"kind\", [\"single\", \"broadcast\"])     def test_agent_message_job_registry_commits_publish_full_lifecycle(m"
+  },
+  {
+    "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_process_creation_requires0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80360890> name = None      @pytest.mark.parametrize(\"name\", [None, \"\", \"   \", \"x\" * 201])     def test_process_creation_requires_explicit_bounded_name(tmp_path, mon"
+  },
+  {
+    "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_process_creation_requires1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A803620C0> name = ''      @pytest.mark.parametrize(\"name\", [None, \"\", \"   \", \"x\" * 201])     def test_process_creation_requires_explicit_bounded_name(tmp_path, monke"
+  },
+  {
+    "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_process_creation_requires2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80362270> name = '   '      @pytest.mark.parametrize(\"name\", [None, \"\", \"   \", \"x\" * 201])     def test_process_creation_requires_explicit_bounded_name(tmp_path, mo"
+  },
+  {
+    "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_process_creation_requires3') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A80336C60> name = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  {
+    "node": "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake",
+    "detail": "runtime = <test_real_queue_http_e2e._PanRuntime object at 0x0000013A844608F0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_pan_and_long_job_crash_no0')      def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tmp_path):         s = _create(runtime, \"real-fifo-job-crash-sticky\") "
+  },
+  {
+    "node": "tests.test_independent_job_bridge::test_core_routes_only_new_generic_jobs_and_never_reconciles_remote",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8456C3E0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_core_routes_only_new_gene0')      def test_core_routes_only_new_generic_jobs_and_never_reconciles_remote(monkeypatch, tmp_path):         from packages.core import background_jobs as j"
+  },
+  {
+    "node": "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8456C7A0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_unified_gui_reads_remote_0')      def test_unified_gui_reads_remote_and_refuses_local_metadata_mutation(monkeypatch, tmp_path):         from packages.jobs import api         remote = "
+  },
+  {
+    "node": "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_trusted_question_scopes_a0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84C225A0>      def test_trusted_question_scopes_and_independent_unknown_reconciliation(tmp_path, monkeypatch):         from tests.test_locker_trusted_binding import"
+  },
+  {
+    "node": "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_large_v2_runtime_admissio0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84C06990>      def test_large_v2_runtime_admission_and_scope_recheck(tmp_path, monkeypatch):         import httpx         from packages.interactions import api     "
+  },
+  {
+    "node": "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_question_event_survives_d0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84CC2420>      def test_question_event_survives_deletion_without_resend(tmp_path, monkeypatch):         from tests.test_locker_trusted_binding import setup         "
+  },
+  {
+    "node": "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_snapshot_io_does_not_hold0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84DB5250>      @async_test     async def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(tmp_path,monkeypatch):         rt,calls=await setup(tmp_pat"
+  },
+  {
+    "node": "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_shared_scheduler_entry_an0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84D4AFC0>      @async_test     async def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(tmp_path,monkeypatch):         rt,calls=await setup(tmp_path)"
+  },
+  {
+    "node": "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84D7DA30>      def test_system_delivery_confirmation_does_not_resend_receipts(monkeypatch):         async def run():             calls=[]             async def send(sid,*_,**__):calls.append(sid);return {'status':'queued'}             monkeypatch.setattr('packages.core.background_jobs._worker"
+  },
+  {
+    "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_real_owned_tree_delete_ht0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84F87CE0> first_unknown = False      @pytest.mark.skipif(os.name != 'nt', reason='Windows retained identity / owned Job verification')     @pytest.mark.parametrize("
+  },
+  {
+    "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_real_owned_tree_delete_ht1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84F9B8C0> first_unknown = True      @pytest.mark.skipif(os.name != 'nt', reason='Windows retained identity / owned Job verification')     @pytest.mark.parametrize('"
+  },
+  {
+    "node": "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A84F32E70> tree = ({10: <test_job_delete_safety.Process object at 0x0000013A84F32480>, 11: <test_job_delete_safety.Process object at 0x0...0000013A84F317C0>, {'jobId': 'job_delete_safety', 'kind': 'background-process', 'status': 'completed', 'pid': 10, ...})      def test_scheduled_terminal_ch"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_scheduled_shell_us0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88E83FB0>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_three_generati0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C792B40>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_three_generati1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88DCD460>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_three_generati2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6A9C0>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_three_generati3') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D69B80>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_stdout_exit_an0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D37D10>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_stdout_exit_an1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C54C530>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_shutdown_recov0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6F380>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_shutdown_recov1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D8EA50>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_shutdown_recov2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6E150>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_production_shutdown_recov3') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6D9A0>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_crash_recov0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D362A0>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_independent_runner_crash_0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D69B80>      @pytest.fixture     def isolated_registry(tmp_path, monkeypatch):         root = tmp_path / \"registry\"         monkeypatch.setenv(\"PAN_BACKGROUND_JOB"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88DCC7A0> kind = 'legacy', fault = 'pre-import', launch_mode = 'base'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.parametrize('f"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C794FE0> kind = 'legacy', fault = 'post-create', launch_mode = 'base'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.parametrize('"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_4') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D8D730> kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-outer'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.parametr"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_6') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C6DA240> kind = 'legacy', fault = 'post-create', launch_mode = 'venv-outer'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.paramet"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_8') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88DAE780> kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-inner'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.parametr"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_runner_death_at_creation_10') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88DAD940> kind = 'legacy', fault = 'post-create', launch_mode = 'venv-inner'      @pytest.mark.parametrize('kind',['legacy','independent'])     @pytest.mark.parame"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_multigeneration_tre0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D68410> kind = 'legacy', failure = 'root-exit'      @pytest.mark.parametrize('kind', ['legacy', 'independent'])     @pytest.mark.parametrize('failure', ['root-exi"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_multigeneration_tre2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6AA20> kind = 'legacy', failure = 'wait-error'      @pytest.mark.parametrize('kind', ['legacy', 'independent'])     @pytest.mark.parametrize('failure', ['root-ex"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_controller_process_crash_0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D36C60> kind = 'legacy'      @pytest.mark.parametrize('kind', ['legacy', 'independent'])     def test_controller_process_crash_keeps_owned_runner_then_restart_can"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_registers_i0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D68560> runtime_profile = 'base'      @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])     def test_legacy_runner_registers_itself_if_controller_dies"
+  },
+  {
+    "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_registers_i1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88D6AB40> runtime_profile = 'venv'      @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])     def test_legacy_runner_registers_itself_if_controller_dies"
+  },
+  {
+    "node": "tests.test_job_retirement_quota_transport::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+    "detail": "h = namespace(app=<fastapi.applications.FastAPI object at 0x0000013A8D7243B0>, automation=<packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})      def test_quota_real_tcp_cas_reopen_and_legacy_writer_fence(h):         h.service.executor = TypedExecutor()   "
+  },
+  {
+    "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_venv_runner_has_no_window0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D15B290> request = <FixtureRequest for <Function test_venv_runner_has_no_window_before_task_imports[mcp-True-0]>> entry = 'mcp', hidden = True, exit_code = 0      "
+  },
+  {
+    "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_venv_runner_has_no_window1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D15A7B0> request = <FixtureRequest for <Function test_venv_runner_has_no_window_before_task_imports[mcp-False-7]>> entry = 'mcp', hidden = False, exit_code = 7    "
+  },
+  {
+    "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_venv_runner_has_no_window2') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C0DA600> request = <FixtureRequest for <Function test_venv_runner_has_no_window_before_task_imports[independent-True-0]>> entry = 'independent', hidden = True, exi"
+  },
+  {
+    "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_venv_runner_has_no_window3') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C0D92B0> request = <FixtureRequest for <Function test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]>> entry = 'scheduled', hidden = True, exit_co"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C93C7D0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy0') shell = False, hidden = None      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def tes"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C6D94F0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy1') shell = True, hidden = None      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def test"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C639A30> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy2') shell = False, hidden = True      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def tes"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C874980> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy3') shell = True, hidden = True      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def test"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8CE6CEF0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy4') shell = False, hidden = False      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def te"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8CE6CA70> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_legacy_runner_uses_policy5') shell = True, hidden = False      @pytest.mark.parametrize(\"shell\", [False, True])     @pytest.mark.parametrize(\"hidden\", [None, True, False])     def tes"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C6C59A0>      def test_mcp_and_http_forward_explicit_visible_option(monkeypatch):         from packages.mcp import server as mcp         from packages.web import server as web         calls = []         monkeypatch.setattr(mcp, \"_caller_identity\", lambda: {\"id\": \"ses_self\"})         monkeypa"
+  },
+  {
+    "node": "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy",
+    "detail": "name = 'packages.jobs.independent_service.subprocess', package = None      def import_module(name, package=None):         \"\"\"Import a module.              The 'package' argument is required when performing a relative import. It         specifies the package to use as the anchor point from which to resolve the         relative import to an absolute import.   "
+  },
+  {
+    "node": "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break",
+    "detail": "name = 'packages.jobs.independent_service.subprocess', package = None      def import_module(name, package=None):         \"\"\"Import a module.              The 'package' argument is required when performing a relative import. It         specifies the package to use as the anchor point from which to resolve the         relative import to an absolute import.   "
+  },
+  {
+    "node": "tests.test_jobs_api::test_structured_identity_new_records",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C9B0B30> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C874500> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_structured_identity_new_r0')      def test_structured_identity_new_records(client, monkeypatch, tmp_path): >   "
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_rename_and_description",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C9B26F0>      def test_patch_rename_and_description(client):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\",                             json={\"name\": \"\u65b0\u540d\u5b57\", \"description\": \"\u65b0\u8bf4\u660e\"}).json() >     "
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_blank_name_rejected",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C6C5C70>      def test_patch_blank_name_rejected(client):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\", json={\"name\": \"  \"}).json() >       assert body[\"ok\"] is False                ^^^^^^^^^^"
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C877830> fake_worker = [] fake_session_repository = <function fake_session_repository.<locals>.register at 0x0000013A8CB8F740>      def test_patch_target_switch_updates_flat_and_struct(             client, fake_worker, fake_session_repository):         fake_session_repository(\"ses_t1\", \"ses_t2\") "
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_enable_disable_stops_entries",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8D07F020> fake_worker = []      def test_patch_enable_disable_stops_entries(client, fake_worker):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\", json={\"enabled\": False}).json() >       assert bo"
+  },
+  {
+    "node": "tests.test_jobs_api::test_action_template_default_assign",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CB83410> fake_worker = []      def test_action_template_default_assign(client, fake_worker):         _register_unified_hooks()         _make_scheduled_task()         job = scheduler_store._job_for_task(             scheduler_store.list_tasks()[0][\"id\"])         # \u65e0 action \u5b57\u6bb5 \u2192 \u56de\u843d assign         j"
+  },
+  {
+    "node": "tests.test_jobs_api::test_action_template_send_session",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CB80C50> fake_worker = []      def test_action_template_send_session(client, fake_worker):         _register_unified_hooks()         _make_scheduled_task()         job = scheduler_store._job_for_task(             scheduler_store.list_tasks()[0][\"id\"])         jobs._update(job[\"jobId\"], {         "
+  },
+  {
+    "node": "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8D244260> fake_worker = []      def test_action_template_unknown_falls_back_to_assign(client, fake_worker):         _register_unified_hooks()         _make_scheduled_task()         job = scheduler_store._job_for_task(             scheduler_store.list_tasks()[0][\"id\"])         rejected = client.pat"
+  },
+  {
+    "node": "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C93DBE0> fake_worker = [] monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D246F60> isolated_session_repository = <module 'packages.core.session' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\session.py'> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runner"
+  },
+  {
+    "node": "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C877B30> fake_worker = [] monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C876DB0>      def test_resume_legal_running_empty_scan_is_successful_noop(client, fake_worker, monkeypatch):         from packages.core import session as sess              _register_unified_hooks()      "
+  },
+  {
+    "node": "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CA89460> fake_worker = [] monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C9B02F0>      def test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged(         client, fake_worker, monkeypatch,     ):         from packages.core import session as sess        "
+  },
+  {
+    "node": "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C638F80>      def test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text(client):         created = client.post(\"/api/jobs\", json={             \"kind\": \"scheduled-task\",             \"action\": {\"api\": \"resume_legal_running\"},             \"schedule\": [{\"kind\": \"interval\", \"interval"
+  },
+  {
+    "node": "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable",
+    "detail": "fake_worker = [] monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D07D4F0>      def test_resume_legal_running_keeps_per_fire_client_message_id_stable(         fake_worker, monkeypatch,     ):         from types import SimpleNamespace         from packages.core import session as sess              monkeypatch.setattr(sess, \"list_all\", lambda"
+  },
+  {
+    "node": "tests.test_jobs_api::test_runs_and_next_and_run_now",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C639AC0> fake_worker = []      def test_runs_and_next_and_run_now(client, fake_worker):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])              next_body = client.get(\"/api/jobs/next\", params={\"count\": 3}).json()         assert next_body[\"ok\"] is"
+  },
+  {
+    "node": "tests.test_jobs_api::test_partial_failed_event_emitted",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C64FF80> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8CFCBFE0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_partial_failed_event_emit0')      def test_partial_failed_event_emitted(client, monkeypatch, tmp_path):        "
+  },
+  {
+    "node": "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C64DE80> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C64CBF0>      def test_post_creates_scheduled_task_multi_entry(client, monkeypatch):         monkeypatch.setattr(jobs_api, \"_session_exists\", lambda sid: True)         body = client.post(\"/api/jobs\", json={             \""
+  },
+  {
+    "node": "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CFC9DC0> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C64ECF0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_post_creates_scheduled_sh0')      def test_post_creates_scheduled_shell_action_without_target_or_runner(       "
+  },
+  {
+    "node": "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CB69640>      def test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields(client):         created = _create_scheduled_qq_job(client) >       assert created[\"ok\"] is True, created                ^^^^^^^^^^^^^ E       KeyError: 'ok'  tests\\test_jobs_api.py:698: KeyError"
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C8744A0>      def test_patch_scheduled_qq_action_is_strict_and_editable(client):         created = _create_scheduled_qq_job(client) >       assert created[\"ok\"] is True, created                ^^^^^^^^^^^^^ E       KeyError: 'ok'  tests\\test_jobs_api.py:737: KeyError"
+  },
+  {
+    "node": "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C8B2990> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C6C7440>      def test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error(             client, monkeypatch):         _register_unified_hooks()         calls = []              async def fake_qq_send("
+  },
+  {
+    "node": "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C93D430>      def test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure(client):         calls = []              async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):             calls.append((target_type, target_id, text, bot_uin))             if bot_uin == \"765432\""
+  },
+  {
+    "node": "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CB6BD40>      def test_scheduled_qq_backlog_retry_runs_without_session_target(client):         calls = []              async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):             calls.append((target_type, target_id, text, bot_uin))             return {\"ok\": True, \"message_"
+  },
+  {
+    "node": "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CFC8D40> fake_session_repository = <function fake_session_repository.<locals>.register at 0x0000013A8CD1D080>      def test_post_accepts_session_message_and_rejects_empty_schedule(             client, fake_session_repository):         fake_session_repository(\"s\")         body = client.post(\"/api/"
+  },
+  {
+    "node": "tests.test_jobs_api::test_post_requires_existing_session",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8D2A4CE0>      def test_post_requires_existing_session(client):         body = client.post(\"/api/jobs\", json={             \"kind\": \"scheduled-task\", \"target\": {\"sessionId\": \"ses_ghost\"},             \"text\": \"x\", \"schedule\": {\"kind\": \"interval\", \"intervalSec\": 60}}).json() >       assert body[\"ok\"]"
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_schedule_replaces_entries",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C9B0E90> fake_worker = []      def test_patch_schedule_replaces_entries(client, fake_worker):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\", json={             \"schedule\": [                 {\"k"
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CE6D760> fake_worker = []      def test_patch_schedule_rejects_bad_spec(client, fake_worker):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\", json={             \"schedule\": [{\"kind\": \"cron\", \"cr"
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CB6B560> fake_worker = []      def test_patch_target_clear_enters_undeliverable(client, fake_worker):         _register_unified_hooks()         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\",           "
+  },
+  {
+    "node": "tests.test_jobs_api::test_patch_text_updates_dispatch_body",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8C6394F0> fake_worker = []      def test_patch_text_updates_dispatch_body(client, fake_worker):         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         body = client.patch(f\"/api/jobs/{job['jobId']}\", json={\"text\": \"\u65b0\u6b63\u6587\"}).json() >       assert body[\"o"
+  },
+  {
+    "node": "tests.test_jobs_api::test_run_records_carry_entry_id",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8D245AF0> fake_worker = []      def test_run_records_carry_entry_id(client, fake_worker):         _register_unified_hooks()         task = _make_scheduled_task()         job = scheduler_store._job_for_task(task[\"id\"])         jobs._update(job[\"jobId\"], {             \"schedule\": [{**job[\"schedule\"]"
+  },
+  {
+    "node": "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing",
+    "detail": "client = <starlette.testclient.TestClient object at 0x0000013A8CCB2990> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8CCB0AA0>      def test_pin_failure_keeps_disk_and_emits_nothing(client, monkeypatch):         jobs._create({\"jobId\": \"job_pin\", \"status\": \"running\"}, registry_root=scheduler_store.data_root())         assert client.put(\""
+  },
+  {
+    "node": "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_trusted_legacy_http_entry0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D53CBF0>      @async_test     async def test_trusted_legacy_http_entry_is_retired_and_creates_no_job(tmp_path, monkeypatch):         \"\"\"R5: the trusted HTTP entry "
+  },
+  {
+    "node": "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_background_mcp_shape_uses0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8CD1B1D0>      @async_test     async def test_background_mcp_shape_uses_system_action_and_same_job_id(tmp_path, monkeypatch):         rt = await _runtime(tmp_path) "
+  },
+  {
+    "node": "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_unknown_system_action_is_0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D807830>      @async_test     async def test_unknown_system_action_is_not_replayed_by_new_runtime(tmp_path, monkeypatch):         rt = await _runtime(tmp_path)    "
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit4') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D53D3D0> method = 'safe-api'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", \""
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit5') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D71A5D0> method = 'preserve-api'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config"
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit6') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D78D100> method = 'q-config'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", \""
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit7') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D6969C0> method = 'q-menu'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", \"q-"
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit8') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D697410> method = 'q-menu-2'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", \""
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit9') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D53D190> method = 'q-menu-3'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", \""
+  },
+  {
+    "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_owned_host_signal_vs_exit10') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D4B26C0> method = 'q-triple'      @pytest.mark.parametrize(\"method\", [\"SIGINT\", \"SIGTERM\", \"idle-SIGINT\", \"idle-SIGTERM\", \"safe-api\", \"preserve-api\", \"q-config\", "
+  },
+  {
+    "node": "tests.test_lifecycle_followthrough::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[after-submit-return]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_controller_crash_retains_0') stage = 'after-submit-return'      @pytest.mark.parametrize(\"stage\", [\"after-submit-return\", \"before-submit-return\"])     def test_controller_crash_retains_original_supervisor_and_cleans_owned_tree(tmp_path, stage):         \"\"\"A re"
+  },
+  {
+    "node": "tests.test_lifecycle_followthrough::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[before-submit-return]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_controller_crash_retains_1') stage = 'before-submit-return'      @pytest.mark.parametrize(\"stage\", [\"after-submit-return\", \"before-submit-return\"])     def test_controller_crash_retains_original_supervisor_and_cleans_owned_tree(tmp_path, stage):         \"\"\"A r"
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E2210>      def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):         monkeypatch.setattr(srv, \"_main_exit_status\", lambda: {             \"available\": True, \"pending\": False, \"port\": 8765,         })         monkeypatch.setattr(srv, \"_main_restart_status\", "
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E2AE0>      def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(monkeypatch):         monkeypatch.setattr(srv, \"_main_exit_status\", lambda: {             \"available\": True, \"pending\": False, \"port\": 8765,         })         monkeypatch.setattr(srv, \"_main_restart_status\", "
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E01A0> strategy = 'ask', legacy_choice = True, expected_mark_offline = True      @pytest.mark.parametrize(         (\"strategy\", \"legacy_choice\", \"expected_mark_offline\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),    "
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E2ED0> strategy = 'ask', legacy_choice = False, expected_mark_offline = False      @pytest.mark.parametrize(         (\"strategy\", \"legacy_choice\", \"expected_mark_offline\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),  "
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E1202C0> strategy = 'offline', legacy_choice = False, expected_mark_offline = True      @pytest.mark.parametrize(         (\"strategy\", \"legacy_choice\", \"expected_mark_offline\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True)"
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E1210D0> strategy = 'preserve-running', legacy_choice = True expected_mark_offline = False      @pytest.mark.parametrize(         (\"strategy\", \"legacy_choice\", \"expected_mark_offline\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", Fals"
+  },
+  {
+    "node": "tests.test_main_service_exit::test_exit_schedules_worker_shutdown_and_python_supervisor",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E1215B0>      def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):         if sys.platform != \"win32\":             pytest.skip(\"detached Windows supervisor contract\")         monkeypatch.setattr(launcher, \"resolve_python_argv\", lambda *args, **kwargs: ([sys.executable]"
+  },
+  {
+    "node": "tests.test_main_service_exit::test_duplicate_exit_is_rejected_without_second_request",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E1221E0>      def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):         if sys.platform != \"win32\":             pytest.skip(\"detached Windows supervisor contract\")         monkeypatch.setattr(srv, \"_main_exit_pending\", True)         monkeypatch.setattr(srv, \"_main_exit"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_returns_scheduled_before_python_supervisor_finishes",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A88EA5460>      def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch):         calls = []         tasks = []         monkeypatch.setattr(srv, \"_session_lifecycle_preferences\", lambda config=None: {             \"exitStrategy\": \"ask\", \"startupPreference\": \"wake-runnin"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E121700>      def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch):         monkeypatch.setattr(srv, \"_session_lifecycle_preferences\", lambda config=None: {             \"exitStrategy\": \"ask\", \"startupPreference\": \"ask\",         })         monkeypatch.setattr(srv,"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E1212E0> strategy = 'ask', choice = True, expected = True      @pytest.mark.parametrize(         (\"strategy\", \"choice\", \"expected\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),             (\"preserve-running\", True, Fals"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8DF75760> strategy = 'ask', choice = False, expected = False      @pytest.mark.parametrize(         (\"strategy\", \"choice\", \"expected\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),             (\"preserve-running\", True, Fa"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E06B0> strategy = 'offline', choice = False, expected = True      @pytest.mark.parametrize(         (\"strategy\", \"choice\", \"expected\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),             (\"preserve-running\", True,"
+  },
+  {
+    "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8E0E0FB0> strategy = 'preserve-running', choice = True, expected = False      @pytest.mark.parametrize(         (\"strategy\", \"choice\", \"expected\"),         [             (\"ask\", True, True),             (\"ask\", False, False),             (\"offline\", False, True),             (\"preserve-runnin"
+  },
+  {
+    "node": "tests.test_persistence_sharding::test_usage_merge_and_terminal_events_keep_durable_order",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D088110>      def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):         \"\"\"Usage merge stays after base save; terminal result is persisted before events.\"\"\"         session = _sess.create(name=\"terminal-order\", model=\"initial\")         session.cli_session_id = \"cli-te"
+  },
+  {
+    "node": "tests.test_platform_process_windows_hidden::test_hidden_tree_identity_stdio_and_desktop_cleanup[named-venv]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_hidden_tree_identity_stdi1') runtime = 'named-venv'      @pytest.mark.parametrize('runtime', ['base', 'named-venv'])     def test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, runtime):         from packages.core.platform.process import WindowsProce"
+  },
+  {
+    "node": "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+    "detail": "upstream = [] monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8D273260>      def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch):         from packages.core import background_jobs, qq_reports         async def run():             session = sess.create(name=\"qq-background\", adapter=\"codex\", adapter_conf"
+  },
+  {
+    "node": "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+    "detail": "manager = <packages.core.character.CharacterManager object at 0x0000013A8C6E2120> monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8C6E3CB0>      def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch):         from packages.jobs.actions import normalize_scheduled_qq_action         from packages.core import "
+  },
+  {
+    "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown",
+    "detail": "canonical = namespace(app=<fastapi.applications.FastAPI object at 0x0000013A8F381F40>, automation=<packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='39Tgbms6wTzYFwza4gPYazq9EUqL8PbmRDOpElZ56Wk')      def test_quota_policy_owned_http_default_unavailable_is_unknown(canonical):         h = canonical     "
+  },
+  {
+    "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_quota_policy_owned_http_d1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8F3E1FD0>      def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):         assert real_http.PORT not in (8767,8768)    "
+  },
+  {
+    "node": "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_run_now_does_not_move_per1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013AFBB31A00>      @async_test     async def test_run_now_does_not_move_periodic_next_fire(tmp_path, monkeypatch):         svc, jobs = await setup(tmp_path, monkeypatch"
+  },
+  {
+    "node": "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_authenticated_native_sour0')      def test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser(tmp_path):         from playwright.sync_api import sync_playwright, expect         with socket.socket() as owned:             owned.bi"
+  },
+  {
+    "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_structured_scheduler_job_0') create_job_with_form = False      @pytest.mark.parametrize('create_job_with_form', [False, True])     def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):       "
+  },
+  {
+    "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_structured_scheduler_job_1') create_job_with_form = True      @pytest.mark.parametrize('create_job_with_form', [False, True])     def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):        "
+  },
+  {
+    "node": "tests.test_session_incremental::test_worker_path_saves_incrementally_and_reloads",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_worker_path_saves_increme0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A906B9670>      def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):         \"\"\"\u771f\u5b9e worker \u8bfb\u53d6\u8def\u5f84\uff08init \u2192 \u6d41\u5f0f\u5757 \u2192 result\uff09\u2192 \u843d\u76d8 \u2192 \u51b7\u542f\u52a8\u91cd\u8f7d\u3002\"\"\"         _"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FF91A90> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_once_delay_persists_and_d0')      def test_once_delay_persists_and_dispatches_via_send_semantics(monkeypatch, tmp_path):         target = _session(tmp_path)         caller = _session("
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FF91D90> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_absolute_once_and_schedul0')      def test_absolute_once_and_schedule_edit_are_persisted(monkeypatch, tmp_path):         _session(tmp_path)         now = time.time() >       job = job"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_invalid_time_schedule_is_0') schedule = {'type': 'once', 'delaySeconds': 1, 'at': '2030-01-01T00:00:00Z'}      @pytest.mark.parametrize(\"schedule\", [         {\"type\": \"once\", \"delaySeconds\": 1, \"at\": \"2030-01-01T00:00:00Z\"},         {\"type\": \"interval\", \"inter"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_invalid_time_schedule_is_1') schedule = {'type': 'interval', 'intervalSeconds': 0}      @pytest.mark.parametrize(\"schedule\", [         {\"type\": \"once\", \"delaySeconds\": 1, \"at\": \"2030-01-01T00:00:00Z\"},         {\"type\": \"interval\", \"intervalSeconds\": 0},       "
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_invalid_time_schedule_is_2') schedule = {'type': 'weekly', 'weekday': 7, 'time': '09:00'}      @pytest.mark.parametrize(\"schedule\", [         {\"type\": \"once\", \"delaySeconds\": 1, \"at\": \"2030-01-01T00:00:00Z\"},         {\"type\": \"interval\", \"intervalSeconds\": 0},"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_invalid_time_schedule_is_3') schedule = {'type': 'weekly', 'weekday': 1, 'time': '25:00'}      @pytest.mark.parametrize(\"schedule\", [         {\"type\": \"once\", \"delaySeconds\": 1, \"at\": \"2030-01-01T00:00:00Z\"},         {\"type\": \"interval\", \"intervalSeconds\": 0},"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FFFDA30> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_interval_repeats_after_re0')      def test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs(             monkeypatch, tmp_path):         _session(tmp_path)        "
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_weekly_schedule_accepts_w0')      def test_weekly_schedule_accepts_weekday_and_local_time(tmp_path):         _session(tmp_path) >       job = jobs.start_message(\"ses_target\", \"weekly\", {               ^^^^^^^^^^^^^^^^^^             \"type\": \"weekly\", \"weekday\":"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FFFCBF0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_stale_running_job_is_requ0')      def test_stale_running_job_is_requeued_after_service_restart(monkeypatch, tmp_path):         _session(tmp_path)         calls = []              async"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_message_job_never_enters_0')      def test_message_job_never_enters_process_runner_retry_path(tmp_path):         _session(tmp_path) >       job = jobs.start_message(\"ses_target\", \"hello\", {               ^^^^^^^^^^^^^^^^^^             \"type\": \"once\", \"delaySec"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FFFC650> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_scheduled_broadcast_dedup0')      def test_scheduled_broadcast_deduplicates_and_isolates_target_failures(monkeypatch, tmp_path):         for sid in (\"ses_a\", \"ses_b\", \"ses_c\", \"ses_ca"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A900320F0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_scheduled_broadcast_inter0')      def test_scheduled_broadcast_interval_recovery_and_no_burst(monkeypatch, tmp_path):         for sid in (\"ses_a\", \"ses_b\"):             _session(tmp_p"
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A90030EF0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_scheduled_broadcast_edit_0')      def test_scheduled_broadcast_edit_and_cancel_prevent_future_send(monkeypatch, tmp_path):         for sid in (\"ses_a\", \"ses_b\", \"ses_c\"):             "
+  },
+  {
+    "node": "tests.test_session_message_jobs::test_message_job_default_name_min_vacant",
+    "detail": "monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013A8FFFD9D0> tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_message_job_default_name_0')      def test_message_job_default_name_min_vacant(monkeypatch, tmp_path):         \"\"\"\u4e0d\u4f20 name \u2192 job-N\uff08\u5b58\u91cf\u6700\u5c0f\u7a7a\u7f3a\uff09\uff1b\u663e\u5f0f\u540d\u5b57\u4f18\u5148\uff1bdescription \u7f3a\u7701\u7a7a\u4e32\u3002\"\"\"         target = "
+  },
+  {
+    "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_load_config_falls_back_to0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013AFB6C9A30>      def test_load_config_falls_back_to_ui_defaults_when_key_absent(tmp_path, monkeypatch):         p = _use_temp_config(tmp_path, monkeypatch)         _w"
+  },
+  {
+    "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_load_config_falls_back_to1') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013AFB699070>      def test_load_config_falls_back_to_ui_defaults_when_file_missing(tmp_path, monkeypatch):         _use_temp_config(tmp_path, monkeypatch)         cfg "
+  },
+  {
+    "node": "tests.test_settings_ui::test_get_ui_defaults_when_absent",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_get_ui_defaults_when_abse0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013AFB6C8410>      def test_get_ui_defaults_when_absent(tmp_path, monkeypatch):         _use_temp_config(tmp_path, monkeypatch)         r = asyncio.run(srv.api_get_sett"
+  },
+  {
+    "node": "tests.test_settings_ui::test_put_ui_full_replacement",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_put_ui_full_replacement0') monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013AFB5BBA70>      def test_put_ui_full_replacement(tmp_path, monkeypatch):         p = _use_temp_config(tmp_path, monkeypatch)         _write(             p,            "
+  },
+  {
+    "node": "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer",
+    "detail": "tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_service_persists_runtime_0')      def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):         async def scenario():             from tests.test_event_store import setup as service_setup             from tests.test_automation_core import"
+  }
+]
