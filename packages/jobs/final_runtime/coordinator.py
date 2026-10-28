@@ -325,6 +325,28 @@ class FinalRuntime:
             for row in list(state["effects"]) + list(state["effectAdmissions"].values()):
                 if original_id in {contracts.digest(row["effectKey"]), "effect_" + contracts.digest(row["effectKey"])}:
                     run_ids.add(row["effectKey"]["runId"])
+                # Target receipts live in the original parent effect. Query
+                # their stable keys/worker identities without another ledger.
+                receipt = row.get("receipt", {})
+                if not isinstance(receipt, dict):
+                    continue
+                body = receipt.get("receipt", {})
+                children = body.get("targets", []) if isinstance(body, dict) else []
+                candidates = [receipt] + (children if isinstance(children, list) else [])
+                for target in candidates:
+                    if not isinstance(target, dict):
+                        continue
+                    key = target.get("effectKey")
+                    worker_receipt = target.get("receipt", {})
+                    if not isinstance(worker_receipt, dict):
+                        continue
+                    identities = {s for s in (worker_receipt.get("queueItemId"), worker_receipt.get("taskId"),
+                                  target.get("targetSelection", {}).get("taskId")) if isinstance(s, str)}
+                    if key:
+                        digest = contracts.digest(key)
+                        identities.update({digest, "effect_" + digest, "effect_" + digest[:40]})
+                    if original_id in identities:
+                        run_ids.add(row["effectKey"]["runId"])
             effects = [copy.deepcopy(e) for e in state["effects"] if full or e["effectKey"]["runId"] in run_ids]
             pending = [copy.deepcopy(e) for e in state["effectAdmissions"].values()
                        if full or e["effectKey"]["runId"] in run_ids]
@@ -365,37 +387,42 @@ class FinalRuntime:
                 return receipts[request_key]
             contracts.check_revision(job["configRevision"], expected_revision)
             changed = False
-            def replace(value):
+            def replace(value, field):
                 nonlocal changed
-                if isinstance(value, dict):
-                    for key, item in value.items():
-                        if key in {"sessionId", "targetSessionId"}:
-                            if item == old_session_id:
-                                value[key] = new_session_id
-                                changed = changed or old_session_id != new_session_id
-                            elif isinstance(item, dict) and item.get("from") == "literal" and item.get("value") == old_session_id:
-                                item["value"] = new_session_id
-                                changed = changed or old_session_id != new_session_id
-                        elif key in {"sessionIds", "targetSessionIds"}:
-                            target = item.get("value") if isinstance(item, dict) and item.get("from") == "literal" else item
-                            if isinstance(target, list):
-                                replaced = list(dict.fromkeys(new_session_id if s == old_session_id else s for s in target))
-                                changed = changed or target != replaced
-                                if isinstance(item, dict):
-                                    item["value"] = replaced
-                                else:
-                                    value[key] = replaced
-                        else:
-                            replace(item)
-                elif isinstance(value, list):
-                    for item in value:
-                        replace(item)
-            replace(job["config"])
-            # Compatibility target fields are live selectors too, never history.
-            for key in ("targetSessionId", "targetSessionIds", "targetStruct"):
+                item = value.get(field)
+                binding = isinstance(item, dict) and item.get("from") == "literal"
+                target = item.get("value") if binding else item
+                if field in {"sessionId", "targetSessionId"}:
+                    replacement = new_session_id if target == old_session_id else target
+                elif isinstance(target, list) and all(isinstance(s, str) for s in target):
+                    replacement = list(dict.fromkeys(new_session_id if s == old_session_id else s for s in target))
+                else:
+                    return
+                if replacement != target:
+                    changed = True
+                    if binding:
+                        item["value"] = replacement
+                    else:
+                        value[field] = replacement
+
+            service = getattr(self.store, "service", None)
+            if service is not None:
+                with service.transaction(readonly=True) as db:
+                    for step in job["config"].get("steps", []):
+                        ref = step.get("actionRef", {})
+                        action = service._get(db, "action", ref["id"])
+                        # Only typed Session operations declare these targets.
+                        # Never recurse into text, input, output or business JSON.
+                        op = action["execution"]["operation"]
+                        field = "sessionIds" if op == "session-broadcast" else "sessionId"
+                        if op in {"session-message", "assign", "session-broadcast"} and field in action["inputSchema"].get("properties", {}):
+                            binding = step["arguments"].get(field, {})
+                            if isinstance(binding, dict) and binding.get("from") == "literal":
+                                replace(step["arguments"], field)
+            for key in ("targetSessionId", "targetSessionIds"):
                 if key in job:
                     target = {key: job[key]}
-                    replace(target)
+                    replace(target, key)
                     job[key] = target[key]
             job["configRevision"] += int(changed)
             if changed and "canonical" in job:
