@@ -1,0 +1,4 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+....................ss...                                                [100%]
+=========================== short test summary info ===========================
+SKIPPED [2] tests\test_lifecycle_fast_contract.py:57: real unsupported lifecycle boundary applies only on hosts without capability
