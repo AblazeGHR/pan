@@ -7,7 +7,7 @@ PROC_THREAD_ATTRIBUTE_JOB_LIST = 0x0002000D
 
 
 @contextmanager
-def job_startup_info(startup, guard):
+def job_startup_info(startup, guard, *, handle_list=()):
     """Borrow the non-inheritable Job handle; never fall back to later assign.
 
     guard must outlive CreateProcess. All ctypes buffers remain alive through
@@ -28,11 +28,11 @@ def job_startup_info(startup, guard):
     kernel.DeleteProcThreadAttributeList.argtypes = [ctypes.c_void_p]
     kernel.DeleteProcThreadAttributeList.restype = None
     size = ctypes.c_size_t()
-    kernel.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
+    kernel.InitializeProcThreadAttributeList(None, 2 if handle_list else 1, 0, ctypes.byref(size))
     if not size.value:
         raise ctypes.WinError(ctypes.get_last_error())
     buffer = ctypes.create_string_buffer(size.value)
-    if not kernel.InitializeProcThreadAttributeList(buffer, 1, 0, ctypes.byref(size)):
+    if not kernel.InitializeProcThreadAttributeList(buffer, 2 if handle_list else 1, 0, ctypes.byref(size)):
         raise ctypes.WinError(ctypes.get_last_error())
     try:
         handle = guard.raw_handle
@@ -41,6 +41,12 @@ def job_startup_info(startup, guard):
         jobs = (w.HANDLE * 1)(handle)
         if not kernel.UpdateProcThreadAttribute(buffer, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST,
                                                 jobs, ctypes.sizeof(jobs), None, None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        # Restrict inheritance to Popen's child pipe handles. Keep this array
+        # alive until DeleteProcThreadAttributeList, just like the Job array.
+        inherited = (w.HANDLE * len(handle_list))(*handle_list)
+        if handle_list and not kernel.UpdateProcThreadAttribute(
+                buffer, 0, 0x00020002, inherited, ctypes.sizeof(inherited), None, None):
             raise ctypes.WinError(ctypes.get_last_error())
         extended = StartupInfoEx()
         extended.StartupInfo = startup

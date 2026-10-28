@@ -504,7 +504,7 @@ _CREATE_NEW_CONSOLE = 0x00000010
 
 
 class WindowsOwnedProcess(OwnedProcess):
-    """Windows 自有进程：``Popen`` + 自持 ``JobObjectGuard``。"""
+    """Windows 自有进程：原生创建时 Job + Popen stdio + retained desktop。"""
 
     platform = PLATFORM_WINDOWS
 
@@ -520,20 +520,25 @@ class WindowsOwnedProcess(OwnedProcess):
         self.guard = guard
 
     def close(self) -> None:
-        """关闭 Job 句柄（最后兜底；存活成员会被内核终止）。幂等、失败可重试。"""
+        """证明整树退出，再释放 Job/进程/窗口守卫/desktop；失败可重试。"""
         with self._close_lock:
             if self._closed:
                 return
             guard = self.guard
             if guard is None:
+                self.popen.close_owned_resources()
                 self._closed = True
                 return
+            _, remaining = guard.terminate_tree(self.pid, timeout=5.0)
+            if remaining:
+                raise OwnershipUnknownError("owned Job cleanup remains unconfirmed")
             if not guard.close():
                 # 不谎报已释放：句柄保留在句柄对象上，调用方可重试 close()。
                 raise OwnershipUnknownError(
                     "CloseHandle 失败：Job 句柄仍被持有（可重试 close）"
                 )
             self.guard = None
+            self.popen.close_owned_resources()
             self._closed = True
 
 
@@ -575,8 +580,9 @@ class WindowsProcessOwner(ProcessOwner):
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = 0 if hide_window else 1  # SW_HIDE / SW_SHOWNORMAL
-            popen = subprocess.Popen(
-                args,
+            from packages.core.platform.process_creation_win import OwnedPopen
+            popen = OwnedPopen(
+                args, guard=guard, hidden=hide_window,
                 cwd=cwd,
                 env=None if env is None else {str(k): str(v) for k, v in env.items()},
                 stdin=stdin,
@@ -586,7 +592,6 @@ class WindowsProcessOwner(ProcessOwner):
                 startupinfo=startupinfo,
             )
             handle = int(popen._handle)  # type: ignore[attr-defined]
-            guard.assign(handle)
             if not guard.is_member(handle):
                 raise OwnershipUnknownError(
                     "IsProcessInJob 未证明成员关系：拒绝交出所有权"
@@ -618,23 +623,25 @@ class WindowsProcessOwner(ProcessOwner):
     def _cleanup_failed_spawn(
         popen: "subprocess.Popen[Any] | None", guard: Any
     ) -> None:
-        if popen is not None:
-            try:
-                popen.kill()
-            except OSError:
-                pass
-            try:
+        from packages.jobs.cleanup import close_resources
+
+        def stop_child():
+            if popen is not None:
+                if popen.poll() is None:
+                    popen.kill()
                 popen.wait(timeout=5.0)
-            except (subprocess.TimeoutExpired, OSError):
-                pass
-        try:
-            guard.terminate_tree(None, timeout=2.0)
-        except Exception:  # noqa: BLE001 - 清理失败不掩盖原始异常
-            pass
-        try:
-            guard.close()
-        except Exception:  # noqa: BLE001
-            pass
+
+        def stop_job():
+            _, remaining = guard.terminate_tree(None, timeout=5.0)
+            if remaining:
+                raise OwnershipUnknownError("failed spawn tree cleanup unconfirmed")
+
+        def close_job():
+            if not guard.close():
+                raise OwnershipUnknownError("failed spawn Job handle close unconfirmed")
+
+        close_resources(stop_child, stop_job, close_job,
+                        lambda: popen.close_owned_resources() if popen is not None else None)
 
     # ------------------------------------------------------------- queries
     def identity(self, target: WindowsOwnedProcess | int) -> ProcessIdentity | None:

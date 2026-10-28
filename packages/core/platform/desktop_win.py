@@ -55,7 +55,7 @@ class DesktopCommand:
         if not supports("process.hiddenDesktop"):
             raise UnsupportedPlatformError("process.hiddenDesktop unsupported on this platform")
         import msvcrt
-        from packages.core.platform.process_structs_win import _STARTUPINFOW, _PROCESS_INFORMATION
+        from packages.core.platform.process_structs_win import _STARTUPINFOW
         from packages.jobs.window_guard import OwnedWindowGuard, descendant_pids, owned_descendant_handle
         self.desktop = HiddenDesktop()
         self.handle = 0
@@ -72,18 +72,12 @@ class DesktopCommand:
                 raise OSError("owned window guard failed before legacy command creation")
             self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
             kernel = self.kernel
-            kernel.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p,
-                ctypes.c_void_p, wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
-                ctypes.POINTER(_STARTUPINFOW), ctypes.POINTER(_PROCESS_INFORMATION)]
-            kernel.CreateProcessW.restype = wintypes.BOOL
             kernel.CloseHandle.argtypes = [wintypes.HANDLE]
             kernel.CloseHandle.restype = wintypes.BOOL
             kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
             kernel.WaitForSingleObject.restype = wintypes.DWORD
             kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
             kernel.GetExitCodeProcess.restype = wintypes.BOOL
-            kernel.ResumeThread.argtypes = [wintypes.HANDLE]
-            kernel.ResumeThread.restype = wintypes.DWORD
             command = (f'{subprocess.list2cmdline([os.environ.get("ComSpec") or str(Path(os.environ["SystemRoot"]) / "System32" / "cmd.exe")])} /c "{argv}"'
                        if shell else subprocess.list2cmdline(argv))
             with open("NUL", "rb") as null_in:
@@ -97,23 +91,14 @@ class DesktopCommand:
                     startup.dwFlags = 0x101
                     startup.wShowWindow = 0
                     startup.hStdInput, startup.hStdOutput, startup.hStdError = handles[0], handles[1], handles[1]
-                    from packages.jobs.restricted_token import HiddenJobToken
                     from packages.core.terminal.guard import JobObjectGuard
-                    from packages.jobs.owned_process import job_startup_info, EXTENDED_STARTUPINFO_PRESENT
+                    from packages.core.platform.process_creation_win import create_owned_process
                     self.job_guard = JobObjectGuard(kill_on_close=True)
-                    hidden_token = HiddenJobToken()
-                    with CleanupStack() as token_cleanup:
-                        token_cleanup.callback(hidden_token.close)
-                        with job_startup_info(startup, self.job_guard) as owned_startup:
-                            process, thread, pid = hidden_token.create_process(
-                                command, cwd, None, owned_startup,
-                                0x08000004 | EXTENDED_STARTUPINFO_PRESENT)
-                            self.handle, self.pid = process, pid
-                            self.thread_handle = thread
-                    if not self.job_guard.is_member(self.handle):
-                        raise RuntimeError("legacy command membership in owned Job was not proven")
-                    if kernel.ResumeThread(thread) != 1:
-                        raise RuntimeError("legacy command resume count was not exactly one")
+                    process, thread, pid = create_owned_process(
+                        command, cwd, None, startup, 0x08000000,
+                        self.job_guard, hidden=True, handle_list=handles)
+                    self.handle, self.pid = process, pid
+                    self.thread_handle = thread
                 finally:
                     for h, flag in zip(handles, previous): os.set_handle_inheritable(h, flag)
         except BaseException:
