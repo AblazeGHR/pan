@@ -60,6 +60,28 @@ def release_handles(handles):
         assert close_handle_checked(handle)
 
 
+def retain_business_root(owned, fact):
+    """Prove the reported script lifetime is the root or its real descendant.
+
+    Reuse the production read-only ancestor proof: retained handles, monotonic
+    FILETIMEs and the exact owned root birth. Interpreter location does not
+    determine whether Windows used a redirector.
+    """
+    from packages.jobs.window_guard import owned_descendant_handle
+    from packages.core.terminal.identity import read_creation_filetime, close_handle_checked
+    root_handle = int(owned.popen._handle)
+    assert read_creation_filetime(root_handle) == int(owned.identity.birth)
+    handle = owned_descendant_handle(owned.pid, root_handle, fact['pid'])
+    assert handle, 'business PID must be the exact owned root or a proven descendant'
+    try:
+        assert read_creation_filetime(handle) == int(fact['birth']), 'business FILETIME mismatch'
+        assert owned.guard.is_member(handle), 'business lifetime must belong to the exact owned Job'
+        return handle
+    except BaseException:
+        assert close_handle_checked(handle)
+        raise
+
+
 @pytest.mark.parametrize('runtime', ['base', 'named-venv'])
 def test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, runtime):
     from packages.core.platform.process import WindowsProcessOwner
@@ -80,13 +102,12 @@ def test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, runtime):
         assert not desktop_gone(name)
         from packages.core.terminal.identity import read_creation_filetime
         assert int(owned.identity.birth) == read_creation_filetime(int(owned.popen._handle))
-        if runtime == 'base':
-            assert owned.pid == facts[2]['pid']
+        handles.append(retain_business_root(owned, facts[2]))
+        root_is_business = owned.pid == facts[2]['pid']
+        if root_is_business:
             assert int(owned.identity.birth) == facts[2]['birth']
-        else:
-            import psutil
-            assert psutil.Process(facts[2]['pid']).ppid() == owned.pid
-            handles += retain([{'pid': owned.pid, 'birth': int(owned.identity.birth)}])
+        # Even when a redirector exists, retain its original root lifetime too.
+        handles += retain([{'pid': owned.pid, 'birth': int(owned.identity.birth)}])
         assert owned.guard.is_member(int(owned.popen._handle))
         assert set(row['pid'] for row in facts) <= set(owned.guard.member_pids())
         assert owner.kill_tree(owned).confirmed
@@ -95,7 +116,9 @@ def test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, runtime):
         assert until(lambda: desktop_gone(name))
         assert desktop() == original
         assert input_desktop() == active_input
-        proof('kill-tree-' + runtime, identity=owned.identity.as_dict(), members=facts,
+        proof('kill-tree-' + runtime + ('-direct' if root_is_business else '-ancestor'),
+              rootIsBusiness=root_is_business, businessBirthVerified=True, ancestryVerified=True,
+              identity=owned.identity.as_dict(), members=facts,
               activeInputBefore=active_input, activeInputAfter=input_desktop(),
               allDead=dead(handles), desktopGone=desktop_gone(name))
     finally:
@@ -342,3 +365,41 @@ def test_process_handle_close_failure_remains_retryable(monkeypatch):
         monkeypatch.setattr(identity, 'close_handle_checked', original)
         owned.close()
     assert owned.closed and handle.closed
+
+
+def test_named_runtime_direct_business_root(tmp_path, monkeypatch):
+    """CI's interpreter may be installed directly, with no venv redirector."""
+    monkeypatch.setattr(sys, 'executable', sys._base_executable)
+    test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, 'named-venv')
+
+
+@pytest.mark.parametrize('mismatch', ['birth', 'root-birth', 'unrelated-root'])
+def test_business_lifetime_proof_rejects_mismatch(tmp_path, mismatch):
+    from packages.core.platform.process import WindowsProcessOwner
+    owner = WindowsProcessOwner()
+    owned = owner.spawn([sys._base_executable, str(PROBE), 'tree', str(tmp_path), '2'])
+    unrelated = None
+    try:
+        facts = rows(tmp_path)
+        fact = dict(facts[2])
+        if mismatch == 'birth':
+            fact['birth'] += 1
+            with pytest.raises(AssertionError, match='FILETIME mismatch'):
+                retain_business_root(owned, fact)
+        elif mismatch == 'root-birth':
+            from dataclasses import replace
+            original_identity = owned.identity
+            try:
+                owned.identity = replace(original_identity, birth=str(int(original_identity.birth) + 1))
+                with pytest.raises(AssertionError):
+                    retain_business_root(owned, fact)
+            finally:
+                owned.identity = original_identity
+        else:
+            unrelated = owner.spawn([sys._base_executable, '-c', 'import time; time.sleep(30)'])
+            with pytest.raises(AssertionError, match='proven descendant'):
+                retain_business_root(unrelated, fact)
+    finally:
+        owned.close()
+        if unrelated is not None:
+            unrelated.close()
