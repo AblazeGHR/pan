@@ -4036,14 +4036,55 @@ async def _canonical_lifecycle_handoff(operation: str, options: dict,
         frozen = document["frozenPlan"]["arguments"]["options"]
         mark_offline = _resolve_main_lifecycle_job_choice(frozen, operation)
         running_ids = list(frozen["runningSessionIds"])
-        worker.begin_shutdown()
         await worker.shutdown_all(
             mark_legal_offline=True,
             mark_legal_offline_session_ids=running_ids if mark_offline else (),
             preserve_legal_running_session_ids=() if mark_offline else running_ids,
             legal_state_source="pan/main-" + operation,
         )
+    def schedule_original_lifecycle(coro, eid, attempt, token):
+        tasks = getattr(app.state, "canonical_lifecycle_tasks", None)
+        if tasks is None:
+            tasks = app.state.canonical_lifecycle_tasks = set()
+        task = asyncio.create_task(coro, name="pan-main-" + operation)
+        tasks.add(task)
+        def observe(done):
+            tasks.discard(done)
+            if done.cancelled():
+                # A task cancelled before its first instruction cannot run its
+                # own failure handler. Token/fence rules prevent overwriting a
+                # launched or claimed execution.
+                try:
+                    protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                        error={"type": "CancelledError", "message": ""})
+                except Exception as exc:
+                    # The running coroutine may already have settled, claimed,
+                    # or started launch; never overwrite those original facts.
+                    try:
+                        doc = protected.store.get(eid)
+                        if doc.get("launchAttempted") and doc.get("result") is None:
+                            protected.store.launch_failed(eid, attempt)
+                    except Exception as inspect_exc:
+                        _log(f"[main-lifecycle] cancelled task receipt unavailable: {inspect_exc}")
+                    _log(f"[main-lifecycle] cancelled task prelaunch settlement: {type(exc).__name__}")
+                return
+            error = done.exception()
+            if error is not None:
+                _log(f"[main-lifecycle] preparation task failed: {type(error).__name__}: {error}")
+                try:
+                    doc = protected.store.get(eid)
+                    if doc.get("result") is None and doc.get("claim") is None:
+                        if doc.get("launchAttempted"):
+                            protected.store.launch_failed(eid, attempt)
+                        else:
+                            protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                                error={"type": type(error).__name__, "message": str(error)})
+                except Exception as inspect_exc:
+                    _log(f"[main-lifecycle] task failure settlement unavailable: {inspect_exc}")
+        task.add_done_callback(observe)
+    protected.prepare_start = lambda _document: worker.begin_shutdown()
     protected.prepare = prepare_original_lifecycle
+    protected.schedule_preparation = schedule_original_lifecycle
     result = await TypedExecutor(lifecycle_executor=protected).execute(
         attempt=identity["attempt"], effect_key=identity["effectKey"],
         frozen_plan=plan,

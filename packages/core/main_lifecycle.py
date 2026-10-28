@@ -88,29 +88,63 @@ class ProtectedLifecycleExecutor:
                     original["preparationToken"] = token
                     self.store._save(db, original)
                     db.commit()
-                try:
-                    await prepare(copy.deepcopy(original))
-                except BaseException as exc:
-                    # Worker shutdown can have partially changed state. Main
-                    # stop/start has not been called, but recovery is unknown.
-                    failed = await asyncio.shield(asyncio.to_thread(
+                async def reject(exc):
+                    return await asyncio.shield(asyncio.to_thread(
                         self.store.reject_prelaunch, doc["effectId"], attempt,
                         preparation_token=token,
                         error={"type": type(exc).__name__, "message": str(exc)}))
-                    if isinstance(exc, asyncio.CancelledError):
-                        raise
-                    return failed["result"]
-                with self.store.connect() as db:
-                    db.execute("BEGIN IMMEDIATE")
-                    original = self.store._load(db, doc["effectId"])
-                    self.store._check(original, attempt)
-                    if (original.get("preparationToken") != token or original["phase"] != "admitted"
-                            or original.get("claim") or original.get("result") is not None):
-                        raise ExecutionConflict("preparation fence lost before launch")
-                    original.pop("preparationToken")
-                    original["launchAttempted"] = True
-                    self.store._save(db, original)
-                    db.commit()
+
+                async def continue_preparation():
+                    try:
+                        await prepare(copy.deepcopy(original))
+                    except BaseException as exc:
+                        failed = await reject(exc)
+                        if not isinstance(exc, Exception):
+                            raise
+                        return failed["result"]
+                    try:
+                        with self.store.connect() as db:
+                            db.execute("BEGIN IMMEDIATE")
+                            current = self.store._load(db, doc["effectId"])
+                            self.store._check(current, attempt)
+                            if (current.get("preparationToken") != token or current["phase"] != "admitted"
+                                    or current.get("claim") or current.get("result") is not None):
+                                raise ExecutionConflict("preparation fence lost before launch")
+                            current.pop("preparationToken")
+                            current["launchAttempted"] = True
+                            self.store._save(db, current)
+                            db.commit()
+                    except Exception as exc:
+                        failed = await reject(exc)
+                        return failed["result"]
+                    try:
+                        await asyncio.to_thread(self.launch, self.store.root, doc["effectId"])
+                    except BaseException as exc:
+                        await asyncio.shield(asyncio.to_thread(self.store.launch_failed, doc["effectId"], attempt))
+                        if not isinstance(exc, Exception):
+                            raise
+                    current = self.store.get(doc["effectId"])
+                    return current["result"] or EffectReceipt(dict(effect_key), "unknown", {
+                        "code": "execution_pending", "effectId": doc["effectId"], "phase": current["phase"]}).as_dict()
+
+                schedule = getattr(self, "schedule_preparation", None)
+                if schedule is not None:
+                    try:
+                        self.prepare_start(copy.deepcopy(original))
+                        continuation = continue_preparation()
+                        try:
+                            schedule(continuation, doc["effectId"], attempt, token)
+                        except BaseException:
+                            continuation.close()
+                            raise
+                    except BaseException as exc:
+                        failed = await reject(exc)
+                        if not isinstance(exc, Exception):
+                            raise
+                        return failed["result"]
+                    return EffectReceipt(dict(effect_key), "unknown", {
+                        "code": "execution_pending", "effectId": doc["effectId"], "phase": "admitted"}).as_dict()
+                return await continue_preparation()
             try:
                 await asyncio.to_thread(self.launch, self.store.root, doc["effectId"])
             except Exception:

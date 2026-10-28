@@ -155,8 +155,9 @@ def instrument_owned_host(request, monkeypatch):
     monkeypatch.setattr(real._PanRuntime, "stop", stop)
     monkeypatch.setattr(real._PanRuntime, "request", observed_request)
     yield
-    target = Path("evidence/cp-x1-lifecycle-v2-20261029/owned-host-genuine" if genuine
-                  else "evidence/cp-x1-lifecycle-v2-20261029/owned-host")
+    # New runs never overwrite the already committed v2 proof.
+    target = Path("evidence/cp-x1-strict-successors-20261029/owned-host-genuine" if genuine
+                  else "evidence/cp-x1-strict-successors-20261029/owned-host")
     target.mkdir(parents=True, exist_ok=True)
     parameter = request.node.callspec.params["method"]
     (target / (parameter + ".json")).write_text(json.dumps(records, indent=2), encoding="utf-8")

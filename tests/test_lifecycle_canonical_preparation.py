@@ -11,6 +11,16 @@ from packages.jobs.independent_executor import ExecutionStore
 from packages.web import server
 
 
+def run_and_drain(coroutine):
+    async def run():
+        result = await coroutine
+        tasks = set(server.app.state.canonical_lifecycle_tasks)
+        if tasks:
+            await asyncio.wait_for(asyncio.gather(*tasks), timeout=10)
+        return result
+    return asyncio.run(run())
+
+
 @pytest.fixture
 def prepared(tmp_path, monkeypatch):
     events = []
@@ -18,6 +28,7 @@ def prepared(tmp_path, monkeypatch):
     monkeypatch.setattr(server, "_main_restart_port", lambda: 48321)
     monkeypatch.setattr(server, "_canonical_lifecycle_pending", {})
     monkeypatch.setattr(server, "_lifecycle_operation_lock", asyncio.Lock())
+    monkeypatch.setattr(server.app.state, "canonical_lifecycle_tasks", set(), raising=False)
     monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
         "exitStrategy": "ask", "startupPreference": "ask"})
     monkeypatch.setattr(server.sess, "list_all", lambda **kw: [
@@ -61,7 +72,7 @@ def test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, op
 def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
     prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
         "exitStrategy": strategy, "startupPreference": "ask"})
-    result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+    result = run_and_drain(server.api_system_main_lifecycle({"operation": operation,
         "options": {"markRunningSessionsOffline": choice}}))
     assert result["accepted"]
     assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
@@ -81,7 +92,7 @@ def test_duplicate_and_cross_operation_reject_while_original_effect_queryable(pr
         duplicate = await server.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": False}})
         other = await server.api_system_main_lifecycle({"operation": "restart", "options": {"markRunningSessionsOffline": True}})
         return first, duplicate, other
-    first, duplicate, other = asyncio.run(exercise())
+    first, duplicate, other = run_and_drain(exercise())
     assert first["accepted"] and not duplicate["ok"] and duplicate["status"] == "busy"
     assert not other["ok"] and other["status"] == "busy"
     assert duplicate["effectId"] == other["effectId"] == first["effectId"]
@@ -105,7 +116,7 @@ def test_concurrent_exit_and_restart_share_one_worker_preparation(prepared):
         await asyncio.sleep(0)
         release.set()
         return await asyncio.gather(first, second)
-    first, second = asyncio.run(exercise())
+    first, second = run_and_drain(exercise())
     assert first["accepted"] and second["status"] == "busy"
     assert second["effectId"] == first["effectId"]
     assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
@@ -122,7 +133,7 @@ def test_lost_memory_still_fences_duplicate_or_cross_operation(prepared, again):
         second = await server.api_system_main_lifecycle({"operation": again,
             "options": {"markRunningSessionsOffline": False}})
         return first, second
-    first, second = asyncio.run(exercise())
+    first, second = run_and_drain(exercise())
     assert first["accepted"] and not second["accepted"] and second["status"] == "busy"
     assert second["effectId"] == first["effectId"] and second["requestId"] == first["requestId"]
     assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
@@ -136,14 +147,15 @@ def test_partial_worker_failure_is_unknown_and_never_launches_or_reopens(prepare
         prepared.events.append(("partial-shutdown", kwargs))
         raise RuntimeError("owned Worker shutdown failed")
     prepared.monkeypatch.setattr(worker, "shutdown_all", fail_after_partial)
-    result = asyncio.run(server.api_system_main_lifecycle({"operation": "exit",
+    result = run_and_drain(server.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": True}}))
-    assert result["accepted"] is False and result["error"]["code"] == "worker_preparation_failed"
+    assert result["accepted"] is True and result["status"] == "scheduled"
     assert [row[0] for row in prepared.events] == ["gate", "partial-shutdown"]
     store = ExecutionStore(lifecycle_action.receipt_root(prepared.root))
     doc = store.get(result["effectId"])
     assert doc["result"]["outcome"] == "unknown" and doc["result"]["cleanupProof"]["confirmed"] is False
     receipt = doc["result"]["receipt"]
+    assert receipt["code"] == "worker_preparation_failed"
     assert receipt["mainEffectStarted"] is False and receipt["preparationMayHaveChanged"] is True
     assert receipt["error"] == {"type": "RuntimeError", "message": "owned Worker shutdown failed"}
     assert len(store.events()["events"]) == 1
@@ -160,12 +172,13 @@ def test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed(prepared):
         prepared.events.append(("launch-attempt", eid))
         raise OSError("ambiguous detached launch")
     prepared.monkeypatch.setattr(independent_executor, "launch_execution", ambiguous)
-    result = asyncio.run(server.api_system_main_lifecycle({"operation": "exit",
+    result = run_and_drain(server.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": True}}))
-    assert result["accepted"] is False and result["error"]["code"] == "launch_unconfirmed"
+    assert result["accepted"] is True and result["status"] == "scheduled"
     store = ExecutionStore(lifecycle_action.receipt_root(prepared.root))
     doc = store.get(result["effectId"])
     assert doc["result"]["outcome"] == "unknown" and doc["result"]["cleanupProof"]["confirmed"] is False
+    assert doc["result"]["receipt"]["code"] == "launch_unconfirmed"
     again = asyncio.run(server.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": True}}))
     assert again["status"] == "busy" and again["effectId"] == doc["effectId"]

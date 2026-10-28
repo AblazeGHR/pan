@@ -125,7 +125,8 @@ def test_controller_crash_retains_original_supervisor_and_cleans_owned_tree(tmp_
                     return True
             _wait(exited, bool)
         assert final["history"] == [] and len(store.events()["events"]) == 1
-        target = Path("evidence/cp-x1-lifecycle-v2-20261029/controller")
+        # New runs preserve the immutable v2 proof as an ancestor.
+        target = Path("evidence/cp-x1-strict-successors-20261029/controller-v2-rerun")
         target.mkdir(parents=True, exist_ok=True)
         (target / (stage + ".json")).write_text(json.dumps({
             "controller": controller_id, "controllerWrapperPid": controller.pid,
