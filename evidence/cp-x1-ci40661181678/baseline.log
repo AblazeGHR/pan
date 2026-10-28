@@ -1,0 +1,81 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+.FF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job _
+
+h = namespace(app=<fastapi.applications.FastAPI object at 0x00000243AE5DEA50>, automation=<packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='1FxLfU_CvzGX2zp9u2sfFnemwhJagwIt0jOmOtg2HpU')
+
+    def test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job(h):
+        response = h.client.get('/api/jobs/actions')
+        assert response.status_code == 200
+        page = response.json()
+        item = next(a for a in page['items'] if a['id'] == 'product_session_message')
+        ref = page['references'][item['id']]
+        assert ref == object_ref('action', item)
+        definition = job_def(h)
+        definition['steps'][0]['actionRef'] = ref
+        created = h.client.post('/api/jobs', json={'definition':definition,'expectedRevision':0,'requestKey':'form-job'})
+>       assert created.status_code == 201, created.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E       assert 400 == 201
+E        +  where 400 = <Response [400 Bad Request]>.status_code
+
+tests\test_canonical_form_metadata.py:16: AssertionError
+__________ test_target_and_text_edit_only_changes_future_frozen_runs __________
+
+h = namespace(app=<fastapi.applications.FastAPI object at 0x00000243AE80FE00>, automation=<packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='hlhIAciP2ITgz1p_AUwMscxHP2AJ_uAYg4xoeve5BaU')
+
+    def test_target_and_text_edit_only_changes_future_frozen_runs(h):
+        item = enabled(h)
+        first = launch(h, item, 'before-edit')
+        frozen = copy.deepcopy(h.service.final.get(item['id'])['runs'][first['runId']])
+        calls = []
+        send = h.provider.send_session
+    
+        async def record(session_id, text, **kwargs):
+            calls.append((session_id, text, copy.deepcopy(kwargs['effect_key'])))
+            return await send(session_id, text, **kwargs)
+    
+        h.provider.send_session = record
+        value = job_def(h)
+        value['steps'][0]['arguments'] = {
+            'sessionId': {'from': 'literal', 'value': 'second-owned-session'},
+            'text': {'from': 'literal', 'value': 'edited text'}}
+        response = h.client.put('/api/jobs/' + item['id'], json=dict(
+            definition=value, expectedRevision=1, requestKey='edit-target-text'))
+        assert response.status_code == 200, response.text
+        edited = response.json()['result']['object']
+        assert h.service.final.get(item['id'])['runs'][first['runId']] == frozen
+        asyncio.run(h.service.dispatch_once())
+>       second = launch(h, edited, 'after-edit')
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retirement_closure_successors.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(app=<fastapi.applications.FastAPI object at 0x00000243AE80FE00>, automation=<packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='hlhIAciP2ITgz1p_AUwMscxHP2AJ_uAYg4xoeve5BaU')
+item = {'name': 'job', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'test_message', 'revision': 1, 'digest': '42d8fe290ad12... {'contract': 'durable-queue-accepted'}}], 'retention': {'policyRef': 'test', 'pinned': False}, 'description': '', ...}
+key = 'after-edit'
+
+    def launch(h, item, key="run"):
+        response = h.client.post(BASE + "/jobs/" + item["id"] + "/runs", json={
+            "expectedRevision": item["configRevision"], "requestKey": key, "input": {}, "cause": {"type": "manual"}})
+>       assert response.status_code == 202, response.text
+E       AssertionError: {"operationId":"op_486768a7ac404f11a5b462a7","requestKey":"after-edit","status":"completed","objectRefs":[{"id":"job_d5cb69f4332245a195ebf0d6","revision":2,"digest":"a3a04ac27524021c10d448cc6fc2d1a4fc75685827f4dd83a17f65eec239952b"}],"result":{"admissionId":"adm_21fca349c3294c86917cf653","configRevision":2,"skipped":true},"links":{"self":"/api/operations/op_486768a7ac404f11a5b462a7"},"admissionId":"adm_21fca349c3294c86917cf653"}
+E       assert 200 == 202
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_job_final_http_service.py:100: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_canonical_form_metadata.py::test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job
+FAILED tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs
