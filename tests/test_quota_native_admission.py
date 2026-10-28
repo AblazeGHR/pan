@@ -2,7 +2,9 @@
 import asyncio
 import copy
 import json
+import os
 import socket
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -106,6 +108,18 @@ def pump(h):
 
 
 URL = '/api/automation/quota-policy'
+
+
+def probe_owned_rebind(port):
+    # Match asyncio.create_server's production listener policy. POSIX accepted
+    # connections can remain in TIME_WAIT after the listener/process retires.
+    # SO_REUSEADDR permits that restart; SO_REUSEPORT is deliberately never set.
+    reuse_address = os.name == 'posix' and sys.platform != 'cygwin'
+    with socket.socket() as probe:
+        if reuse_address:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind(('127.0.0.1', port))
+    return {'bound': True, 'reuseAddress': reuse_address, 'reusePort': False}
 
 
 class RecordingQuota(Adapter):
@@ -526,10 +540,9 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
                 pass
             retired.append({'pid':pid,'birthTime':born,'retired':True})
         assert real_http._port_is_free(port)
-        with socket.socket() as probe:
-            probe.bind(('127.0.0.1',port))
+        rebind=probe_owned_rebind(port)
         evidence['generations'][-1].update(exitCode=handle.returncode,
-            ownedProcesses=retired,portReleased=True)
+            ownedProcesses=retired,portReleased=True,rebind=rebind)
 
     try:
         started()
@@ -727,3 +740,28 @@ def test_service_readonly_host_admission_sample_once_reopen(tmp_path,monkeypatch
         assert h.client.put(URL+'/host',json={'enabled':False,'sessionRoles':{},'expectedRevision':state['revision']}).status_code==200
         assert asyncio.run(h.policy.query())['status']=='unknown'
         assert counts['sample']==1 and not h.policy.store.read()['commands']
+
+
+def test_owned_rebind_probe_rejects_listener_and_accepts_closed_connection():
+    import errno
+    reuse_address=os.name=='posix' and sys.platform!='cygwin'
+    with socket.socket() as listener:
+        if reuse_address:listener.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+        listener.bind(('127.0.0.1',0));listener.listen()
+        port=listener.getsockname()[1]
+        assert port not in (8767,8768)
+        with pytest.raises(OSError) as caught:probe_owned_rebind(port)
+        assert caught.value.errno in (errno.EADDRINUSE,errno.EACCES,10048,10013)
+        with socket.create_connection(('127.0.0.1',port),timeout=3) as client:
+            accepted,_=listener.accept()
+            with accepted:
+                # Server closes first: a real completed TCP connection, with
+                # no sleep/retry, leaves the server TIME_WAIT path on POSIX.
+                accepted.shutdown(socket.SHUT_WR)
+                assert client.recv(1)==b''
+                client.close()
+                assert accepted.recv(1)==b''
+    with socket.socket() as connection_probe:
+        connection_probe.settimeout(.5)
+        assert connection_probe.connect_ex(('127.0.0.1',port))!=0
+    assert probe_owned_rebind(port)=={'bound':True,'reuseAddress':reuse_address,'reusePort':False}
