@@ -1,0 +1,492 @@
+{
+  "source": {
+    "url": "http://127.0.0.1:59232/remote-settings-ui-harness.html",
+    "viewport": {},
+    "assertions": {
+      "sectionOrder": [
+        "remote-tunnel-section",
+        "remote-mcp-section",
+        "remote-tailscale-section",
+        "remote-lan-section"
+      ],
+      "keyboardFocusRing": {
+        "tag": "BUTTON",
+        "expanded": "true",
+        "outlineStyle": "solid",
+        "outlineWidth": "2px"
+      },
+      "keyboardToggle": true,
+      "draftPreservedWithoutRefetch": true,
+      "geometry": [
+        {
+          "section": "remote-mcp-section",
+          "tag": "BUTTON",
+          "id": "",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-public_hostname",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-access_issuer",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-access_audience",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-config_path",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-binary_path",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-mcp-section",
+          "tag": "INPUT",
+          "id": "mcp-port",
+          "insideX": true,
+          "insideY": true,
+          "width": 160
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "MCP 域名",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "Access 团队 HTTPS 地址",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "Access 应用 AUD",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "MCP 隧道配置文件",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "cloudflared 路径（可留空）",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-mcp-section",
+          "label": "网关端口",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-tailscale-section",
+          "tag": "BUTTON",
+          "id": "",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-tailscale-section",
+          "tag": "SELECT",
+          "id": "tailscale-protocol",
+          "insideX": true,
+          "insideY": true,
+          "width": 698
+        },
+        {
+          "section": "remote-tailscale-section",
+          "tag": "INPUT",
+          "id": "tailscale-port",
+          "insideX": true,
+          "insideY": true,
+          "width": 96
+        },
+        {
+          "section": "remote-tailscale-section",
+          "label": "协议",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-tailscale-section",
+          "label": "访问端口",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-lan-section",
+          "tag": "BUTTON",
+          "id": "",
+          "insideX": true,
+          "insideY": true,
+          "width": 884
+        },
+        {
+          "section": "remote-lan-section",
+          "tag": "SELECT",
+          "id": "lan-host",
+          "insideX": true,
+          "insideY": true,
+          "width": 667.953125
+        },
+        {
+          "section": "remote-lan-section",
+          "tag": "INPUT",
+          "id": "lan-port",
+          "insideX": true,
+          "insideY": true,
+          "width": 96
+        },
+        {
+          "section": "remote-lan-section",
+          "label": "本机监听地址",
+          "above": true,
+          "leftAligned": true
+        },
+        {
+          "section": "remote-lan-section",
+          "label": "入口端口",
+          "above": true,
+          "leftAligned": true
+        }
+      ],
+      "requests": {
+        "lanSave": {
+          "startupEnabled": false,
+          "host": "192.168.1.10",
+          "port": 8899
+        },
+        "tailscaleSave": {
+          "startupEnabled": false,
+          "protocol": "http",
+          "port": 18081
+        },
+        "endpoints": [
+          "GET /api/settings/login-startup",
+          "GET /api/remote/status",
+          "GET /api/settings/session-lifecycle",
+          "GET /api/main/restart/status",
+          "GET /api/main/exit/status",
+          "GET /api/remote/mcp",
+          "GET /api/remote/tailscale",
+          "GET /api/remote/lan",
+          "PUT /api/remote/lan",
+          "POST /api/remote/lan/start",
+          "PUT /api/remote/tailscale",
+          "POST /api/remote/tailscale/start",
+          "POST /api/remote/mcp/start",
+          "GET /api/remote/mcp",
+          "POST /api/remote/lan/stop",
+          "POST /api/remote/tailscale/stop",
+          "POST /api/remote/restart"
+        ]
+      },
+      "longUrl": {
+        "documentWidth": 1280,
+        "viewportWidth": 1280,
+        "codeRight": 977.953125,
+        "cardRight": 1095,
+        "codeWidth": 779.953125,
+        "codeScrollWidth": 780,
+        "codeClientWidth": 780,
+        "wordBreak": "break-all",
+        "whiteSpace": "normal",
+        "overflowWrap": "normal",
+        "display": "block"
+      },
+      "mobile": {
+        "documentWidth": 390,
+        "viewportWidth": 390,
+        "panelWidth": 390,
+        "sectionWidths": [
+          358,
+          358,
+          358,
+          358
+        ]
+      }
+    }
+  },
+  "dist": {
+    "url": "http://127.0.0.1:59233/remote-settings-ui-harness.html",
+    "assertions": {
+      "sections": [
+        "remote-tunnel-section",
+        "remote-mcp-section",
+        "remote-tailscale-section",
+        "remote-lan-section"
+      ],
+      "productionHarness": "remote-settings-ui-harness.html + assets",
+      "appChunk": "AppSettingsModal-ijfGjV5E.js"
+    },
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/settings/login-startup",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/session-lifecycle",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/restart/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/exit/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/mcp",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/tailscale",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/lan",
+      "body": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/remote/lan",
+      "body": "{\"startupEnabled\":false,\"host\":\"192.168.1.10\",\"port\":8899}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/lan/start",
+      "body": null
+    },
+    {
+      "method": "PUT",
+      "path": "/api/remote/tailscale",
+      "body": "{\"startupEnabled\":false,\"protocol\":\"http\",\"port\":18081}"
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/tailscale/start",
+      "body": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/mcp/start",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/mcp",
+      "body": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/lan/stop",
+      "body": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/tailscale/stop",
+      "body": null
+    },
+    {
+      "method": "POST",
+      "path": "/api/remote/restart",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/lan",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/login-startup",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/session-lifecycle",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/restart/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/exit/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/mcp",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/tailscale",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/lan",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/login-startup",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/session-lifecycle",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/restart/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/exit/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/mcp",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/tailscale",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/lan",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/login-startup",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/settings/session-lifecycle",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/restart/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/main/exit/status",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/mcp",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/tailscale",
+      "body": null
+    },
+    {
+      "method": "GET",
+      "path": "/api/remote/lan",
+      "body": null
+    }
+  ],
+  "screenshots": [
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\desktop-1280-expanded.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\desktop-1280-collapsed.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\desktop-1280-status-error.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\desktop-1280-load-error.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\mobile-390-expanded.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\mobile-390-collapsed.png",
+    "D:\\project\\pan-worktrees\\remote-settings-ui-20261028\\artifacts\\remote-settings-ui\\dist-1280-remote.png"
+  ],
+  "protectedRequests": [],
+  "pageErrors": [],
+  "consoleErrors": {
+    "intentionalMcpFailure": [
+      "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    ],
+    "unexpected": []
+  }
+}
