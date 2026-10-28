@@ -1,0 +1,11 @@
+{
+  "realLogin": true,
+  "errors": [],
+  "requests": [
+    {
+      "status": 500,
+      "method": "PUT"
+    }
+  ],
+  "failure": "Error: expect(locator).not.toBeChecked() failed\n\nLocator:  getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })\nExpected: not checked\nReceived: checked\nTimeout:  5000ms\n\nCall log:\n  - Expect \"not toBeChecked\" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ }) with timeout 5000ms\n  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })\n    3 × locator resolved to <input checked disabled type=\"checkbox\"/>\n      - unexpected value \"checked\"\n    11 × locator resolved to <input checked type=\"checkbox\"/>\n       - unexpected value \"checked\"\n"
+}

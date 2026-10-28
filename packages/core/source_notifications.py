@@ -16,6 +16,66 @@ from . import session
 from .qq_reports import parse_target
 
 SOURCES = ('lockerUnread', 'newError')
+# Exact structured identities already recognized by the provider/runtime layer.
+# This is a notification catalog, not another error classifier. Never learn
+# entries from prose, logs, or arbitrary client input.
+from .runtime_issues import _CODEX_QUOTA_CODES, _CODEX_CAPACITY_CODES, _CBC_RATE_CODES
+
+ERROR_TYPE_CATALOG = tuple(
+    {'id': f'{source}/{code}', 'label': f'{source} · {code}'}
+    for source, codes in (
+        ('codex_error_payload', {'usageLimitExceeded', 'serverOverloaded', 'responseStreamDisconnected'} | _CODEX_QUOTA_CODES | _CODEX_CAPACITY_CODES),
+        ('cli.error', _CODEX_QUOTA_CODES | _CODEX_CAPACITY_CODES | _CBC_RATE_CODES | {'rate_limit'}),
+    ) for code in sorted(codes)
+)
+_ERROR_TYPE_IDS = frozenset(row['id'] for row in ERROR_TYPE_CATALOG)
+
+
+def normalize_error_exclusions(value, *, strict=False):
+    raw = value if isinstance(value, dict) else {}
+    types = raw.get('types', [])
+    valid = (isinstance(value, dict) and not set(raw) - {'enabled', 'types'}
+             and type(raw.get('enabled', False)) is bool
+             and isinstance(types, list)
+             and all(isinstance(t, str) and t in _ERROR_TYPE_IDS for t in types))
+    if not valid:
+        if strict:
+            raise ValueError('errorNotificationExclusions requires enabled boolean and server-known types')
+        return {'enabled': False, 'types': []}
+    return {'enabled': raw.get('enabled', False), 'types': sorted(set(types))}
+
+
+def error_type(record):
+    cli = record.get('cli')
+    if not isinstance(cli, dict):
+        return None
+    error = cli.get('error')
+    code = cli.get('errorCode')
+    if code is None and isinstance(error, dict):
+        code = error.get('code')
+        if code is None:
+            code = error.get('codexErrorInfo')
+            # Codex also serializes native enum variants as one-key objects.
+            # Match the stable tag, never its payload/status/message contents.
+            if isinstance(code, dict) and len(code) == 1:
+                code = next(iter(code))
+    source = cli.get('errorSource')
+    if not isinstance(source, str) or type(code) not in (str, int):
+        return None
+    identity = f'{source}/{code}'
+    return identity if identity in _ERROR_TYPE_IDS else None
+
+
+def error_exclusion_policy():
+    from .config import load_config
+    ui = load_config().get('ui', {})
+    return normalize_error_exclusions(ui.get('errorNotificationExclusions')), ui.get('errorNotificationExclusionsEpoch', '')
+
+
+def error_is_excluded(record, policy):
+    identity = error_type(record)
+    return policy['enabled'] and identity is not None and identity in policy['types']
+
 _log = logging.getLogger(__name__)
 _task = None
 _browser_sender = None
@@ -58,6 +118,8 @@ def schema(db):
         PRIMARY KEY(source,identity,target))''')
     db.execute('CREATE INDEX IF NOT EXISTS source_notification_owner ON source_notification_events(owner,source)')
     db.execute('CREATE INDEX IF NOT EXISTS source_notification_pending ON source_notification_attempts(state)')
+    if 'exclusion_epoch' not in {row[1] for row in db.execute('PRAGMA table_info(source_notification_events)')}:
+        db.execute("ALTER TABLE source_notification_events ADD COLUMN exclusion_epoch TEXT NOT NULL DEFAULT ''")
 
 
 def visible(owner):
@@ -98,7 +160,7 @@ def routes(source, owner):
     return result
 
 
-def stage(db, source, identity, owner, text, *, recipient='user'):
+def stage(db, source, identity, owner, text, *, recipient='user', error_record=None):
     """Best effort inside the content transaction; failure cannot reject content.
 
     The savepoint isolates even a partially written intent from the primary
@@ -106,14 +168,16 @@ def stage(db, source, identity, owner, text, *, recipient='user'):
     """
     try:
         db.execute('SAVEPOINT source_notification')
-        grants = routes(source, owner) if recipient == 'user' and visible(owner) else {}
+        policy, exclusion_epoch = error_exclusion_policy() if source == 'newError' else ({'enabled': False, 'types': []}, '')
+        excluded = error_record is not None and error_is_excluded(error_record, policy)
+        grants = routes(source, owner) if not excluded and recipient == 'user' and visible(owner) else {}
         from .session_error_log import sanitize
         # The QQ route accepts CQ markup. Treat source content as plain text,
         # so a Locker message cannot turn a notification into an image/mention.
         body = re.sub(r'\[CQ:', '[CQ-disabled:', str(sanitize(str(text))), flags=re.I)[:1200] if grants else ''
         ref = hashlib.sha256(f'{source}\0{identity}'.encode()).hexdigest()
-        db.execute('INSERT OR IGNORE INTO source_notification_events(source,identity,owner,targets,text,ref) VALUES(?,?,?,?,?,?)',
-                   (source, identity, owner or '', json.dumps(grants), body, ref))
+        db.execute('INSERT OR IGNORE INTO source_notification_events(source,identity,owner,targets,text,ref,exclusion_epoch) VALUES(?,?,?,?,?,?,?)',
+                   (source, identity, owner or '', json.dumps(grants), body, ref, exclusion_epoch))
         event = db.execute('SELECT targets FROM source_notification_events WHERE source=? AND identity=?',
                            (source, identity)).fetchone()
         original = json.loads(event['targets'])
@@ -146,7 +210,7 @@ def error_event(record):
                 f"Event: {record['eventId']}\nTask: {record.get('taskId') or record.get('taskSeq')}\n"
                 f"{record.get('errorText') or 'Error recorded'}")
         with get_store().db() as db:
-            stage(db, 'newError', record['eventId'], owner, text)
+            stage(db, 'newError', record['eventId'], owner, text, error_record=record)
     except Exception:
         _log.warning('Error notification admission failed', exc_info=False)
 

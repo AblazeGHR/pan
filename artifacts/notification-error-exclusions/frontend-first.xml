@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="7" failures="0" errors="0" time="6.321">
+    <testsuite name="components/layout/ErrorNotificationExclusions.test.tsx" timestamp="2026-10-28T04:17:10.644Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.7402344">
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="shares enabled and selections across both entrances; disabling retains them" time="0.633506">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="searches a bounded scroll window with stable checkbox selection" time="0.0673791">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="failed write leaves both saved values unchanged and displays the failure" time="0.0374156">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="legacy missing settings normalize to disabled with no selection" time="0.0011092">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/SourceNotificationPanel.test.tsx" timestamp="2026-10-28T04:17:10.648Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.2709271">
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; offers independent sources with System/Browser and QQ Report, no Subscribe" time="0.185978">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; preserves a source draft and shows a failed save" time="0.0735569">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; Behavior persists Session error routing independently of Notifications" time="0.010581">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -1,0 +1,57 @@
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+ExpectError: expect(locator).not.toBeChecked() failed
+
+Locator:  getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })
+Expected: not checked
+Received: checked
+Timeout:  5000ms
+
+Call log:
+  - Expect "not toBeChecked" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ }) with timeout 5000ms
+  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })
+    3 × locator resolved to <input checked disabled type="checkbox"/>
+      - unexpected value "checked"
+    11 × locator resolved to <input checked type="checkbox"/>
+       - unexpected value "checked"
+
+    at captureRawStack (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+    at callMatcherAsStep (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+    at Object.toBeChecked (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:39:35 {
+  matcherResult: {
+    message: 'expect(locator).not.toBeChecked() failed\n' +
+      '\n' +
+      "Locator:  getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })\n" +
+      'Expected: not checked\n' +
+      'Received: checked\n' +
+      'Timeout:  5000ms\n' +
+      '\n' +
+      'Call log:\n' +
+      `  - Expect "not toBeChecked" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ }) with timeout 5000ms\n` +
+      "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })\n" +
+      '    3 × locator resolved to <input checked disabled type="checkbox"/>\n' +
+      '      - unexpected value "checked"\n' +
+      '    11 × locator resolved to <input checked type="checkbox"/>\n' +
+      '       - unexpected value "checked"\n',
+    pass: true,
+    actual: 'checked',
+    name: 'toBeChecked',
+    expected: 'checked',
+    log: [
+      `  - Expect "not toBeChecked" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ }) with timeout 5000ms`,
+      "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })",
+      '    3 × locator resolved to <input checked disabled type="checkbox"/>',
+      '      - unexpected value "checked"',
+      '    11 × locator resolved to <input checked type="checkbox"/>',
+      '       - unexpected value "checked"'
+    ],
+    timeout: 5000,
+    ariaSnapshot: '- checkbox "Send Session errors to the Session’s msgBridge" [checked]'
+  }
+}
+
+Node.js v24.22.1

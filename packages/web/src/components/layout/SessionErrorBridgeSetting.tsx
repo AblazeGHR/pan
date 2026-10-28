@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppSettingsStore } from '@/stores/appSettingsStore';
+import { ErrorNotificationExclusions } from './ErrorNotificationExclusions';
 
 export function SessionErrorBridgeSetting() {
   const enabled = useAppSettingsStore((s) => s.sessionErrorBridge);
@@ -17,6 +18,7 @@ export function SessionErrorBridgeSetting() {
       }} />Send Session errors to the Session’s msgBridge
     </label>
     <p className="text-[11px] text-text-secondary">Uses each Session’s System, Browser and QQ Report connections. Global error notifications in Notifications work independently. Matching channels and targets receive one notification per error.</p>
+    <ErrorNotificationExclusions />
     {error && <p role="alert" className="text-xs text-danger">{error}</p>}
   </section>;
 }

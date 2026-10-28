@@ -11338,6 +11338,8 @@ async def api_get_settings_ui():
     from packages.core import auto_report
     ui = dict(load_config().get("ui") or {})
     ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    from packages.core.source_notifications import normalize_error_exclusions
+    ui['errorNotificationExclusions'] = normalize_error_exclusions(ui.get('errorNotificationExclusions'))
     return ui
 
 
@@ -11414,7 +11416,7 @@ async def api_put_data_retention(data: dict = Body(...)):
 
 
 @app.put("/api/settings/ui")
-async def api_put_settings_ui(data: dict):
+async def api_put_settings_ui(data: dict, request: Request = None):
     """Merge partial/full ui settings into config.json's ``ui`` object.
 
     Body may carry any subset of the ui fields; provided keys are merged over
@@ -11434,7 +11436,22 @@ async def api_put_settings_ui(data: dict):
             data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
         except ValueError as exc:
             raise HTTPException(422, detail=str(exc)) from exc
+    if 'errorNotificationExclusions' in data:
+        from packages.interactions.runtime import principal
+        if request is None or await principal(app, request) is None:
+            raise HTTPException(401, detail='User authorization required')
     ui = dict(load_config().get("ui") or {})
+    from packages.core.source_notifications import normalize_error_exclusions
+    if 'errorNotificationExclusionsEpoch' in data:
+        raise HTTPException(422, detail='errorNotificationExclusionsEpoch is server-managed')
+    if 'errorNotificationExclusions' in data:
+        try:
+            value = normalize_error_exclusions(data['errorNotificationExclusions'], strict=True)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+        data = {**data, 'errorNotificationExclusions': value}
+        if value != normalize_error_exclusions(ui.get('errorNotificationExclusions')):
+            data['errorNotificationExclusionsEpoch'] = uuid.uuid4().hex
     if "sessionErrorBridge" in data:
         if type(data["sessionErrorBridge"]) is not bool:
             raise HTTPException(422, detail="sessionErrorBridge must be boolean")
@@ -11510,6 +11527,8 @@ async def api_put_settings_ui(data: dict):
     raw["ui"] = ui
     save_config(raw)
     after_scopes = unread_policy.refresh_unread_recording()
+    if 'errorNotificationExclusions' in data:
+        await broadcast({'type': 'settings.uiUpdated'})
     if after_scopes != before_scopes:
         await broadcast({
             "type": "settings.uiUpdated",

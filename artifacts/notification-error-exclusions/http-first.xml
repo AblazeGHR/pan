@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="21.676" timestamp="2026-10-28T12:19:40.306648+08:00" hostname="ablaze"><testcase classname="tests.test_notification_http" name="test_notification_settings_live_and_background_delivery" time="21.282"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  locator.check: Clicking the checkbox did not change its state&#10;  Call log:&#10;  #x1B[2m  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })#x1B[22m&#10;  #x1B[2m    - locator resolved to &lt;input type=&quot;checkbox&quot;/&gt;#x1B[22m&#10;  #x1B[2m  - attempting click action#x1B[22m&#10;  #x1B[2m    - waiting for element to be visible, enabled and stable#x1B[22m&#10;  #x1B[2m    - element is visible, enabled and stable#x1B[22m&#10;  #x1B[2m    - scrolling into view if needed#x1B[22m&#10;  #x1B[2m    - done scrolling#x1B[22m&#10;  #x1B[2m    - performing click action#x1B[22m&#10;  #x1B[2m    - click action done#x1B[22m&#10;  #x1B[2m    - waiting for scheduled navigations to finish#x1B[22m&#10;  #x1B[2m    - navigations have finished#x1B[22m&#10;  &#10;      at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:49:74 {&#10;    log: [&#10;      &quot;  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })&quot;,&#10;      '    - locator resolved to &lt;input type=&quot;checkbox&quot;/&gt;',&#10;      '  - attempting click action',&#10;      '    - waiting for element to be visible, enabled and stable',&#10;      '    - element is visible, enabled and stable',&#10;      '    - scrolling into view if needed',&#10;      '    - done scrolling',&#10;      '    - performing click action',&#10;      '    - click action done',&#10;      '    - waiting for scheduled navigations to finish',&#10;      '    - navigations have finished'&#10;    ],&#10;    name: 'Error'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/notification-sources.mjs', 'http://127.0.0.1:56463', 'D:\\project\\pa...d navigations to finish\',\n    \'    - navigations have finished\'\n  ],\n  name: \'Error\'\n}\n\nNode.js v24.22.1\n').returncode">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5731/test_notification_settings_liv0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FDE3D18770&gt;
+
+    def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'data')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        evidence = {'port': h.PORT, 'realQQ': False, 'realSystem': False}
+        fixture = {'x-notification-fixture': nonce}
+        def records(): return rt.request('GET', '/__test/notification/records', headers=fixture)
+        def emit(kind, identity):
+            return rt.request('POST', '/__test/notification/emit', headers=fixture,
+                              json={'owner': owner['id'], 'kind': kind, 'id': identity})
+        try:
+            rt.start()
+            evidence['ownedPidBirths'] = [[pid, born] for pid, born, _ in rt._owned_processes]
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['sessions']).parent == rt.data_root
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
+            auth = {'Authorization': 'Bearer ' + token}
+            catalog_path = '/api/notifications/error-types'
+            assert httpx.get(rt.base_url + catalog_path, trust_env=False).status_code == 401
+            catalog = rt.request('GET', catalog_path, headers=auth)['types']
+            assert len(catalog) &gt; 6 and len({r['id'] for r in catalog}) == len(catalog)
+            assert 'codex_error_payload/usageLimitExceeded' in {r['id'] for r in catalog}
+            assert rt.request('GET', '/api/settings/ui')['errorNotificationExclusions'] == {'enabled': False, 'types': []}
+            assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': {'enabled': True, 'types': []}}, trust_env=False).status_code == 401
+            for bad in ({'enabled': 'yes'}, {'enabled': True, 'types': ['unknown']}, {'enabled': True, 'types': [1]}):
+                assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': bad}, headers=auth, trust_env=False).status_code == 422
+            assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusionsEpoch': 'client'}, headers=auth, trust_env=False).status_code == 422
+            for invalid in ({'sessionErrorBridge': 'yes'}, {'notifications': {'newError': {'qqSubscribe': True}}},
+                            {'notifications': {'lockerUnread': {'system': 'yes'}}}):
+                response = httpx.put(rt.base_url + '/api/settings/ui', json=invalid, headers=auth, trust_env=False)
+                assert response.status_code == 422
+            owner = rt.request('POST', '/api/sessions', json={'name': 'notification-owned-source', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+            assert 'id' in owner, owner
+            emit('locker', 'history-off')
+            browser = subprocess.run(['node', 'packages/web/e2e/notification-sources.mjs', rt.base_url, str(OUT.resolve()), owner['id']],
+                env={**os.environ, 'PAN_TEST_NOTIFICATION_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=120)
+            (OUT / 'browser.log').write_text(browser.stdout + '\n' + browser.stderr, encoding='utf-8')
+&gt;           assert browser.returncode == 0, browser.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E
+E             locator.check: Clicking the checkbox did not change its state
+E             Call log:
+E             #x1B[2m  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })#x1B[22m
+E             #x1B[2m    - locator resolved to &lt;input type="checkbox"/&gt;#x1B[22m
+E             #x1B[2m  - attempting click action#x1B[22m
+E             #x1B[2m    - waiting for element to be visible, enabled and stable#x1B[22m
+E             #x1B[2m    - element is visible, enabled and stable#x1B[22m
+E             #x1B[2m    - scrolling into view if needed#x1B[22m
+E             #x1B[2m    - done scrolling#x1B[22m
+E             #x1B[2m    - performing click action#x1B[22m
+E             #x1B[2m    - click action done#x1B[22m
+E             #x1B[2m    - waiting for scheduled navigations to finish#x1B[22m
+E             #x1B[2m    - navigations have finished#x1B[22m
+E
+E                 at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:49:74 {
+E               log: [
+E                 "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })",
+E                 '    - locator resolved to &lt;input type="checkbox"/&gt;',
+E                 '  - attempting click action',
+E                 '    - waiting for element to be visible, enabled and stable',
+E                 '    - element is visible, enabled and stable',
+E                 '    - scrolling into view if needed',
+E                 '    - done scrolling',
+E                 '    - performing click action',
+E                 '    - click action done',
+E                 '    - waiting for scheduled navigations to finish',
+E                 '    - navigations have finished'
+E               ],
+E               name: 'Error'
+E             }
+E
+E             Node.js v24.22.1
+E
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/notification-sources.mjs', 'http://127.0.0.1:56463', 'D:\\project\\pa...d navigations to finish\',\n    \'    - navigations have finished\'\n  ],\n  name: \'Error\'\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_notification_http.py:57: AssertionError</failure></testcase></testsuite></testsuites>

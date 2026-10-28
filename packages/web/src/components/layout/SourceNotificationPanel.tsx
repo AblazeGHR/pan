@@ -141,9 +141,11 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
         </div>
         {invalid && <p id={`${source}-error`} role="alert" className="text-xs text-danger">Select at least one QQ Report contact.</p>}
       </div>}
+      {source === 'newError' && <ErrorNotificationExclusions />}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       {notice && <p role="status" className="text-xs text-text-secondary">{notice}</p>}
       <button type="button" disabled={busy || invalid} aria-describedby={invalid ? `${source}-error` : undefined} onClick={() => { void submit(); }} className="rounded border border-border-default px-3 py-1.5 text-xs disabled:opacity-50">{busy ? 'Saving…' : `Save ${source === 'lockerUnread' ? 'Locker new unread' : 'New errors'}`}</button>
     </div>
   );
 }
+import { ErrorNotificationExclusions } from './ErrorNotificationExclusions';

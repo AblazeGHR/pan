@@ -8,7 +8,7 @@ import subprocess
 import httpx
 from tests import test_real_queue_http_e2e as h
 
-OUT = Path('artifacts/notification-locker-error/http')
+OUT = Path('artifacts/notification-error-exclusions/http')
 
 
 def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
@@ -34,6 +34,16 @@ def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatc
         key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
         token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
         auth = {'Authorization': 'Bearer ' + token}
+        catalog_path = '/api/notifications/error-types'
+        assert httpx.get(rt.base_url + catalog_path, trust_env=False).status_code == 401
+        catalog = rt.request('GET', catalog_path, headers=auth)['types']
+        assert len(catalog) > 6 and len({r['id'] for r in catalog}) == len(catalog)
+        assert 'codex_error_payload/usageLimitExceeded' in {r['id'] for r in catalog}
+        assert rt.request('GET', '/api/settings/ui')['errorNotificationExclusions'] == {'enabled': False, 'types': []}
+        assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': {'enabled': True, 'types': []}}, trust_env=False).status_code == 401
+        for bad in ({'enabled': 'yes'}, {'enabled': True, 'types': ['unknown']}, {'enabled': True, 'types': [1]}):
+            assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': bad}, headers=auth, trust_env=False).status_code == 422
+        assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusionsEpoch': 'client'}, headers=auth, trust_env=False).status_code == 422
         for invalid in ({'sessionErrorBridge': 'yes'}, {'notifications': {'newError': {'qqSubscribe': True}}},
                         {'notifications': {'lockerUnread': {'system': 'yes'}}}):
             response = httpx.put(rt.base_url + '/api/settings/ui', json=invalid, headers=auth, trust_env=False)
@@ -63,7 +73,7 @@ def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatc
         assert sum(error['id'] in r.get('text', '') for r in first['records']) == 2
         assert sum(locker['id'] in r.get('text', '') for r in first['records']) == 1
         assert 'private-value' not in json.dumps(first)
-        ref = first['refs'][-1]
+        ref = next(row['ref'] for row in first['browserRefs'] if row['identity'] == error['id'])
         assert httpx.get(rt.base_url + '/api/notifications/browser-events/' + ref, trust_env=False).status_code == 401
         payload = rt.request('GET', '/api/notifications/browser-events/' + ref, headers=auth)
         assert error['id'] in payload['body']
@@ -79,11 +89,28 @@ def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatc
         last = h._wait_for(lambda: records() if len(records()['records']) == 5 else None, label='global only new error')
         assert sum(new_error['id'] in r.get('text', '') for r in last['records']) == 2
         assert last['workers'] == 0
+        before_epoch = rt.request('GET', '/api/settings/ui').get('errorNotificationExclusionsEpoch')
+        exclusions = {'enabled': True, 'types': sorted(row['id'] for row in catalog)}
+        saved = rt.request('PUT', '/api/settings/ui', headers=auth, json={'errorNotificationExclusions': exclusions})
+        epoch = saved['errorNotificationExclusionsEpoch']
+        assert epoch and epoch != before_epoch
+        same = rt.request('PUT', '/api/settings/ui', headers=auth, json={'errorNotificationExclusions': exclusions})
+        assert same['errorNotificationExclusionsEpoch'] == epoch
+        excluded = rt.request('POST', '/__test/notification/emit', headers=fixture,
+            json={'owner': owner['id'], 'kind': 'error', 'id': 103, 'code': 'usageLimitExceeded'})
+        current = records()
+        assert not any(row['identity'] == excluded['id'] for row in current['attempts'])
+        assert next(row for row in current['events'] if row['identity'] == excluded['id'])['exclusion_epoch'] == epoch
+        rt.request('POST', '/__test/notification/emit', headers=fixture,
+            json={'owner': owner['id'], 'kind': 'error', 'id': 104, 'code': 'unknownFutureCode'})
+        h._wait_for(lambda: len(records()['records']) == 7, label='unknown structured type forwarded')
         rt.stop()
         rt.start()
         evidence['ownedPidBirths'] += [[pid, born] for pid, born, _ in rt._owned_processes]
         after = records()
-        assert len(after['records']) == 5 and after['workers'] == 0
+        assert len(after['records']) == 7 and after['workers'] == 0
+        assert rt.request('GET', '/api/settings/ui')['errorNotificationExclusions'] == exclusions
+        evidence.update(sharedExclusions=True, catalogTypes=len(catalog), unknownDefaultForward=True, exclusionEpoch=bool(epoch), exclusionAuth=True)
         evidence.update(backgroundQQ=True, samePathSystemCount=1, duplicateEventNoReplay=True,
                         reopenNoHistory=True, restartNoReplay=True, authRead=True, workers=0,
                         deliveryStates=sorted({r['state'] for r in after['attempts']}))

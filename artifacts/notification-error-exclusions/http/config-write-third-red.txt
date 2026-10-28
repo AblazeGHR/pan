@@ -1,0 +1,1 @@
+Actual backend exception: api_put_settings_ui -> config.save_config -> os.replace(owned-temp/config.json.tmp, owned-temp/config.json): PermissionError [WinError 5] Access denied. Browser PUT status 500; Session Behavior saved state stayed unchanged. Existing config writer has no retry; not modified by this task. No test retry or assertion relaxation added.

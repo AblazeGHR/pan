@@ -5,6 +5,11 @@ import { useUIStore } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
 export type NotificationSource = 'lockerUnread' | 'newError';
+export interface ErrorNotificationExclusions { enabled: boolean; types: string[] }
+export function sanitizeErrorExclusions(value: unknown): ErrorNotificationExclusions {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return { enabled: raw.enabled === true, types: Array.isArray(raw.types) && raw.types.every((v) => typeof v === 'string') ? [...new Set(raw.types as string[])] : [] };
+}
 export interface SourceNotificationSettings {
   enabled: boolean;
   qqReport: boolean;
@@ -213,6 +218,7 @@ export interface AppSettings {
    */
   reportWorkerKillErrors: boolean;
   sessionErrorBridge: boolean;
+  errorNotificationExclusions: ErrorNotificationExclusions;
   /**
    * Automatically route newly enqueued structured messages through Force
    * send. `system` = Job terminal notices, `ma` = manager/meta-agent
@@ -285,6 +291,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showQQ: true,
   reportWorkerKillErrors: false,
   sessionErrorBridge: true,
+  errorNotificationExclusions: { enabled: false, types: [] },
   autoForceSend: DEFAULT_AUTO_FORCE_SEND,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
@@ -381,6 +388,7 @@ export function sanitizeSettings(
         ? parsed.reportWorkerKillErrors
         : DEFAULT_SETTINGS.reportWorkerKillErrors,
     sessionErrorBridge: typeof parsed.sessionErrorBridge === 'boolean' ? parsed.sessionErrorBridge : true,
+    errorNotificationExclusions: sanitizeErrorExclusions(parsed.errorNotificationExclusions),
     autoForceSend: sanitizeAutoForceSend(parsed.autoForceSend),
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
@@ -467,6 +475,7 @@ interface AppSettingsStore extends AppSettings {
   saveAutoReport: (value: AutoReportSettings) => Promise<void>;
   saveReportWorkerKillErrors: (v: boolean) => Promise<void>;
   saveSessionErrorBridge: (v: boolean) => Promise<void>;
+  saveErrorNotificationExclusions: (value: ErrorNotificationExclusions) => Promise<void>;
   /**
    * Persist the three automatic Force switches. Resolves only after the
    * server wrote the settings; a failure rejects and leaves the store on the
@@ -702,6 +711,11 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       dirty = true;
       const response = await updateUiSettings({ sessionErrorBridge: value });
       set({ sessionErrorBridge: sanitizeSettings(response).sessionErrorBridge });
+    },
+    saveErrorNotificationExclusions: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ errorNotificationExclusions: value });
+      set({ errorNotificationExclusions: sanitizeErrorExclusions(response.errorNotificationExclusions) });
     },
 
     saveReportWorkerKillErrors: async (value) => {

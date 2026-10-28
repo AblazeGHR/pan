@@ -1,0 +1,42 @@
+{
+  "port": 55726,
+  "realQQ": false,
+  "realSystem": false,
+  "ownedPidBirths": [
+    [
+      7656,
+      1793161549.5581768
+    ],
+    [
+      16336,
+      1793161549.5657687
+    ],
+    [
+      31064,
+      1793161576.385252
+    ],
+    [
+      13720,
+      1793161576.3924167
+    ]
+  ],
+  "sharedExclusions": true,
+  "catalogTypes": 25,
+  "unknownDefaultForward": true,
+  "exclusionEpoch": true,
+  "exclusionAuth": true,
+  "backgroundQQ": true,
+  "samePathSystemCount": 1,
+  "duplicateEventNoReplay": true,
+  "reopenNoHistory": true,
+  "restartNoReplay": true,
+  "authRead": true,
+  "workers": 0,
+  "deliveryStates": [
+    "queued",
+    "sent",
+    "unknown"
+  ],
+  "ownedCleanupPassed": true,
+  "portReleased": true
+}

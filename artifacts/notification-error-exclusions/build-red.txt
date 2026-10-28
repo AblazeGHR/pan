@@ -1,0 +1,1 @@
+Initial build exit 2: ErrorNotificationExclusions.test.tsx lines 21-27 TS2345 HTMLElement | undefined. Array destructuring under noUncheckedIndexedAccess; corrected by scoped getByTestId queries.

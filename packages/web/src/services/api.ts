@@ -2354,6 +2354,10 @@ export async function fetchUiSettings(): Promise<Record<string, unknown>> {
 export async function updateUiSettings(
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  if ('errorNotificationExclusions' in patch) {
+    const { lockerRequest } = await import('@/views/lockerModel');
+    return lockerRequest(`${BASE}/settings/ui`, 'PUT', patch);
+  }
   const data = await request<Record<string, unknown>>(`${BASE}/settings/ui`, {
     method: 'PUT',
     body: JSON.stringify(patch),

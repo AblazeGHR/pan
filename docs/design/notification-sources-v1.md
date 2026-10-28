@@ -85,7 +85,40 @@ granted; it never requests permission from a background event. There is no
 Browser history replay. The existing System sender reports unsupported platforms
 explicitly; this feature adds no platform-specific implementation.
 
-## Validation boundary
+## Shared future-error exclusions
+
+Behavior → Session errors → msgBridge and Notifications → New errors embed the
+same `ErrorNotificationExclusions` component. One persisted object,
+`ui.errorNotificationExclusions = {enabled: boolean, types: string[]}`, controls
+both routes. Disabling retains selections. Each checkbox saves through the
+existing UI settings endpoint with Automation UserAuth; failed writes leave the
+committed store unchanged. A settings broadcast refreshes other open clients.
+The list has client-side search and a fixed 160px scroll window. Locker unread,
+completion notifications, error samples/history and manager reports are unaffected.
+
+Authenticated `GET /api/notifications/error-types` supplies the only selectable
+catalog. Its exact identities combine the structured `cli.errorSource` with
+`cli.errorCode` or `cli.error.code/codexErrorInfo`. The catalog reuses existing
+runtime structured code vocabulary, including `codex_error_payload/usageLimitExceeded`
+and `codex_error_payload/serverOverloaded`; it does not classify message text or
+scan logs. Missing/unknown sources or codes forward by default. Arbitrary client
+types and malformed values are rejected; missing/malformed legacy objects read
+as disabled with no selections. This is a bounded known vocabulary, not a claim
+to enumerate every possible provider error.
+
+Changing the canonical object updates server-managed
+`ui.errorNotificationExclusionsEpoch`; identical saves do not rotate it. The
+existing event ledger adds `exclusion_epoch` (empty for legacy events). Only new
+admission applies exclusions, before either Session or global grants are built.
+Excluded events keep their identity with empty text/targets to prevent replay.
+Previously admitted events keep their original grants and exclusion epoch;
+changing exclusions cannot revoke, reroute or replay them. Existing channel,
+target and visibility checks still apply when claiming a send.
+
+## Exclusion validation
+
+See `artifacts/notification-error-exclusions/REPORT.md` for this extension's
+commands and evidence. Original source-notification evidence below is retained.
 
 Use `tests/test_source_notifications.py`, `tests/test_notification_http.py` and
 `packages/web/src/components/layout/SourceNotificationPanel.test.tsx`. The HTTP

@@ -64,6 +64,7 @@ async def emit(payload: dict, request: Request):
     assert payload['kind'] == 'error'
     eid = await session_error_log.record_session_error_async(kind='terminal_error', terminal=True,
         error_text='Owned error password=private-value', error_text_source='pan.runtime', session_id=owner,
+        cli_raw={'error_source': 'codex_error_payload', 'error': {'codexErrorInfo': payload['code'], 'message': 'Owned structured error'}} if 'code' in payload else None,
         task_seq=payload['id'], dedupe_token=str(payload['id']))
     return {'id': eid}
 
@@ -75,8 +76,10 @@ async def records(request: Request):
     with get_store().db() as db:
         attempts = [dict(row) for row in db.execute('SELECT source,identity,target,state FROM source_notification_attempts')]
         refs = [row[0] for row in db.execute("SELECT e.ref FROM source_notification_events e JOIN source_notification_attempts a USING(source,identity) WHERE a.target='browser'")]
+        events = [dict(row) for row in db.execute('SELECT identity,exclusion_epoch,targets FROM source_notification_events')]
+        browser_refs = [dict(row) for row in db.execute("SELECT e.identity,e.ref FROM source_notification_events e JOIN source_notification_attempts a USING(source,identity) WHERE a.target='browser'")]
     return {'records': [json.loads(line) for line in record_path.read_text(encoding='utf-8').splitlines()] if record_path.exists() else [],
-            'attempts': attempts, 'refs': refs, 'workers': len(worker.list_workers())}
+            'attempts': attempts, 'refs': refs, 'browserRefs': browser_refs, 'events': events, 'workers': len(worker.list_workers())}
 
 
 import tests.support.job_inbox_http_server  # noqa: E402,F401

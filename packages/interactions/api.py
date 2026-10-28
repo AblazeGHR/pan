@@ -41,6 +41,12 @@ def register(app):
     from .user_cards_api import register as register_user_cards
     register_user_cards(app, user)
 
+    @app.get('/api/notifications/error-types')
+    async def notification_error_types(request: Request):
+        await user(request)
+        from packages.core.source_notifications import ERROR_TYPE_CATALOG
+        return {'types': ERROR_TYPE_CATALOG}
+
     @app.get('/api/notifications/browser-events/{ref}')
     async def source_browser_event(ref: str, request: Request):
         await user(request)

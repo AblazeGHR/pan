@@ -5,6 +5,7 @@ import { SourceNotificationPanel } from './SourceNotificationPanel';
 import { SessionErrorBridgeSetting } from './SessionErrorBridgeSetting';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import { updateUiSettings } from '@/services/api';
+vi.mock('@/views/lockerModel', () => ({ lockerRequest: vi.fn().mockResolvedValue({ types: [] }) }));
 
 vi.mock('@/services/api', () => ({
   fetchUiSettings: vi.fn().mockResolvedValue({}),

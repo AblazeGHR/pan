@@ -142,6 +142,9 @@ describe('AppSettingsModal', () => {
     // McpRemoteSettings uses fetch directly rather than the mocked API module.
     // Keep the real panel mounted without adding an unrelated network-error alert.
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input === '/api/notifications/error-types') {
+        return { ok: true, json: async () => ({ types: [] }) };
+      }
       if (input === '/api/reminding-cards/settings') {
         const body = JSON.parse(String(init?.body ?? '{}'));
         return {ok: true, json: async () => ({minutes: body.minutes ?? 10})};
