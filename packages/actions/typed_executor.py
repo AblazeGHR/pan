@@ -284,6 +284,7 @@ class TypedExecutor:
         session_provider: SessionProvider | Any | None = None,
         assign_provider: AssignProvider | Any | None = None,
         channel_provider: ChannelProvider | Any | None = None,
+        quota_provider: Any | None = None,
         receipt_store: ReceiptStore | MutableMapping[str, Mapping[str, Any]] | None = None,
         independent_executor: Any | None = None,
         lifecycle_executor: Any | None = None,
@@ -296,6 +297,7 @@ class TypedExecutor:
         self.session_provider = session_provider
         self.assign_provider = assign_provider
         self.channel_provider = channel_provider
+        self.quota_provider = quota_provider
         self.receipt_store = receipt_store if receipt_store is not None else InMemoryReceiptStore()
         self.process_timeout = max(0.0, float(process_timeout))
         self.terminate_grace = max(0.0, float(terminate_grace))
@@ -372,6 +374,12 @@ class TypedExecutor:
                 result = EffectReceipt(key, "rejected", {"code": "unsupported_operation", "message": "Legacy shell/API dispatcher is not a typed effect"}).as_dict()
             elif operation == "assign":
                 result = await self._assign(key, plan)
+            elif operation == "quota-query.v1":
+                if self.quota_provider is None:
+                    result = EffectReceipt(key, "unknown", {"code": "quota_provider_unavailable", "quotaStatus": "unknown"}).as_dict()
+                else:
+                    detail = await _invoke(self.quota_provider, plan["arguments"], effect_key=key)
+                    result = EffectReceipt(key, _status(detail), detail).as_dict()
             elif isinstance(plan.get("action"), Mapping) and plan["action"].get("api") == "send_qq":
                 operation = "channel"
                 result = await self._channel(key, plan)

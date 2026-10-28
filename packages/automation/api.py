@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from packages.core.system_fields import public_schema
 from .store import Conflict
 from packages.jobs import chains
+from packages.jobs.final_api import actor as canonical_actor
 from .authorization import require as object_require, require_write, authority
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
@@ -261,7 +262,7 @@ def install(server):
         try:
             result=await service().engine.io(policy.store.set_host,
                 {'enabled':data['enabled'],'sessionRoles':data['sessionRoles']},data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except Conflict as exc:raise HTTPException(409,str(exc)) from exc
         except ValueError as exc:raise HTTPException(400,str(exc)) from exc
@@ -276,7 +277,7 @@ def install(server):
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
         try:
             result=await service().engine.io(policy.store.set_disabled,data['disabledAccountIds'],data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except Conflict as exc:raise HTTPException(409,str(exc)) from exc
         except ValueError as exc:raise HTTPException(400,str(exc)) from exc
@@ -289,8 +290,8 @@ def install(server):
         policy=getattr(service(),'quota_policy',None)
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
         try:
-            result=await service().engine.io(policy.store.configure,data['mode'],data['maSessionId'],data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            result=await service().engine.io(policy.store.configure,data['mode'],data['maSessionId'],data['expectedRevision'],await canonical_actor(request))
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except ValueError as exc:raise HTTPException(409,str(exc)) from exc
         except OSError as exc:raise HTTPException(503,'Quota policy persistence failed') from exc
@@ -301,8 +302,9 @@ def install(server):
         if set(data)!={'kind','expectedRevision'}:raise HTTPException(400,'Expected kind/expectedRevision')
         policy=getattr(service(),'quota_policy',None)
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
-        try:return {'job':await policy.create_monitor(data['kind'],data['expectedRevision'])}
+        try:return {'job':await policy.create_monitor(data['kind'],data['expectedRevision'],await canonical_actor(request))}
         except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+        except RuntimeError as exc:raise HTTPException(503,str(exc)) from exc
         except OSError as exc:raise HTTPException(503,'Quota Job persistence failed; reload before retry') from exc
 
     @router.post('/api/automation/triggers')

@@ -1,0 +1,24 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_________ test_quota_policy_owned_http_default_unavailable_is_unknown _________
+tests\test_quota_policy_http.py:29: in test_quota_policy_owned_http_default_unavailable_is_unknown
+    assert response.status_code == 409 and 'fence' in response.text
+E   assert (200 == 409)
+E    +  where 200 = <Response [200 OK]>.status_code
+____ test_quota_policy_owned_http_default_unavailable_is_unknown_real_http ____
+tests\test_quota_policy_http.py:45: in test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
+    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+    ^^^^^^^^^^^^^^^^^^^
+E   NameError: name 'monkeypatcreal_http' is not defined
+___________ test_quota_real_tcp_cas_reopen_and_legacy_writer_fence ____________
+tests\test_job_retirement_quota_transport.py:66: in test_quota_real_tcp_cas_reopen_and_legacy_writer_fence
+    assert result.status_code == 409 and 'fence' in result.text
+E   assert (409 == 409 and 'fence' in '{"detail":"Cannot bind monitor: quota/current account unknown"}')
+E    +  where 409 = <Response [409 Conflict]>.status_code
+E    +  and   '{"detail":"Cannot bind monitor: quota/current account unknown"}' = <Response [409 Conflict]>.text
+=========================== short test summary info ===========================
+FAILED tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown
+FAILED tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
+FAILED tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence
+3 failed in 4.78s
