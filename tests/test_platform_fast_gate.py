@@ -83,3 +83,13 @@ def test_terminal_secret_store_native_declarations_are_windows_guarded():
     assert not any(isinstance(node, ast.Assign) and any(
         isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets
     ) for node in tree.body), "Do not replace the import fix with a whole-module skip"
+
+
+def test_plugin_ipc_endpoint_contract_executes_in_fast_gate(tmp_path):
+    # CP-X3 owns this file; MA combines it with the CI candidate. Do not make
+    # absent files optional: the actual combined gate must fail if it is missing.
+    command = gate.phase_command("fast", tmp_path)
+    assert command.count("tests/test_plugin_ipc_endpoint.py") == 1
+    assert "--collect-only" not in command
+    assert not any(arg.startswith(("--ignore", "--deselect")) for arg in command)
+    assert "-k" not in command

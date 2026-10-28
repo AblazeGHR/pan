@@ -109,7 +109,18 @@ CP-X2 持有 POSIX identity/process/log；已确认其本轮有界脱敏 proof �
 CP-X3 持有 plugin IPC startup。remote Ubuntu history-browser 的实际失败是启动 traceback，
 不是 UI assertion；quota restart 在 POSIX 也出现 `AF_UNIX path too long`。
 MA 另确认 CP-X3 本地旧 dist history 红属于旧 bundle 前提，**不作为 036 UI 回归证据**；
-同一 TA 正在 fresh-build 后运行不变测试。本候选未收到其新结果，因此不声称 browser 绿。
+后续 MA 明确提供 CP-X3 `99e51f1f`（产品 `cf7510f5`）fresh-build 后未改动的 history
+browser **1 passed**，并表示已源码审查、独立 5 项 endpoint 验证及 FF 整合。这是 MA 提供的
+CP-X3 本机验证事实，不是本候选本机复跑或修后 Ubuntu CI 通过证明。
+
+按同次 MA 授权，追加 `tests/test_plugin_ipc_endpoint.py` 到 `FAST_TESTS`，保留全部
+24 个原条目。已从 CP-X3 工作树审查该文件的 5 个用例，涵盖真实宿主 concurrent bridge
+roundtrip/cleanup、长 caller path、长 temp root、listener/start 失败清理、未知文件拒绝递归
+删除。Windows 的短 Unix endpoint 分支自述为 policy probe，不当作 Unix transport 实测。
+没有合入或复制 CP-X3 测试/产品；该文件将在 MA combined tree 中存在，本任务树当前缺失。
+不使用可选发现/ignore 隐藏缺失，组合后 full fast 必须真实执行该文件。
+本轮仅补跑 helper 6 项并核对相对 `1b319ed2` 的清单差异为唯一追加，未重复原 45 项、
+全仓 collection 或 browser。追加接线证据见 `ipc-gate-addition.json`、`ipc-helper.xml`。
 
 已有实际三平台远端红证据，原“没有目标环境”状态已被替换；但本次修复后未 push/
 dispatch、未运行新远端 CI，也未验证修后 Linux/macOS collection、CP-X2/X3 组合或完整
