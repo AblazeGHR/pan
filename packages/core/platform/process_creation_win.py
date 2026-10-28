@@ -93,6 +93,7 @@ class OwnedPopen(subprocess.Popen):
         self.desktop = None
         self.window_guard = None
         self.hidden = hidden
+        self._owned_thread_handle = 0
         try:
             if hidden:
                 from packages.core.platform.desktop_win import HiddenDesktop
@@ -140,18 +141,32 @@ class OwnedPopen(subprocess.Popen):
             self._child_created = True
             self._handle = subprocess.Handle(process)
             self.pid = pid
-            import _winapi
-            _winapi.CloseHandle(thread)
+            self._owned_thread_handle = thread
+            self._close_owned_thread()
         finally:
             self._close_pipe_fds(p2cr, p2cw, c2pr, c2pw, errr, errw)
+
+    def _close_owned_thread(self):
+        from packages.core.terminal.identity import close_handle_checked
+        if self._owned_thread_handle:
+            if not close_handle_checked(self._owned_thread_handle):
+                raise OSError('owned thread handle close unconfirmed')
+            self._owned_thread_handle = 0
 
     def close_owned_resources(self):
         def close_process():
             handle = getattr(self, '_handle', None)
             if handle is not None:
                 self.wait(timeout=5.0)
-                handle.Close()
+                if not handle.closed:
+                    from packages.core.terminal.identity import close_handle_checked
+                    if not close_handle_checked(int(handle)):
+                        raise OSError('owned process handle close unconfirmed')
+                    # Popen.Handle.Close marks closed *before* the API call;
+                    # mark only after success so failed closes remain retryable.
+                    handle.closed = True
         close_resources(
             close_process,
+            self._close_owned_thread,
             lambda: stop_window_guard(self.window_guard) if self.window_guard is not None else None,
             lambda: self.desktop.close() if self.desktop is not None else None)

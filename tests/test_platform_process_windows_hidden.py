@@ -316,3 +316,29 @@ def test_hidden_owner_preserves_existing_token_restriction():
             with pytest.raises(Exception) as failure:
                 win32api.OpenProcess(0x200, False, owned.pid)
             assert failure.value.winerror == 5
+
+
+def test_process_handle_close_failure_remains_retryable(monkeypatch):
+    from packages.core.platform.process import WindowsProcessOwner
+    from packages.core.terminal import identity
+    from packages.jobs.cleanup import CleanupError
+    owned = WindowsProcessOwner().spawn([sys._base_executable, '-c', 'import time; time.sleep(30)'])
+    handle = owned.popen._handle
+    original = identity.close_handle_checked
+    calls = []
+    def close(value):
+        if int(value) == int(handle):
+            calls.append(int(value))
+            return False
+        return original(value)
+    monkeypatch.setattr(identity, 'close_handle_checked', close)
+    try:
+        with pytest.raises(CleanupError, match='process handle close unconfirmed'):
+            owned.close()
+        assert not owned.closed and not handle.closed
+        assert owned.guard is None
+        assert calls == [int(handle)]
+    finally:
+        monkeypatch.setattr(identity, 'close_handle_checked', original)
+        owned.close()
+    assert owned.closed and handle.closed
