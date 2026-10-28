@@ -97,6 +97,8 @@ error 与同名 failure 合并。每条包含原 node/kind/message/完整 traceb
 四条命令日志、XML、collection argv/results、函数 AST 保留结论与计数均在
 `evidence/cp-x1-remote-repair-20261028/`。JUnit 只脱敏 hostname；原失败 assertion/traceback
 保留。未安装 canonical 依赖，未使用 sys.platform 模拟代替实机，未对原失败新增 skip。
+源码/报告的 diff whitespace 检查通过；全证据 diff 检查会报告 pytest 原始红日志/XML
+traceback 的行尾空格，原样保留，不清洗失败证据或声称全证据检查通过。
 
 ## 与其他原 TA 的边界及尚未验证层
 
