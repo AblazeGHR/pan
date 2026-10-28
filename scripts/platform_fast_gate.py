@@ -31,6 +31,7 @@ FAST_TESTS = (
     "tests/test_job_runtime_owner.py",
     "tests/test_job_attempt_epoch.py",
     "tests/test_worker_platform_admission.py",
+    "tests/test_plugin_ipc_endpoint.py",
     "tests/test_quota_native_admission.py",
     "tests/test_job_process_logs.py",
     "tests/test_job_final_executors.py",
