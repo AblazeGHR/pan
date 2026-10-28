@@ -1,0 +1,67 @@
+{
+  "baseline": "036fe85f23b689195207d6794db0a70d78d87fc2",
+  "remoteHead": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "fixSha": "233c18b948d6013a0ba7934c71b1e2c79ff2e85c",
+  "platform": "win32",
+  "python": "Python 3.14.5",
+  "checks": [
+    {
+      "evidence": "baseline-representatives.xml",
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "9",
+          "skipped": "0",
+          "tests": "9",
+          "time": "2.579",
+          "timestamp": "2026-10-28T14:23:44.488474+08:00",
+          "hostname": "windows-local"
+        }
+      ],
+      "exitCode": 1
+    },
+    {
+      "evidence": "fixture-representatives.xml",
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "3",
+          "skipped": "0",
+          "tests": "3",
+          "time": "2.781",
+          "timestamp": "2026-10-28T15:10:10.740985+08:00",
+          "hostname": "windows-local"
+        }
+      ],
+      "exitCode": 1
+    },
+    {
+      "evidence": "windows-secret-store.xml",
+      "suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "45",
+          "time": "2.058",
+          "timestamp": "2026-10-28T14:24:30.079377+08:00",
+          "hostname": "windows-local"
+        }
+      ],
+      "exitCode": 0
+    }
+  ],
+  "wholeCollection": {
+    "count": 7835,
+    "exitCode": 0
+  },
+  "originalFunctionAstEqual": true,
+  "originalTopLevelFunctions": 44,
+  "secretStoreCases": 40,
+  "newHelperCases": 5,
+  "newRemoteRun": false,
+  "windowsFailuresFixed": 0
+}

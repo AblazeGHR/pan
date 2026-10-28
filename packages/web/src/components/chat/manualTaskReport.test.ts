@@ -7,6 +7,20 @@ import {
 
 const EPOCH = 'epoch-1';
 
+it('uses the persisted terminal anchor for report tails and refuses a no-body terminal', () => {
+  const user = browser('user');
+  const answer = assistant('answer');
+  const event: Message = { role: 'terminal', kind: 'terminal', content: '', messageId: 'terminal:1',
+    terminal: { eventId: 'terminal:1', terminalKey: 'seq:1', status: 'error', occurredAt: '',
+      order: 1, anchorMessageId: 'answer', taskId: null, taskSeq: 1, executionSeq: 1,
+      workerId: 'w', generation: 1 } };
+  const messages = [user, answer, event];
+  const terminal = { taskSeq: 1, resultCursor: 1, taskId: null, historyEpoch: EPOCH, historyRevision: 3 };
+  expect(findManualReportTargets(messages, session([terminal]), proofFor(messages)).get('answer')?.taskSeq).toBe(1);
+  event.terminal!.anchorMessageId = null;
+  expect(findManualReportTargets(messages, session([terminal]), proofFor(messages)).size).toBe(0);
+});
+
 it('matches many task runs by their unique offset without scanning every terminal per task', () => {
   let reads = 0;
   const messages: Message[] = [];

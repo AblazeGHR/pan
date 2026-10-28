@@ -297,6 +297,7 @@ class Worker:
     # 入队时从 session 读、自增后随 item.seq 一起落盘。
     # Runtime execution order includes report/Job batches; task seq stays queue identity.
     _execution_seq: int = 0
+    _execution_history_start: int = 0
     _current_seq: int | None = None  # 正在处理的 item 序号（_consumer 取出时记录）
     _current_task_id: str | None = None  # 正在处理的 item 的 taskId（幂等用）
     _current_task_idempotent: bool = False  # formal assign vs inherited send context
@@ -1959,6 +1960,18 @@ async def _persist_terminal_state_locked(
     # acceptance; freeze its projection here so queue/history mutations after
     # this point cannot retarget the report.
     prompt_fields = _prompt_report_fields(w._prompt_ref)
+    # Freeze before error logging yields. A later input must never become the
+    # anchor of this execution's terminal receipt.
+    terminal_anchor = next((row.get("messageId") for row in reversed(
+        s.history[w._execution_history_start:] if s is not None else [])
+        if isinstance(row, dict) and row.get("messageId")
+        and row.get("role") in {"user", "assistant", "tool", "thinking"}), None)
+    if (error_context or {}).get("previous_captured"):
+        snapshot = (error_context or {}).get("previous_message") or {}
+        terminal_anchor = (snapshot.get("messageId")
+            if snapshot.get("historyEpoch") == getattr(s, "history_epoch", None)
+            and snapshot.get("historyIndex", -1) >= w._execution_history_start else None)
+    terminal_occurred_at = datetime.now().isoformat()
     if report_diagnostic is not None:
         report_diagnostic.update(_error_log.terminal_report_fields(
             (error_context or {}).get("cli_raw")))
@@ -1975,6 +1988,10 @@ async def _persist_terminal_state_locked(
             f"Session {w.session_id} disappeared before terminal persistence"
         )
     prior_result = s.last_result if isinstance(s.last_result, dict) else None
+    known_history_terminal = next((row for row in reversed(s.history)
+        if isinstance(row, dict) and row.get("kind") == "terminal"
+        and isinstance(row.get("terminal"), dict)
+        and row["terminal"].get("terminalKey") == terminal_key), None)
     async def finish_replayed_run():
         # The existing terminal key proves this accepted idempotent execution
         # is already safe. Settle its current legality without rebroadcasting
@@ -1983,8 +2000,11 @@ async def _persist_terminal_state_locked(
         if s.legal_offline is False and _offline.same_owner(s.offline_run, identity):
             await _commit_offline(s, lambda candidate: _offline.finish(
                 candidate, identity, reason="task/durable-terminal-replay"))
-    if (prior_result and prior_result.get("terminalKey") == terminal_key
-            and prior_result.get("status") == status):
+    if ((prior_result and prior_result.get("terminalKey") == terminal_key
+            and (prior_result.get("status") == status or prior_result.get("historyTerminalId")))
+            or (known_history_terminal
+                and known_history_terminal["terminal"].get("order", 0) > 0
+                and known_history_terminal["terminal"]["order"] <= s.result_cursor)):
         # A replacement Worker can observe the provider's already-completed
         # turn again.  The durable terminal key suppresses a second result
         # broadcast when the in-memory guard was lost with the old Worker.
@@ -2132,22 +2152,61 @@ async def _persist_terminal_state_locked(
         s.unread_done_count = 0
     if status == "done" and isinstance(result_text, str) and result_text.strip():
         last = s.history[-1] if s.history else None
+        if last is known_history_terminal and known_history_terminal is not None:
+            anchor = known_history_terminal["terminal"].get("anchorMessageId")
+            last = next((row for row in reversed(s.history)
+                         if anchor and row.get("messageId") == anchor), None)
         already_appended_this_turn = (
-            last and last.get("role") == "assistant"
-            and last.get("content") == result_text
-            and last.get("messageId") in w._current_task_assistant_ids
-        )
+            last and last.get("role") == "assistant" and last.get("content") == result_text
+            and last.get("messageId") in w._current_task_assistant_ids)
         if not already_appended_this_turn:
             entry = {"role": "assistant", "content": result_text}
             _sess.append_history(s, entry)
             # Keep this append associated with the turn if the base commit
             # fails and its terminal event is retried.
             old_runtime_state["_current_task_assistant_ids"].add(entry["messageId"])
+            terminal_anchor = entry["messageId"]
+    # The history row is the durable terminal fact; terminal_results remains
+    # the existing bounded reconnect receipt. Retry a failed base commit with
+    # the original row/anchor, rather than allocating another event.
+    history_terminal = None
+    if status in {"done", "error"}:
+        history_terminal = known_history_terminal
+        if history_terminal is None:
+            diagnostic = _error_log.terminal_report_fields((error_context or {}).get("cli_raw"))
+            fallback_text, fallback_truncated = _error_log.report_text(result_text)
+            history_terminal = {
+                "role": "terminal", "kind": "terminal", "content": "",
+                "messageId": "terminal:" + terminal_key,
+                "ts": terminal_occurred_at,
+                "terminal": {
+                    "eventId": "terminal:" + terminal_key,
+                    "terminalKey": terminal_key,
+                    "status": status,
+                    "occurredAt": terminal_occurred_at,
+                    "order": result_cursor,
+                    "anchorMessageId": terminal_anchor,
+                    "taskSeq": task_seq, "taskId": task_id,
+                    "executionSeq": w._execution_seq or None,
+                    "workerId": w.worker_id, "generation": w.generation,
+                    **({"error": {
+                        "source": diagnostic["errorSource"] or (error_context or {}).get("origin"),
+                        "code": diagnostic["errorCode"],
+                        "message": diagnostic["errorText"] or fallback_text,
+                        "truncated": diagnostic["errorTextTruncated"] if diagnostic["errorText"] else fallback_truncated,
+                    }} if status == "error" else {}),
+                },
+            }
+            _sess.append_history(s, history_terminal)
+        terminal_record["historyTerminalId"] = history_terminal["messageId"]
+        s.last_result["historyTerminalId"] = history_terminal["messageId"]
     from packages.core import qq_reports
     old_qq_outbox = dict(s.qq_report_outbox)
-    if (status in {"done", "error"} and task_seq is not None
+    # Error Reports use the structured error-event ledger so Session/global
+    # paths share one claim. Successful task reports keep their existing outbox.
+    if (status == "done" and task_seq is not None
             and not w._current_report_items):
-        body = result_text if status == "error" else (w._current_task_last_assistant_text or result_text)
+        body = w._current_task_last_assistant_text or result_text
         if body:
             qq_reports.prepare(s, terminal_key, body)
     w._current_task_assistant_ids.clear()
@@ -2228,6 +2287,7 @@ async def _persist_terminal_state_locked(
         "status": status,
         "enrichmentKey": enrichment_key,
         "reportDiagnostic": report_diagnostic,
+        "historyTerminalId": history_terminal["messageId"] if history_terminal else None,
         "historyEpoch": getattr(s, "history_epoch", None),
         "historyRevision": getattr(s, "history_revision", 0),
         **prompt_fields,
@@ -2253,6 +2313,7 @@ async def _publish_terminal_events(w: Worker, terminal: dict, s) -> None:
         "taskId": terminal["taskId"],
         "resultCursor": terminal["resultCursor"],
         "terminalKey": terminal["terminalKey"],
+        "historyTerminalId": terminal.get("historyTerminalId"),
         "sourceSessionId": terminal["sourceSessionId"],
         "historyEpoch": terminal.get("historyEpoch"),
         "historyRevision": terminal.get("historyRevision", 0),
@@ -2978,6 +3039,7 @@ async def _admit_native_turn(w: Worker, runtime, *, request_id: str | None = Non
         # Only publish execution identity after the ordered writer committed it.
         w._current_seq = s.task_seq
         w._execution_seq = next_execution
+        w._execution_history_start = len(s.history)
         w._auto_report_admission = native_admission
         w._current_task_id = None
         w._current_task_idempotent = False
@@ -4059,6 +4121,7 @@ async def _deliver_queue_unit(w: Worker, s, items: list[dict]) -> None:
     if not items:
         return
     w._execution_seq += 1
+    w._execution_history_start = len(s.history)
     # A previous turn's reference can never describe this unit; it is set again
     # only by a durable hand-off below.
     w._prompt_ref = None
@@ -6289,6 +6352,12 @@ def task_tail_block_id(s, terminal: dict) -> str | None:
     covered_end = len(rows) - (current - revision)
     if covered_end <= 0 or covered_end > len(rows):
         return None
+    boundary = rows[covered_end - 1]
+    if boundary.get("kind") == "terminal":
+        anchor = boundary.get("terminal", {}).get("anchorMessageId")
+        return next((row.get("messageId") for row in rows[:covered_end]
+                     if anchor and row.get("messageId") == anchor
+                     and row.get("role") == "assistant"), None)
     for index in range(covered_end - 1, -1, -1):
         row = rows[index]
         if not isinstance(row, dict) or row.get("role") != "assistant":

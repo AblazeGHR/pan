@@ -1,0 +1,80 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\notification-locker-error-20261027
+F                                                                        [100%]
+================================== FAILURES ===================================
+___________ test_notification_settings_live_and_background_delivery ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5496/test_notification_settings_liv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000235A62D4770>
+
+    def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'data')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        evidence = {'port': h.PORT, 'realQQ': False, 'realSystem': False}
+        fixture = {'x-notification-fixture': nonce}
+        def records(): return rt.request('GET', '/__test/notification/records', headers=fixture)
+        def emit(kind, identity):
+            return rt.request('POST', '/__test/notification/emit', headers=fixture,
+                              json={'owner': owner['id'], 'kind': kind, 'id': identity})
+        try:
+            rt.start()
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['sessions']).parent == rt.data_root
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
+            auth = {'Authorization': 'Bearer ' + token}
+            owner = rt.request('POST', '/api/sessions', json={'name': 'notification-owned-source', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+            assert 'id' in owner, owner
+            emit('locker', 'history-off')
+            browser = subprocess.run(['node', 'packages/web/e2e/notification-sources.mjs', rt.base_url, str(OUT.resolve()), owner['id']],
+                env={**os.environ, 'PAN_TEST_NOTIFICATION_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=120)
+            (OUT / 'browser.log').write_text(browser.stdout + '\n' + browser.stderr, encoding='utf-8')
+>           assert browser.returncode == 0, browser.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             locator.uncheck: Clicking the checkbox did not change its state
+E             Call log:
+E             [2m  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox')[22m
+E             [2m    - locator resolved to <input checked type="checkbox"/>[22m
+E             [2m  - attempting click action[22m
+E             [2m    - waiting for element to be visible, enabled and stable[22m
+E             [2m    - element is visible, enabled and stable[22m
+E             [2m    - scrolling into view if needed[22m
+E             [2m    - done scrolling[22m
+E             [2m    - performing click action[22m
+E             [2m    - click action done[22m
+E             [2m    - waiting for scheduled navigations to finish[22m
+E             [2m    - navigations have finished[22m
+E             
+E                 at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:29:23 {
+E               log: [
+E                 "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox')",
+E                 '    - locator resolved to <input checked type="checkbox"/>',
+E                 '  - attempting click action',
+E                 '    - waiting for element to be visible, enabled and stable',
+E                 '    - element is visible, enabled and stable',
+E                 '    - scrolling into view if needed',
+E                 '    - done scrolling',
+E                 '    - performing click action',
+E                 '    - click action done',
+E                 '    - waiting for scheduled navigations to finish',
+E                 '    - navigations have finished'
+E               ],
+E               name: 'Error'
+E             }
+E             
+E             Node.js v24.22.1
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/notification-sources.mjs', 'http://127.0.0.1:61332', 'D:\\project\\pa...d navigations to finish\',\n    \'    - navigations have finished\'\n  ],\n  name: \'Error\'\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_notification_http.py:42: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_notification_http.py::test_notification_settings_live_and_background_delivery

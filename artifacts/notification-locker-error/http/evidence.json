@@ -1,0 +1,45 @@
+{
+  "port": 62366,
+  "realQQ": false,
+  "realSystem": false,
+  "ownedPidBirths": [
+    [
+      34052,
+      1793091289.3974893
+    ],
+    [
+      16624,
+      1793091289.409908
+    ],
+    [
+      16624,
+      1793091289.409908
+    ],
+    [
+      17016,
+      1793091304.5375
+    ],
+    [
+      26400,
+      1793091304.547006
+    ],
+    [
+      26400,
+      1793091304.547006
+    ]
+  ],
+  "backgroundQQ": true,
+  "samePathSystemCount": 1,
+  "duplicateEventNoReplay": true,
+  "reopenNoHistory": true,
+  "restartNoReplay": true,
+  "authRead": true,
+  "workers": 0,
+  "deliveryStates": [
+    "queued",
+    "sent",
+    "unknown"
+  ],
+  "ownedCleanupPassed": true,
+  "portReleased": true
+}

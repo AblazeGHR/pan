@@ -73,6 +73,68 @@ jobs:
           path: pytest-results.xml
           if-no-files-found: warn
 
+  ubuntu-browser:
+    name: ubuntu-browser (authenticated production HTTP, Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare fresh browser evidence
+        # These are generated fixture outputs in this disposable checkout only.
+        # Remove checked-in historical evidence before any setup can fail, so
+        # always-upload cannot mistake an old browser result for this run.
+        run: |
+          mkdir -p evidence/cp-x1-ubuntu-browser
+          rm -rf -- artifacts/notification-error-exclusions/http artifacts/history-terminal/http
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.7.0"
+
+      - name: Install Python browser test dependencies
+        run: >
+          python -m pip install -r minimal-requirements.txt
+          -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+
+      - name: Build production React bundle
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install Chromium and Linux system dependencies
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python -m playwright install --with-deps --only-shell chromium
+
+      - name: Run owned authenticated HTTP and production Chromium tests
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+          PYTHONIOENCODING: utf-8
+        shell: bash
+        run: |
+          python scripts/run_tests_isolated.py -- python -m pytest tests/test_notification_http.py tests/test_history_terminal_http.py -q -ra --junitxml=evidence/cp-x1-ubuntu-browser/pytest.xml 2>&1 | tee evidence/cp-x1-ubuntu-browser/pytest.log
+
+      - name: Upload fresh Ubuntu browser results and owned cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-browser-py312
+          path: |
+            evidence/cp-x1-ubuntu-browser/
+            artifacts/notification-error-exclusions/http/
+            artifacts/history-terminal/http/
+          if-no-files-found: warn
+
   platform-fast:
     name: platform-fast (${{ matrix.os }}, Python 3.12)
     timeout-minutes: 15

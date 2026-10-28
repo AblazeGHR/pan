@@ -62,6 +62,8 @@ import type {
 } from '@/types';
 import type { GroupMode } from '@/stores/uiStore';
 import { DataSettingsPanel } from './DataSettingsPanel';
+import { SourceNotificationPanel } from './SourceNotificationPanel';
+import { SessionErrorBridgeSetting } from './SessionErrorBridgeSetting';
 import { CompletionBridgeDefaultsPanel } from './CompletionBridgeDefaultsPanel';
 import { UnreadRecordingPanel } from './UnreadRecordingPanel';
 import { QqPluginsPanel } from './QqPluginsPanel';
@@ -1498,6 +1500,8 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
           ) : activeTab === 'notifications' ? (
             <section>
               <CompletionBridgeDefaultsPanel />
+              <SourceNotificationPanel source="lockerUnread" />
+              <SourceNotificationPanel source="newError" />
               <UnreadRecordingPanel />
               <div className="mb-5" data-testid="locker-desktop-notify-section">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
@@ -1758,6 +1762,7 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
             <ShortcutsSettings />
           ) : activeTab === 'behavior' ? (
             <>
+              <SessionErrorBridgeSetting />
               <UserCardReminderSettings />
               <AutoReportSettingsGroup />
               <section

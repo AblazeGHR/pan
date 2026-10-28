@@ -1,3 +1,45 @@
+# CP-X2 remote repair — 2026-10-28 current boundary
+
+The current candidate follows real run 40637381532 (code SHA
+`5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7`) and clean integration baseline
+`036fe85f23b689195207d6794db0a70d78d87fc2`. The earlier implementation below is
+historical where it mentions exec-bound birth or lack of target evidence.
+Remote failure evidence now exists; corrected target-platform green still needs
+MA's next authorized run.
+
+Darwin birth is now explicitly `lifetime-v1:uniqueid:start_sec:start_usec`, with
+exact boot UUID in the existing boot_id. Native flavor18/192-byte ABI, status,
+PID, pgid and pre-signal checks remain. Executable UUID and idversion are not
+lifetime birth. Legacy four-number births and unknown/malformed versions are
+unknown, with no silent adopt, no signal and no false supervisor-exit proof.
+Same kernel process across ordinary exec retains lifetime identity. A changed
+uniqueid/boot is rejected; changed start timeval within the same uniqueid remains
+unknown; changed pgid refuses signal. No schema or shared execution_host changes.
+
+CPython v3.12.10 Mac/Tools/pythonw.c lines 133-140 and 212-221 use SETEXEC into
+the actual framework interpreter. Apple XNU process identity validation separates
+exec-sensitive idversion from always-checked uniqueid. Exact versioned source
+links/line ranges are in `artifacts/cp-x2/remote-repair/primary-sources.json`.
+
+The combined-log success fixture still checks 7000 Unicode/stdout and stderr
+blocks, original Attempt/log identity, cold reopen, archive and no rerun. Its
+parent now waits for its owned child to finish naturally; it no longer asks
+POSIX to authorize an old pgid after root exit. A separate public real POSIX
+large-log leader-first negative keeps a live child, unknown cancellation,
+original resource/log queries and one effect, then cooperatively releases that
+fixture's child. The original leader-lost public test is unchanged.
+
+Current-run sanitized proofs go to `evidence/cp-x1-ci/cp-x2-proof/`, bounded to
+32KiB/file, four executions and sixteen identity probes. They omit argv/env,
+credentials and business output. CP-X1 confirmed the existing full-directory
+upload includes them; no CI edit. Real macOS framework launcher plus explicit
+exec probe is `test_macos_framework_launcher_exec_keeps_owned_lifetime` in the
+existing POSIX safety test file. Existing shared contract status/refusal
+assertions and skips stay intact; only forged birth construction now creates a
+valid mismatched uniqueid, while malformed birth has explicit unknown negatives.
+
+---
+
 # CP-X2 POSIX ProcessOwner / public Job successors — revised candidate
 
 2026-10-27. Supersedes the rejected `43765dbb` capability conclusions; that

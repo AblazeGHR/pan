@@ -312,3 +312,44 @@ def test_public_success_cold_reopen_preserves_original_attempt_once(canonical):
     assert not (o.root / 'kills.jsonl').exists()
     assert len((o.root / 'cleanups.jsonl').read_text().splitlines()) == 1
     assert not remaining(o.identities)
+
+@pytest.mark.skipif(sys.platform != 'darwin', reason='Real macOS framework launcher exec/lifetime identity')
+def test_macos_framework_launcher_exec_keeps_owned_lifetime(tmp_path):
+    from packages.core.platform.process import default_process_owner, ProcessStatus
+    from tests.job_posix_diagnostics import save_process_proof
+    owner = default_process_owner()
+    ready, release = tmp_path / 'framework-ready', tmp_path / 'framework-release'
+    exec_gate, executed_ready = tmp_path / 'exec-gate', tmp_path / 'executed-ready'
+    after_exec = "from pathlib import Path; import sys,time; Path(sys.argv[1]).touch(); exec('while not Path(sys.argv[2]).exists(): time.sleep(.01)')"
+    code = ("from pathlib import Path; import os,sys,time; Path(sys.argv[1]).touch(); "
+            "exec('while not Path(sys.argv[3]).exists(): time.sleep(.01)'); "
+            f"os.execv(sys.executable,[sys.executable,'-c',{after_exec!r},sys.argv[4],sys.argv[2]])")
+    # Use sys.executable deliberately: the official framework launcher performs
+    # SETEXEC into Python.app. No path substitution or stabilization sleep.
+    handle = owner.spawn([sys.executable, '-c', code, str(ready), str(release), str(exec_gate), str(executed_ready)])
+    original = owner.recoverable_identity(handle)
+    try:
+        wait_for(lambda: ready.exists(), bool)
+        observed = owner.identity(handle.pid)
+        assert original['birth'].startswith('lifetime-v1:')
+        assert observed.matches(handle.identity)
+        assert owner.is_alive(handle) is ProcessStatus.ALIVE
+        assert not owner.wait(handle, timeout=.05).exited
+        assert owner.verify(original).verified_alive
+        exec_gate.touch()
+        wait_for(lambda: executed_ready.exists(), bool)
+        assert owner.identity(handle.pid).matches(handle.identity)
+        assert owner.verify(original).verified_alive
+        release.touch()
+        assert owner.wait(handle, timeout=10).exited
+        for _ in range(2):
+            tree = owner.kill_tree(handle)
+            assert tree.confirmed and tree.remaining == ()
+    finally:
+        save_process_proof(tmp_path.name, identities=[original])
+        exec_gate.touch()
+        release.touch()
+        try:
+            owner.wait(handle, timeout=10)
+        finally:
+            handle.close()

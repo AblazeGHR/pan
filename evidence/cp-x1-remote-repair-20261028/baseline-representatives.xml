@@ -1,0 +1,403 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="9" time="2.579" timestamp="2026-10-28T14:23:44.488474+08:00" hostname="windows-local"><testcase classname="tests.test_background_job_retry_if" name="test_accepted_cancel_beats_orphan_recovery" time="0.008"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x0000024D8CAA50C0&gt;
+
+    def test_accepted_cancel_beats_orphan_recovery(factory):
+&gt;       job = factory(retry_if=list(retry.REASONS), max_retries=3, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:33: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_jobs_api" name="test_action_template_default_assign" time="0.118"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?">client = &lt;starlette.testclient.TestClient object at 0x0000024D8C9D6270&gt;
+fake_worker = []
+
+    def test_action_template_default_assign(client, fake_worker):
+        _register_unified_hooks()
+        _make_scheduled_task()
+        job = scheduler_store._job_for_task(
+            scheduler_store.list_tasks()[0]["id"])
+        # 无 action 字段 → 回落 assign
+        jobs._update(job["jobId"], {
+            "schedule": [{**job["schedule"][0],
+                          "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
+            registry_root=scheduler_store.data_root())
+&gt;       asyncio.run(jobs.run_due_scheduled_tasks())
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_api.py:290: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'run_due_scheduled_tasks'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_settings_ui" name="test_load_config_falls_back_to_ui_defaults_when_key_absent" time="0.004"><failure message="AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}&#10;  &#10;  Omitting 10 identical items, use -vv to show&#10;  Differing items:&#10;  {'notifications': {'codexWarningToast': True, 'lockerUnread': {'enabled': False, 'system': False, 'browser': False, 'q...alse, ...}, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}, ...}} != {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}, 'unreadRecording': ['all']}}&#10;  Left contains 1 more item:&#10;  {'sessionErrorBridge': True}&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5760/test_load_config_falls_back_to0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024D8CA89A30&gt;
+
+    def test_load_config_falls_back_to_ui_defaults_when_key_absent(tmp_path, monkeypatch):
+        p = _use_temp_config(tmp_path, monkeypatch)
+        _write(p, {"port": 9999})  # old config without "ui"
+        cfg = config.load_config()
+&gt;       assert cfg["ui"] == _UI_DEFAULTS
+E       AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}
+E         
+E         Omitting 10 identical items, use -vv to show
+E         Differing items:
+E         {'notifications': {'codexWarningToast': True, 'lockerUnread': {'enabled': False, 'system': False, 'browser': False, 'q...alse, ...}, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}, ...}} != {'notifications': {'codexWarningToast': True, 'completionBridge': {'system': True, 'browser': False, 'qqReport': False, 'qqSubscribe': False, ...}, 'unreadRecording': ['all']}}
+E         Left contains 1 more item:
+E         {'sessionErrorBridge': True}
+E         Use -v to get more diff
+
+tests\test_settings_ui.py:77: AssertionError</failure></testcase><testcase classname="tests.test_canonical_form_metadata" name="test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job" time="0.287"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8C9D5940&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='ruNn98ATZodCIgwnULRRlEPzGXpCy11dIq-Pq-v-eDY')
+
+    def test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job(h):
+        response = h.client.get('/api/jobs/actions')
+        assert response.status_code == 200
+        page = response.json()
+        item = next(a for a in page['items'] if a['id'] == 'product_session_message')
+        ref = page['references'][item['id']]
+        assert ref == object_ref('action', item)
+        definition = job_def(h)
+        definition['steps'][0]['actionRef'] = ref
+        created = h.client.post('/api/jobs', json={'definition':definition,'expectedRevision':0,'requestKey':'form-job'})
+&gt;       assert created.status_code == 201, created.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_canonical_form_metadata.py:16: AssertionError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_canonical_job_owns_concurrency_and_queued_cancel[queue-1]" time="0.558"><failure message="AssertionError: assert 0 == (1 + 'queue' == 'queue'&#10; +  where 0 = len([])&#10; +    where [] = &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC0E120&gt;.calls&#10; +      where &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC0E120&gt; = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8CB63B60&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='DBCPVsoUA-DhoonnUC3y8rZMtAuVxWrHfhAHLMF7rY8').provider&#10;  &#10;    queue)">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8CB63B60&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='DBCPVsoUA-DhoonnUC3y8rZMtAuVxWrHfhAHLMF7rY8')
+mode = 'queue', max_active = 1
+
+    @pytest.mark.parametrize('mode,max_active', [('queue', 1), ('parallel', 2)])
+    def test_canonical_job_owns_concurrency_and_queued_cancel(canonical, mode, max_active):
+        h = canonical
+        job = enabled(h, job_def(h, overlap={'mode':mode, 'maxActive':max_active, 'maxPending':16}))
+        job, target = subscription(h, job)
+        receipts = [admit(h, fact(h, str(i)), target) for i in range(3)]
+        entered, release = asyncio.Queue(), asyncio.Event()
+        send = h.provider.send_session
+        async def held(*args, **kwargs):
+            await entered.put(kwargs['effect_key']['runId'])
+            await release.wait()
+            return await send(*args, **kwargs)
+        h.provider.send_session = held
+        async def check():
+            dispatch = asyncio.create_task(h.service.dispatch_once())
+            try:
+                active = [await asyncio.wait_for(entered.get(), 2) for _ in range(max_active)]
+                assert set(active) &lt;= {r['runId'] for r in receipts}
+                assert entered.empty()
+                tail = receipts[-1]['runId']
+                assert run(h, tail)['state'] == 'queued'
+                assert operation(h, tail, 'cancel').status_code == 202
+                release.set()
+                await asyncio.wait_for(dispatch, 3)
+                await h.service.dispatch_once()
+                assert run(h, tail)['state'] == 'cancelled'
+                assert len(h.provider.calls) == max_active + (mode == 'queue')
+            finally:
+                release.set()
+                await dispatch
+&gt;       asyncio.run(check())
+
+tests\test_automation_concurrency.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            active = [await asyncio.wait_for(entered.get(), 2) for _ in range(max_active)]
+            assert set(active) &lt;= {r['runId'] for r in receipts}
+            assert entered.empty()
+            tail = receipts[-1]['runId']
+            assert run(h, tail)['state'] == 'queued'
+            assert operation(h, tail, 'cancel').status_code == 202
+            release.set()
+            await asyncio.wait_for(dispatch, 3)
+            await h.service.dispatch_once()
+            assert run(h, tail)['state'] == 'cancelled'
+&gt;           assert len(h.provider.calls) == max_active + (mode == 'queue')
+E           AssertionError: assert 0 == (1 + 'queue' == 'queue'
+E            +  where 0 = len([])
+E            +    where [] = &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC0E120&gt;.calls
+E            +      where &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC0E120&gt; = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8CB63B60&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='DBCPVsoUA-DhoonnUC3y8rZMtAuVxWrHfhAHLMF7rY8').provider
+E             
+E               queue)
+
+tests\test_automation_concurrency.py:58: AssertionError</failure></testcase><testcase classname="tests.test_automation_concurrency" name="test_canonical_job_owns_concurrency_and_queued_cancel[parallel-2]" time="0.668"><failure message="AssertionError: assert 0 == (2 + 'parallel' == 'queue'&#10; +  where 0 = len([])&#10; +    where [] = &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC8E990&gt;.calls&#10; +      where &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC8E990&gt; = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8C9D57F0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='a23K_8irxYvg2HjBS9PQ3BAguUpHgucWEM646ksDd-0').provider&#10;  &#10;  - queue&#10;  + parallel)">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8C9D57F0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='a23K_8irxYvg2HjBS9PQ3BAguUpHgucWEM646ksDd-0')
+mode = 'parallel', max_active = 2
+
+    @pytest.mark.parametrize('mode,max_active', [('queue', 1), ('parallel', 2)])
+    def test_canonical_job_owns_concurrency_and_queued_cancel(canonical, mode, max_active):
+        h = canonical
+        job = enabled(h, job_def(h, overlap={'mode':mode, 'maxActive':max_active, 'maxPending':16}))
+        job, target = subscription(h, job)
+        receipts = [admit(h, fact(h, str(i)), target) for i in range(3)]
+        entered, release = asyncio.Queue(), asyncio.Event()
+        send = h.provider.send_session
+        async def held(*args, **kwargs):
+            await entered.put(kwargs['effect_key']['runId'])
+            await release.wait()
+            return await send(*args, **kwargs)
+        h.provider.send_session = held
+        async def check():
+            dispatch = asyncio.create_task(h.service.dispatch_once())
+            try:
+                active = [await asyncio.wait_for(entered.get(), 2) for _ in range(max_active)]
+                assert set(active) &lt;= {r['runId'] for r in receipts}
+                assert entered.empty()
+                tail = receipts[-1]['runId']
+                assert run(h, tail)['state'] == 'queued'
+                assert operation(h, tail, 'cancel').status_code == 202
+                release.set()
+                await asyncio.wait_for(dispatch, 3)
+                await h.service.dispatch_once()
+                assert run(h, tail)['state'] == 'cancelled'
+                assert len(h.provider.calls) == max_active + (mode == 'queue')
+            finally:
+                release.set()
+                await dispatch
+&gt;       asyncio.run(check())
+
+tests\test_automation_concurrency.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        dispatch = asyncio.create_task(h.service.dispatch_once())
+        try:
+            active = [await asyncio.wait_for(entered.get(), 2) for _ in range(max_active)]
+            assert set(active) &lt;= {r['runId'] for r in receipts}
+            assert entered.empty()
+            tail = receipts[-1]['runId']
+            assert run(h, tail)['state'] == 'queued'
+            assert operation(h, tail, 'cancel').status_code == 202
+            release.set()
+            await asyncio.wait_for(dispatch, 3)
+            await h.service.dispatch_once()
+            assert run(h, tail)['state'] == 'cancelled'
+&gt;           assert len(h.provider.calls) == max_active + (mode == 'queue')
+E           AssertionError: assert 0 == (2 + 'parallel' == 'queue'
+E            +  where 0 = len([])
+E            +    where [] = &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC8E990&gt;.calls
+E            +      where &lt;tests.test_automation_canonical.SessionProvider object at 0x0000024D8CC8E990&gt; = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000024D8C9D57F0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='a23K_8irxYvg2HjBS9PQ3BAguUpHgucWEM646ksDd-0').provider
+E             
+E             - queue
+E             + parallel)
+
+tests\test_automation_concurrency.py:58: AssertionError</failure></testcase><testcase classname="tests.test_session_incremental" name="test_worker_path_saves_incrementally_and_reloads" time="0.036"><failure message="AssertionError: assert [{'role': 'as...25227', ...}}] == [{'role': 'as...nt': 'hello'}]&#10;  &#10;  Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:fef970bfdb2847a6b77223e6796d6c17', 'status': 'done', 'occurredAt': '2026-10-28T14:23:46.925227', ...}}&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5760/test_worker_path_saves_increme0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024D8BFAE750&gt;
+
+    def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
+        """真实 worker 读取路径（init → 流式块 → result）→ 落盘 → 冷启动重载。"""
+        _cleanup()
+        monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+        s = _sess.create(name="wkr")
+        w = worker.Worker(
+            worker_id="worker-e2e",
+            session_id=s.id,
+            adapter=CbcAdapter(),
+            status="idle",
+            process=MagicMock(),
+            pending_signal=asyncio.Queue(),
+            _replaying=False,
+            _hist_flush_event=asyncio.Event(),
+        )
+        worker.workers[w.worker_id] = w
+        w.process = MockProcess([
+            _system_init_event(cbc_sid="cbc-e2e"),
+            _assistant_event(text="hello"),
+            _result_event(result="hello"),
+        ])
+        asyncio.run(worker._read_stdout(w))
+        sid = s.id
+&gt;       assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
+E       AssertionError: assert [{'role': 'as...25227', ...}}] == [{'role': 'as...nt': 'hello'}]
+E         
+E         Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:fef970bfdb2847a6b77223e6796d6c17', 'status': 'done', 'occurredAt': '2026-10-28T14:23:46.925227', ...}}
+E         Use -v to get more diff
+
+tests\test_session_incremental.py:654: AssertionError</failure></testcase><testcase classname="tests.test_persistence_sharding" name="test_usage_merge_and_terminal_events_keep_durable_order" time="0.035"><failure message="AssertionError: assert '' == 'answer'&#10;  &#10;  - answer">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024D8CB00140&gt;
+
+    def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):
+        """Usage merge stays after base save; terminal result is persisted before events."""
+        session = _sess.create(name="terminal-order", model="initial")
+        session.cli_session_id = "cli-terminal-order"
+        session.queue_pending = [{"type": "task", "text": "queued"}]
+        _sess.save(session)
+        events = []
+    
+        async def broadcast(event):
+            events.append(event)
+    
+        worker.set_broadcaster(broadcast)
+        worker._usage_enrichment_adapters.clear()
+        worker._usage_enrichment_tasks.clear()
+        worker._usage_enrichment_locks.clear()
+    
+        class Adapter:
+            name = "cbc"
+    
+            def enrich_after_result(self, snapshot):
+                snapshot.model = "provider-model"
+                return [{"model": "provider-model",
+                         "rawUsage": {"completion_tokens": 3}}]
+    
+        worker._queue_usage_enrichment(
+            session, Adapter(), task_id="terminal-task", task_seq=1,
+            worker_id="terminal-worker", generation=1,
+        )
+        monkeypatch.setattr(worker, "_schedule_usage_enrichment", lambda _sid: None)
+        task_worker = worker.Worker(
+            worker_id="terminal-worker", session_id=session.id,
+            adapter=CbcAdapter(), status="idle", process=MagicMock(),
+            pending_signal=asyncio.Queue(),
+        )
+    
+        async def scenario():
+            # Run the provider merge through its detached snapshot path first.  It
+            # must persist usage without removing the unrelated durable queue row.
+            await worker._run_usage_enrichment(session.id)
+            assert session.model == "provider-model"
+            terminal = await worker._persist_terminal_state(
+                task_worker, session, "done", "answer",
+            )
+            await worker._publish_terminal_events(task_worker, terminal, session)
+    
+        try:
+            asyncio.run(scenario())
+            assert [event["type"] for event in events] == [
+                "worker.result", "worker.status",
+            ]
+            _sess._cache.clear()
+            loaded = _sess.get(session.id)
+            assert loaded.last_result["status"] == "done"
+&gt;           assert loaded.history[-1]["content"] == "answer"
+E           AssertionError: assert '' == 'answer'
+E             
+E             - answer
+
+tests\test_persistence_sharding.py:519: AssertionError</failure></testcase><testcase classname="tests.test_system_fields" name="test_service_persists_runtime_issue_and_keeps_quota_observer" time="0.018"><failure message="ImportError: cannot import name 'setup' from 'tests.test_event_store' (D:\project\pan-worktrees\xplat-job-fast-gates-20261027\tests\test_event_store.py)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5760/test_service_persists_runtime_0')
+
+    def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):
+        async def scenario():
+            from tests.test_event_store import setup as service_setup
+            from tests.test_automation_core import until
+            from packages.core.runtime_issues import observe as notify_observer
+            svc, _ = await service_setup(tmp_path)
+            seen = []
+            original = svc.quota_policy.observe
+    
+            def quota_observe(mapping):
+                seen.append(mapping)
+                original(mapping)
+    
+            svc.quota_policy.observe = quota_observe
+            try:
+                mapping = map_runtime_issue(
+                    {"type": "error", "status": 429,
+                     "error": {"code": "model_capacity_exceeded",
+                               "message": "Selected model is at capacity."}},
+                    adapter="cbc", metadata={"session_id": "ses_observed", "worker_id": "w1"})
+                assert mapping["event"]["system"] == {"sessionId": "ses_observed", "workerId": "w1"}
+                notify_observer(mapping)
+    
+                async def stored():
+                    page = await svc.engine.io(svc.events.page, 0, 100)
+                    return next((row for row in page["events"]
+                                 if row["event"]["type"] == "runtime.issue.v1"), None)
+    
+                await until(stored)
+                row = await stored()
+                event = row["event"]
+                assert event["system"] == {"sessionId": "ses_observed", "workerId": "w1"}
+                assert event["source"] == {"type": "core", "id": "runtime"}
+                assert event["occurredAt"]
+                assert event["payload"]["correlation"]["sessionId"] == "ses_observed"
+                assert seen and seen[0]["event"]["id"] == event["id"]
+                assert svc.bus.available("runtime.issue.v1")
+    
+                await svc.close()
+                before = len((await svc.engine.io(svc.events.page, 0, 100))["events"])
+                closed_mapping = map_runtime_issue({"type": "error", "status": 429,
+                                   "error": {"code": "model_capacity_exceeded"}},
+                                  adapter="cbc", metadata={"session_id": "ses_after_close"})
+                notify_observer(closed_mapping)
+                svc.observe_runtime_issue(closed_mapping)
+                await asyncio.sleep(.05)
+                after = len((await svc.engine.io(svc.events.page, 0, 100))["events"])
+                assert after == before
+                assert any(d.get("phase") == "runtime-issue-ingress"
+                           and "closed" in d.get("error", "").lower()
+                           for d in svc.bus.diagnostics)
+            finally:
+                if not svc.stopping:
+                    await svc.close()
+    
+&gt;       run(scenario())
+
+tests\test_system_fields.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_system_fields.py:43: in run
+    return asyncio.run(coro)
+           ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def scenario():
+&gt;       from tests.test_event_store import setup as service_setup
+E       ImportError: cannot import name 'setup' from 'tests.test_event_store' (D:\project\pan-worktrees\xplat-job-fast-gates-20261027\tests\test_event_store.py)
+
+tests\test_system_fields.py:268: ImportError</failure></testcase></testsuite></testsuites>

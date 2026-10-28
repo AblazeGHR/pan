@@ -1,0 +1,87 @@
+
+[>7u[>4;2m ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Trust this folder?
+  ↑↓ navigate · Enter select · Esc exit
+ 
+  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\after-fresh-tr
+  ust-turn-v3\kimi-trust-r5ghdprf\work
+ 
+  Load project instructions
+    Check: D:/project/pan-worktrees/kimi-terminal-trust-20261027/AGENTS.md
+ 
+  Trust is remembered for this folder, including future project config changes.
+  Tool approvals follow your permission settings.
+ 
+   ❯ Trust and continue
+     Exit
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────── ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯  ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │                                                                                                          │ 
+ │  ▐█▛█▛█▌  Welcome to Kimi Code!│ 
+ │  ▐█████▌  Send /help for help information.│ 
+ │                                                                                                          │ 
+ │  Directory: D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027…│ 
+ │  Session:   │ 
+ │  Model:     kimi-k2.6│ 
+ │  Version:   2.3.3│ 
+ │                                                                                                          │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+
+   No session yet — one will be created on your first message.
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\aft… 
+context: 0% (0/256k)  ✦ Kimi K3.1 Pro is ready - use the model in a fresh session for the best results
+   Standard: Plus/Moderato and above; Highspeed: Pro/Allegretto and above
+
+   No session yet — one will be created on your first message.
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\aft… 
+context: 0% (0/256k)  │ > hello after trust │  │ >  │  │  Session:   session_14a0f61b-8fd7-4a50-a8cd-0d302166e896│ 
+ │  Model:     kimi-k2.6│ 
+ │  Version:   2.3.3│ 
+ │                                                                                                          │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+
+ ✦ Kimi K3.1 Pro is ready - use the model in a fresh session for the best results
+   Standard: Plus/Moderato and above; Highspeed: Pro/Allegretto and above
+
+   No session yet — one will be created on your first message.
+ 
+ ❯ hello after trust
+
+  🌑 · Tip: /goal next to queue follow-up work while the current goal keeps running
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\aft… 
+context: 0% (0/256k)  
+ ● TRUST_TURN_OK
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\aft… 
+context: 1% (13/256k) 

@@ -99,10 +99,13 @@ def test_codex_stream_results_keep_the_current_task_sequence(monkeypatch):
             assert session.last_result["status"] == "done"
             assert session.last_result["result"] == result
             assert session.last_result["taskSeq"] == seq
-            assert len(session.history) == index + 1
-            assert _sess.is_pan_message_id(session.history[-1]["messageId"])
+            assert len(session.history) == (index + 1) * 2
+            assert _sess.is_pan_message_id(session.history[-2]["messageId"])
+            assert session.history[-1]["terminal"]["taskSeq"] == seq
+            assert session.history[-1]["terminal"]["status"] == "done"
+            assert session.history[-1]["terminal"]["anchorMessageId"] == session.history[-2]["messageId"]
             expected_history.append({"role": "assistant", "content": result})
-            assert _no_ts(session.history) == expected_history
+            assert _no_ts(session.history[::2]) == expected_history
             assert session.queue_pending == []
     finally:
         _cleanup()

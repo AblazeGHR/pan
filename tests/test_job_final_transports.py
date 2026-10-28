@@ -286,7 +286,9 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     pairs = Counter((method, route.path) for route in routes if hasattr(route, "methods") for method in route.methods)
     assert max(pairs.values()) == 1
     canonical = [route for route in routes if "canonical-jobs" in getattr(route, "tags", []) and not route.deprecated]
-    assert len(canonical) == 35
+    assert len(canonical) == 37
+    for path in ("/api/job-runs/{run_id}/attempts/{attempt_id}/log", "/api/job-runs/{run_id}/logs"):
+        assert pairs[("GET", path)] == 1
     assert pairs[("POST", "/api/event-creators/time-input/resolve")] == 1
     assert pairs[("POST", "/api/job-templates/{template_id}/instantiate")] == 1
     # Source management adds metadata and reference reads before the generic

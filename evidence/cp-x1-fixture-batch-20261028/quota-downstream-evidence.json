@@ -1,0 +1,10 @@
+{
+  "port": 62538,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5778\\test_quota_policy_owned_http_d0\\owned-quota-http",
+  "providerCalls": 0,
+  "switches": 0,
+  "restarts": 0,
+  "serverPid": 6336,
+  "portReleased": true,
+  "ownedServerStopped": true
+}

@@ -276,6 +276,8 @@ async def _owned_lifespan(app: FastAPI, owner):
     # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
     from packages.core import qq_reports
     qq_reports.start(_send_scheduled_qq, sessions)
+    from packages.core import source_notifications
+    source_notifications.start(_send_scheduled_qq, broadcast)
     worker.start_global_watchdog()
     global _DATA_RETENTION_LOOP
     _DATA_RETENTION_LOOP = asyncio.get_running_loop()
@@ -416,6 +418,7 @@ async def _owned_lifespan(app: FastAPI, owner):
     # spawn 中途导致 Windows Proactor 循环无法退出。
     await worker.drain_recoveries()
     await qq_reports.stop()
+    await source_notifications.stop()
     await worker.shutdown_all()
     # Release cached MemoryManagers + loaded embedding models (#20).
     try:
@@ -9787,6 +9790,8 @@ async def _update_session_settings(session_id: str, data: dict):
     s = sess.get(session_id)
     if not s:
         return {"error": "Session not found"}
+    from packages.core import source_notifications
+    previous_error_routes = source_notifications.routes("newError", s.id) if "notificationSettings" in data else None
     require_restart = False
     changing_plugins = "pluginBindings" in data or "mcpServers" in data
     previous_config = copy.deepcopy(s.adapter_config) if changing_plugins else None
@@ -9834,6 +9839,9 @@ async def _update_session_settings(session_id: str, data: dict):
             raise
     else:
         await sess.save_async(s)
+    if "notificationSettings" in data:
+        from packages.core.source_notifications import invalidate_session
+        await asyncio.to_thread(invalidate_session, s.id, previous_error_routes)
     result = _session_to_api(s)
     # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
     # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
@@ -11448,6 +11456,8 @@ async def api_get_settings_ui():
     from packages.core import auto_report
     ui = dict(load_config().get("ui") or {})
     ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    from packages.core.source_notifications import normalize_error_exclusions
+    ui['errorNotificationExclusions'] = normalize_error_exclusions(ui.get('errorNotificationExclusions'))
     return ui
 
 
@@ -11524,7 +11534,7 @@ async def api_put_data_retention(data: dict = Body(...)):
 
 
 @app.put("/api/settings/ui")
-async def api_put_settings_ui(data: dict):
+async def api_put_settings_ui(data: dict, request: Request = None):
     """Merge partial/full ui settings into config.json's ``ui`` object.
 
     Body may carry any subset of the ui fields; provided keys are merged over
@@ -11544,7 +11554,28 @@ async def api_put_settings_ui(data: dict):
             data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
         except ValueError as exc:
             raise HTTPException(422, detail=str(exc)) from exc
+    if 'errorNotificationExclusions' in data:
+        from packages.interactions.runtime import principal
+        if request is None or await principal(app, request) is None:
+            raise HTTPException(401, detail='User authorization required')
     ui = dict(load_config().get("ui") or {})
+    from packages.core.source_notifications import normalize_error_exclusions
+    if 'errorNotificationExclusionsEpoch' in data:
+        raise HTTPException(422, detail='errorNotificationExclusionsEpoch is server-managed')
+    if 'errorNotificationExclusions' in data:
+        try:
+            value = normalize_error_exclusions(data['errorNotificationExclusions'], strict=True)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+        data = {**data, 'errorNotificationExclusions': value}
+        if value != normalize_error_exclusions(ui.get('errorNotificationExclusions')):
+            data['errorNotificationExclusionsEpoch'] = uuid.uuid4().hex
+    if "sessionErrorBridge" in data:
+        if type(data["sessionErrorBridge"]) is not bool:
+            raise HTTPException(422, detail="sessionErrorBridge must be boolean")
+        data = {**data, "sessionErrorBridgeEpoch": uuid.uuid4().hex}
+    elif "sessionErrorBridgeEpoch" in data:
+        raise HTTPException(422, detail="sessionErrorBridgeEpoch is server-managed")
     if "autoForceSend" in data:
         # Strict shape: the three automatic Force sources are independent
         # booleans. Reject unknown keys and non-boolean values instead of
@@ -11592,6 +11623,15 @@ async def api_put_settings_ui(data: dict):
                     data["notifications"]["completionBridge"], strict=True)
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+        from packages.core import source_notifications
+        for source in source_notifications.SOURCES:
+            if source in data["notifications"]:
+                try:
+                    value = source_notifications.normalize(data["notifications"][source], strict=True)
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                value["epoch"] = uuid.uuid4().hex
+                updated_notifications[source] = value
         if "unreadRecording" in data["notifications"]:
             # Canonical form: empty sets become ["none"], all/none absorb the
             # category scopes, bell-on + bell-off collapse to all.
@@ -11605,6 +11645,8 @@ async def api_put_settings_ui(data: dict):
     raw["ui"] = ui
     save_config(raw)
     after_scopes = unread_policy.refresh_unread_recording()
+    if 'errorNotificationExclusions' in data:
+        await broadcast({'type': 'settings.uiUpdated'})
     if after_scopes != before_scopes:
         await broadcast({
             "type": "settings.uiUpdated",
@@ -12909,6 +12951,8 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
         old_subscriptions = set(target.qq_subscriptions)
         old_targets = set(target.qq_report_targets)
         old_outbox = {key: dict(value) for key, value in target.qq_report_outbox.items()}
+        from packages.core import source_notifications
+        previous_error_routes = source_notifications.routes("newError", target.id)
         old_settings = dict(target.notification_settings)
         rolled_back = False
         def rollback():
@@ -12945,6 +12989,8 @@ async def api_set_session_msg_bridge(session_id: str, data: dict):
             if not outcome.succeeded:
                 rollback()
             raise
+    from packages.core.source_notifications import invalidate_session
+    await asyncio.to_thread(invalidate_session, target.id, previous_error_routes)
     await broadcast({"type": "session.updated", "sessionId": session_id})
     # Unread recording policy: a bell edit can flip this Session's record
     # decision (bell-on / bell-off scopes); align its unread immediately. The
@@ -12978,6 +13024,8 @@ async def api_qq_report(session_id: str, data: dict):
             return {"ok": False, "error": {"code": "readonly_session", "message": "Readonly Session cannot be edited"}}
         if (target in s.qq_report_targets) != expected:
             return {"ok": False, "error": {"code": "state_changed", "message": "Report setting changed; refresh and retry"}}
+        from packages.core import source_notifications
+        previous_error_routes = source_notifications.routes("newError", s.id)
         old = set(s.qq_report_targets)
         old_outbox = {key: dict(value) for key, value in s.qq_report_outbox.items()}
         rolled_back = False
@@ -13007,6 +13055,8 @@ async def api_qq_report(session_id: str, data: dict):
                 rollback()
             raise
     await broadcast({"type": "session.updated", "sessionId": session_id})
+    from packages.core.source_notifications import invalidate_session
+    await asyncio.to_thread(invalidate_session, s.id, previous_error_routes)
     return {"ok": True, "sessionId": session_id, "qqReportTargets": sorted(s.qq_report_targets), "msgBridgeEnabled": _msg_bridge_enabled(s)}
 
 

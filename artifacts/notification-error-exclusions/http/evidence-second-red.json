@@ -1,0 +1,25 @@
+{
+  "port": 58002,
+  "realQQ": false,
+  "realSystem": false,
+  "ownedPidBirths": [
+    [
+      34860,
+      1793161240.7457151
+    ],
+    [
+      7704,
+      1793161240.7551277
+    ],
+    [
+      20244,
+      1793161266.577337
+    ],
+    [
+      28204,
+      1793161266.584238
+    ]
+  ],
+  "ownedCleanupPassed": true,
+  "portReleased": true
+}

@@ -145,13 +145,17 @@ child.wait(5)
     try:
         yield item
     finally:
+        from tests.job_posix_diagnostics import save_process_proof
+        documents = [client.get_execution(item.identity)] if getattr(item, "identity", None) else []
+        save_process_proof(tmp_path.name + '-before-cleanup', documents=documents,
+                           identities=item.identities, checks=item.evidence)
         (root / "hold-supervisor-exit").unlink(missing_ok=True)
         (root / "deny-probe").unlink(missing_ok=True)
         if getattr(item, "identity", None):
             doc = client.get_execution(item.identity)
             if doc.get("result") is None and doc.get("evidence", {}).get("processIdentity"):
                 client.cleanup_execution(item.identity, item.attempt)
-                wait_for(lambda: client.get_execution(item.identity), lambda d: d.get("cleanupRequest", {}).get("status") in {"confirmed", "unknown"})
+                wait_for(lambda: client.get_execution(item.identity), lambda d: d.get("result") is not None or d.get("cleanupRequest", {}).get("status") in {"confirmed", "unknown"})
         release.touch()
         # The fixture owns these direct, retained Popen children. Reap first;
         # on a failed assertion a supervisor may deliberately be holding unknown.
@@ -177,6 +181,8 @@ child.wait(5)
         out = Path("artifacts/cp-x2/revision") / interpreter / (item.evidence.get("label", "owned") + ".json")
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(item.evidence, indent=2), encoding="utf-8")
+        save_process_proof(tmp_path.name + '-after-cleanup', documents=documents,
+                           identities=item.identities, checks=item.evidence)
 
 
 def submit(owned):

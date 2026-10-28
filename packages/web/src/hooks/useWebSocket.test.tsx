@@ -14,6 +14,11 @@ import { MessageBubble } from '@/components/chat/MessageBubble';
 import { SessionItem } from '@/components/session/SessionItem';
 import { getMessageIdentity } from '@/utils/messageIdentity';
 
+const sourceNoticeMock = vi.hoisted(() => vi.fn());
+vi.mock('@/views/lockerModel', async original => ({
+  ...(await original<typeof import('@/views/lockerModel')>()), lockerRequest: sourceNoticeMock,
+}));
+
 // Capture WS handlers registered by useWebSocket so tests can dispatch events.
 const wsMock = vi.hoisted(() => {
   const handlers: Record<string, Array<(e: unknown) => void>> = {};
@@ -1340,6 +1345,40 @@ describe('useWebSocket worker.result wiring', () => {
     expect(BrowserNotification).toHaveBeenCalledWith('Pan: demo completed', { body: 'reply' });
     expect(BrowserNotification).not.toHaveProperty('requestPermission');
     vi.unstubAllGlobals();
+  });
+
+  it('keeps source notification independent from a delayed durable error terminal', async () => {
+    vi.useFakeTimers();
+    const BrowserNotification = vi.fn();
+    Object.defineProperty(BrowserNotification, 'permission', { value: 'granted', configurable: true });
+    vi.stubGlobal('Notification', BrowserNotification);
+    sourceNoticeMock.mockReset().mockResolvedValue({ title: 'Pan: New error', body: 'capacity', sessionId: 'A', source: 'newError' });
+    const body: Message = { role: 'assistant', content: 'original body', messageId: 'body-1' };
+    const error: Message = { role: 'terminal', kind: 'terminal', content: '', messageId: 'terminal:1',
+      terminal: { eventId: 'terminal:1', terminalKey: 'seq:1', status: 'error', occurredAt: '2026-10-27T00:00:00Z',
+        order: 1, anchorMessageId: 'body-1', taskId: null, taskSeq: 1, executionSeq: 1, workerId: 'w1', generation: 1,
+        error: { code: 429, source: 'cli.error', message: 'capacity' } } };
+    apiMock.fetchSessionHistory.mockResolvedValue({ history: [body, error], total: 2, start: 0,
+      hasMore: false, historyEpoch: 'coexist', historyRevision: 2 });
+    renderHook(() => useWebSocket());
+    try {
+      await act(async () => {
+        wsMock.trigger('notification.source', { type: 'notification.source', notificationId: 'notice-one' });
+        wsMock.trigger('notification.source', { type: 'notification.source', notificationId: 'notice-one' });
+        wsMock.trigger('worker.result', { type: 'worker.result', sessionId: 'A', workerId: 'w1', generation: 1,
+          taskSeq: 1, status: 'error', result: 'capacity', historyTerminalId: 'terminal:1',
+          historyEpoch: 'coexist', historyRevision: 2 });
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      expect(sourceNoticeMock).toHaveBeenCalledTimes(1);
+      expect(sourceNoticeMock).toHaveBeenCalledWith('/api/notifications/browser-events/notice-one');
+      expect(BrowserNotification).toHaveBeenCalledTimes(1);
+      expect(BrowserNotification).toHaveBeenCalledWith('Pan: New error', { body: 'capacity', tag: 'pan-event-notice-one' });
+      expect(useSessionStore.getState().currentMessages).toEqual([body, error]);
+      expect(useSessionStore.getState().currentMessages.some(row => row.content.includes('[ERROR]'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   // NOTE: this must stay the FIRST click-flow test in this file — it holds the

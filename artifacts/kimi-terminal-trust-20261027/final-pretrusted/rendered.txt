@@ -1,0 +1,55 @@
+
+[>7u 
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │                                                                                                          │
+ │  ▐█▛█▛█▌  Welcome to Kimi Code!│
+ │  ▐█████▌  Send /help for help information.│
+ │                                                                                                          │
+ │  Directory: D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027…│
+ │  Session:   │
+ │  Model:     kimi-k2.6│
+ │  Version:   2.3.3│
+ │                                                                                                          │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 
+   No session yet — one will be created on your first message.
+ 
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+ │ >  │
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\fin…
+context: 0% (0/256k)[>4;2m ✦ Kimi K3.1 Pro is ready - use the model in a fresh session for the best results
+   Standard: Plus/Moderato and above; Highspeed: Pro/Allegretto and above
+
+   No session yet — one will be created on your first message.
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\fin… 
+context: 0% (0/256k)  │ > pretrusted hello │  │ >  │  │  Session:   session_24755213-2225-4f9e-a86d-5de98fa2d59e│ 
+ │  Model:     kimi-k2.6│ 
+ │  Version:   2.3.3│ 
+ │                                                                                                          │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+
+ ✦ Kimi K3.1 Pro is ready - use the model in a fresh session for the best results
+   Standard: Plus/Moderato and above; Highspeed: Pro/Allegretto and above
+
+   No session yet — one will be created on your first message.
+ 
+ ❯ pretrusted hello
+
+  🌑
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\fin… 
+context: 0% (0/256k)  
+ ● TRUST_TURN_OK
+
+ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮ 
+ │ >  │ 
+ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯ 
+ kimi-k2.6  D:\project\pan-worktrees\kimi-terminal-trust-20261027\artifacts\kimi-terminal-trust-20261027\fin… 
+context: 1% (12/256k) 

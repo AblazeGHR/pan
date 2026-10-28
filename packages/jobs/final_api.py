@@ -82,6 +82,8 @@ class CanonicalService(Protocol):
     def runs(self, job_id: str, *, actor: Mapping[str, Any], cursor: str | None, limit: int): ...
     def create_run(self, job_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def get_run(self, run_id: str, *, actor: Mapping[str, Any]): ...
+    async def read_process_log(self, run_id: str, attempt_id: str, *, offset: int, limit: int, actor: Mapping[str, Any]): ...
+    async def process_log_references(self, run_id: str, *, actor: Mapping[str, Any], cursor: str | None, limit: int): ...
     def control_run(self, run_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     async def control_run_postcommit(self, run_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def operation(self, operation_id: str, *, actor: Mapping[str, Any]): ...
@@ -424,6 +426,31 @@ async def create_run(job_id: str, request: Request):
 async def run_detail(run_id: str, request: Request):
     who = await actor(request, "job", "read")
     return contracts.validate_record("run", await invoke(request, "get_run", run_id, actor=who))
+
+
+@router.get("/job-runs/{run_id}/attempts/{attempt_id}/log")
+async def process_log(run_id: str, attempt_id: str, request: Request):
+    who = await actor(request, "job", "read")
+    if set(request.query_params) - {"offset", "limit"} or any(
+            len(request.query_params.getlist(key)) != 1 for key in request.query_params):
+        reject("invalid_schema", "Log read accepts only one offset and limit")
+    values = {}
+    for key, default in (("offset", "0"), ("limit", "65536")):
+        raw = request.query_params.get(key, default)
+        if not re.fullmatch(r"0|[1-9][0-9]{0,18}", raw):
+            reject("invalid_schema", "Log cursor and limit must be decimal integers")
+        values[key] = int(raw)
+    from packages.jobs.process_logs import bounds
+    bounds(**values)
+    return await invoke(request, "read_process_log", run_id, attempt_id, actor=who, **values)
+
+
+@router.get("/job-runs/{run_id}/logs")
+async def process_log_references(run_id: str, request: Request):
+    who = await actor(request, "job", "read")
+    if any(len(request.query_params.getlist(key)) != 1 for key in request.query_params):
+        reject("invalid_schema", "Log references accept one cursor and limit")
+    return await invoke(request, "process_log_references", run_id, actor=who, **page(request))
 
 
 @router.post("/job-runs/{run_id}/operations")

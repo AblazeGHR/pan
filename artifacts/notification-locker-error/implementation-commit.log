@@ -1,0 +1,13 @@
+pre-commit: checking React frontend...
+React frontend OK
+[feature/notification-locker-error-20261027 fdcbfdf3] feat(notifications): route Locker unread and errors through deduplicated msgBridge
+ 23 files changed, 1335 insertions(+), 7 deletions(-)
+ create mode 100644 docs/design/notification-sources-v1.md
+ create mode 100644 packages/core/source_notifications.py
+ create mode 100644 packages/web/e2e/notification-sources.mjs
+ create mode 100644 packages/web/src/components/layout/SessionErrorBridgeSetting.tsx
+ create mode 100644 packages/web/src/components/layout/SourceNotificationPanel.test.tsx
+ create mode 100644 packages/web/src/components/layout/SourceNotificationPanel.tsx
+ create mode 100644 tests/support/notification_http_server.py
+ create mode 100644 tests/test_notification_http.py
+ create mode 100644 tests/test_source_notifications.py

@@ -212,6 +212,19 @@ See the [QQ and SnowLuma guide](QQ_PLUGIN_SNOWLUMA.en.md) for registry fields, W
 
 ### Notifications and unread recording
 
+**Behavior → Session errors → msgBridge** controls whether new Session errors use that Session's System, Browser and QQ Report connections. It defaults on to preserve QQ error reports. **Notifications → Locker new unread / New errors** provides two independent global sources, both off by default, with System, Browser and QQ Report target selection. New sources only forward notifications and have no QQ Subscribe or receiving Session; existing Session Subscribe/Report remains available. Session/global error routes deduplicate by event and channel/QQ target: enabling System in both produces one attempt. Re-enabling does not replay history. QQ/System work with the webpage closed; Browser requires an authenticated open page and previously granted permission. See the [notification source contract](design/notification-sources-v1.md) for exact error coverage, persistence and failure/unknown receipts.
+
+### Error notification exclusions
+
+Behavior's **Session errors → msgBridge** and Notifications' **New errors** share
+one exclusion setting. Enable exclusions, search the structured type catalog and
+check types to exclude. Changes save automatically; disabling retains selections.
+Types use server-known source/code identities such as
+`codex_error_payload/usageLimitExceeded`, without interpreting error prose.
+Unknown or missing structured types still forward. Exclusions affect only future
+error notification admission; error history, manager reports, Locker unread and
+previously admitted notifications remain intact.
+
 In **App Settings → Notification → Completion bell defaults**, choose System, Browser, QQ Report, or QQ Subscribe and **Save completion defaults**. QQ options require at least one default contact; search contacts by name or number. Defaults apply the next time an unlit Session bell is enabled and do not replace existing connections. Browser delivery also requires notification permission; QQ bots and selected contacts must be available when enabling the bell. QQ Report sends results; QQ Subscribe receives QQ inbox reminders.
 
 **Unread recording** defaults to All sessions and can select No sessions or categories such as Bell on/off and Pinned. Bell on and Bell off are mutually exclusive; Pinned can combine with either as a union. All sessions and No sessions are mutually exclusive and cannot be combined with categories. Excluded Sessions remain at zero; re-including starts with new completions and never restores older unread. A Session menu can enable its own tracking; saving the global policy or **Reapply settings** clears these overrides.

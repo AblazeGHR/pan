@@ -1,0 +1,37 @@
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.check: Clicking the checkbox did not change its state
+Call log:
+[2m  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })[22m
+[2m    - locator resolved to <input type="checkbox"/>[22m
+[2m  - attempting click action[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+[2m    - element is visible, enabled and stable[22m
+[2m    - scrolling into view if needed[22m
+[2m    - done scrolling[22m
+[2m    - performing click action[22m
+[2m    - click action done[22m
+[2m    - waiting for scheduled navigations to finish[22m
+[2m    - navigations have finished[22m
+
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:49:74 {
+  log: [
+    "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })",
+    '    - locator resolved to <input type="checkbox"/>',
+    '  - attempting click action',
+    '    - waiting for element to be visible, enabled and stable',
+    '    - element is visible, enabled and stable',
+    '    - scrolling into view if needed',
+    '    - done scrolling',
+    '    - performing click action',
+    '    - click action done',
+    '    - waiting for scheduled navigations to finish',
+    '    - navigations have finished'
+  ],
+  name: 'Error'
+}
+
+Node.js v24.22.1

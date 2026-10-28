@@ -283,6 +283,17 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         if len(parts) == 2 and method == "GET":
                             return self._json(200, self.store.execution_host.store.get(parts[1]))
+                        if len(parts) == 3 and parts[2] == "log" and method == "POST":
+                            body = self._body()
+                            if set(body) != {"attempt", "offset", "limit"}:
+                                raise ServiceError(400, "log read accepts original Attempt and byte window only")
+                            from packages.jobs.final_contracts import ContractError
+                            try:
+                                result = self.store.execution_host.read_execution_log(parts[1], body["attempt"],
+                                    offset=body["offset"], limit=body["limit"])
+                            except ContractError as exc:
+                                raise ServiceError(409, "original process log unavailable or invalid byte window") from exc
+                            return self._json(200, result)
                         if len(parts) == 3 and parts[2] == "cancel" and method == "POST":
                             return self._json(200, self.store.execution_host.store.cancel(parts[1], self._body()["attempt"]))
                         if len(parts) == 3 and parts[2] == "cleanup" and method == "POST":

@@ -1,0 +1,95 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_fedc141d00aa13abb6dc42f2a7ddd63d11ced4ad72b2ee03e910f1a3be7b7111",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_0f9dbb31dcf74094b8e75419",
+        "leaseId": "lease_a2854e0a5a2c4c09ac0743ad",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 39324,
+        "kind": "filetime",
+        "birth": "134376454545494007",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 39152,
+        "kind": "filetime",
+        "birth": "134376454542850170",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            39324,
+            39332,
+            39360
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 39324,
+            "kind": "filetime",
+            "birth": "134376454545494007",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          },
+          "observed": {
+            "pid": 39324,
+            "kind": "filetime",
+            "birth": "134376454545494007",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            39324,
+            39332,
+            39360
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true,
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "elapsed": 20.593,
+  "exit_code": 0,
+  "argv": [
+    "C:\\Users\\14709\\.kimi-code\\bin\\kimi.exe",
+    "-m",
+    "moonshot-cn/kimi-k2.6"
+  ],
+  "bridge_argv": [
+    "D:\\project\\Pan\\.venv\\Scripts\\python.exe",
+    "-u",
+    "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\packages\\core\\adapters\\kimi\\native_bridge.py",
+    "--kimi-path",
+    "C:\\Users\\14709\\.kimi-code\\bin\\kimi.exe",
+    "--cwd",
+    "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\artifacts\\kimi-terminal-trust-20261027\\before-fresh-untrusted\\kimi-trust-4rdmad29\\work",
+    "--session-id",
+    "",
+    "--kimi-home",
+    "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\artifacts\\kimi-terminal-trust-20261027\\before-fresh-untrusted\\kimi-trust-4rdmad29\\home",
+    "--model",
+    "moonshot-cn/kimi-k2.6"
+  ],
+  "kimi_home": "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\artifacts\\kimi-terminal-trust-20261027\\before-fresh-untrusted\\kimi-trust-4rdmad29\\home",
+  "workdir": "D:\\project\\pan-worktrees\\kimi-terminal-trust-20261027\\artifacts\\kimi-terminal-trust-20261027\\before-fresh-untrusted\\kimi-trust-4rdmad29\\work",
+  "event_types": [
+    "pan.native_busy",
+    "pan.native_ready",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_output",
+    "pan.native_error"
+  ],
+  "output_bytes": 1547,
+  "stderr_tail": "",
+  "home_tree": [
+    "cache",
+    "cache\\client-configs",
+    "cache\\client-configs\\mainland-cn%3A%2Fclient_configs%3Asurvey_popup.json",
+    "config.toml",
+    "device_id",
+    "telemetry",
+    "tui.toml",
+    "updates",
+    "updates\\latest.json",
+    "updates\\rollout.log",
+    "workspaces.json"
+  ]
+}
