@@ -166,3 +166,32 @@ jobs:
           name: platform-fast-${{ matrix.os }}-py312
           path: evidence/cp-x1-ci/
           if-no-files-found: warn
+
+
+  windows-owned-combination:
+    name: windows-owned-combination (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install bounded ownership gate dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout
+      - name: Run original controller, hidden desktop and lifetime identity gates
+        run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_lifecycle_followthrough.py tests/test_lifecycle_controller_publication.py tests/test_platform_process_windows_hidden.py -q -ra --junitxml=owned-combination.xml
+      - name: Upload original gate results and process proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-owned-combination-${{ matrix.python-version }}
+          path: |
+            owned-combination.xml
+            evidence/cp-x1-strict-successors-20261029/controller/
+            evidence/cp-x2-windows-hidden-20261028/proof/
+          if-no-files-found: warn
