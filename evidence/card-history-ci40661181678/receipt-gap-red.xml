@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="4" time="2.131" timestamp="2026-10-28T18:09:02.263608+08:00" hostname="ablaze"><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-False]" time="0.418" /><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-True]" time="0.433" /><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-False]" time="0.365"><failure message="AssertionError: assert 'unknown' == 'accepted'&#10;  &#10;  - accepted&#10;  + unknown">tests\test_p7a_successors.py:140: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:130: in check
+    assert state == ('accepted' if receipt_present else 'unknown')
+E   AssertionError: assert 'unknown' == 'accepted'
+E     
+E     - accepted
+E     + unknown</failure></testcase><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-True]" time="0.431"><failure message="AssertionError: assert 'unknown' == 'accepted'&#10;  &#10;  - accepted&#10;  + unknown">tests\test_p7a_successors.py:140: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:130: in check
+    assert state == ('accepted' if receipt_present else 'unknown')
+E   AssertionError: assert 'unknown' == 'accepted'
+E     
+E     - accepted
+E     + unknown</failure></testcase></testsuite></testsuites>

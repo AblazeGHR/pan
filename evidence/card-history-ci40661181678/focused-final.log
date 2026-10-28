@@ -1,0 +1,175 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-source-receipt-20261029
+......................FFFFFFF...                                         [100%]
+================================== FAILURES ===================================
+____ test_retained_legacy_receipt_requires_original_v1_directed_fact[none] ____
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+___ test_retained_legacy_receipt_requires_original_v1_directed_fact[target] ___
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+__ test_retained_legacy_receipt_requires_original_v1_directed_fact[revision] __
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+___ test_retained_legacy_receipt_requires_original_v1_directed_fact[fanout] ___
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+__ test_retained_legacy_receipt_requires_original_v1_directed_fact[binding] ___
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+___ test_retained_legacy_receipt_requires_original_v1_directed_fact[source] ___
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+_____ test_retained_legacy_receipt_requires_original_v1_directed_fact[v2] _____
+tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[none]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[target]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[revision]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[fanout]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[binding]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[source]
+FAILED tests/test_interaction_canonical_binding.py::test_retained_legacy_receipt_requires_original_v1_directed_fact[v2]

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="32" time="14.161" timestamp="2026-10-28T18:10:25.261546+08:00" hostname="ablaze"><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-False]" time="0.425" /><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-True]" time="0.454" /><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-False]" time="0.436" /><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-True]" time="0.472" /><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-message]" time="0.489" /><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[assign]" time="0.476" /><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-broadcast]" time="0.455" /><testcase classname="tests.test_interaction_canonical_binding" name="test_dynamic_graph_rejected" time="0.360" /><testcase classname="tests.test_interaction_canonical_binding" name="test_current_profile_authority_revocation_blocks_final_admission" time="0.389" /><testcase classname="tests.test_interaction_canonical_binding" name="test_custom_action_copy_cannot_claim_product_scope" time="0.388" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[trigger]" time="0.363" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[job]" time="0.401" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[action]" time="0.400" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[scope]" time="0.368" /><testcase classname="tests.test_interaction_canonical_binding" name="test_unknown_lost_admission_receipt_queries_original_after_graph_disabled" time="0.413" /><testcase classname="tests.test_interaction_canonical_binding" name="test_missing_original_admission_stays_unknown_without_resubmit" time="0.367" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[trigger]" time="0.410" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[job]" time="0.389" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[action]" time="0.403" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[scope]" time="0.446" /><testcase classname="tests.test_interaction_canonical_binding" name="test_no_answer_and_spoofed_graph_never_admit" time="0.359" /><testcase classname="tests.test_interaction_canonical_binding" name="test_v1_historical_proof_remains_readable_but_not_canonical_authority" time="0.331" /><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[none]" time="0.277"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[target]" time="0.398"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[revision]" time="0.396"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[fanout]" time="0.314"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[binding]" time="0.375"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[source]" time="0.308"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_retained_legacy_receipt_requires_original_v1_directed_fact[v2]" time="0.411"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_interaction_canonical_binding.py:317: in test_retained_legacy_receipt_requires_original_v1_directed_fact
+    h.svc.events.initialize()
+packages\automation\event_store.py:62: in initialize
+    with self.connection() as db:
+         ^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\automation\event_store.py:45: in connection
+    with guard, self.lock:
+         ^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_v2_question_original_ids_reconcile_independently_without_resend[False]" time="0.630" /><testcase classname="tests.test_interaction_canonical_binding" name="test_v2_question_original_ids_reconcile_independently_without_resend[True]" time="0.659" /><testcase classname="tests.test_interaction_canonical_binding" name="test_large_v2_http_canonical_admission_and_stale_proof_before_response" time="0.675" /></testsuite></testsuites>

@@ -282,6 +282,54 @@ def test_v1_historical_proof_remains_readable_but_not_canonical_authority(h):
     assert h.store.get_for_user(UserPrincipal('user'), item['id'])['trustedChoices']['go'] == proof
 
 
+@pytest.mark.parametrize('alter', ['none', 'target', 'revision', 'fanout', 'binding', 'source', 'v2'])
+def test_retained_legacy_receipt_requires_original_v1_directed_fact(h, alter):
+    from packages.interactions.trusted import digest, scope
+    from tests.test_automation_core import action, trigger
+    old_action = action([h.target.id])
+    old_trigger = {**trigger('historical'), 'revision': 1, 'eventTypes': ['pan.interaction.responded']}
+    proof = {'version': 1, 'triggerId': old_trigger['id'], 'triggerRevision': 1,
+        'triggerDigest': digest(old_trigger), 'actionId': old_action['id'], 'actionDigest': digest(old_action),
+        'action': old_action, 'arguments': {}, 'selector': old_action['execution']['selector'],
+        'authorization': scope(h.owner.id, h.owner.id, [h.target.id]), 'summary': 'historical', 'targetIds': [h.target.id]}
+    if alter == 'v2':
+        _, current, _ = graph(h.host, h.target.id)
+        item = card(h, current)
+        old_trigger = current
+    else:
+        item = h.store.create({'ownerSessionId': h.owner.id, 'recipientId': 'user', 'requestKey': 'history',
+            'card': {'title': 'old', 'body': 'old', 'choices': [{'id': 'go', 'label': 'Go',
+                'triggerRef': {'id': old_trigger['id'], 'revision': 1}}]}}, bindings={'go': proof})
+    respond(h, item)
+    with h.store.db() as db:
+        event = json.loads(db.execute('SELECT event FROM cards WHERE id=?', (item['id'],)).fetchone()[0])
+    targets = [copy.deepcopy(old_trigger)]
+    if alter == 'target':
+        targets[0]['id'] = 'unrelated'
+    elif alter == 'revision':
+        targets[0]['revision'] += 1
+    elif alter == 'fanout':
+        targets.append({**old_trigger, 'id': 'other'})
+    elif alter == 'binding':
+        event['payload']['executionBinding']['triggerId'] = 'unrelated'
+    elif alter == 'source':
+        event['source'] = {'type': 'plugin', 'id': 'untrusted'}
+    # Match final_service.bind's EventStore owner attachment; do not bypass
+    # the existing canonical writer fence when seeding retained evidence.
+    h.svc.events.owner_fence = h.host.owner
+    h.svc.events.initialize()
+    h.svc.events.append(event, targets)
+    before = copy.deepcopy(h.svc.events.lookup(event['id']))
+    jobs_before = h.host.list('job', actor=USER)['items']
+    for _ in range(2):
+        result = asyncio.run(h.adapter.lookup(event['id']))
+        assert result == ({'status': 'accepted', 'receiptId': event['id']} if alter == 'none' else None)
+    assert h.svc.events.lookup(event['id']) == before
+    assert h.host.list('job', actor=USER)['items'] == jobs_before
+    assert all(not h.host.final.get(job['id'])['runs'] for job in jobs_before)
+    assert h.svc.ledger.read()['runs'] == {}
+
+
 @pytest.mark.parametrize('delete', [False, True])
 def test_v2_question_original_ids_reconcile_independently_without_resend(h, delete):
     job, trigger, _ = graph(h.host, h.target.id, queued=True)

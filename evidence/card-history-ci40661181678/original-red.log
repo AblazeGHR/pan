@@ -1,0 +1,154 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-source-receipt-20261029
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+___ test_legacy_locker_choice_never_reenters_retired_execution[False-False] ___
+packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable
+___ test_legacy_locker_choice_never_reenters_retired_execution[False-True] ____
+packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable
+___ test_legacy_locker_choice_never_reenters_retired_execution[True-False] ____
+packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable
+____ test_legacy_locker_choice_never_reenters_retired_execution[True-True] ____
+packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution[False-False]
+FAILED tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution[False-True]
+FAILED tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution[True-False]
+FAILED tests/test_p7a_successors.py::test_legacy_locker_choice_never_reenters_retired_execution[True-True]

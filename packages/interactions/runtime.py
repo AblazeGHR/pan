@@ -140,6 +140,29 @@ def bind(service):
                 import json
                 with host.transaction(readonly=True) as db:
                     rows = db.execute('SELECT triggerId,operationId,factDigest FROM final_event_operations WHERE eventId=?', (eid,)).fetchall()
+                    if not rows:
+                        # Pre-cutover lost receipts remain read-only evidence.
+                        # A v1 fact cannot authorize a canonical admission, but
+                        # its existing directed Event persistence is observable.
+                        row = service.events.lookup(eid) if service.events.path.is_file() else None
+                        if row is None:
+                            return None
+                        event = row['event']
+                        from .contracts import InteractionError
+                        try:
+                            validate('Event', event)
+                        except InteractionError:
+                            return None
+                        binding = event['payload'].get('executionBinding', {})
+                        ref = event['payload'].get('triggerRef', {})
+                        targets = row['targets']
+                        if (event['id'] != eid or binding.get('version') != 1
+                                or ref.get('id') != binding['triggerId']
+                                or ref.get('revision', binding['triggerRevision']) != binding['triggerRevision']
+                                or len(targets) != 1 or targets[0].get('id') != binding['triggerId']
+                                or targets[0].get('revision') != binding['triggerRevision']):
+                            return None
+                        return {'status': 'accepted', 'receiptId': eid}
                     if len(rows) != 1:
                         return None
                     row = rows[0]

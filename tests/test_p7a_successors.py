@@ -61,6 +61,7 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
     from packages.actions.store import Store
     from packages.interactions.runtime import bind
     from packages.interactions.trusted import create
+    from packages.interactions.contracts import InteractionError
     from tests.test_automation_core import action, trigger
     from tests.support.canonical_owner import claim
     from packages.core import session
@@ -72,18 +73,23 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
     svc.engine.actions = Store(tmp_path / 'actions')
     svc.engine.actions.put('actions', action([target.id]))
     svc.ledger.put({**trigger('selected'), 'eventTypes': ['pan.interaction.responded']}, 0, True)
-    host = claim(svc, tmp_path / 'canonical')
     store = InteractionStore(tmp_path / 'cards.sqlite')
     user = UserPrincipal('user')
 
     async def check():
-        await svc.start()
+        # Persist the historical Card and lost receipt at the old boundary,
+        # before a canonical owner exists. This prepares history only: no
+        # service dispatcher or legacy effect loop is started.
+        svc.events.initialize()
+        svc.started = True
         adapter = bind(svc)
+        host = None
         try:
-            card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+            request = {'ownerSessionId': owner.id, 'recipientId': 'user',
                 'requestKey': 'historical-choice', 'card': {'title': 'Fixed choice', 'body': 'private',
                 'choices': [{'id': 'go', 'label': 'Approved target',
-                             'triggerRef': {'id': 'selected', 'revision': 1}}]}})
+                             'triggerRef': {'id': 'selected', 'revision': 1}}]}}
+            card = create(svc, store, request)
             frozen = copy.deepcopy(card['definition'])
             store.respond(user, card['id'], {'requestId': 'once', 'expectedRevision': 0, 'choiceId': 'go'})
             append = svc.events.append
@@ -94,6 +100,14 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
                 raise OSError('Lost original Event receipt')
             monkeypatch.setattr(svc.events, 'append', lost)
             assert (await store.dispatch(user, card['id'], adapter))['delivery']['state'] == 'unknown'
+            assert card['trustedChoices']['go']['version'] == 1
+            frozen_binding = copy.deepcopy(card['trustedChoices'])
+            svc.started = False
+            host = claim(svc, tmp_path / 'canonical')
+            await svc.start()
+            with pytest.raises(InteractionError, match='canonical graph unavailable'):
+                create(svc, store, {**request, 'requestKey': 'new-after-cutover'})
+            assert store.get_for_user(user, card['id'])['trustedChoices'] == frozen_binding
             with pytest.raises(ContractError, match='fence'):
                 svc.ledger.put({**trigger('selected'), 'enabled': False}, 1, True)
             async def forbidden(*args):
@@ -116,6 +130,7 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
                 else:
                     row = await reopened.dispatch(user, card['id'], adapter)
                     assert row['definition'] == frozen
+                    assert row['trustedChoices'] == frozen_binding
                     state = row['delivery']['state']
                 assert state == ('accepted' if receipt_present else 'unknown')
             assert len(calls) == 1 and svc.events.stats()['events'] == 1
@@ -125,7 +140,8 @@ def test_legacy_locker_choice_never_reenters_retired_execution(tmp_path, monkeyp
             assert not host.list('job', actor=USER)['items'] and not svc.ledger.read()['runs']
         finally:
             await svc.close()
-            await host.close()
+            if host is not None:
+                await host.close()
     asyncio.run(check())
 
 
