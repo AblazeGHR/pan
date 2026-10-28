@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import { McpRemoteSettings } from './McpRemoteSettings';
 import { TailscaleSettings } from './TailscaleSettings';
 import { LanSettings } from './LanSettings';
+import { RemoteSettingsSection, RemoteStatus } from './RemoteSettingsSection';
+import { Button } from '@/components/ui/Button';
 import { LoginStartupSettings } from './LoginStartupSettings';
 import { AutoReportSettingsGroup } from './AutoReportSettingsGroup';
 import {
@@ -2049,43 +2051,27 @@ export function AppSettingsModal({ open, onClose }: AppSettingsModalProps) {
               launcher-recorded tunnel process and picks up port +
               remote.protocol. */}
               {remoteStatus?.available && remoteStatus.enabled && (
-                <section>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-2">
-                    Remote / Tunnel
-                  </h3>
-                  <div className="rounded-md border border-border-muted divide-y divide-border-muted bg-bg-primary">
-                    <button
-                      type="button"
-                      disabled={remoteBusy}
-                      onClick={handleRemoteRestart}
-                      className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-xs text-text-primary">
-                          Restart tunnel
-                          <span
-                            className={`ml-2 inline-block h-1.5 w-1.5 rounded-full align-middle ${
-                              remoteStatus.running ? 'bg-success' : 'bg-danger'
-                            }`}
-                            aria-hidden
-                          />
-                        </span>
-                        <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">
-                          cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
-                          {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
-                          {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[11px] text-text-tertiary">
-                        {remoteBusy ? 'Restarting…' : 'Restart'}
-                      </span>
-                    </button>
+                <RemoteSettingsSection
+                  id="remote-tunnel"
+                  testId="remote-tunnel-section"
+                  title="Remote / Tunnel"
+                  description="cloudflared 隧道，由 Pan 启动器托管；重启会按当前 config.json 重新拉起。"
+                  status={<RemoteStatus tone={remoteStatus.running ? 'ok' : 'off'}>
+                    cloudflared · {remoteStatus.running ? 'running' : 'stopped'}
+                    {remoteStatus.protocol ? ` · ${remoteStatus.protocol}` : ''}
+                    {remoteStatus.port ? ` · :${remoteStatus.port}` : ''}
+                  </RemoteStatus>}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" disabled={remoteBusy} onClick={handleRemoteRestart}>
+                      {remoteBusy ? 'Restarting…' : 'Restart tunnel'}
+                    </Button>
                   </div>
-                  <p className="mt-1.5 text-[11px] text-text-tertiary leading-relaxed">
+                  <p className="text-[11px] text-text-tertiary leading-relaxed">
                     Stops Pan's own launcher-recorded cloudflared only — the cloudflared-ssh service
                     is untouched — and restarts it with the current config.json.
                   </p>
-                </section>
+                </RemoteSettingsSection>
               )}
               <McpRemoteSettings />
               <TailscaleSettings />

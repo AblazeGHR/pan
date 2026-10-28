@@ -22,6 +22,8 @@ const {
   updateDataRetentionMock,
   fetchCompletedJobRetentionSettingsMock,
   updateCompletedJobRetentionSettingsMock,
+  fetchRemoteStatusMock,
+  restartRemoteTunnelMock,
 } = vi.hoisted(() => ({
   fetchCodexModelsMock: vi.fn(),
   refreshCodexOfficialModelsMock: vi.fn(),
@@ -38,6 +40,8 @@ const {
   updateDataRetentionMock: vi.fn(),
   fetchCompletedJobRetentionSettingsMock: vi.fn(),
   updateCompletedJobRetentionSettingsMock: vi.fn(),
+  fetchRemoteStatusMock: vi.fn(),
+  restartRemoteTunnelMock: vi.fn(),
 }));
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/api')>();
@@ -50,11 +54,8 @@ vi.mock('@/services/api', async (importOriginal) => {
     updateDataRetention: updateDataRetentionMock,
     fetchCompletedJobRetentionSettings: fetchCompletedJobRetentionSettingsMock,
     updateCompletedJobRetentionSettings: updateCompletedJobRetentionSettingsMock,
-    fetchRemoteStatus: vi.fn().mockResolvedValue({
-      available: false,
-      enabled: false,
-      running: false,
-    }),
+    fetchRemoteStatus: fetchRemoteStatusMock,
+    restartRemoteTunnel: restartRemoteTunnelMock,
     fetchMainRestartStatus: fetchMainRestartStatusMock,
     restartMainService: restartMainServiceMock,
     fetchMainExitStatus: fetchMainExitStatusMock,
@@ -138,6 +139,9 @@ function tabLabels(): string[] {
 describe('AppSettingsModal', () => {
   beforeEach(() => {
     scrollIntoViewMock.mockClear();
+    fetchRemoteStatusMock.mockReset();
+    fetchRemoteStatusMock.mockResolvedValue({ available: false, enabled: false, running: false });
+    restartRemoteTunnelMock.mockReset();
     Element.prototype.scrollIntoView = scrollIntoViewMock;
     // McpRemoteSettings uses fetch directly rather than the mocked API module.
     // Keep the real panel mounted without adding an unrelated network-error alert.
@@ -787,6 +791,59 @@ describe('AppSettingsModal', () => {
     await waitFor(() => expect(cardEl().textContent).toContain('Sessions 元数据与 history'));
     expect(contains('Session legal-state lifecycle')).toBe(false);
     expect(contains('Reset saved UI preferences')).toBe(false);
+  });
+
+  it('renders the Remote capabilities as ordered collapsible sections and keeps tunnel restart intact', async () => {
+    fetchRemoteStatusMock.mockResolvedValue({
+      available: true,
+      enabled: true,
+      running: true,
+      protocol: 'http',
+      port: 8787,
+    });
+    restartRemoteTunnelMock.mockResolvedValue({ ok: true, restarted: true });
+    render(<AppSettingsModal open onClose={() => {}} />);
+    clickTab('remote');
+
+    await waitFor(() =>
+      expect(cardEl().textContent).toContain('cloudflared · running · http · :8787'),
+    );
+    const sections = Array.from(
+      cardEl().querySelectorAll<HTMLElement>('[data-testid$="-section"]'),
+    );
+    expect(sections.map((element) => element.dataset.testid)).toEqual([
+      'remote-tunnel-section',
+      'remote-mcp-section',
+      'remote-tailscale-section',
+      'remote-lan-section',
+    ]);
+    for (const element of sections) {
+      const header = element.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+      expect(header.getAttribute('aria-expanded')).toBe('true');
+      expect(document.getElementById(header.getAttribute('aria-controls')!)?.hidden).toBe(false);
+    }
+
+    const tunnel = sections[0]!;
+    const tunnelHeader = tunnel.querySelector<HTMLButtonElement>('button[aria-expanded]')!;
+    fireEvent.click(tunnelHeader);
+    expect(tunnelHeader.getAttribute('aria-expanded')).toBe('false');
+    expect(document.getElementById(tunnelHeader.getAttribute('aria-controls')!)?.hidden).toBe(true);
+    expect(tunnel.textContent).toContain('running');
+    fireEvent.click(tunnelHeader);
+    expect(tunnelHeader.getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart tunnel' }));
+    await waitFor(() => expect(restartRemoteTunnelMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'Restart tunnel' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+
+    const otherTitles = ['MCP 远程连接', 'Tailscale 备用访问', '普通局域网访问（LAN）'];
+    for (const title of otherTitles) {
+      expect(cardEl().textContent).toContain(title);
+    }
   });
 
   it('navigates from Lifecycle to the exact Behavior policy without writing or acting', async () => {
