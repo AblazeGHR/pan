@@ -1,0 +1,220 @@
+vite v6.4.3 building for production...
+transforming...
+✓ 2334 modules transformed.
+rendering chunks...
+computing gzip size...
+../../test-results/chat-katex-production/index.html                                         0.63 kB │ gzip:   0.36 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size3-Regular-CTq5MqoE.woff           4.42 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2          4.93 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2          5.21 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2          5.47 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size4-Regular-BF-4gkZK.woff           5.98 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size2-Regular-oD1tc_U0.woff           6.19 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size1-Regular-C195tn64.woff           6.50 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2    6.91 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2       6.91 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf            7.59 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff     7.66 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff        7.72 kB
+../../test-results/chat-katex-production/assets/KaTeX_Script-Regular-D3wIWfF6.woff2         9.64 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2     10.34 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size4-Regular-DWFBv043.ttf           10.36 kB
+../../test-results/chat-katex-production/assets/KaTeX_Script-Regular-D5yQViql.woff         10.59 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2       11.32 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2          11.35 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf           11.51 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2      12.03 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2        12.22 kB
+../../test-results/chat-katex-production/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf           12.23 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff      12.32 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf     12.34 kB
+../../test-results/chat-katex-production/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf        12.37 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff        13.21 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff           13.30 kB
+../../test-results/chat-katex-production/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2    13.57 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff       14.11 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff         14.41 kB
+../../test-results/chat-katex-production/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff     16.03 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2       16.40 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-Italic-t53AETM-.woff2           16.44 kB
+../../test-results/chat-katex-production/assets/KaTeX_Script-Regular-C5JkGWo-.ttf          16.65 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2       16.78 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2           16.99 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff        18.67 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-Italic-DA0__PXp.woff            18.75 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff        19.41 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf       19.44 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Regular-CB_wures.ttf         19.57 kB
+../../test-results/chat-katex-production/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf            19.58 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Italic-BMLOBm91.woff            19.68 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf        22.36 kB
+../../test-results/chat-katex-production/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf          24.50 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Bold-Cx986IdX.woff2             25.32 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Regular-B22Nviop.woff2          26.27 kB
+../../test-results/chat-katex-production/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf      27.56 kB
+../../test-results/chat-katex-production/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2           28.08 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Bold-Jm3AIy58.woff              29.91 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Regular-Dr94JaBh.woff           30.77 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf         31.20 kB
+../../test-results/chat-katex-production/assets/KaTeX_Math-Italic-flOr_0UB.ttf             31.31 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf         32.97 kB
+../../test-results/chat-katex-production/assets/KaTeX_AMS-Regular-DMm9YOAa.woff            33.52 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Italic-3WenGoN9.ttf             33.58 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Bold-waoOVXN0.ttf               51.34 kB
+../../test-results/chat-katex-production/assets/KaTeX_Main-Regular-ypZvNtVU.ttf            53.58 kB
+../../test-results/chat-katex-production/assets/KaTeX_AMS-Regular-DRggAlZN.ttf             63.63 kB
+../../test-results/chat-katex-production/assets/index-BOgIgkRi.css                         77.04 kB │ gzip:  17.07 kB
+../../test-results/chat-katex-production/assets/lockerModel-CXV4aU32.js                     0.98 kB │ gzip:   0.61 kB │ map:    11.20 kB
+../../test-results/chat-katex-production/assets/automationStore-DUZ11Svx.js                 7.75 kB │ gzip:   2.45 kB │ map:    35.32 kB
+../../test-results/chat-katex-production/assets/index-BfaTf0vm-pc2.js                     166.80 kB │ gzip:  50.88 kB │ map:   906.09 kB
+../../test-results/chat-katex-production/assets/react-vendor-KucjFnXj.js                  228.57 kB │ gzip:  73.09 kB │ map: 1,349.24 kB
+../../test-results/chat-katex-production/assets/markdown-vendor-JP-vCadz.js               602.61 kB │ gzip: 181.48 kB │ map: 2,599.25 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 21.41s
+{
+  "browser": "153.0.8010.12",
+  "port": 63860,
+  "applicationFontAssets": [
+    "KaTeX_AMS-Regular-BQhdFMY1.woff2",
+    "KaTeX_AMS-Regular-DMm9YOAa.woff",
+    "KaTeX_AMS-Regular-DRggAlZN.ttf",
+    "KaTeX_Caligraphic-Bold-ATXxdsX0.ttf",
+    "KaTeX_Caligraphic-Bold-BEiXGLvX.woff",
+    "KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2",
+    "KaTeX_Caligraphic-Regular-CTRA-rTL.woff",
+    "KaTeX_Caligraphic-Regular-Di6jR-x-.woff2",
+    "KaTeX_Caligraphic-Regular-wX97UBjC.ttf",
+    "KaTeX_Fraktur-Bold-BdnERNNW.ttf",
+    "KaTeX_Fraktur-Bold-BsDP51OF.woff",
+    "KaTeX_Fraktur-Bold-CL6g_b3V.woff2",
+    "KaTeX_Fraktur-Regular-CB_wures.ttf",
+    "KaTeX_Fraktur-Regular-CTYiF6lA.woff2",
+    "KaTeX_Fraktur-Regular-Dxdc4cR9.woff",
+    "KaTeX_Main-Bold-Cx986IdX.woff2",
+    "KaTeX_Main-Bold-Jm3AIy58.woff",
+    "KaTeX_Main-Bold-waoOVXN0.ttf",
+    "KaTeX_Main-BoldItalic-DxDJ3AOS.woff2",
+    "KaTeX_Main-BoldItalic-DzxPMmG6.ttf",
+    "KaTeX_Main-BoldItalic-SpSLRI95.woff",
+    "KaTeX_Main-Italic-3WenGoN9.ttf",
+    "KaTeX_Main-Italic-BMLOBm91.woff",
+    "KaTeX_Main-Italic-NWA7e6Wa.woff2",
+    "KaTeX_Main-Regular-B22Nviop.woff2",
+    "KaTeX_Main-Regular-Dr94JaBh.woff",
+    "KaTeX_Main-Regular-ypZvNtVU.ttf",
+    "KaTeX_Math-BoldItalic-B3XSjfu4.ttf",
+    "KaTeX_Math-BoldItalic-CZnvNsCZ.woff2",
+    "KaTeX_Math-BoldItalic-iY-2wyZ7.woff",
+    "KaTeX_Math-Italic-DA0__PXp.woff",
+    "KaTeX_Math-Italic-flOr_0UB.ttf",
+    "KaTeX_Math-Italic-t53AETM-.woff2",
+    "KaTeX_SansSerif-Bold-CFMepnvq.ttf",
+    "KaTeX_SansSerif-Bold-D1sUS0GD.woff2",
+    "KaTeX_SansSerif-Bold-DbIhKOiC.woff",
+    "KaTeX_SansSerif-Italic-C3H0VqGB.woff2",
+    "KaTeX_SansSerif-Italic-DN2j7dab.woff",
+    "KaTeX_SansSerif-Italic-YYjJ1zSn.ttf",
+    "KaTeX_SansSerif-Regular-BNo7hRIc.ttf",
+    "KaTeX_SansSerif-Regular-CS6fqUqJ.woff",
+    "KaTeX_SansSerif-Regular-DDBCnlJ7.woff2",
+    "KaTeX_Script-Regular-C5JkGWo-.ttf",
+    "KaTeX_Script-Regular-D3wIWfF6.woff2",
+    "KaTeX_Script-Regular-D5yQViql.woff",
+    "KaTeX_Size1-Regular-C195tn64.woff",
+    "KaTeX_Size1-Regular-Dbsnue_I.ttf",
+    "KaTeX_Size1-Regular-mCD8mA8B.woff2",
+    "KaTeX_Size2-Regular-B7gKUWhC.ttf",
+    "KaTeX_Size2-Regular-Dy4dx90m.woff2",
+    "KaTeX_Size2-Regular-oD1tc_U0.woff",
+    "KaTeX_Size3-Regular-CTq5MqoE.woff",
+    "KaTeX_Size3-Regular-DgpXs0kz.ttf",
+    "KaTeX_Size4-Regular-BF-4gkZK.woff",
+    "KaTeX_Size4-Regular-DWFBv043.ttf",
+    "KaTeX_Size4-Regular-Dl5lxZxV.woff2",
+    "KaTeX_Typewriter-Regular-C0xS9mPB.woff",
+    "KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
+    "KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf"
+  ],
+  "checks": [
+    "actual inline/block/fenced-math KaTeX + MathML, invalid containment, code/link/attachment/table preservation, CSS and loaded fonts",
+    "stream completion and active search with formulas",
+    "desktop readable layout and screenshot; wide display math scrolls locally",
+    "narrow readable layout and screenshot; wide display math scrolls locally"
+  ],
+  "pageErrors": [],
+  "requestFailures": [],
+  "resources": [
+    {
+      "url": "http://127.0.0.1:63860/react/assets/index-BOgIgkRi.css",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:63860/react/assets/KaTeX_Math-Italic-t53AETM-.woff2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:63860/react/assets/KaTeX_Main-Regular-B22Nviop.woff2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:63860/react/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2",
+      "status": 200
+    }
+  ],
+  "fonts": {
+    "family": "KaTeX_Math",
+    "loaded": [
+      "KaTeX_Main",
+      "KaTeX_Math",
+      "KaTeX_Size2"
+    ],
+    "mathmlPosition": "absolute"
+  },
+  "desktop": {
+    "width": 1440,
+    "documentWidth": 1440,
+    "formulas": [
+      {
+        "width": 780,
+        "scrollWidth": 780,
+        "overflow": "auto"
+      },
+      {
+        "width": 780,
+        "scrollWidth": 832,
+        "overflow": "auto"
+      },
+      {
+        "width": 780,
+        "scrollWidth": 780,
+        "overflow": "auto"
+      }
+    ]
+  },
+  "narrow": {
+    "width": 390,
+    "documentWidth": 390,
+    "formulas": [
+      {
+        "width": 350,
+        "scrollWidth": 350,
+        "overflow": "auto"
+      },
+      {
+        "width": 350,
+        "scrollWidth": 832,
+        "overflow": "auto"
+      },
+      {
+        "width": 350,
+        "scrollWidth": 350,
+        "overflow": "auto"
+      }
+    ]
+  },
+  "ok": true
+}

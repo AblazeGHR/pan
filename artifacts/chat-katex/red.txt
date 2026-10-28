@@ -1,0 +1,163 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/chat-katex-repair-20261028/packages/web/src
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx (10 tests | 7 failed) 92ms
+   × MarkdownRenderer dollar math > renders inline math as accessible MathML and visual KaTeX 29ms
+     → expected  to have a length of 1 but got +0
+   × MarkdownRenderer dollar math > renders a standalone double-dollar block 5ms
+     → expected  to have a length of 1 but got +0
+   × MarkdownRenderer dollar math > contains invalid formulas without losing the rest of the message 4ms
+     → expected undefined to be '\frac{' // Object.is equality
+   × MarkdownRenderer dollar math > handles incomplete inline streaming and reparses when the delimiter arrives 5ms
+     → expected undefined to be '\frac{a}{b}' // Object.is equality
+   × MarkdownRenderer dollar math > handles an open block at EOF, invalid partial tokens and completed streaming 3ms
+     → expected null to be truthy
+   × MarkdownRenderer dollar math > uses remark-math syntax for paired dollar numbers without currency heuristics 6ms
+     → expected undefined to be '5' // Object.is equality
+   × MarkdownRenderer dollar math > retains links, attachments, GFM, and search marks alongside formulas 10ms
+     → expected null to be truthy
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > renders inline math as accessible MathML and visual KaTeX
+AssertionError: expected  to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:19:50
+     17|   it('renders inline math as accessible MathML and visual KaTeX', () =…
+     18|     const { container } = render(message('Before $x^2 + y^2$ after.'));
+     19|     expect(container.querySelectorAll('.katex')).toHaveLength(1);
+       |                                                  ^
+     20|     expect(container.querySelector('math')?.getAttribute('display')).n…
+     21|     expect(container.querySelector('annotation')?.textContent).toBe('x…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > renders a standalone double-dollar block
+AssertionError: expected  to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:29:58
+     27|   it('renders a standalone double-dollar block', () => {
+     28|     const { container } = render(message('Before\n\n$$\n\\frac{a}{b}\n…
+     29|     expect(container.querySelectorAll('.katex-display')).toHaveLength(…
+       |                                                          ^
+     30|     expect(container.querySelector('math')?.getAttribute('display')).t…
+     31|     expect(container.querySelector('annotation')?.textContent).toBe('\…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > contains invalid formulas without losing the rest of the message
+AssertionError: expected undefined to be '\frac{' // Object.is equality
+
+- Expected:
+"\\frac{"
+
++ Received:
+undefined
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:46:66
+     44|   it('contains invalid formulas without losing the rest of the message…
+     45|     const { container } = render(message('Before $\\frac{$ after.\n\n*…
+     46|     expect(container.querySelector('.katex-error')?.textContent).toBe(…
+       |                                                                  ^
+     47|     expect(container.querySelector('strong')?.textContent).toBe('Still…
+     48|     expect(container.querySelectorAll('.katex')).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > handles incomplete inline streaming and reparses when the delimiter arrives
+AssertionError: expected undefined to be '\frac{a}{b}' // Object.is equality
+
+- Expected:
+"\\frac{a}{b}"
+
++ Received:
+undefined
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:56:64
+     54|     expect(container.textContent).toBe('Start $\\frac{a}');
+     55|     rerender(message('Start $\\frac{a}{b}$ done'));
+     56|     expect(container.querySelector('annotation')?.textContent).toBe('\…
+       |                                                                ^
+     57|     expect(container.textContent).toContain(' done');
+     58|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > handles an open block at EOF, invalid partial tokens and completed streaming
+AssertionError: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:62:53
+     60|   it('handles an open block at EOF, invalid partial tokens and complet…
+     61|     const { container, rerender } = render(message('$$\n\\frac{'));
+     62|     expect(container.querySelector('.katex-error')).toBeTruthy();
+       |                                                     ^
+     63|     rerender(message('$$\n\\frac{a}{b}'));
+     64|     expect(container.querySelector('.katex-display math')).toBeTruthy(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > uses remark-math syntax for paired dollar numbers without currency heuristics
+AssertionError: expected undefined to be '5' // Object.is equality
+
+- Expected:
+"5"
+
++ Received:
+undefined
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:78:64
+     76|   it('uses remark-math syntax for paired dollar numbers without curren…
+     77|     const { container } = render(message('$5$'));
+     78|     expect(container.querySelector('annotation')?.textContent).toBe('5…
+       |                                                                ^
+     79|   });
+     80|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > retains links, attachments, GFM, and search marks alongside formulas
+AssertionError: expected null to be truthy
+
+- Expected:
+true
+
++ Received:
+null
+
+ ❯ components/chat/MarkdownRenderer.katex.test.tsx:85:45
+     83|     expect(container.querySelectorAll('mark')).toHaveLength(2);
+     84|     expect(container.querySelector('mark.history-search-word-active')?…
+     85|     expect(container.querySelector('math')).toBeTruthy();
+       |                                             ^
+     86|     expect(container.querySelector('strong')?.textContent).toBe('bold'…
+     87|     expect(container.querySelector('a')?.getAttribute('href')).toBe('h…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 3 passed (10)
+   Start at  23:51:46
+   Duration  2.68s (transform 218ms, setup 16ms, collect 1.03s, tests 92ms, environment 493ms, prepare 114ms)
+
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

@@ -1,0 +1,9 @@
+pre-commit: checking React frontend...
+React frontend OK
+[fix/chat-katex-repair-20261028 b81c8a9e] fix(chat): enable dollar-delimited KaTeX rendering
+ 8 files changed, 331 insertions(+), 1 deletion(-)
+ create mode 100644 packages/web/e2e/chat-katex/index.html
+ create mode 100644 packages/web/e2e/chat-katex/main.tsx
+ create mode 100644 packages/web/e2e/chat-katex/production.mjs
+ create mode 100644 packages/web/src/components/chat/MarkdownRenderer.katex.test.tsx
+ create mode 100644 packages/web/src/components/chat/markdownMath.css

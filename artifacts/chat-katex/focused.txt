@@ -1,0 +1,29 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/chat-katex-repair-20261028/packages/web/src
+
+ ✓ utils/attachmentMarkdown.test.ts (4 tests) 12ms
+ ✓ components/chat/searchText.test.tsx (3 tests) 7ms
+stderr | components/chat/MarkdownRenderer.katex.test.tsx > MarkdownRenderer dollar math > keeps untrusted KaTeX commands and raw HTML inert
+LaTeX-incompatible input and strict mode is set to 'warn': HTML extension is disabled on strict mode [htmlExtension]
+
+ ✓ components/chat/MarkdownRenderer.katex.test.tsx (10 tests) 727ms
+stdout | components/chat/MarkdownRenderer.test.tsx > MarkdownRenderer > renders list bullets structure and hljs spans
+UL: <ul>
+<li>item one</li>
+<li>item two</li>
+</ul>
+LI: <li>item one</li>
+HLJS_KEYWORD: <span class="hljs-keyword">const</span>
+CODE: <code class="text-xs font-mono leading-relaxed hljs language-js"><span class="hljs-keyword">const</span> x = <span class="hljs-number">1</span>;
+</code>
+
+ ✓ components/chat/MarkdownRenderer.test.tsx (35 tests) 11141ms
+   ✓ MarkdownRenderer > resolves Chat same.md against the Session cwd, independently of the Editor file 377ms
+   ✓ MarkdownRenderer > preserves the entire large plain paragraph, selection text, and subsequent rich Markdown 8368ms
+
+ Test Files  4 passed (4)
+      Tests  52 passed (52)
+   Start at  23:55:10
+   Duration  24.85s (transform 3.39s, setup 92ms, collect 26.14s, tests 11.89s, environment 11.24s, prepare 1.26s)
+
+JUNIT report written to D:/project/pan-worktrees/chat-katex-repair-20261028/packages/artifacts/chat-katex/focused.xml

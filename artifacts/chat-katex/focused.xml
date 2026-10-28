@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="52" failures="0" errors="0" time="24.85">
+    <testsuite name="utils/attachmentMarkdown.test.ts" timestamp="2026-10-28T15:55:35.050Z" hostname="owned-isolated" tests="4" failures="0" errors="0" skipped="0" time="0.0121894">
+        <testcase classname="utils/attachmentMarkdown.test.ts" name="attachment Markdown protocol &gt; keeps the original display name while targeting the random storage name" time="0.0045184">
+        </testcase>
+        <testcase classname="utils/attachmentMarkdown.test.ts" name="attachment Markdown protocol &gt; keeps a line range in the text fallback link" time="0.0012545">
+        </testcase>
+        <testcase classname="utils/attachmentMarkdown.test.ts" name="attachment Markdown protocol &gt; URL-encodes path characters and rejects dangerous destinations" time="0.003216">
+        </testcase>
+        <testcase classname="utils/attachmentMarkdown.test.ts" name="attachment Markdown protocol &gt; converts only the legacy attachment marker and leaves ordinary Markdown links alone" time="0.0014296">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/MarkdownRenderer.katex.test.tsx" timestamp="2026-10-28T15:55:35.068Z" hostname="owned-isolated" tests="10" failures="0" errors="0" skipped="0" time="0.7267126">
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; renders inline math as accessible MathML and visual KaTeX" time="0.2560813">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; renders a standalone double-dollar block" time="0.0869793">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; protects inline, plain, js and latex fenced code; preserves existing math-fence rendering" time="0.1090969">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; contains invalid formulas without losing the rest of the message" time="0.0658661">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; handles incomplete inline streaming and reparses when the delimiter arrives" time="0.0375916">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; handles an open block at EOF, invalid partial tokens and completed streaming" time="0.0540353">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; uses explicit escaped dollars for currency and leaves a lone currency delimiter literal" time="0.0177601">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; uses remark-math syntax for paired dollar numbers without currency heuristics" time="0.033855">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; retains links, attachments, GFM, and search marks alongside formulas" time="0.0398684">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.katex.test.tsx" name="MarkdownRenderer dollar math &gt; keeps untrusted KaTeX commands and raw HTML inert" time="0.0231178">
+            <system-err>
+LaTeX-incompatible input and strict mode is set to &apos;warn&apos;: HTML extension is disabled on strict mode [htmlExtension]
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/MarkdownRenderer.test.tsx" timestamp="2026-10-28T15:55:35.095Z" hostname="owned-isolated" tests="35" failures="0" errors="0" skipped="0" time="11.1412338">
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat same.md against the Session cwd, independently of the Editor file" time="0.3768247">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ./文档%20说明.md against the Session cwd, independently of the Editor file" time="0.1324466">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat ../shared/guide.md#标题 against the Session cwd, independently of the Editor file" time="0.1102307">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves Chat C:\other\guide.md:2 against the Session cwd, independently of the Editor file" time="0.1226872">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ./目录%20名称/ as an Editor root without reading it as a file" time="0.09522">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens relative directory ../目录%20名称 as an Editor root without reading it as a file" time="0.0917743">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; resolves the same history link against each Session cwd" time="0.1714893">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a directory result after switching away and back to the original Session" time="0.0201862">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; drops a file read after switching to a Session with another cwd" time="0.0953331">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves the entire large plain paragraph, selection text, and subsequent rich Markdown" time="8.3680948">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps search marks and attachment handling on the ordinary pipeline for a large plain paragraph" time="0.2419686">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds giant highlighted code and copies the entire latest payload" time="0.2145006">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps addition and deletion colors in a bounded diff without coloring file headers" time="0.0256261">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; bounds a huge single line without requiring a language annotation" time="0.0255507">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps the code window mounted when a streamed fence closes" time="0.0334916">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; does not reparse historical Markdown when another message streams" time="0.033379">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders list bullets structure and hljs spans" time="0.025488">
+            <system-out>
+UL: &lt;ul&gt;
+&lt;li&gt;item one&lt;/li&gt;
+&lt;li&gt;item two&lt;/li&gt;
+&lt;/ul&gt;
+LI: &lt;li&gt;item one&lt;/li&gt;
+HLJS_KEYWORD: &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt;
+CODE: &lt;code class=&quot;text-xs font-mono leading-relaxed hljs language-js&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; x = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;
+&lt;/code&gt;
+
+            </system-out>
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses relative, Windows, file URI and line-range destinations" time="0.0062139">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; strips malformed numeric line targets while preserving ordinary path colons" time="0.0018494">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps web, mailto and document-only anchor destinations unchanged" time="0.003183">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; parses opaque editor links as server references while retaining the line range" time="0.0017566">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders attachment hrefs as clickable standard Markdown and preserves ordinary links" time="0.0134613">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; marks safe attachment links as draggable sources with the file icon" time="0.0146246">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders an opaque editor link that supports click-to-open and dragstart without a path payload" time="0.1183546">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens raster attachment links in the Editor preview using the server-owned opaque reference" time="0.1894351">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; keeps non-image attachment links on their original browser path" time="0.0101162">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; recovers a legacy attachment without display metadata using a safe download href" time="0.0150234">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; preserves local file hrefs through react-markdown URL sanitization" time="0.0096844">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a relative link through the current Session workdir and preserves its line range" time="0.0891278">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; uses the Editor preview document directory when supplied and preserves line targets" time="0.090843">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens a root-relative Windows drive href without the synthetic leading slash" time="0.0928818">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; opens source-style colon line targets without passing the suffix to the file API" time="0.0928045">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; shows a visible missing-file error instead of falling back to a web link" time="0.0936259">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="MarkdownRenderer &gt; renders a composer URL-node Markdown link with escaped parentheses" time="0.0190921">
+        </testcase>
+        <testcase classname="components/chat/MarkdownRenderer.test.tsx" name="resolves Locker links against its explicit source while another Chat stays selected" time="0.0905239">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/searchText.test.tsx" timestamp="2026-10-28T15:55:35.147Z" hostname="owned-isolated" tests="3" failures="0" errors="0" skipped="0" time="0.0070935">
+        <testcase classname="components/chat/searchText.test.tsx" name="scoped search rendering &gt; splits tool/thinking targets out of folded groups without changing normal grouping" time="0.002643">
+        </testcase>
+        <testcase classname="components/chat/searchText.test.tsx" name="scoped search rendering &gt; creates safe owned mark nodes, preserving text, links and literal markup" time="0.0015688">
+        </testcase>
+        <testcase classname="components/chat/searchText.test.tsx" name="scoped search rendering &gt; bounds dense markup while retaining the selected occurrence beyond the budget" time="0.0016443">
+        </testcase>
+    </testsuite>
+</testsuites>
