@@ -102,13 +102,21 @@ def _instrument_cpx1_nodes(request, monkeypatch, tmp_path):
     elif name == "test_locker_order_scroll_live":
         test = request.module
         (_output() / "locker-requests.json").write_text(json.dumps({"state": "browser_not_started", "requests": [], "samples": []}), encoding="utf-8")
+        from tests import test_real_queue_http_e2e as runtime_fixture
+        launcher = test.ROOT / "tests/support/cpx1_locker_timed_server.py"
+        original_start = runtime_fixture._PanRuntime.start
+        def timed_start(runtime):
+            monkeypatch.setattr(runtime_fixture, "SERVER_LAUNCHER", launcher)
+            return original_start(runtime)
+        monkeypatch.setattr(runtime_fixture._PanRuntime, "start", timed_start)
         source = test.ROOT / "packages/web/e2e/locker-order-scroll.mjs"
         raw = source.read_text(encoding="utf-8")
         marker = "const timeline=page.getByRole('region',{name:'Locker messages'});"
         if raw.count(marker) != 1:
             raise RuntimeError("original browser script instrumentation anchor changed")
         injection = r'''
-const diagStart=performance.now(), diagRequests=[], diagByRequest=new WeakMap(), diagSamples=[];
+const diagStart=performance.now(), diagWallStartMs=Date.now(), diagRequests=[], diagByRequest=new WeakMap(), diagSamples=[];
+let uiTransitionsBeforeReload=[];
 const elapsed=()=>Math.round((performance.now()-diagStart)*1000)/1000;
 page.on('request',r=>{
   const u=new URL(r.url()), m=u.pathname.match(/^\/api\/(user-locker-messages|user-inbox|reminding-cards)\/([^/]+)\/read$/);
@@ -130,10 +138,33 @@ const timer=setInterval(async()=>{
 },250);
 '''
         raw = raw.replace(marker, injection + "\n" + marker)
+        goto = "  await page.goto(base+'/react/locker');"
+        if raw.count(goto) != 1:
+            raise RuntimeError("original browser navigation anchor changed")
+        raw = raw.replace(goto, goto + r'''
+  await page.evaluate(() => {
+    window.__cpx1ReadTransitions=[];
+    new MutationObserver(changes=>{
+      for(const change of changes){
+        if(change.type!=='attributes')continue;
+        const button=change.target, label=button.getAttribute('aria-label');
+        if(label!=='Mark unread'&&label!=='Mark card as unread')continue;
+        const article=button.closest('article');
+        const id=article?.getAttribute('data-locker-message-id')||article?.getAttribute('data-card-id');
+        if(id&&window.__cpx1ReadTransitions.length<512)
+          window.__cpx1ReadTransitions.push({id,wallMs:Date.now(),label});
+      }
+    }).observe(document,{subtree:true,attributes:true,attributeFilter:['aria-label']});
+  });
+''')
+        reload_marker = "  await page.reload();"
+        if raw.count(reload_marker) != 1:
+            raise RuntimeError("original browser reload anchor changed")
+        raw = raw.replace(reload_marker, "  uiTransitionsBeforeReload=await page.evaluate(()=>window.__cpx1ReadTransitions||[]);\n" + reload_marker)
         final = "finally {await fs.writeFile(out+'/scroll-browser.json'"
         if raw.count(final) != 1:
             raise RuntimeError("original browser script finally anchor changed")
-        raw = raw.replace(final, "finally {clearInterval(timer); await fs.writeFile(process.env.CPX1_DIAGNOSTIC_DIR+'/locker-requests.json',JSON.stringify({expectedIds:f.ids,requests:diagRequests,samples:diagSamples,counts:{issued:diagRequests.length,responses:diagRequests.filter(r=>r.status!==null).length,finished:diagRequests.filter(r=>r.finishedMs!==null).length,failed:diagRequests.filter(r=>r.failed||(r.status!==null&&r.status>=400)).length}},null,2)); await fs.writeFile(out+'/scroll-browser.json'")
+        raw = raw.replace(final, "finally {clearInterval(timer); let uiTransitions=uiTransitionsBeforeReload; if(!uiTransitions.length)try {uiTransitions=await page.evaluate(()=>window.__cpx1ReadTransitions||[]);} catch {} await fs.writeFile(process.env.CPX1_DIAGNOSTIC_DIR+'/locker-requests.json',JSON.stringify({wallStartMs:diagWallStartMs,expectedIds:f.ids,requests:diagRequests,samples:diagSamples,uiTransitions,counts:{issued:diagRequests.length,responses:diagRequests.filter(r=>r.status!==null).length,finished:diagRequests.filter(r=>r.finishedMs!==null).length,failed:diagRequests.filter(r=>r.failed||(r.status!==null&&r.status>=400)).length}},null,2)); await fs.writeFile(out+'/scroll-browser.json'")
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".mjs", prefix="cpx1-diagnostic-", dir=source.parent, delete=False) as file:
             file.write(raw)
             script = Path(file.name)
