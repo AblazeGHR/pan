@@ -1,5 +1,6 @@
 """CP-X1 runner regression: collection errors cannot become a green gate."""
 import json
+import ast
 import sys
 
 import pytest
@@ -48,3 +49,37 @@ def test_integrated_worker_quota_and_log_contracts_execute_in_fast_gate(tmp_path
     assert "--collect-only" not in command
     assert not any(arg.startswith(("--ignore", "--deselect")) for arg in command)
     assert "-k" not in command
+
+
+def test_terminal_secret_store_native_declarations_are_windows_guarded():
+    """Regression for real Linux/macOS collection at ctypes.WinDLL declarations.
+
+    Static import-time boundary only; Windows execution and real POSIX collection
+    remain distinct evidence. Do not fake sys.platform to claim a target run.
+    """
+    tree = ast.parse((gate.ROOT / "tests/test_terminal_secret_store.py").read_text(encoding="utf-8"))
+
+    def import_time(nodes, guarded=False):
+        for node in nodes:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            if isinstance(node, ast.If):
+                windows = isinstance(node.test, ast.Name) and node.test.id == "WINDOWS"
+                yield from import_time(node.body, guarded or windows)
+                yield from import_time(node.orelse, guarded)
+                continue
+            for child in ast.walk(node):
+                if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
+                    if isinstance(child.func.value, ast.Name) and child.func.value.id == "ctypes":
+                        if child.func.attr == "WinDLL":
+                            yield child.lineno, guarded
+                if isinstance(child, ast.Import):
+                    if any(name.name == "ctypes.wintypes" for name in child.names):
+                        yield child.lineno, guarded
+
+    declarations = list(import_time(tree.body))
+    assert len(declarations) == 3  # wintypes and both native libraries stay covered.
+    assert all(guarded for _, guarded in declarations), declarations
+    assert not any(isinstance(node, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets
+    ) for node in tree.body), "Do not replace the import fix with a whole-module skip"
