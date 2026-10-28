@@ -453,3 +453,164 @@ def test_manual_change_during_original_attempt_tcp(tmp_path):
         assert after['attempts'][attempt]['state']=='uncertain'
         assert after['effects'][0]['receipt']['receipt']['reason']=='policy_changed'
         assert not h.policy.store.read()['commands'] and adapter.queries==2
+
+
+def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
+    """Strict successor to the original real-HTTP gap, using two owned OS PIDs."""
+    import sqlite3
+    import psutil
+    from tests import test_real_queue_http_e2e as real_http
+
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1', 0))
+        port=reservation.getsockname()[1]
+    assert port not in (8767,8768)
+    launcher=Path('evidence/quota-native/production_http_server.py').resolve()
+    monkeypatch.setattr(real_http,'PORT',port)
+    monkeypatch.setattr(real_http,'SERVER_LAUNCHER',launcher)
+    rt=real_http._PanRuntime(tmp_path/'owned-production-quota')
+    rt.data_root.mkdir()
+    (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],
+        'scheduler':{'enabled':True}}),encoding='utf-8')
+    evidence={'port':port,'launcher':str(launcher),'generations':[],
+        'realAccountQueries':0,'sourceCandidate':'a66edbaa94c1a12b22915267e22346a255f3740f'}
+
+    def calls():
+        path=rt.data_root/'quota-default-calls.jsonl'
+        return [json.loads(row) for row in path.read_text(encoding='utf-8').splitlines()] if path.exists() else []
+
+    def aggregate(jid):
+        # Supplement HTTP Run reads with the authoritative canonical Attempt/
+        # effect rows; there is no public Attempt/effect detail route yet.
+        path=rt.data_root/'job-final/event-creators/creators.sqlite3'
+        with sqlite3.connect(path.as_uri()+'?mode=ro',uri=True) as db:
+            db.execute('PRAGMA query_only=ON')
+            row=db.execute("SELECT document FROM final_documents WHERE kind='job' AND id=?",(jid,)).fetchone()
+            assert row is not None
+            return json.loads(row[0])['finalRuntime']
+
+    def started():
+        rt.start()
+        process=psutil.Process(rt.process.pid)
+        assert str(launcher) in ' '.join(process.cmdline())
+        listeners=[]
+        for pid,born,command in rt._owned_processes:
+            owned=psutil.Process(pid)
+            assert abs(owned.create_time()-born)<=.01
+            if any(c.status==psutil.CONN_LISTEN and c.laddr.port==port
+                   for c in owned.net_connections(kind='tcp')):
+                listeners.append({'pid':pid,'birthTime':born})
+        assert listeners
+        evidence['generations'].append({'pid':process.pid,'birthTime':process.create_time(),
+            'listeners':listeners})
+
+    def stopped():
+        handle=rt.process
+        if handle is None:return
+        rt._capture_owned_processes()
+        owned=list(rt._owned_processes)
+        rt.stop()
+        assert handle.poll()==0
+        retired=[]
+        for pid,born,command in owned:
+            try:
+                process=psutil.Process(pid)
+                assert abs(process.create_time()-born)>.01 or not process.is_running()
+            except psutil.NoSuchProcess:
+                pass
+            retired.append({'pid':pid,'birthTime':born,'retired':True})
+        assert real_http._port_is_free(port)
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1',port))
+        evidence['generations'][-1].update(exitCode=handle.returncode,
+            ownedProcesses=retired,portReleased=True)
+
+    try:
+        started()
+        with httpx.Client(base_url=rt.base_url,timeout=15,trust_env=False) as client:
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            token=client.post('/api/automation/login',json={'key':key}).json()['token']
+            client.cookies.clear()
+            headers={'Authorization':'Bearer '+token}
+            invalid={'Authorization':'Bearer invalid'}
+            state=client.get(URL).json()
+            assert state['mode']=='manual' and state['adapter']=='unavailable'
+            body={'disabledAccountIds':['owned-disabled-account'],'expectedRevision':state['revision']}
+            assert client.put(URL+'/disabled-accounts',json=body).status_code==401
+            assert client.put(URL+'/disabled-accounts',json=body,headers=invalid).status_code==401
+            assert client.put(URL+'/disabled-accounts',json={**body,'expectedRevision':True},headers=headers).status_code==400
+            assert client.put(URL+'/disabled-accounts',json=body,headers=headers).status_code==200
+            assert client.put(URL+'/disabled-accounts',json=body,headers=headers).status_code==409
+            state=client.get(URL).json()
+            config={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
+            assert client.put(URL,json=config,headers=invalid).status_code==401
+            assert client.put(URL,json=config,headers=headers).status_code==200
+            assert client.put(URL,json=config,headers=headers).status_code==409
+            state=client.get(URL).json()
+            request={'kind':'monitor95','expectedRevision':state['revision']}
+            rejected=client.post(URL+'/query-jobs',json=request,headers=headers)
+            assert rejected.status_code==409 and 'account unknown' in rejected.text
+            assert client.get('/api/jobs',headers=headers).json()['items']==[]
+            state=client.get(URL).json()
+            request={'kind':'once','expectedRevision':state['revision']}
+            assert client.post(URL+'/query-jobs',json=request,headers=invalid).status_code==401
+            assert client.post(URL+'/query-jobs',json={**request,'expectedRevision':0},headers=headers).status_code==409
+            admitted=client.post(URL+'/query-jobs',json=request,headers=headers)
+            assert admitted.status_code==200,admitted.text
+            job=admitted.json()['job'];jid=job['jobId']
+            def unknown():
+                rows=client.get('/api/jobs/'+jid+'/runs',headers=headers).json()['items']
+                return next((r for r in rows if r['state']=='uncertain'),None)
+            run=real_http._wait_for(unknown,label='original canonical Run unknown')
+            rid=run['runId']
+            assert client.get('/api/job-runs/'+rid,headers=invalid).status_code==401
+            assert client.get('/api/job-runs/'+rid,headers=headers).json()==run
+            original=aggregate(jid)
+            assert len(original['runs'])==len(original['attempts'])==len(original['effects'])==1
+            attempt=next(iter(original['attempts'].values()))
+            effect=original['effects'][0]
+            assert attempt['runId']==rid and attempt['state']=='uncertain'
+            assert effect['attemptId']==attempt['attemptId'] and effect['effectKey']['runId']==rid
+            assert effect['outcome']=='unknown'
+            assert effect['receipt']['receipt']['code']=='quota_provider_unavailable'
+            assert calls() and [c['method'] for c in calls()]==['query','query']
+            before_calls=calls()
+            assert {c['pid'] for c in before_calls}<={p['pid'] for p in evidence['generations'][0]['listeners']}
+            policy=Store(rt.data_root/'automation').read()
+            assert policy['quota']['status']=='unknown' and not policy['commands']
+            assert not any(k in policy for k in ('nativeEffects','nativeAdmissions','reservations'))
+            for _ in range(4):
+                assert client.post(URL+'/query-jobs',json=request,headers=headers).json()['job']==job
+                assert client.get('/api/job-runs/'+rid,headers=headers).json()==run
+                time.sleep(.25)
+            assert calls()==before_calls
+            stopped()
+            assert aggregate(jid)==original
+            started()
+            assert evidence['generations'][0]['pid']!=evidence['generations'][1]['pid']
+            # Reuse the original token, Job and Run identity after full lifespan
+            # and OS process replacement; no admission/execution probe endpoint.
+            for _ in range(4):
+                restored=client.get(URL).json()
+                assert restored['mode']=='automatic' and restored['adapter']=='unavailable'
+                assert restored['disabledAccountIds']==['owned-disabled-account']
+                assert restored['accountConfigRevision']==1 and not restored['commands']
+                assert client.get('/api/job-runs/'+rid,headers=headers).json()==run
+                assert client.get('/api/jobs/'+jid+'/runs',headers=headers).json()['items']==[run]
+                assert client.post(URL+'/query-jobs',json=request,headers=headers).json()['job']==job
+                time.sleep(.25)
+            assert calls()==before_calls
+            recovered=aggregate(jid)
+            for field in ('runs','attempts','effects'):assert recovered[field]==original[field]
+            assert Store(rt.data_root/'automation').read()==policy
+            assert not rt.fake_records()
+            evidence.update(jobId=jid,runId=rid,attemptId=attempt['attemptId'],effectKey=effect['effectKey'],
+                adapterCalls=before_calls,queryCalls=2,onceExecutionQueries=1,monitorBindingQueries=1,
+                wakeCalls=0,effects=1,attempts=1,unknownPreserved=True,noResendAfterProcessRestart=True)
+    finally:
+        try:stopped()
+        finally:
+            evidence['allOwnedProcessesStopped']=rt.process is None and all(
+                g.get('portReleased') for g in evidence['generations'])
+            Path('evidence/quota-native/process-tcp.json').write_text(
+                json.dumps(evidence,indent=2)+'\n',encoding='utf-8')
