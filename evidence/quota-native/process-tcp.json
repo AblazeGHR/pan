@@ -1,87 +1,97 @@
 {
-  "port": 57354,
+  "port": 63922,
   "launcher": "D:\\project\\pan-worktrees\\quota-native-admission-20261028\\evidence\\quota-native\\production_http_server.py",
   "generations": [
     {
-      "pid": 28320,
-      "birthTime": 1793173327.6580963,
+      "pid": 37348,
+      "birthTime": 1793182278.9463947,
       "listeners": [
         {
-          "pid": 38756,
-          "birthTime": 1793173327.682734
+          "pid": 22120,
+          "birthTime": 1793182278.9693666
         }
       ],
       "exitCode": 0,
       "ownedProcesses": [
         {
-          "pid": 28320,
-          "birthTime": 1793173327.6580963,
+          "pid": 37348,
+          "birthTime": 1793182278.9463947,
           "retired": true
         },
         {
-          "pid": 39820,
-          "birthTime": 1793173327.6690028,
+          "pid": 34484,
+          "birthTime": 1793182278.9556832,
           "retired": true
         },
         {
-          "pid": 38756,
-          "birthTime": 1793173327.682734,
+          "pid": 22120,
+          "birthTime": 1793182278.9693666,
           "retired": true
         }
       ],
-      "portReleased": true
+      "portReleased": true,
+      "rebind": {
+        "bound": true,
+        "reuseAddress": false,
+        "reusePort": false
+      }
     },
     {
-      "pid": 12604,
-      "birthTime": 1793173336.228112,
+      "pid": 3760,
+      "birthTime": 1793182287.1249633,
       "listeners": [
         {
-          "pid": 34492,
-          "birthTime": 1793173336.247549
+          "pid": 32056,
+          "birthTime": 1793182287.144538
         }
       ],
       "exitCode": 0,
       "ownedProcesses": [
         {
-          "pid": 12604,
-          "birthTime": 1793173336.228112,
+          "pid": 3760,
+          "birthTime": 1793182287.1249633,
           "retired": true
         },
         {
-          "pid": 20636,
-          "birthTime": 1793173336.2343676,
+          "pid": 38396,
+          "birthTime": 1793182287.131075,
           "retired": true
         },
         {
-          "pid": 34492,
-          "birthTime": 1793173336.247549,
+          "pid": 32056,
+          "birthTime": 1793182287.144538,
           "retired": true
         }
       ],
-      "portReleased": true
+      "portReleased": true,
+      "rebind": {
+        "bound": true,
+        "reuseAddress": false,
+        "reusePort": false
+      }
     }
   ],
   "realAccountQueries": 0,
   "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
-  "jobId": "job_cff628c7eebf6e618060a3ea",
-  "runId": "run_cf8969114c0d4b919a21ec16",
-  "attemptId": "attempt_8cf4d58cdcb2458d87254624",
+  "jobId": "job_27d8e57028b5d81ddddf77fc",
+  "runId": "run_56e287e0cc0a4a2381d546a8",
+  "attemptId": "attempt_25708ca4f3964a5a86cf22f5",
   "effectKey": {
     "operationOrdinal": 0,
-    "runId": "run_cf8969114c0d4b919a21ec16",
+    "runId": "run_56e287e0cc0a4a2381d546a8",
     "stepId": "query",
     "targetId": "system_quota_query_v1"
   },
   "adapterCalls": [
     {
       "method": "query",
-      "pid": 38756,
-      "at": 1793173330.9057438
+      "pid": 22120,
+      "at": 1793182282.0450056
     },
     {
       "method": "query",
-      "pid": 38756,
-      "at": 1793173332.3253927
+      "pid": 22120,
+      "at": 1793182283.3973045
     }
   ],
   "queryCalls": 2,
@@ -92,8 +102,8 @@
   "attempts": 1,
   "unknownPreserved": true,
   "noResendAfterProcessRestart": true,
-  "eventId": "evt_d0d0205491512d9acd9ceabff70c5f66a77bf43ad110e1ae",
-  "eventFactDigest": "255746aa13b5274843f55f9505f0e71ec6ef8e469febae08f8ee90f3de6c3678",
+  "eventId": "evt_bd07af20fddf92117f1c0606ecf91df10a2a464bf2481229",
+  "eventFactDigest": "651a98675c3a74047e4b72ad025107f04aa881b36a43a4b705bb4ced9adf6d29",
   "eventUnchanged": true,
   "unknownRetryRejected": true,
   "retiredFacadeAuthFirst": true,
