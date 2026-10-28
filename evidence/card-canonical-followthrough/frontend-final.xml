@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="43" failures="0" errors="0" time="7.253">
+    <testsuite name="views/LockerView.test.tsx" timestamp="2026-10-28T07:45:04.849Z" hostname="ablaze" tests="41" failures="0" errors="0" skipped="0" time="4.7142466">
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains no-answer-needed cards visibly with only deletion and skips bulk read" time="0.1181614">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; projects original Cards by Workspace without an aggregate container" time="0.0007555">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; uses the existing WorkspaceRail scope and renders source Locker actions" time="0.0349046">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; shows trusted choice meaning and disables an unbound choice" time="0.0268016">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; submits answer and choice, freezes the card, then deletes the completed record" time="0.1089251">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; rejects with an optional reason and preserves the reason as read-only response" time="0.0770249">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; Read all updates original source cards through the read API" time="0.0433413">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; retains a draft across source filters and applies terminal server response on refresh" time="0.0846797">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; loads every cursor page without silently truncating the inbox" time="0.0224874">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; mixes original Locker msg and Card records by timestamp and identity and clears ordinary records" time="0.0835643">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not let a late read response overwrite a newer ordinary-message revision" time="0.1560609">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; does not retain visible cards or source metadata after logout" time="0.0237185">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; keeps UserAuth failure visible and does not show cards" time="0.0254502">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 422/invalid" time="0.135991">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/capacity" time="0.1409345">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/stale" time="0.1722636">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 409/incomplete" time="0.1697624">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; allows correction after proven rejection 403/forbidden" time="0.1640122">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Locker panel &gt; reuses exact submit identity after uncertain HTTP and never switches to reject" time="0.1936122">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="never marks visible Cards or ordinary messages read on entry, scroll, refresh or source switches" time="0.2283478">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="shows context controls on cards and ordinary messages and transfers exact owner/id" time="0.1076752">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="hides missing ids and leaves failed context resolution retryable with an explicit reason" time="0.1003685">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="does not show context buttons for either item type without a related id" time="0.0423094">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="disables the context button when its owner Session is deleted" time="0.04619">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="renders twenty related entries with zero navigation requests on mount, hover, refresh or re-render" time="0.6721118">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="reminding card positions share one record &gt; renders pending once without read controls and keeps a single answered record at createdAt" time="0.0425329">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="reminding card positions share one record &gt; read and delete operate on the single original row" time="0.1158096">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="validates each required question, submits mixed rejection and answers once, and renders all results read-only" time="0.1429521">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="keeps scoped trusted choices separate and never enables an unbound question choice" time="0.0320165">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="allows undoing question rejection before submission and shows text length errors inline" time="0.0714066">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="retries v2 with the exact frozen answers after an uncertain result" time="0.0960428">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="handles arbitrary stable question and choice IDs without inherited object fields" time="0.0615559">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Session deep link and card ids &gt; opens the Locker of ?session=&lt;sessionId&gt; instead of the aggregate view" time="0.0374404">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Session deep link and card ids &gt; widens the Workspace scope when the linked Locker is outside it" time="0.0459145">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="Session deep link and card ids &gt; shows a readable copyable id on interactive and reminding cards" time="0.0413506">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; loads older rows after entering a fully read source with the same window size" time="0.6959849">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; preorders children by creation, leaves root order and unread anchor independent" time="0.001243">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; handles 20000 levels and corrupt cycles without recursion or loss" time="0.1554149">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; loads at most five older pages and reports a missing first unread" time="0.0006532">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; puts the divider before the chronological unread, not an unread attachment of a read root" time="0.0851801">
+        </testcase>
+        <testcase classname="views/LockerView.test.tsx" name="attached reminders and entry window &gt; attaches only once and allows a linked leaf to attach the next reminder" time="0.1076213">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/TrustedChoice.test.tsx" timestamp="2026-10-28T07:45:04.868Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.0249028">
+        <testcase classname="views/TrustedChoice.test.tsx" name="trusted Card proof presentation &gt; preserves the v1 Action summary and digest" time="0.0203199">
+        </testcase>
+        <testcase classname="views/TrustedChoice.test.tsx" name="trusted Card proof presentation &gt; shows actual v2 Job config revision and immutable Action references" time="0.0039142">
+        </testcase>
+    </testsuite>
+</testsuites>

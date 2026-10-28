@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="15" time="6.212" timestamp="2026-10-28T15:40:00.400856+08:00" hostname="ablaze"><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-message]" time="0.450" /><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[assign]" time="0.418" /><testcase classname="tests.test_interaction_canonical_binding" name="test_canonical_fixed_card_directed_once_original_identity[session-broadcast]" time="0.439" /><testcase classname="tests.test_interaction_canonical_binding" name="test_dynamic_graph_rejected" time="0.315" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[trigger]" time="0.367" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[job]" time="0.385" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[action]" time="0.376" /><testcase classname="tests.test_interaction_canonical_binding" name="test_final_admission_reverifies_graph_and_scope_after_initial_check[scope]" time="0.369" /><testcase classname="tests.test_interaction_canonical_binding" name="test_unknown_lost_admission_receipt_queries_original_after_graph_disabled" time="0.410" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[trigger]" time="0.408" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[job]" time="0.406" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[action]" time="0.400" /><testcase classname="tests.test_interaction_canonical_binding" name="test_concurrent_update_cannot_enter_proof_to_admission_transaction[scope]" time="0.389" /><testcase classname="tests.test_interaction_canonical_binding" name="test_no_answer_and_spoofed_graph_never_admit" time="0.317"><failure message="TypeError: InteractionStore.no_answer_needed() got an unexpected keyword argument 'producer_id'. Did you mean 'producer'?">tests\test_interaction_canonical_binding.py:211: in test_no_answer_and_spoofed_graph_never_admit
+    h.store.no_answer_needed(item['id'], expected_revision=0, producer_id=h.owner.id)
+E   TypeError: InteractionStore.no_answer_needed() got an unexpected keyword argument 'producer_id'. Did you mean 'producer'?</failure></testcase><testcase classname="tests.test_interaction_canonical_binding" name="test_v1_historical_proof_remains_readable_but_not_canonical_authority" time="0.393"><failure message="packages.interactions.contracts.InteractionError: Invalid Create payload">packages\interactions\contracts.py:28: in validate
+    jsonschema.Draft202012Validator({'$ref': '#/$defs/' + kind, '$defs': SCHEMA['$defs']}).validate(value)
+..\..\Pan-main\.venv\Lib\site-packages\jsonschema\validators.py:450: in validate
+    raise error
+E   jsonschema.exceptions.ValidationError: {'title': 'old', 'choices': [{'id': 'go', 'label': 'Go', 'triggerRef': {'id': 'trigger_b6d4063134d2463ba399c53b'}}]} is not valid under any of the given schemas
+E   
+E   Failed validating 'oneOf' in schema['properties']['card']:
+E       {'oneOf': [{'$ref': '#/$defs/DefinitionV1'},
+E                  {'$ref': '#/$defs/DefinitionV2'}]}
+E   
+E   On instance['card']:
+E       {'title': 'old',
+E        'choices': [{'id': 'go',
+E                     'label': 'Go',
+E                     'triggerRef': {'id': 'trigger_b6d4063134d2463ba399c53b'}}]}
+
+The above exception was the direct cause of the following exception:
+tests\test_interaction_canonical_binding.py:225: in test_v1_historical_proof_remains_readable_but_not_canonical_authority
+    item = h.store.create({'ownerSessionId': h.owner.id, 'recipientId': 'user', 'requestKey': 'old',
+packages\interactions\store.py:129: in create
+    validate('Create',request)
+packages\interactions\contracts.py:32: in validate
+    raise InteractionError('invalid', 'Invalid ' + kind + ' payload') from exc
+E   packages.interactions.contracts.InteractionError: Invalid Create payload</failure></testcase></testsuite></testsuites>
