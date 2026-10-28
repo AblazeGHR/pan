@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="9" time="0.715" timestamp="2026-10-28T20:25:14.737188+08:00" hostname="windows-local"><testcase classname="tests.test_main_service_exit" name="test_exit_job_records_choice_and_exact_pre_exit_running_snapshot" time="0.063"><failure message="AssertionError: assert [] == ['pan-main-exit']&#10;  &#10;  Right contains one more item: 'pan-main-exit'&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025B376ED6E0&gt;
+
+    def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+            SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+            SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        created_tasks = []
+    
+        def capture_task(coro, **kwargs):
+            created_tasks.append(kwargs.get("name"))
+            coro.close()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+    
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+        assert job["options"] == {
+            "exitStrategy": "ask",
+            "markRunningSessionsOffline": False,
+            "runningSessionIds": ["running-a", "running-b"],
+        }
+&gt;       assert created_tasks == ["pan-main-exit"]
+E       AssertionError: assert [] == ['pan-main-exit']
+E         
+E         Right contains one more item: 'pan-main-exit'
+E         Use -v to get more diff
+
+tests\test_main_service_exit.py:68: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]" time="0.066" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]" time="0.045" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]" time="0.065" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]" time="0.070" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]" time="0.041" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]" time="0.040" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]" time="0.061" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]" time="0.044" /></testsuite></testsuites>

@@ -1,0 +1,200 @@
+[
+  {
+    "node": "test_main_service_exit.py::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "Failed: DID NOT RAISE HTTPException"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_exit.py::test_exit_schedules_worker_shutdown_and_python_supervisor",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "KeyError: 'status'"
+  },
+  {
+    "node": "test_main_service_exit.py::test_duplicate_exit_is_rejected_without_second_request",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "assert True is False"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_returns_scheduled_before_python_supervisor_finishes",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "Failed: supervisor must wait for Worker shutdown"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "Failed: DID NOT RAISE HTTPException"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "TypeError: 'NoneType' object is not subscriptable"
+  },
+  {
+    "node": "test_main_service_restart.py::test_persisted_duplicate_restart_is_rejected_without_spawn",
+    "classification": "canonical_transition_product_or_projection_open",
+    "priorResult": "failed",
+    "message": "KeyError: 'status'"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+    "classification": "owned_host_original_timeout_fixture_identity_open",
+    "priorResult": "failed",
+    "message": "AssertionError: timed out waiting for owned host stopped: False"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]",
+    "classification": "legacy_runner_or_tree_open_not_covered_by_v2",
+    "priorResult": "failed",
+    "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+    "classification": "legacy_controller_setup_open_partial_canonical_crash_proof",
+    "priorResult": "failed",
+    "message": "assert False\n +  where False = until(<function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.<locals>.<lambda> at 0x0000021A9FC23E20>)"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+    "classification": "legacy_controller_setup_open_partial_canonical_crash_proof",
+    "priorResult": "failed",
+    "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000021A9FC22F00>)"
+  },
+  {
+    "node": "test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]",
+    "classification": "legacy_controller_setup_open_partial_canonical_crash_proof",
+    "priorResult": "failed",
+    "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000021A9FC23D70>)"
+  }
+]

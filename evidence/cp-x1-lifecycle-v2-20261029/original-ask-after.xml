@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="2" time="0.475" timestamp="2026-10-28T20:24:25.259995+08:00" hostname="windows-local"><testcase classname="tests.test_main_service_exit" name="test_exit_ask_requires_explicit_choice_before_job_or_worker_gate" time="0.010" /><testcase classname="tests.test_main_service_restart" name="test_restart_ask_requires_explicit_choice_before_any_side_effect" time="0.004" /></testsuite></testsuites>

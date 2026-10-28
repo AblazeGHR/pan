@@ -1,0 +1,69 @@
+[
+  {
+    "point": "started",
+    "port": 60847,
+    "popenPid": 5556,
+    "exitCode": null,
+    "listenerOwner": 35248,
+    "popenBirth": 1793189714.8872147,
+    "listenerBirth": 1793189714.9098644,
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "actionResponse",
+    "response": {
+      "ok": true,
+      "accepted": true,
+      "actionId": "system_main_lifecycle",
+      "operation": "exit",
+      "requestId": "request_c6a4b5da405418bb52209641",
+      "jobId": "job_3ca64bb998e03ae94dafa466",
+      "effectId": "effect_f6e578bc2be6a5f2b2833be6ed73fcd6e4b5b91b8cd69bcc4de55a3c4b075303"
+    }
+  },
+  {
+    "point": "before_cleanup",
+    "port": 60847,
+    "popenPid": 5556,
+    "exitCode": null,
+    "listenerOwner": 35248,
+    "popenBirth": 1793189714.8872147,
+    "listenerBirth": 1793189714.9098644,
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": [
+      {
+        "effectId": "effect_f6e578bc2be6a5f2b2833be6ed73fcd6e4b5b91b8cd69bcc4de55a3c4b075303",
+        "jobId": "job_3ca64bb998e03ae94dafa466",
+        "requestId": "request_c6a4b5da405418bb52209641",
+        "phase": "failed",
+        "result": {
+          "effectKey": {
+            "runId": "run_67d4051e42d38f9a56f6b176",
+            "stepId": "step_main_lifecycle",
+            "targetId": "main",
+            "operationOrdinal": 0
+          },
+          "outcome": "rejected",
+          "status": "rejected",
+          "ok": false,
+          "receipt": {
+            "code": "identity_unverified",
+            "phase": "failed"
+          },
+          "cleanupProof": {
+            "confirmed": true,
+            "effectStarted": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  }
+]

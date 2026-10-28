@@ -1,0 +1,184 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="15" time="1.337" timestamp="2026-10-28T20:26:58.602571+08:00" hostname="windows-local"><testcase classname="tests.test_main_service_exit" name="test_exit_job_records_choice_and_exact_pre_exit_running_snapshot" time="0.047"><failure message="AssertionError: assert [] == ['pan-main-exit']&#10;  &#10;  Right contains one more item: 'pan-main-exit'&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002027F81C640&gt;
+
+    def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+            SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+            SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        created_tasks = []
+    
+        def capture_task(coro, **kwargs):
+            created_tasks.append(kwargs.get("name"))
+            coro.close()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+    
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+        assert job["options"] == {
+            "exitStrategy": "ask",
+            "markRunningSessionsOffline": False,
+            "runningSessionIds": ["running-a", "running-b"],
+        }
+&gt;       assert created_tasks == ["pan-main-exit"]
+E       AssertionError: assert [] == ['pan-main-exit']
+E         
+E         Right contains one more item: 'pan-main-exit'
+E         Use -v to get more diff
+
+tests\test_main_service_exit.py:68: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_ask_requires_explicit_choice_before_job_or_worker_gate" time="0.005" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]" time="0.059" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]" time="0.046" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]" time="0.040" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]" time="0.061" /><testcase classname="tests.test_main_service_exit" name="test_exit_schedules_worker_shutdown_and_python_supervisor" time="0.036"><failure message="AssertionError: assert ('shutdown', ...n/main-exit'}) == ('shutdown', ...ion_ids': ()})&#10;  &#10;  At index 1 diff: {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': (), 'legal_state_source': 'pan/main-exit'} != {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': ()}&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002027F8A3450&gt;
+
+    def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(launcher, "resolve_python_argv", lambda *args, **kwargs: ([sys.executable], "test"))
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        calls = []
+    
+        async def fake_shutdown_all(**kwargs):
+            calls.append(("shutdown", kwargs))
+    
+        class FakeProcess:
+            pid = 4242
+    
+        monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True},
+        }))
+        asyncio.run(asyncio.sleep(0))
+        assert result["ok"] is True
+        assert result["status"] == "scheduled"
+        assert worker._shutdown_started is True
+&gt;       assert calls[0] == ("shutdown", {
+            "mark_legal_offline": True,
+            "mark_legal_offline_session_ids": [],
+            "preserve_legal_running_session_ids": (),
+        })
+E       AssertionError: assert ('shutdown', ...n/main-exit'}) == ('shutdown', ...ion_ids': ()})
+E         
+E         At index 1 diff: {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': (), 'legal_state_source': 'pan/main-exit'} != {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': ()}
+E         Use -v to get more diff
+
+tests\test_main_service_exit.py:201: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_duplicate_exit_is_rejected_without_second_request" time="0.004"><failure message="fastapi.exceptions.HTTPException: 400: {'code': 'lifecycle_choice_required', 'operation': 'exit', 'field': 'markRunningSessionsOffline', 'message': 'choose whether legal-running Sessions should be marked offline before this service operation'}">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002027F9CB980&gt;
+
+    def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(srv, "_main_exit_pending", True)
+        monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
+&gt;       result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_main_service_exit.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\web\server.py:4126: in api_system_main_lifecycle
+    options = await _snapshot_main_lifecycle_options(options, operation)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:773: in _snapshot_main_lifecycle_options
+    strategy, mark_running_offline = _resolve_main_lifecycle_policy(options, operation)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+options = {}, operation = 'exit'
+
+    def _resolve_main_lifecycle_policy(options: dict, operation: str) -&gt; tuple[str, bool]:
+        """Resolve one shared Restart/Exit choice from the saved Session policy."""
+        if options.get("preserveRunningIllegal") is True:
+            return "preserve-running", False
+        strategy = _session_lifecycle_preferences()["exitStrategy"]
+        if strategy == "offline":
+            return strategy, True
+        if strategy == "preserve-running":
+            return strategy, False
+        if "markRunningSessionsOffline" not in options:
+&gt;           raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "lifecycle_choice_required",
+                    "operation": operation,
+                    "field": "markRunningSessionsOffline",
+                    "message": (
+                        "choose whether legal-running Sessions should be marked offline "
+                        "before this service operation"
+                    ),
+                },
+            )
+E           fastapi.exceptions.HTTPException: 400: {'code': 'lifecycle_choice_required', 'operation': 'exit', 'field': 'markRunningSessionsOffline', 'message': 'choose whether legal-running Sessions should be marked offline before this service operation'}
+
+packages\web\server.py:756: HTTPException</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_returns_scheduled_before_python_supervisor_finishes" time="0.058"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002027FA409B0&gt;
+
+    def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch):
+        calls = []
+        tasks = []
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": "ask", "startupPreference": "wake-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
+    
+        def close_gate_after_snapshot():
+            saved = background_jobs.list_jobs(srv._main_restart_registry_root())[0]
+            assert saved["options"] == {
+                "exitStrategy": "ask",
+                "markRunningSessionsOffline": False,
+                "runningSessionIds": [],
+            }
+            calls.append(("gate", True))
+    
+        monkeypatch.setattr(worker, "begin_shutdown", close_gate_after_snapshot)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: tasks.append(coro))
+    
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
+            "supervisor must wait for Worker shutdown",
+        ))
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:63: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_ask_requires_explicit_choice_before_any_side_effect" time="0.019" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]" time="0.050" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]" time="0.039" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]" time="0.060" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]" time="0.047" /><testcase classname="tests.test_main_service_restart" name="test_persisted_duplicate_restart_is_rejected_without_spawn" time="0.057"><failure message="AssertionError: assert 'scheduled' == 'busy'&#10;  &#10;  - busy&#10;  + scheduled">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002027FE3CF70&gt;
+
+    def test_persisted_duplicate_restart_is_rejected_without_spawn(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(srv, "_main_restart_pending", True)
+        monkeypatch.setattr(srv, "_main_restart_request_id", "already-running")
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": True},
+        }))
+&gt;       assert result["status"] == "busy"
+E       AssertionError: assert 'scheduled' == 'busy'
+E         
+E         - busy
+E         + scheduled
+
+tests\test_main_service_restart.py:318: AssertionError</failure></testcase></testsuite></testsuites>

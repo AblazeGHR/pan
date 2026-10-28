@@ -1,0 +1,20 @@
+{
+  "baseline": "4be0f6c788b1b544c4e2d6722ee0771a01a5db56",
+  "priorCandidate": "dc393e9557adec86ae54bf186a221b4fbbb38206",
+  "codeSha": "pending",
+  "tests": 3,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "passed": 3,
+  "exitCode": 0,
+  "platform": "win32",
+  "python": "3.14.5",
+  "productEdits": false,
+  "remoteCi": false,
+  "gates": [
+    "canonical observation identity/options/receipt read",
+    "owned PanServer shutdown response/PID/birth/exit/port cleanup",
+    "canonical ExecutionHost controller tree/receipt/owned cleanup"
+  ]
+}
