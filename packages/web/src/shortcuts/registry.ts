@@ -9,6 +9,10 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useUIStore } from '@/stores/uiStore';
 import type { AgentQueueItem } from '@/types';
 import { runSessionToggleShortcut } from '@/utils/sessionQuickActions';
+import {
+  hasChatScrollToBottomHandler,
+  requestChatScrollToBottom,
+} from './chatScrollBridge';
 import { requestLockedComposerEnqueue } from './composerBridge';
 import { hasQueueSelectedEditHandler, requestQueueSelectedEdit } from './queueBridge';
 
@@ -171,6 +175,23 @@ const GENERAL_ACTIONS: ShortcutAction[] = [
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('pan:shortcut:global-history-search'));
       }
+    },
+  },
+  {
+    id: 'chat.scrollToBottom',
+    label: 'Scroll chat to bottom',
+    description:
+      'Jumps the visible chat to its newest message with the same recovery the scroll-to-bottom button runs, and resumes following new output. Inactive when no chat list is on screen, and ignored in inputs, the editor, the terminal and while recording a shortcut.',
+    group: 'General',
+    defaultBinding: 'Mod+End',
+    isEnabled: () => {
+      const sessionId = selectedSessionId();
+      return sessionId !== null && hasChatScrollToBottomHandler(sessionId);
+    },
+    run: () => {
+      const sessionId = selectedSessionId();
+      if (!sessionId) return;
+      requestChatScrollToBottom(sessionId);
     },
   },
 ];

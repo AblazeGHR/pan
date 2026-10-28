@@ -10,6 +10,11 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { Message } from '@/types';
 import { markDurableRow } from '@/stores/messageOrdering';
+import { useGlobalShortcuts } from '@/shortcuts/useGlobalShortcuts';
+import {
+  hasChatScrollToBottomHandler,
+  requestChatScrollToBottom,
+} from '@/shortcuts/chatScrollBridge';
 
 // ── Mock @tanstack/react-virtual ──
 // The real virtualizer needs real layout / ResizeObserver, which jsdom does not
@@ -2770,5 +2775,117 @@ describe('canonical viewport range for folded groups', () => {
       useSessionStore.setState({ currentSessionId: 'other' });
       expect(ref.current?.getViewportHistoryRange?.()).toBeNull();
     } finally { restore(); }
+  });
+});
+
+// Mounts the single global dispatcher next to the real chat list, so these
+// cases exercise the same keydown path the app shell installs (no ad hoc
+// listener and no second scrolling algorithm).
+function ShortcutHarness() {
+  useGlobalShortcuts(() => {});
+  return null;
+}
+
+describe('chat scroll-to-bottom shortcut', () => {
+  it('reuses the button recovery for the mounted Session and resumes follow-bottom', () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      sessions: [{ id: 's1', name: 's1' }] as never,
+      currentMessages: msgs(4),
+    });
+    m.setTotalSize(2000);
+    const { container } = render(<><ShortcutHarness /><ChatMessages /></>);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    expect(scrollEl.scrollTop).toBe(2000);
+
+    userScroll(scrollEl, 700);
+    expect(container.querySelector('[title="Scroll to bottom"]')).not.toBeNull();
+    expect(hasChatScrollToBottomHandler('s1')).toBe(true);
+
+    expect(fireEvent.keyDown(document, { key: 'End', code: 'End', ctrlKey: true })).toBe(false);
+    expect(scrollEl.scrollTop).toBe(2000);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
+
+    // The explicit recovery re-arms follow mode: a streamed tail and the
+    // virtualizer's taller measurement both land at the real end.
+    m.setTotalSize(2400);
+    act(() => {
+      useSessionStore.setState({ currentMessages: [...msgs(4), ...msgs(1, 'new')] });
+    });
+    expect(scrollEl.scrollTop).toBe(2400);
+  });
+
+  it('does not touch the container when the list is already at the bottom', () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      sessions: [{ id: 's1', name: 's1' }] as never,
+      currentMessages: msgs(4),
+    });
+    m.setTotalSize(2000);
+    const { container } = render(<><ShortcutHarness /><ChatMessages /></>);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+
+    // 2000px of content in a 400px viewport: 1600 is the true bottom.
+    userScroll(scrollEl, 1600);
+    expect(container.querySelector('[title="Scroll to bottom"]')).toBeNull();
+
+    // scrollToBottom() would write 2000 here, so an unchanged 1600 proves the
+    // already-at-bottom branch made no correction.
+    expect(fireEvent.keyDown(document, { key: 'End', code: 'End', ctrlKey: true })).toBe(false);
+    expect(scrollEl.scrollTop).toBe(1600);
+  });
+
+  it('refuses a previous Session and unregisters when the list unmounts', () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      sessions: [{ id: 's1', name: 's1' }, { id: 's2', name: 's2' }] as never,
+      currentMessages: msgs(4),
+    });
+    m.setTotalSize(2000);
+    const view = render(<><ShortcutHarness /><ChatMessages /></>);
+    const scrollEl = view.container.querySelector('.overflow-auto') as HTMLElement;
+    userScroll(scrollEl, 600);
+    expect(hasChatScrollToBottomHandler('s1')).toBe(true);
+
+    // The same container now renders Session B. A request that still names A
+    // must neither reach B's list nor leave the list where A left it.
+    m.setTotalSize(900);
+    act(() => {
+      useSessionStore.setState({ currentSessionId: 's2', currentMessages: msgs(3, 'b') });
+    });
+    userScroll(scrollEl, 100);
+    const before = scrollEl.scrollTop;
+    expect(hasChatScrollToBottomHandler('s1')).toBe(false);
+    expect(requestChatScrollToBottom('s1')).toBe(false);
+    expect(scrollEl.scrollTop).toBe(before);
+    expect(hasChatScrollToBottomHandler('s2')).toBe(true);
+
+    view.unmount();
+    expect(hasChatScrollToBottomHandler('s2')).toBe(false);
+  });
+
+  it('leaves the chord native for editable targets and for an empty chat', () => {
+    useSessionStore.setState({
+      currentSessionId: 's1',
+      sessions: [{ id: 's1', name: 's1' }] as never,
+      currentMessages: msgs(4),
+    });
+    m.setTotalSize(2000);
+    const { container } = render(<><ShortcutHarness /><ChatMessages /></>);
+    const scrollEl = container.querySelector('.overflow-auto') as HTMLElement;
+    userScroll(scrollEl, 700);
+
+    const textarea = document.createElement('textarea');
+    document.body.append(textarea);
+    expect(fireEvent.keyDown(textarea, { key: 'End', code: 'End', ctrlKey: true })).toBe(true);
+    expect(scrollEl.scrollTop).toBe(700);
+    textarea.remove();
+
+    // An empty chat renders no list: nothing registers, so the key stays free.
+    cleanup();
+    useSessionStore.setState({ currentSessionId: 'empty', currentMessages: [] });
+    render(<><ShortcutHarness /><ChatMessages /></>);
+    expect(hasChatScrollToBottomHandler('empty')).toBe(false);
+    expect(fireEvent.keyDown(document, { key: 'End', code: 'End', ctrlKey: true })).toBe(true);
   });
 });

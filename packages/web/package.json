@@ -12,6 +12,7 @@
     "test": "vitest",
     "e2e": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run.ps1",
     "e2e:bottom-follow": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-bottom-follow.ps1",
+    "e2e:chat-scroll-bottom": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-chat-scroll-bottom-shortcut.ps1",
     "e2e:keep-position": "powershell -NoProfile -ExecutionPolicy Bypass -File e2e/run-keep-position-stability.ps1",
     "e2e:scroll-measurement": "node e2e/scroll-measurement.e2e.mjs",
     "e2e:navigation-first-click": "node e2e/navigation-first-click.e2e.mjs",
