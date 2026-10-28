@@ -1,0 +1,83 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+............................................FF                           [100%]
+================================== FAILURES ===================================
+_____ test_owned_host_configuration_read_projection_and_restart_real_http _____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5778/test_owned_host_configuration_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000184094309F0>
+
+    def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+        monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+        rt=real_http._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
+        now=float(int(time.time()))
+        profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
+        store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
+        store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
+>       before=store.patreal_http.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
+               ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'CodexQuotaStore' object has no attribute 'patreal_http'
+
+tests\test_quota_host_http.py:51: AttributeError
+____ test_quota_policy_owned_http_default_unavailable_is_unknown_real_http ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5778/test_quota_policy_owned_http_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000018409431240>
+
+    def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+        monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        rt=real_http._PanRuntime(tmp_path/'owned-quota-http');rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
+        evidence={'port':real_http.PORT,'profile':str(rt.data_root),'providerCalls':0,'switches':0,'restarts':0}
+        try:
+            rt.start();evidence['serverPid']=rt.process.pid
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            token=rt.request('POST','/api/automation/login',json={'key':key})['token']
+            headers={'Authorization':'Bearer '+token};url=rt.base_url+'/api/automation/quota-policy'
+            with httpx.Client(timeout=10,trust_env=False) as client:
+                state=client.get(url).json();assert state['mode']=='manual' and state['adapter']=='unavailable'
+                assert state['disabledAccountIds']==[] and state['accountConfigRevision']==0
+                disabled_url=url+'/disabled-accounts'
+                disabled={'disabledAccountIds':['disabled-account-three'],'expectedRevision':state['revision']}
+                assert client.put(disabled_url,json=disabled).status_code==401
+                assert client.put(disabled_url,json={**disabled,'enabled':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'disabledAccountIds':['x','x']},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'expectedRevision':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==200
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==409
+                state=client.get(url).json()
+                assert state['disabledAccountIds']==['disabled-account-three'] and state['accountConfigRevision']==1
+                body={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
+                assert client.put(url,json=body).status_code==401
+                assert client.put(url,json={**body,'script':'denied'},headers=headers).status_code==400
+                assert client.put(url,json=body,headers=headers).status_code==200
+                state=client.get(url).json()
+                monitor=client.post(url+'/query-jobs',json={'kind':'monitor95','expectedRevision':state['revision']},headers=headers)
+                assert monitor.status_code==409  # unknown account cannot bind a monitor
+                state=client.get(url).json()
+                response=client.post(url+'/query-jobs',json={'kind':'once','expectedRevision':state['revision']},headers=headers)
+                assert response.status_code==200,response.text
+                jid=response.json()['job']['jobId']
+                for method,path,body in [('PATCH','/api/jobs/'+jid,{'enabled':True}),
+                                         ('POST','/api/jobs/'+jid+'/run-now',{}),
+                                         ('DELETE','/api/jobs/'+jid,None)]:
+                    denied=client.request(method,rt.base_url+path,json=body).json()
+>                   assert denied['ok'] is False and denied['error']['code']=='user_confirmation_required'
+                           ^^^^^^^^^^^^
+E                   KeyError: 'ok'
+
+tests\test_quota_policy_http.py:82: KeyError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_quota_host_http.py::test_owned_host_configuration_read_projection_and_restart_real_http
+FAILED tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
