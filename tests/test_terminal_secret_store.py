@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import ctypes
-import ctypes.wintypes
 import hashlib
 import json
 import os
@@ -34,6 +33,8 @@ from packages.core.terminal import secret_store, win_pipe
 from packages.core.terminal.contracts import ProcessIdentity, ProcessStatus
 
 WINDOWS = os.name == "nt"
+if WINDOWS:
+    import ctypes.wintypes
 windows_only = pytest.mark.skipif(not WINDOWS, reason="DPAPI / Windows ACL only")
 REPO_ROOT = Path(__file__).resolve().parents[1]
 _SENTINEL_PREFIX = "5e7e0d1c0ffee"
@@ -676,24 +677,26 @@ _FILE_ALL_ACCESS = 0x001F01FF
 _FILE_GENERIC_READ = 0x00120089
 _EVERYONE_SID = "S-1-1-0"
 
-_adv_raw = ctypes.WinDLL("advapi32", use_last_error=True)
-_k32_raw = ctypes.WinDLL("kernel32", use_last_error=True)
-_adv_raw.ConvertStringSidToSidW.argtypes = (ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_void_p))
-_adv_raw.ConvertStringSidToSidW.restype = ctypes.wintypes.BOOL
-_adv_raw.GetLengthSid.argtypes = (ctypes.c_void_p,)
-_adv_raw.GetLengthSid.restype = ctypes.wintypes.DWORD
-_adv_raw.SetNamedSecurityInfoW.argtypes = (
-    ctypes.c_wchar_p,
-    ctypes.c_int,
-    ctypes.wintypes.DWORD,
-    ctypes.c_void_p,
-    ctypes.c_void_p,
-    ctypes.c_void_p,
-    ctypes.c_void_p,
-)
-_adv_raw.SetNamedSecurityInfoW.restype = ctypes.wintypes.DWORD
-_k32_raw.LocalFree.argtypes = (ctypes.wintypes.HLOCAL,)
-_k32_raw.LocalFree.restype = ctypes.wintypes.HLOCAL
+# Native ACL fixture declarations must not execute during POSIX collection.
+if WINDOWS:
+    _adv_raw = ctypes.WinDLL("advapi32", use_last_error=True)
+    _k32_raw = ctypes.WinDLL("kernel32", use_last_error=True)
+    _adv_raw.ConvertStringSidToSidW.argtypes = (ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_void_p))
+    _adv_raw.ConvertStringSidToSidW.restype = ctypes.wintypes.BOOL
+    _adv_raw.GetLengthSid.argtypes = (ctypes.c_void_p,)
+    _adv_raw.GetLengthSid.restype = ctypes.wintypes.DWORD
+    _adv_raw.SetNamedSecurityInfoW.argtypes = (
+        ctypes.c_wchar_p,
+        ctypes.c_int,
+        ctypes.wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    )
+    _adv_raw.SetNamedSecurityInfoW.restype = ctypes.wintypes.DWORD
+    _k32_raw.LocalFree.argtypes = (ctypes.wintypes.HLOCAL,)
+    _k32_raw.LocalFree.restype = ctypes.wintypes.HLOCAL
 
 _SE_FILE_OBJECT = 1
 _DACL_SECURITY_INFORMATION = 0x00000004
