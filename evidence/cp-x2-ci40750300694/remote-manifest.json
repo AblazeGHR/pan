@@ -1,0 +1,17 @@
+[
+  {
+    "source": "D:\\project\\Pan\\.workflow\\job-unification-review-20261028\\remote-ci-40750300694\\artifacts\\windows-owned-combination-3.12\\owned-combination.xml",
+    "path": "original-remote/owned-combination-3.12.xml",
+    "sha256": "6b0e71cb2b6fbb6bc78c7865c546d995e7aee8b37072cf827250fe8de94ab49a"
+  },
+  {
+    "source": "D:\\project\\Pan\\.workflow\\job-unification-review-20261028\\remote-ci-40750300694\\artifacts\\windows-owned-combination-3.14\\owned-combination.xml",
+    "path": "original-remote/owned-combination-3.14.xml",
+    "sha256": "4bbfdbd4de40ddde5a819170a0d142544d0b239dcdb01a891b6dbb127a521f6a"
+  },
+  {
+    "source": "D:\\project\\Pan\\.workflow\\job-unification-review-20261028\\remote-ci-40750300694\\failed-steps.log",
+    "path": "original-remote/failed-steps.zip!failed-steps.log",
+    "sha256": "2c1ec66a4ac8ada799ee4c14c24f2deccf39edcb4770440d5f32f7b167c54f5b"
+  }
+]

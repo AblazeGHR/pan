@@ -1,0 +1,150 @@
+{
+  "files": [
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller/base-after-running.json",
+      "sha256": "40751b2e72be43e449d73a38af7adbdde1ea94f29d5da702b19f72c64a3a9e3f"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller/base-before-claim.json",
+      "sha256": "aadd6db1913e3f78e94043f76830892135483667dbf08e69fac6412e889a4f03"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller/base.json",
+      "sha256": "3069ba24d8e5669445b9a15a108a15b24fbfc953b92c6bbdd3c62718481093bd"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller/named-venv-after-running.json",
+      "sha256": "6a9712c0e69cd520e5bff632da892850361fb1e2d3ae469b0ca404b1ce8c4a75"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller/named-venv-before-claim.json",
+      "sha256": "f1df51174f0586286d9a88ad88345eb16effc982d373dcb3eb58fb2879ac073f"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller-v2-rerun/after-submit-return.json",
+      "sha256": "8c11d2c55cc8f39d625879fc1a6f9b263ed32f71ed4492b8fbb1edc4b7f115c8"
+    },
+    {
+      "path": "evidence/cp-x1-strict-successors-20261029/controller-v2-rerun/before-submit-return.json",
+      "sha256": "34ba510c54b85577ca2a2f1bfeca2b4dd28d5c12a83a85cc6e946ef33297d78f"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+      "sha256": "67efffb5b1525e2db70b97a7fe6c72a1ee4afa02ede8a70243353df4be5fa56d"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+      "sha256": "d9bfd21551dbfedab8ace2a3677e588d55bbf54cc4b48221462498a02c681519"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-base-direct.json",
+      "sha256": "f4c84ddbb0d4b482111e0dcb7a9a2f970a03e60caee803f2ebc750c2cf742692"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-base.json",
+      "sha256": "4c766ae1401ec23d36c075f7b7a46c6c42f1ebe2a5fdb495c928abc4bdeae87c"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-ancestor.json",
+      "sha256": "18e9f4818bff474adbe2d5623709d38afdfb76b3ee0682926006481e17781daf"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-direct.json",
+      "sha256": "3a6429f1204ea51d4e47d8ea139b428585b8fbad62dca79ae8a98d3f2d54604b"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv.json",
+      "sha256": "37732ed4ad7874911c5b3ec9eb0c67cc2a51c4cb69dd5b6e0a8278d43cefc31c"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/normal-exit.json",
+      "sha256": "004744a99c6ddb924f2b9899ce2d2e6e169c9b1651f0d2257f8160e26b16d11a"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/runner-hard-death.json",
+      "sha256": "bf4273aec03063598a1e4fb34d2caa894ba25cffef75235786d639654ce45a43"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-partial-ack.json",
+      "sha256": "8f622eb2bbeb8fd3af788163737fd24ef21027893c948d57fcd8c04efb95e0b2"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-unknown-false.json",
+      "sha256": "944013fc3437c538def5a676ef5edeff4577a51cf5fbcc2b00608dd634c74886"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/backend-unknown-true.json",
+      "sha256": "12470daf7c563723b0b185a4b405887cfc1468771e53821e06996298ca3b25bb"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-false.json",
+      "sha256": "3a89bc5093a4b6ccf4d9d7b8ad26e62a185a2baed1673e8218c09303d0cb48ed"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-true.json",
+      "sha256": "0e5b10240bf3dd3b19816ff7e9c46f421d072be695cbdf206b66fd8cdabd264d"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/canonical-late-terminal.json",
+      "sha256": "d990ce8dbb71e6788e5d05f50b1f5639685c010a4d944c9a6c802aa81e86dd50"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/owned.json",
+      "sha256": "42956c6fbdb87894b808cd77448f9b67527634ff6c78416826c79ecd7093605a"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-default-pending-cold.json",
+      "sha256": "0ce9c5ae36fce5585d3b4356eb60da3647a43669072a327324599905200531f5"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-default-unknown-recheck.json",
+      "sha256": "387d57128f506efa639a77d475548a0517b1d842fcf1590f4672e1e667650c85"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-original-fence.json",
+      "sha256": "836ed5c69d22e606ed0c61a1ceb13b699925a7c84d667dedd95448e31001a26a"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-product-default-executor.json",
+      "sha256": "4044a9a34e661ee45866551e038122ee315833926a6af83644413b6ed3170fe8"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-queued-cancel.json",
+      "sha256": "075b0191a9bf56f5d2d13c4d0dce8591fd697136eff66be43eb32b31f30be36d"
+    },
+    {
+      "path": "evidence/p23-retained-safety/public-resume/venv/public-supervisor-exit-gate.json",
+      "sha256": "2dd0141339a0ee31528b84545c78843b294d8a65f8c10afb0c3a3ecfa6ad5ffb"
+    }
+  ],
+  "restoredTracked": [
+    "evidence/cp-x1-strict-successors-20261029/controller-v2-rerun/after-submit-return.json",
+    "evidence/cp-x1-strict-successors-20261029/controller-v2-rerun/before-submit-return.json",
+    "evidence/cp-x1-strict-successors-20261029/controller/base-after-running.json",
+    "evidence/cp-x1-strict-successors-20261029/controller/base-before-claim.json",
+    "evidence/cp-x1-strict-successors-20261029/controller/named-venv-after-running.json",
+    "evidence/cp-x1-strict-successors-20261029/controller/named-venv-before-claim.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/normal-exit.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/runner-hard-death.json",
+    "evidence/p23-retained-safety/public-resume/venv/backend-partial-ack.json",
+    "evidence/p23-retained-safety/public-resume/venv/backend-unknown-false.json",
+    "evidence/p23-retained-safety/public-resume/venv/backend-unknown-true.json",
+    "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-false.json",
+    "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-true.json",
+    "evidence/p23-retained-safety/public-resume/venv/canonical-late-terminal.json",
+    "evidence/p23-retained-safety/public-resume/venv/owned.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-default-pending-cold.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-default-unknown-recheck.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-original-fence.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-product-default-executor.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-queued-cancel.json",
+    "evidence/p23-retained-safety/public-resume/venv/public-supervisor-exit-gate.json"
+  ],
+  "removedExactArchivedUntracked": [
+    "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-base-direct.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-ancestor.json",
+    "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-direct.json"
+  ]
+}

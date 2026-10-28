@@ -1,0 +1,25 @@
+{
+  "sourceSha": "dd3ea8d8f9f9daa9d460a9bb42e63e800324c34b",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_platform_process_contract.py",
+    "tests/test_platform_process_posix_unit.py",
+    "tests/test_hidden_job_token.py",
+    "tests/test_job_cleanup_failures.py",
+    "tests/test_job_retained_safety_protocol.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-job-posix-safety-20261027\\evidence\\cp-x2-ci40750300694\\safety.xml"
+  ],
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "exit": 0,
+  "seconds": 4.785
+}

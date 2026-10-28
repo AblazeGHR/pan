@@ -1,0 +1,38 @@
+{
+  "sourceSha": "dd3ea8d8f9f9daa9d460a9bb42e63e800324c34b",
+  "interpreter": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "rootIsBusiness": true,
+  "businessBirthVerified": true,
+  "ancestryVerified": true,
+  "identity": {
+    "pid": 36824,
+    "kind": "filetime",
+    "birth": "134376915847688627",
+    "platform": "windows",
+    "boot_id": null,
+    "pgid": null,
+    "image": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+  },
+  "members": [
+    {
+      "pid": 54768,
+      "birth": 134376915848903333,
+      "desktop": "PanJob_759073e629be8f2f11caec01d5a7aa9b"
+    },
+    {
+      "pid": 15832,
+      "birth": 134376915848253519,
+      "desktop": "PanJob_759073e629be8f2f11caec01d5a7aa9b"
+    },
+    {
+      "pid": 36824,
+      "birth": 134376915847688627,
+      "desktop": "PanJob_759073e629be8f2f11caec01d5a7aa9b"
+    }
+  ],
+  "activeInputBefore": "Default",
+  "activeInputAfter": "Default",
+  "allDead": true,
+  "desktopGone": true
+}

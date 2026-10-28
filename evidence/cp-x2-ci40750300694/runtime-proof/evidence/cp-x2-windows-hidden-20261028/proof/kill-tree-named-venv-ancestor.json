@@ -1,0 +1,38 @@
+{
+  "sourceSha": "dd3ea8d8f9f9daa9d460a9bb42e63e800324c34b",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "rootIsBusiness": false,
+  "businessBirthVerified": true,
+  "ancestryVerified": true,
+  "identity": {
+    "pid": 47740,
+    "kind": "filetime",
+    "birth": "134376915829732864",
+    "platform": "windows",
+    "boot_id": null,
+    "pgid": null,
+    "image": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+  },
+  "members": [
+    {
+      "pid": 15824,
+      "birth": 134376915831288389,
+      "desktop": "PanJob_3cf0e4778245553970a7402d6fefe9c6"
+    },
+    {
+      "pid": 2660,
+      "birth": 134376915830620928,
+      "desktop": "PanJob_3cf0e4778245553970a7402d6fefe9c6"
+    },
+    {
+      "pid": 42356,
+      "birth": 134376915829957070,
+      "desktop": "PanJob_3cf0e4778245553970a7402d6fefe9c6"
+    }
+  ],
+  "activeInputBefore": "Default",
+  "activeInputAfter": "Default",
+  "allDead": true,
+  "desktopGone": true
+}

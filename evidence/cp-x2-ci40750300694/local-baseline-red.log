@@ -1,0 +1,7 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-posix-safety-20261027
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\xplat-job-posix-safety-20261027\evidence\cp-x2-ci40750300694\run_baseline_red.py", line 13, in <module>
+    module.test_hidden_tree_identity_stdio_and_desktop_cleanup(Path(root), 'named-venv')
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<fc5604ab-hidden-test>", line 88, in test_hidden_tree_identity_stdio_and_desktop_cleanup
+AssertionError
