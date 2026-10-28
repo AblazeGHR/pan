@@ -1,0 +1,10 @@
+{
+  "watchExit": 1,
+  "viewExit": 0,
+  "downloadExit": 0,
+  "failedLogExit": 0,
+  "identityVerified": true,
+  "status": "completed",
+  "conclusion": "failure",
+  "jobCount": 6
+}

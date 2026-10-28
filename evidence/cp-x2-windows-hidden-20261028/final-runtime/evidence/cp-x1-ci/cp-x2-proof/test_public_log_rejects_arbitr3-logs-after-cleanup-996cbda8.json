@@ -1,0 +1,10 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

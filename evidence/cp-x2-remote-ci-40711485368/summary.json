@@ -1,0 +1,2136 @@
+{
+  "run": "40711485368",
+  "headSha": "3faef66ce064c62dd53d45b2f0286a3df880a91c",
+  "source": "local immutable artifacts; no CI rerun",
+  "macos": {
+    "python": "3.12.10",
+    "importExit": 0,
+    "collectExit": 0,
+    "fastExit": 0,
+    "fastSeconds": 99.076,
+    "fastLog": "artifacts/platform-fast-macos-latest-py312/fast.log",
+    "suiteAttrs": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "19",
+        "tests": "337",
+        "time": "97.497",
+        "timestamp": "2026-10-28T15:00:51.197416+00:00",
+        "hostname": "sat12-bq149-7ebd82de-7e20-4581-a239-b264984ab9a4-EA218FB62A94.local"
+      }
+    ],
+    "cpX2Proof": [
+      {
+        "file": "test_default_real_large_unicod0-logs-after-cleanup-9814f1cc.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "coldReopenExit": 0,
+          "bytes": 196013,
+          "mergedStreams": true,
+          "unicodeExact": true,
+          "historyArchiveReadable": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_default_real_large_unicod0-logs-before-cleanup-6260fca8.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "coldReopenExit": 0,
+          "bytes": 196013,
+          "mergedStreams": true,
+          "unicodeExact": true,
+          "historyArchiveReadable": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_discovery_pagination_repl0-logs-after-cleanup-2fa47782.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "discoveryPagination": true,
+          "crossPrincipalCursorRejected": true,
+          "crossProfileCursorRejected": true,
+          "legacyUnavailableExplicit": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_discovery_pagination_repl0-logs-before-cleanup-8f8af763.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "discoveryPagination": true,
+          "crossPrincipalCursorRejected": true,
+          "crossProfileCursorRejected": true,
+          "legacyUnavailableExplicit": true
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real0-logs-after-cleanup-8a6c2ad5.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": false,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real0-logs-before-cleanup-9ae551fd.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": false
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real1-logs-after-cleanup-c7393a28.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real1-logs-before-cleanup-18cf1243.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": true
+        }
+      },
+      {
+        "file": "test_large_unicode_log_leader_0-logs-after-cleanup-90d9a219.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "lostLeaderUnknown": true,
+          "originalQueryable": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_large_unicode_log_leader_0-logs-before-cleanup-9d3547e9.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "lostLeaderUnknown": true,
+          "originalQueryable": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_late_success_terminal_doe0-after-cleanup-be001ba2.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49278,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49279,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_late_success_terminal_doe0-before-cleanup-6faded98.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49278,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49279,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_late_terminal_log_keeps_r0-logs-after-cleanup-b140aa12.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "retiredParentUnchanged": true,
+          "lateReceiptLogPreserved": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_late_terminal_log_keeps_r0-logs-before-cleanup-814e0883.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "retiredParentUnchanged": true,
+          "lateReceiptLogPreserved": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_macos_framework_launcher_0-1040baef.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_macos_public_native_ident0-after-cleanup-c37c85c4.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49310,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49311,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_macos_public_native_ident0-before-cleanup-cf894d77.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49310,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49311,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_original_uncertain_reconc0-after-cleanup-e0afb8ec.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49259,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "oldFrozenPlanUnchanged": true,
+          "newReleaseImmutable": true,
+          "staleFencesRejected": 4,
+          "finishAttemptStillRejectsUncertain": true,
+          "originalAttemptReconciled": true,
+          "effects": 1,
+          "canonicalPort": 49260,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_original_uncertain_reconc0-before-cleanup-3a26f12f.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49259,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "oldFrozenPlanUnchanged": true,
+          "newReleaseImmutable": true,
+          "staleFencesRejected": 4,
+          "finishAttemptStillRejectsUncertain": true,
+          "originalAttemptReconciled": true,
+          "effects": 1,
+          "canonicalPort": 49260,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_product_default_detached_0-after-cleanup-fdeeb397.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 49328,
+          "canonicalPort": 49329,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 0
+        }
+      },
+      {
+        "file": "test_product_default_detached_0-before-cleanup-135795eb.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 49328,
+          "canonicalPort": 49329,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_cancel_waits_for_o0-after-cleanup-41fff426.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49224,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "supervisorAliveBlockedCompletion": true,
+          "supervisorExitConfirmed": true,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "canonicalPort": 49225,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_cancel_waits_for_o0-before-cleanup-86d52b16.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49224,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "supervisorAliveBlockedCompletion": true,
+          "supervisorExitConfirmed": true,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "canonicalPort": 49225,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_discovery_pending_0-logs-after-cleanup-add7fea5.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "running"
+        ],
+        "outcomes": [
+          null
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "publicDiscovery": true,
+          "pendingHrefReadable": true,
+          "discoveryColdReopenExit": 0,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_discovery_pending_0-logs-before-cleanup-2d39b654.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "running"
+        ],
+        "outcomes": [
+          null
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "publicDiscovery": true,
+          "pendingHrefReadable": true,
+          "discoveryColdReopenExit": 0
+        }
+      },
+      {
+        "file": "test_public_leader_exit_keeps_0-after-cleanup-b585e427.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "executorPort": 49333,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49334,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_leader_exit_keeps_0-before-cleanup-fcfb9e6b.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "executorPort": 49333,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49334,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_log_authentication0-logs-after-cleanup-64f21c97.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "invalidBearerRejected": true,
+          "revokedReadRejected": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_authentication0-logs-before-cleanup-2faf340d.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "invalidBearerRejected": true,
+          "revokedReadRejected": true
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr0-logs-after-cleanup-774790da.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr0-logs-before-cleanup-97fa2936.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr1-logs-after-cleanup-8568b24e.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr1-logs-before-cleanup-da7038fd.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr2-logs-after-cleanup-a59ac81a.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr2-logs-before-cleanup-cc5c2e2e.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr3-logs-after-cleanup-996cbda8.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr3-logs-before-cleanup-f2b22a83.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr4-logs-after-cleanup-f0868a7a.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr4-logs-before-cleanup-39c24595.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr5-logs-after-cleanup-c45c0e24.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr5-logs-before-cleanup-a374d88b.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr6-logs-after-cleanup-4c7c79d2.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr6-logs-before-cleanup-a265d366.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_queued_cancel_does0-after-cleanup-67754712.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 49254,
+          "queuedCancelled": true,
+          "attempts": 0,
+          "effects": 0,
+          "supervisors": 0,
+          "canonicalPort": 49255,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 0
+        }
+      },
+      {
+        "file": "test_public_queued_cancel_does0-before-cleanup-028712a7.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 49254,
+          "queuedCancelled": true,
+          "attempts": 0,
+          "effects": 0,
+          "supervisors": 0,
+          "canonicalPort": 49255,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_success_cold_reope0-after-cleanup-16776586.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49354,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49355,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_success_cold_reope0-before-cleanup-59d5ec2e.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49354,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 49355,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_unknown_query_expl0-after-cleanup-c0a73840.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49173,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "publicUnknownPersisted": true,
+          "lostResponseQuerySameOperation": true,
+          "replayNoCleanup": true,
+          "explicitPublicRecheck": true,
+          "casRejected": true,
+          "anonymousRejected": true,
+          "cleanupRevision": 2,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "originalAttemptPreserved": true,
+          "canonicalPort": 49176,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_unknown_query_expl0-before-cleanup-b452a1ba.json",
+        "platform": "darwin",
+        "python": "3.12.10",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "proc_uniqueid"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 49173,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "publicUnknownPersisted": true,
+          "lostResponseQuerySameOperation": true,
+          "replayNoCleanup": true,
+          "explicitPublicRecheck": true,
+          "casRejected": true,
+          "anonymousRejected": true,
+          "cleanupRevision": 2,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "originalAttemptPreserved": true,
+          "canonicalPort": 49176,
+          "canonicalPortReleased": true
+        }
+      }
+    ]
+  },
+  "ubuntu": {
+    "python": "3.12.15",
+    "importExit": 0,
+    "collectExit": 0,
+    "fastExit": 0,
+    "fastSeconds": 53.395,
+    "fastLog": "artifacts/platform-fast-ubuntu-latest-py312/fast.log",
+    "suiteAttrs": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "21",
+        "tests": "337",
+        "time": "52.509",
+        "timestamp": "2026-10-28T15:00:42.347915+00:00",
+        "hostname": "runnervm48cm3"
+      }
+    ],
+    "cpX2Proof": [
+      {
+        "file": "test_default_real_large_unicod0-logs-after-cleanup-9814f1cc.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "coldReopenExit": 0,
+          "bytes": 196013,
+          "mergedStreams": true,
+          "unicodeExact": true,
+          "historyArchiveReadable": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_default_real_large_unicod0-logs-before-cleanup-6260fca8.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "coldReopenExit": 0,
+          "bytes": 196013,
+          "mergedStreams": true,
+          "unicodeExact": true,
+          "historyArchiveReadable": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_discovery_pagination_repl0-logs-after-cleanup-2fa47782.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "discoveryPagination": true,
+          "crossPrincipalCursorRejected": true,
+          "crossProfileCursorRejected": true,
+          "legacyUnavailableExplicit": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_discovery_pagination_repl0-logs-before-cleanup-8f8af763.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "discoveryPagination": true,
+          "crossPrincipalCursorRejected": true,
+          "crossProfileCursorRejected": true,
+          "legacyUnavailableExplicit": true
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real0-logs-after-cleanup-8a6c2ad5.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": false,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real0-logs-before-cleanup-9ae551fd.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": false
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real1-logs-after-cleanup-c7393a28.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_failed_and_cancelled_real1-logs-before-cleanup-18cf1243.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "outputRetained": true,
+          "effects": 1,
+          "cancelled": true
+        }
+      },
+      {
+        "file": "test_large_unicode_log_leader_0-logs-after-cleanup-90d9a219.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "lostLeaderUnknown": true,
+          "originalQueryable": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_large_unicode_log_leader_0-logs-before-cleanup-9d3547e9.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "lostLeaderUnknown": true,
+          "originalQueryable": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_late_success_terminal_doe0-after-cleanup-be001ba2.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 33545,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 58211,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_late_success_terminal_doe0-before-cleanup-6faded98.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 33545,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 58211,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_late_terminal_log_keeps_r0-logs-after-cleanup-b140aa12.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "retiredParentUnchanged": true,
+          "lateReceiptLogPreserved": true,
+          "effects": 1,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_late_terminal_log_keeps_r0-logs-before-cleanup-814e0883.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "retiredParentUnchanged": true,
+          "lateReceiptLogPreserved": true,
+          "effects": 1
+        }
+      },
+      {
+        "file": "test_original_uncertain_reconc0-after-cleanup-e0afb8ec.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 36941,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "oldFrozenPlanUnchanged": true,
+          "newReleaseImmutable": true,
+          "staleFencesRejected": 4,
+          "finishAttemptStillRejectsUncertain": true,
+          "originalAttemptReconciled": true,
+          "effects": 1,
+          "canonicalPort": 47481,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_original_uncertain_reconc0-before-cleanup-3a26f12f.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 36941,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "oldFrozenPlanUnchanged": true,
+          "newReleaseImmutable": true,
+          "staleFencesRejected": 4,
+          "finishAttemptStillRejectsUncertain": true,
+          "originalAttemptReconciled": true,
+          "effects": 1,
+          "canonicalPort": 47481,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_product_default_detached_0-after-cleanup-fdeeb397.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 40859,
+          "canonicalPort": 39943,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 0
+        }
+      },
+      {
+        "file": "test_product_default_detached_0-before-cleanup-135795eb.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 40859,
+          "canonicalPort": 39943,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_cancel_waits_for_o0-after-cleanup-41fff426.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 35193,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "supervisorAliveBlockedCompletion": true,
+          "supervisorExitConfirmed": true,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "canonicalPort": 42123,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_cancel_waits_for_o0-before-cleanup-86d52b16.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 35193,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "supervisorAliveBlockedCompletion": true,
+          "supervisorExitConfirmed": true,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "canonicalPort": 42123,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_discovery_pending_0-logs-after-cleanup-add7fea5.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "running"
+        ],
+        "outcomes": [
+          null
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "publicDiscovery": true,
+          "pendingHrefReadable": true,
+          "discoveryColdReopenExit": 0,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_discovery_pending_0-logs-before-cleanup-2d39b654.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "running"
+        ],
+        "outcomes": [
+          null
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "publicDiscovery": true,
+          "pendingHrefReadable": true,
+          "discoveryColdReopenExit": 0
+        }
+      },
+      {
+        "file": "test_public_leader_exit_keeps_0-after-cleanup-b585e427.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "executorPort": 42389,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 45147,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_leader_exit_keeps_0-before-cleanup-fcfb9e6b.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "unknown"
+        ],
+        "outcomes": [
+          "unknown"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          false
+        ],
+        "checks": {
+          "executorPort": 42389,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 45147,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_log_authentication0-logs-after-cleanup-64f21c97.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "invalidBearerRejected": true,
+          "revokedReadRejected": true,
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_authentication0-logs-before-cleanup-2faf340d.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "originalFence": true,
+          "ownedTreeConfirmed": true,
+          "supervisorExited": true,
+          "invalidBearerRejected": true,
+          "revokedReadRejected": true
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr0-logs-after-cleanup-774790da.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr0-logs-before-cleanup-97fa2936.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr1-logs-after-cleanup-8568b24e.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr1-logs-before-cleanup-da7038fd.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr2-logs-after-cleanup-a59ac81a.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr2-logs-before-cleanup-cc5c2e2e.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr3-logs-after-cleanup-996cbda8.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr3-logs-before-cleanup-f2b22a83.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr4-logs-after-cleanup-f0868a7a.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr4-logs-before-cleanup-39c24595.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr5-logs-after-cleanup-c45c0e24.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr5-logs-before-cleanup-a374d88b.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_log_rejects_arbitr6-logs-after-cleanup-4c7c79d2.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "portReleased": true,
+          "supervisorsRemaining": []
+        }
+      },
+      {
+        "file": "test_public_log_rejects_arbitr6-logs-before-cleanup-a265d366.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {}
+      },
+      {
+        "file": "test_public_queued_cancel_does0-after-cleanup-67754712.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 42135,
+          "queuedCancelled": true,
+          "attempts": 0,
+          "effects": 0,
+          "supervisors": 0,
+          "canonicalPort": 41127,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 0
+        }
+      },
+      {
+        "file": "test_public_queued_cancel_does0-before-cleanup-028712a7.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [],
+        "outcomes": [],
+        "identityKinds": [],
+        "cleanupConfirmed": [],
+        "checks": {
+          "executorPort": 42135,
+          "queuedCancelled": true,
+          "attempts": 0,
+          "effects": 0,
+          "supervisors": 0,
+          "canonicalPort": 41127,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_success_cold_reope0-after-cleanup-16776586.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 37455,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 58591,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_success_cold_reope0-before-cleanup-59d5ec2e.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "succeeded"
+        ],
+        "outcomes": [
+          "succeeded"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 37455,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "canonicalPort": 58591,
+          "canonicalPortReleased": true
+        }
+      },
+      {
+        "file": "test_public_unknown_query_expl0-after-cleanup-c0a73840.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 41329,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "publicUnknownPersisted": true,
+          "lostResponseQuerySameOperation": true,
+          "replayNoCleanup": true,
+          "explicitPublicRecheck": true,
+          "casRejected": true,
+          "anonymousRejected": true,
+          "cleanupRevision": 2,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "originalAttemptPreserved": true,
+          "canonicalPort": 49625,
+          "canonicalPortReleased": true,
+          "portReleased": true,
+          "ownedProcessesRemaining": [],
+          "supervisorsReaped": 1
+        }
+      },
+      {
+        "file": "test_public_unknown_query_expl0-before-cleanup-b452a1ba.json",
+        "platform": "linux",
+        "python": "3.12.15",
+        "phases": [
+          "rejected"
+        ],
+        "outcomes": [
+          "rejected"
+        ],
+        "identityKinds": [
+          "starttime"
+        ],
+        "cleanupConfirmed": [
+          true
+        ],
+        "checks": {
+          "executorPort": 41329,
+          "originalIdentityVerified": true,
+          "ownedProcessCount": 3,
+          "launcherIsSupervisor": true,
+          "ownershipRootIsScript": true,
+          "publicUnknownPersisted": true,
+          "lostResponseQuerySameOperation": true,
+          "replayNoCleanup": true,
+          "explicitPublicRecheck": true,
+          "casRejected": true,
+          "anonymousRejected": true,
+          "cleanupRevision": 2,
+          "effects": 1,
+          "cleanupCalls": 1,
+          "originalAttemptPreserved": true,
+          "canonicalPort": 49625,
+          "canonicalPortReleased": true
+        }
+      }
+    ]
+  }
+}
