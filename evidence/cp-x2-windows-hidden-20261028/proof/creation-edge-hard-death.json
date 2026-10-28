@@ -1,0 +1,13 @@
+{
+  "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "suspended": {
+    "pid": 43376,
+    "birth": 134376728192417511,
+    "desktop": "PanJob_49da74faeada59463a67b364c9f5499c"
+  },
+  "allDead": true,
+  "desktopGone": true,
+  "noChildInstruction": true
+}
