@@ -1,0 +1,56 @@
+{
+  "schema": "cp-x1.lifecycle-successors/1",
+  "sourceBaseline": "2600a78f2deac4f55cd64e3180b55fcc7339b6c9",
+  "originalRedEvidence": "evidence/cp-x1-strict-successors-20261029/original-five-after.xml",
+  "meaning": "Original nodes remain failed; mappings identify assertions covered by canonical successor nodes, not a reclassification of original results.",
+  "successors": [
+    {
+      "originalNode": "tests/test_main_service_exit.py::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+      "originalResult": "failed",
+      "behavioralAssertions": ["explicit choice and sorted exact running Session snapshot", "canonical intent is durable before Worker gate", "accepted scheduled handoff"],
+      "fastSuccessorNodes": ["tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown", "tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight"],
+      "remainingDifference": "Original asserts legacy registry projection and pan-main-exit task name; canonical execution uses ExecutionStore and a held continuation."
+    },
+    {
+      "originalNode": "tests/test_main_service_exit.py::test_exit_schedules_worker_shutdown_and_python_supervisor",
+      "originalResult": "failed",
+      "behavioralAssertions": ["scheduled response", "gate closed", "scoped Worker shutdown precedes one launch", "original outcome remains queryable"],
+      "fastSuccessorNodes": ["tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown", "tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight", "tests/test_lifecycle_fast_contract.py::test_fast_original_identity_after_memory_loss"],
+      "additionalEvidenceNodes": ["tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]", "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[safe-api]"],
+      "remainingDifference": "Original expects the retired legacy supervisor module and argv; fast nodes use a controlled launch and do not prove real supervisor completion."
+    },
+    {
+      "originalNode": "tests/test_main_service_exit.py::test_duplicate_exit_is_rejected_without_second_request",
+      "originalResult": "failed",
+      "behavioralAssertions": ["same-operation duplicate returns busy", "original request and effect identities retained", "no second launch"],
+      "fastSuccessorNodes": ["tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight", "tests/test_lifecycle_fast_contract.py::test_fast_original_identity_after_memory_loss"],
+      "remainingDifference": "Original injects legacy _main_exit_pending without a canonical intent; canonical lookup requires an actual original intent."
+    },
+    {
+      "originalNode": "tests/test_main_service_restart.py::test_restart_returns_scheduled_before_python_supervisor_finishes",
+      "originalResult": "failed",
+      "behavioralAssertions": ["scheduled is returned while shutdown is blocked", "frozen snapshot precedes gate", "shutdown completes before launch"],
+      "fastSuccessorNodes": ["tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight", "tests/test_lifecycle_fast_contract.py::test_fast_frozen_snapshot_gate_and_shutdown"],
+      "additionalEvidenceNodes": ["tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]"],
+      "remainingDifference": "Original names the retired _perform_main_restart coroutine and legacy registry; canonical continuation has different internals."
+    },
+    {
+      "originalNode": "tests/test_main_service_restart.py::test_persisted_duplicate_restart_is_rejected_without_spawn",
+      "originalResult": "failed",
+      "behavioralAssertions": ["concurrent or duplicate request returns busy", "same original identity after memory loss", "no second launch"],
+      "fastSuccessorNodes": ["tests/test_lifecycle_fast_contract.py::test_fast_nonblocking_singleflight", "tests/test_lifecycle_fast_contract.py::test_fast_original_identity_after_memory_loss"],
+      "additionalEvidenceNodes": ["tests/test_lifecycle_strict_successors.py::test_duplicate_during_original_admission_waits_then_returns_original_busy"],
+      "remainingDifference": "Original injects legacy _main_restart_pending; it does not create the canonical durable intent used for singleflight."
+    }
+  ],
+  "controllerGates": {
+    "status": "open_pending_cpx2_combination",
+    "originalNodes": [
+      "tests/test_job_lifecycle_prevention.py::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+      "tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+      "tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]"
+    ],
+    "remaining": "Original hidden desktop lifecycle and desktop_gone assertion need CP-X2 private desktop/atomic creation combination; claim-before-spawn eliminates the historical child-before-publication window."
+  },
+  "platformEvidence": "Windows executes declared service.lifecycle. On unsupported hosts the positive shared-logic unit contracts inject only the capability decision; separate real-host tests assert HTTP 501. No sys.platform simulation or POSIX service success is claimed."
+}

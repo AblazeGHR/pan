@@ -93,3 +93,37 @@ def test_plugin_ipc_endpoint_contract_executes_in_fast_gate(tmp_path):
     assert "--collect-only" not in command
     assert not any(arg.startswith(("--ignore", "--deselect")) for arg in command)
     assert "-k" not in command
+
+
+def test_lifecycle_preparation_nonblocking_and_fence_contracts_are_fast_nodes(tmp_path):
+    command = gate.phase_command("fast", tmp_path)
+    nodes = (
+        "tests/test_lifecycle_fast_contract.py",
+        "tests/test_lifecycle_prelaunch_fence.py::test_prelaunch_original_error_idempotence_and_attempt_fence",
+        "tests/test_lifecycle_prelaunch_fence.py::test_claim_or_launch_marker_forbids_prelaunch_rejection",
+    )
+    for node in nodes:
+        assert command.count(node) == 1
+        assert (gate.ROOT / node.split("::", 1)[0]).is_file()
+    assert "--collect-only" not in command and "-k" not in command
+    assert not any(arg.startswith(("--ignore", "--deselect")) for arg in command)
+
+
+def test_lifecycle_successor_mapping_preserves_five_original_reds_and_three_open_controller_gates():
+    mapping = json.loads((gate.ROOT / "docs/reports/CP_X1_LIFECYCLE_GATE_MAPPING.json").read_text(encoding="utf-8"))
+    rows = mapping["successors"]
+    assert len(rows) == 5 and len({row["originalNode"] for row in rows}) == 5
+    assert all(row["originalResult"] == "failed" and row["remainingDifference"] for row in rows)
+    assert (gate.ROOT / mapping["originalRedEvidence"]).is_file()
+    for row in rows:
+        original_file, original_name = row["originalNode"].split("::", 1)
+        assert original_name in {node.name for node in ast.parse((gate.ROOT / original_file).read_text(encoding="utf-8")).body
+                                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        for node in row["fastSuccessorNodes"]:
+            path, name = node.split("::", 1)
+            assert path in gate.FAST_TESTS
+            names = {item.name for item in ast.parse((gate.ROOT / path).read_text(encoding="utf-8")).body
+                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            assert name in names
+    assert mapping["controllerGates"]["status"] == "open_pending_cpx2_combination"
+    assert len(mapping["controllerGates"]["originalNodes"]) == 3
