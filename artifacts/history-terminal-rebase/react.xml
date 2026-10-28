@@ -1,0 +1,959 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="247" failures="0" errors="0" time="6.17">
+    <testsuite name="hooks/useWebSocket.test.tsx" timestamp="2026-10-27T09:20:02.161Z" hostname="ablaze" tests="112" failures="0" errors="0" skipped="0" time="1.4908524">
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; coalesces visible, focus, and pageshow into one authoritative recovery" time="0.016919">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; uses the first mount reads for initial open and refreshes on reconnect" time="0.0023079">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates the unified job store on open and routes job lifecycle events into it" time="0.0025123">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; reconnects a stale socket and lets the open path refresh state" time="0.0024325">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; forces a new transport after a hidden-to-visible resume even when the socket looks fresh" time="0.0030601">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; absorbs a duplicate focus/visibility recovery inside the coalescing window" time="0.0047754">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; runs a later recovery once the coalescing window has elapsed" time="0.0046633">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; never absorbs duplicate signals while the socket is stale (disconnect recovery preserved)" time="0.0023828">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; drops recovery history that completes after the selected session changes" time="0.00108">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; requests pending native interactions when the singleton is already open" time="0.0042113">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; sends sync_interactive at most once for one socket generation during open/mount race" time="0.0018159">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps two hook mounts on one socket generation to one interactive replay frame" time="0.0020301">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not resync native interactions after the authoritative snapshot callback" time="0.0021437">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; lets resync_required send a snapshot without another interactive replay" time="0.0012535">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies session rename/update payloads before the debounced snapshot" time="0.0024165">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not starve authoritative status recovery during sustained session traffic" time="0.0043885">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; refreshes selected history when its summary advances without a result frame" time="0.0023727">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates codex history even when an earlier summary already has the same native revision" time="0.0026617">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates cbc history even when an earlier summary already has the same native revision" time="0.0018931">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates an empty canonical window despite an equal summary revision" time="0.0019365">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; finalizes a seq-less report buffer from reconnect execution identity" time="0.0083631">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders authoritative snapshot status and history before slow HTTP fallback completes" time="0.002149">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps one list request in flight and retains one follow-up during bursts" time="0.0027245">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not refresh the wrong history after selection changes during coalescing" time="0.0018675">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; starts the first summary and history reads without spending their cooldown budgets" time="0.0023057">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps summary request starts at least 300ms apart under continuous traffic" time="0.0046773">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies shared pin snapshots immediately and ignores stale revisions" time="0.0015772">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the selected transcript through summary backfill, live events, and delayed history" time="0.0056314">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not feed a partial compatibility history carried by summary into the selected chat" time="0.0018814">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; routes Claude permission requests and removes them after resolution" time="0.001738">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps native Codex waiting status available to the active worker" time="0.0014347">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps a native system error status and its summary visible to the toolbar" time="0.0016125">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the latest native Codex token usage available to the active worker" time="0.0012118">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps native Codex account rate limits available to the active worker" time="0.001963">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders and replaces native Codex turn plans and aggregate diffs" time="0.0025114">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; retires aggregate plan/diff across two DONE boundaries and rejects their late replay" time="0.00392">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native Codex turn errors immediately without adding a fake chat message" time="0.0012603">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; suppresses Codex warning Toasts when the notification setting is disabled" time="0.0019246">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces Codex MCP startup failures without surfacing ready notifications" time="0.0015206">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; appends a re-authorization hint to Codex MCP auth failures" time="0.0015351">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps non-notion MCP auth failures free of the re-authorization hint" time="0.0010792">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the stdio notion variant free of the OAuth re-auth hint" time="0.001091">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native Codex model reroutes on the active session" time="0.0015355">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; updates a background session card in-place on worker.result" time="0.0022271">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; constructs a browser Notification from a granted Pan completion payload without requesting permission" time="0.0025782">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps source notification independent from a delayed durable error terminal" time="0.0043185">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; late import/navigation completion never overrides a user selection made while the lazy import was pending" time="0.0078205">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; a second notification click wins over an earlier click whose navigation is still settling" time="0.1806875">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; user re-selecting the starting session during the navigation window still counts as a take-over" time="0.0630296">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; aborts when the user routes away while the navigation is settling" time="0.0626308">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; clicking a completion notification selects its session and navigates to chat" time="0.0611972">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; reports deletion only after an authoritative list without the session" time="0.0622818">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; never reports a failed list load as deletion" time="0.0627337">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; lets a later user selection win over a slow notification lookup" time="0.0033661">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies only the latest of two rapid notification clicks" time="0.0596301">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces a router failure instead of swallowing it" time="0.0627298">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\history-terminal-events-20261027\.cache\history-terminal-deps\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\history-terminal-events-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; appends the [DONE] notice for the current session without duplicating history" time="0.0024738">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; labels a native cancelled turn separately from an error" time="0.0013752">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the dot settled when the idle worker.status follows worker.result" time="0.0012855">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; settles runtime and legal state atomically from the terminal event summary" time="0.0019043">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; accepts a newer-generation result when the replacement spawn was missed" time="0.0022592">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; ignores an out-of-order running status from an older worker generation" time="0.0011838">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; falls back to the authoritative list when a worker.result is dropped by the generation guard" time="0.0045718">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; clears the card status on worker crash and keeps history intact" time="0.0046214">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; refreshes the durable agent queue after a worker crash" time="0.0582152">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders streamed tool content with backend-compatible ASCII escaping" time="0.0020152">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders unknown native Codex items through the generic tool fallback" time="0.0018002">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; replaces a running command item as native output deltas arrive" time="0.0015754">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; updates interleaved native tools by item id" time="0.0018388">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native terminal interaction and clears it on result" time="0.0018161">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; drops stale native interaction prompts when a worker is restarted" time="0.0016453">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket mock mode recovery &gt; does not create a real socket in mock mode" time="0.0014362">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; merges the agent-injected user message into currentMessages on running + source=agent" time="0.0190423">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; reconciles a late agent queue handoff across DONE, history refresh and A/B/A" time="0.0616862">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; retries when the first history snapshot races the injected message persistence" time="0.0930811">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; continues streaming system/report turns after a completed numbered task" time="0.1695748">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; does not sync for user-originated tasks" time="0.016809">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; refreshes the durable queue when receipt transitions to running" time="0.0136607">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; applies a consecutive external queue item without a redundant snapshot GET" time="0.0162642">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; repairs a queue revision gap once and keeps legacy event reconciliation" time="0.0314085">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; uses a complete queue snapshot without a GET and repairs missing event payloads" time="0.015037">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; renders a delivered queue message immediately and keeps it across a stale refresh" time="0.0311011">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; syncs injected report history for a background Session without changing the selected Session" time="0.017434">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; keeps in-flight streamed blocks when the server snapshot lags (diverged tail)" time="0.014414">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; does not duplicate streamed blocks already persisted on the server" time="0.0026179">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; is idempotent across repeated running events for the same task" time="0.0282978">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates a background session card lastMessage on stream text" time="0.0020973">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; truncates the card preview to 200 chars" time="0.0017016">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates every accepted background preview synchronously without a timer" time="0.002128">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; skips stream events without text content" time="0.0014354">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; result remains authoritative after earlier stream previews" time="0.0019958">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; merges native app-server deltas and replaces them with the final item" time="0.0014823">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps the same display identity across id-less streaming deltas" time="0.0013228">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; gives separate display identities to blocks from one native item" time="0.0015106">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates compound thinking/text/tool blocks by role without collapsing them" time="0.0018478">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps old task deltas out of the new task watermark window" time="0.0020782">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; rejects a foreign taskId at the same taskSeq before native alias lookup" time="0.0013177">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; converges a delta that arrives after its turn item completed under another native id" time="0.001227">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; reconciles id-less Claude deltas with its multi-block final in canonical order" time="0.0024899">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not reuse a transient turn alias after the worker is restarted" time="0.0018013">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not retain an unfinished assistant prefix after restart and a later result" time="0.0020534">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not carry missed-result items or aliases into the next execution (running=false)" time="0.0031434">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not carry missed-result items or aliases into the next execution (running=true)" time="0.0025369">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps separate completed assistant items with distinct native ids in one turn" time="0.0013756">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; ignores a late cumulative echo without absorbing the next distinct item" time="0.0020553">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; streams a new cumulative Codex body after a completed body and intervening tool" time="0.0047207">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps one selected-session assistant message across an interleaved turn, result, and history refresh" time="0.0045885">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; renders each selected-session delta through Markdown and keeps the sidebar preview" time="0.0553781">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps interleaved native items in event order while each item streams" time="0.0022378">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps thinking, tools, and content in arrival order across interleaved stream updates" time="0.0032091">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not append background-session stream or result messages to the selected chat" time="0.0016628">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; reloads persisted app settings when another client saves them" time="0.0024864">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/appSettingsStore.test.ts" timestamp="2026-10-27T09:20:02.229Z" hostname="ablaze" tests="30" failures="0" errors="0" skipped="0" time="0.0161705">
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; starts with defaults before the backend load completes" time="0.0017776">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the sidebar collapse handle visibility" time="0.0011301">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies backend ui settings on load" time="0.0007536">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; validates server values on load, falling back to defaults" time="0.0002678">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps defaults when the backend load fails" time="0.0003219">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; waits for one in-flight settings GET before resolving creation membership" time="0.0007525">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; uses DEFAULT_SETTINGS after a failed hydration instead of waiting indefinitely" time="0.0003078">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; writes each change back to the backend (PUT)" time="0.0012657">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the cross-workspace management confirmation switch and defaults old settings to enabled" time="0.0004291">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the Locker desktop notification switch, off by default, and reloads it" time="0.0004476">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes reportWorkerKillErrors and defaults old settings to off" time="0.0002271">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors persists and applies the server echo" time="0.0002608">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors rejects and leaves the store unchanged on failure" time="0.000864">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes autoForceSend per key and defaults old settings to all off" time="0.0002387">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend persists the strict object and applies the server echo" time="0.0002666">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend rejects and leaves the store unchanged on failure" time="0.0002773">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; resets all settings to defaults and writes them back" time="0.0004136">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; does not overwrite a change made while the initial load is in flight" time="0.0001802">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizeSettings fills missing fields with defaults" time="0.0008774">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; normalizes unread-recording scope sets with the backend rule" time="0.0002841">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies the exclusive toggle rules for unread-recording scopes" time="0.0003483">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists unread-recording only after the server saved it" time="0.0004257">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the previous unread-recording value when the save fails" time="0.0002757">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; surfaces partial apply failures while keeping the saved values" time="0.0002979">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the legacy all default for old settings objects" time="0.0001799">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; sanitizes persisted bindings while preserving explicit clears" time="0.0005219">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; persists, clears and restores shortcut overrides through the existing ui endpoint" time="0.0006093">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; keeps composer defaults compatible and reports a failed write without a false saved value" time="0.0004883">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; rejects reserved combinations instead of silently hijacking the browser" time="0.0001995">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; loads persisted shortcuts with missing and malformed entries falling back safely" time="0.0003109">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/reaudit.history.test.ts" timestamp="2026-10-27T09:20:02.238Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="0.0277604">
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R1 · tail refresh keeps the loaded window start (does not reset it to the page start)" time="0.0049458">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R2 · scrolling up after a tail refresh never duplicates or reorders loaded rows" time="0.0018876">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · history window start &gt; R3 · an older historyEpoch/historyRevision page must not be applied" time="0.0005572">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · live → result → history identity rebuild &gt; R4 · a tool block that streamed before the assistant keeps its position through result" time="0.0034849">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · live → result → history identity rebuild &gt; R5 · a history refresh after result must not leave a duplicate tool row" time="0.0009946">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · legitimate same-text history rows &gt; R6 · identical text with distinct identities is never text-deduped" time="0.0010222">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R7 · [user, analysis, tool, final] keeps its order through result" time="0.0009356">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R8 · consecutive DONE rounds preserve every earlier block and its position" time="0.002548">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R9 · a stale cached projection index must not overwrite a different-role row" time="0.0007061">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R10 · an id-less new reply with identical text must not merge into the old row" time="0.000582">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R11 · an id-less provider result keeps [interim, tool, final] without a duplicate" time="0.0006088">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R11a · a canonical tail arriving after result stays after the completed turn" time="0.0008631">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · multi-block turn order &amp; consecutive DONE rounds &gt; R12 · a historyEpoch change must drop the stale old-epoch tail" time="0.0021326">
+        </testcase>
+        <testcase classname="stores/reaudit.history.test.ts" name="reaudit · background history recovery never adopts selected rows &gt; R13 · applying Session B history while Session A is selected cannot copy A runtime rows" time="0.0053605">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.historyTerminal.test.ts" timestamp="2026-10-27T09:20:02.243Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0065748">
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="anchors delayed error before the newer turn, deduplicates events, orders by cursor" time="0.0013996">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="keeps no-body and paged-out anchors independent without inventing an attachment" time="0.0002286">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="converges delayed canonical pages, refresh duplicates and pagination to the same display" time="0.0016462">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="late older error cannot overwrite a new turn or another selected Session" time="0.0017571">
+        </testcase>
+        <testcase classname="stores/sessionStore.historyTerminal.test.ts" name="error terminal never replaces its live assistant body with diagnosis text" time="0.000875">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.interleaving.test.ts" timestamp="2026-10-27T09:20:02.245Z" hostname="ablaze" tests="23" failures="0" errors="0" skipped="0" time="0.0232601">
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="places a late handoff receipt before its own live blocks without blocking native reorder" time="0.0048005">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps a different execution receipt and Steer after the blocks already emitted" time="0.0007574">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="repairs the display when the queue projection has consumed the same receipt before its execution scope" time="0.0005019">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="repairs a pending receipt while streaming in the background and ignores duplicate delivery" time="0.0009506">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="history refresh between deltas never adopts the displayed clone as a second runtime row" time="0.0013423">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a Steer user row inserted ahead of an unfinished tool by its message id" time="0.0008159">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps a canonical Pan Steer row when its optimistic alias arrives later" time="0.0002927">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a legacy id-less Steer row only within its local history boundary" time="0.0003322">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="does not duplicate a queued user row reordered ahead of a live tool" time="0.0003301">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="matches a queued user row to canonical history by its persisted queue item id" time="0.000372">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="retains queued user identity through delivery before an id-less history refresh" time="0.0004248">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges an assistant item moved ahead of an interleaved tool by native id" time="0.0003156">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges an id-less canonical assistant after a Session switch and tool reorder" time="0.0005223">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="switching away and back invalidates cached displayed clones without duplicating the next delta" time="0.0004026">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="completed runtime rows remain anchored when history is refreshed repeatedly then another task starts" time="0.0025827">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="moves a delivered queue user from after DONE onto its canonical task boundary across A/B/A" time="0.0017052">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="converges a real Codex terminal reorder before the next same-text turn" time="0.0018566">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps same-body deliveries with distinct delivery keys as two canonical rows" time="0.0007365">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="a queued second user row keeps its position after the first completed turn" time="0.0008333">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="editing and removing pending messages also updates the background transcript" time="0.0009827">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="background delivery replaces the pending row and survives repeated delivery" time="0.000421">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="unchanged live blocks keep their rendered object references" time="0.0002996">
+        </testcase>
+        <testcase classname="stores/sessionStore.interleaving.test.ts" name="keeps versioned canonical offsets when a delayed summary reports fewer rows" time="0.0007199">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/sessionStore.terminalTransient.test.ts" timestamp="2026-10-27T09:20:02.255Z" hostname="ablaze" tests="32" failures="0" errors="0" skipped="0" time="0.033525">
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate diff at DONE even when old task history is outside the loaded page" time="0.0062608">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="seals Codex aggregate plan at DONE even when old task history is outside the loaded page" time="0.0010006">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes interrupted live fragments on restart while preserving canonical rows and local input" time="0.0011394">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=false)" time="0.0009211">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves persisted partial output at lifecycle replacement (terminal=true)" time="0.0006088">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=false)" time="0.0006573">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="removes non-durable blocks only after final task history is loaded (page before done=true)" time="0.000491">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains transient rows while terminal history coverage is stale or incomplete" time="0.0006431">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="retains a completed scope when its loaded tail has no identifiable task boundary" time="0.0023007">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=false)" time="0.0010896">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=true)" time="0.000783">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a task whose running status arrived before its history boundary was loaded (new task=later-completed)" time="0.0007216">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps canonical thinking and tools even when their final text differs from live progress" time="0.0009252">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="clears the empty orphan without discarding nonempty runtime outside the loaded task region" time="0.0008854">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not discard live progress for a legacy result without authoritative coverage" time="0.0004009">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="preserves a newer running task while converging the completed task" time="0.0008468">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges consecutive completed tasks even when the first history response was delayed" time="0.0010217">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=false)" time="0.0017205">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=false, history=true)" time="0.0008727">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=false)" time="0.0010086">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;thinking&apos;, running=true, history=true)" time="0.0010222">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=false)" time="0.0005012">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=false, history=true)" time="0.0007715">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=false)" time="0.0005317">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;tool&apos;, running=true, history=true)" time="0.0005033">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=false)" time="0.0004383">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=false, history=true)" time="0.000464">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=false)" time="0.0004485">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges missed-result leftovers (&apos;assistant&apos;, running=true, history=true)" time="0.0009724">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="keeps missed-result provisional rows until newer history covers their whole region" time="0.0008551">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="does not retire same-execution Steer when taskSeq changes" time="0.0004859">
+        </testcase>
+        <testcase classname="stores/sessionStore.terminalTransient.test.ts" name="converges a background superseded task without touching the selected Session" time="0.0008604">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/HistoryTerminal.test.tsx" timestamp="2026-10-27T09:20:02.262Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0552967">
+        <testcase classname="components/chat/HistoryTerminal.test.tsx" name="renders errors outside assistant/Markdown bubbles with expandable plain diagnostics" time="0.0543616">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/chat/manualTaskReport.test.ts" timestamp="2026-10-27T09:20:02.263Z" hostname="ablaze" tests="27" failures="0" errors="0" skipped="0" time="0.0091193">
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="uses the persisted terminal anchor for report tails and refuses a no-body terminal" time="0.0013185">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="matches many task runs by their unique offset without scanning every terminal per task" time="0.001384">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds the tail text block of every completed run at its own boundary" time="0.0007807">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; keeps an older run bound while a newer task is still streaming" time="0.0002679">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; ignores runs with no durable terminal in the index" time="0.0001687">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds each run of a repeated taskId to its own block and result" time="0.0001497">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds only the indexed run block when an older run is evicted" time="0.0001371">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds nothing when two runs claim the same boundary" time="0.0001045">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds nothing when the run boundary cannot be proven" time="0.0001948">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; leaves runtime-only rows unbound until their canonical rows converge" time="0.000144">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; does not bind a segment whose tail block is still streaming" time="0.0000876">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; does not bind a tail block without a stable identity" time="0.0001379">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; ends a task segment at a non-follow-up user row" time="0.0001643">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; ends a task segment at an injected report row" time="0.0001357">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; extends the segment across an inherited same-task follow-up" time="0.0001243">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; binds only the final text block, ignoring tool/thinking/system rows after it" time="0.0001154">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="findManualReportTargets &gt; returns nothing without a manager, terminals, a window or rows" time="0.0001376">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; binds a plain run tail by its durable taskSeq" time="0.0001898">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; binds a run whose terminal only carries a resultCursor" time="0.0001598">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; offers no button when the terminal has no durable identity at all" time="0.0000945">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; never matches a plain terminal to a task segment or a task terminal to a plain segment" time="0.0001069">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; keeps an older plain run bound while a newer run is streaming" time="0.0000933">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; binds each of two plain runs to its own tail block" time="0.0011993">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; keeps a plain run and a task run bound side by side" time="0.0001813">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; offers no entry for a derived compat cursor (taskSeq null, resultCursor 0)" time="0.0001157">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; hides every entry when two legacy rows derive the same compat cursor" time="0.0001129">
+        </testcase>
+        <testcase classname="components/chat/manualTaskReport.test.ts" name="plain conversation runs (no taskId) &gt; still binds a real stored cursor and a real sequence" time="0.0001098">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/SourceNotificationPanel.test.tsx" timestamp="2026-10-27T09:20:02.280Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.1641292">
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; offers independent sources with System/Browser and QQ Report, no Subscribe" time="0.1253738">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; preserves a source draft and shows a failed save" time="0.033673">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; Behavior persists Session error routing independently of Notifications" time="0.0043453">
+        </testcase>
+    </testsuite>
+</testsuites>

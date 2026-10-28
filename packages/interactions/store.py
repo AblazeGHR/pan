@@ -71,6 +71,8 @@ class InteractionStore:
             db.execute('CREATE TABLE IF NOT EXISTS rejection_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS question_events(id TEXT PRIMARY KEY,card_id TEXT NOT NULL,event TEXT NOT NULL,delivery TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS response_outbox(id TEXT PRIMARY KEY,owner TEXT,payload TEXT,state TEXT NOT NULL)')
+            from packages.core.source_notifications import schema
+            schema(db)
 
     @contextmanager
     def db(self):
@@ -147,6 +149,10 @@ class InteractionStore:
             db.execute('UPDATE cards SET bindings=?,producer=?,related_message_id=? WHERE id=?',(canonical(bindings or {}),producer_id,related_message_id,card_id))
             if bindings:
                 validate('Card',self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db))
+            from packages.core.source_notifications import stage
+            stage(db, 'lockerUnread', card_id, request['ownerSessionId'],
+                  f"Pan: Locker new unread\nSession: {request['ownerSessionId']}\nItem: {card_id}\n{request['card'].get('title', '')}\n{request['card'].get('summaryBody', request['card'].get('body', ''))}",
+                  recipient=request['recipientId'])
             return self._view(db.execute('SELECT * FROM cards WHERE id=?',(card_id,)).fetchone(),db)
 
     @staticmethod
@@ -187,6 +193,9 @@ class InteractionStore:
             db.execute('INSERT OR IGNORE INTO user_lockers(owner,recipient) VALUES(?,?)',(owner,recipient))
             db.execute('UPDATE user_lockers SET source_name=?,workspace_ids=? WHERE owner=? AND recipient=?',
                        (source_name,canonical(list(workspace_ids)),owner,recipient))
+            from packages.core.source_notifications import stage
+            stage(db, 'lockerUnread', mid, owner,
+                  f"Pan: Locker new unread\nSession: {owner}\nItem: {mid}\n{message['content']}", recipient=recipient)
             return self._message_view(db.execute('SELECT * FROM locker_messages WHERE id=?',(mid,)).fetchone())
 
     def _message_row(self, db, principal, mid):

@@ -1,4 +1,5 @@
 import type { Message } from '@/types';
+import { HistoryTerminal } from './HistoryTerminal';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bookmark, BookmarkMinus, BookmarkPlus, Check, Copy, Send, Undo2 } from 'lucide-react';
@@ -500,6 +501,9 @@ export const MessageDisplayItem = memo(function MessageDisplayItem({
   searchTargetMessageId,
   manualReportTarget = null,
 }: MessageDisplayItemProps) {
+  if (!('type' in item) && item.kind === 'terminal' && item.terminal) {
+    return <HistoryTerminal terminal={item.terminal} />;
+  }
   if (!('type' in item) && item.messageId === searchTargetMessageId &&
       (item.role === 'tool' || item.role === 'thinking')) {
     return <div className="px-3 sm:px-6 lg:px-8 py-2" data-search-expanded-role={item.role}>

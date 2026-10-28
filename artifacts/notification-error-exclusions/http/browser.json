@@ -1,0 +1,42 @@
+{
+  "realLogin": true,
+  "errors": [],
+  "requests": [
+    {
+      "status": 200,
+      "method": "PUT"
+    },
+    {
+      "status": 200,
+      "method": "PUT"
+    },
+    {
+      "status": 200,
+      "method": "PUT"
+    },
+    {
+      "status": 200,
+      "method": "PUT"
+    },
+    {
+      "status": 200,
+      "method": "PUT"
+    },
+    {
+      "status": 200,
+      "method": "PUT"
+    }
+  ],
+  "sharedExclusionSaveRead": true,
+  "selectionRetainedWhenDisabled": true,
+  "errorTypeScrollWindow": {
+    "height": 160,
+    "scroll": 696,
+    "overflow": "auto"
+  },
+  "liveAuthenticatedBrowserDelivery": true,
+  "browserProvider": "recording fake",
+  "duplicateEventBrowserCount": 1,
+  "sessionPostboxPreserved": true,
+  "chromiumVersion": "153.0.8010.12"
+}

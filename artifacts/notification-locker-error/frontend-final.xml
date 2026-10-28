@@ -1,0 +1,888 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="218" failures="0" errors="0" time="8.616">
+    <testsuite name="hooks/useWebSocket.test.tsx" timestamp="2026-10-27T08:50:56.570Z" hostname="ablaze" tests="111" failures="0" errors="0" skipped="0" time="1.5064036">
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; coalesces visible, focus, and pageshow into one authoritative recovery" time="0.0283794">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; uses the first mount reads for initial open and refreshes on reconnect" time="0.0044544">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates the unified job store on open and routes job lifecycle events into it" time="0.0047466">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; reconnects a stale socket and lets the open path refresh state" time="0.0024897">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; forces a new transport after a hidden-to-visible resume even when the socket looks fresh" time="0.0025586">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; absorbs a duplicate focus/visibility recovery inside the coalescing window" time="0.003054">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; runs a later recovery once the coalescing window has elapsed" time="0.0029992">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; never absorbs duplicate signals while the socket is stale (disconnect recovery preserved)" time="0.0021856">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; drops recovery history that completes after the selected session changes" time="0.0008214">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; requests pending native interactions when the singleton is already open" time="0.002143">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; sends sync_interactive at most once for one socket generation during open/mount race" time="0.0018672">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps two hook mounts on one socket generation to one interactive replay frame" time="0.0020733">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not resync native interactions after the authoritative snapshot callback" time="0.0021838">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; lets resync_required send a snapshot without another interactive replay" time="0.0017036">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies session rename/update payloads before the debounced snapshot" time="0.0022427">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not starve authoritative status recovery during sustained session traffic" time="0.0041021">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; refreshes selected history when its summary advances without a result frame" time="0.0022681">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates codex history even when an earlier summary already has the same native revision" time="0.0023491">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates cbc history even when an earlier summary already has the same native revision" time="0.0018773">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; hydrates an empty canonical window despite an equal summary revision" time="0.0020165">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; finalizes a seq-less report buffer from reconnect execution identity" time="0.0073858">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders authoritative snapshot status and history before slow HTTP fallback completes" time="0.0020523">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps one list request in flight and retains one follow-up during bursts" time="0.0029719">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not refresh the wrong history after selection changes during coalescing" time="0.0018252">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; starts the first summary and history reads without spending their cooldown budgets" time="0.0022468">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps summary request starts at least 300ms apart under continuous traffic" time="0.0049796">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies shared pin snapshots immediately and ignores stale revisions" time="0.0016712">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the selected transcript through summary backfill, live events, and delayed history" time="0.0058245">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; does not feed a partial compatibility history carried by summary into the selected chat" time="0.0021906">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; routes Claude permission requests and removes them after resolution" time="0.0017628">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps native Codex waiting status available to the active worker" time="0.0013616">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps a native system error status and its summary visible to the toolbar" time="0.0013856">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the latest native Codex token usage available to the active worker" time="0.0013272">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps native Codex account rate limits available to the active worker" time="0.0014266">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders and replaces native Codex turn plans and aggregate diffs" time="0.0021272">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; retires aggregate plan/diff across two DONE boundaries and rejects their late replay" time="0.00413">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native Codex turn errors immediately without adding a fake chat message" time="0.0019767">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; suppresses Codex warning Toasts when the notification setting is disabled" time="0.0017223">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces Codex MCP startup failures without surfacing ready notifications" time="0.0014193">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; appends a re-authorization hint to Codex MCP auth failures" time="0.0019155">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps non-notion MCP auth failures free of the re-authorization hint" time="0.0012665">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the stdio notion variant free of the OAuth re-auth hint" time="0.0014831">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native Codex model reroutes on the active session" time="0.0013318">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; updates a background session card in-place on worker.result" time="0.0019871">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; constructs a browser Notification from a granted Pan completion payload without requesting permission" time="0.0026806">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; late import/navigation completion never overrides a user selection made while the lazy import was pending" time="0.0089389">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; a second notification click wins over an earlier click whose navigation is still settling" time="0.181693">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; user re-selecting the starting session during the navigation window still counts as a take-over" time="0.0625663">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; aborts when the user routes away while the navigation is settling" time="0.0622132">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; clicking a completion notification selects its session and navigates to chat" time="0.0622427">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; reports deletion only after an authoritative list without the session" time="0.0622368">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; never reports a failed list load as deletion" time="0.0623852">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; lets a later user selection win over a slow notification lookup" time="0.0029596">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; applies only the latest of two rapid notification clicks" time="0.0595946">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces a router failure instead of swallowing it" time="0.0620784">
+            <system-err>
+[sessionStore] loadSessions failed
+Error: Not implemented: window.focus
+    at module.exports (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\not-implemented.js:9:17)
+    at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\jsdom@25.0.1\node_modules\jsdom\lib\jsdom\browser\Window.js:960:7
+    at Module.openSessionFromNotification (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\src\utils\session-deeplink.ts:329:12) undefined
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; appends the [DONE] notice for the current session without duplicating history" time="0.0017126">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; labels a native cancelled turn separately from an error" time="0.0013528">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; keeps the dot settled when the idle worker.status follows worker.result" time="0.0017456">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; settles runtime and legal state atomically from the terminal event summary" time="0.0016459">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; accepts a newer-generation result when the replacement spawn was missed" time="0.0021153">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; ignores an out-of-order running status from an older worker generation" time="0.0012943">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; falls back to the authoritative list when a worker.result is dropped by the generation guard" time="0.0019442">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; clears the card status on worker crash and keeps history intact" time="0.0013181">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; refreshes the durable agent queue after a worker crash" time="0.0646218">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders streamed tool content with backend-compatible ASCII escaping" time="0.0016604">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; renders unknown native Codex items through the generic tool fallback" time="0.001122">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; replaces a running command item as native output deltas arrive" time="0.0015308">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; updates interleaved native tools by item id" time="0.0015749">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; surfaces native terminal interaction and clears it on result" time="0.0018482">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.result wiring &gt; drops stale native interaction prompts when a worker is restarted" time="0.001569">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket mock mode recovery &gt; does not create a real socket in mock mode" time="0.0013446">
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; merges the agent-injected user message into currentMessages on running + source=agent" time="0.004475">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; reconciles a late agent queue handoff across DONE, history refresh and A/B/A" time="0.0473512">
+            <system-err>
+[sessionStore] loadSessions failed
+
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; retries when the first history snapshot races the injected message persistence" time="0.0927364">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; continues streaming system/report turns after a completed numbered task" time="0.1872129">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; does not sync for user-originated tasks" time="0.0162376">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; refreshes the durable queue when receipt transitions to running" time="0.014659">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; applies a consecutive external queue item without a redundant snapshot GET" time="0.0015028">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; repairs a queue revision gap once and keeps legacy event reconciliation" time="0.0289465">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; uses a complete queue snapshot without a GET and repairs missing event payloads" time="0.0316334">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; renders a delivered queue message immediately and keeps it across a stale refresh" time="0.0311495">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; syncs injected report history for a background Session without changing the selected Session" time="0.015878">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; keeps in-flight streamed blocks when the server snapshot lags (diverged tail)" time="0.0151416">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; does not duplicate streamed blocks already persisted on the server" time="0.0157198">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket agent-injected message sync &gt; is idempotent across repeated running events for the same task" time="0.0309356">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates a background session card lastMessage on stream text" time="0.0022572">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; truncates the card preview to 200 chars" time="0.0017586">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates every accepted background preview synchronously without a timer" time="0.0021344">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; skips stream events without text content" time="0.0014547">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; result remains authoritative after earlier stream previews" time="0.0023702">
+            <system-err>
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; merges native app-server deltas and replaces them with the final item" time="0.0019328">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps the same display identity across id-less streaming deltas" time="0.001556">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; gives separate display identities to blocks from one native item" time="0.0016586">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; updates compound thinking/text/tool blocks by role without collapsing them" time="0.0017002">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps old task deltas out of the new task watermark window" time="0.0022582">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; rejects a foreign taskId at the same taskSeq before native alias lookup" time="0.0017375">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; converges a delta that arrives after its turn item completed under another native id" time="0.0018531">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; reconciles id-less Claude deltas with its multi-block final in canonical order" time="0.0030348">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not reuse a transient turn alias after the worker is restarted" time="0.0024585">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not retain an unfinished assistant prefix after restart and a later result" time="0.0025424">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not carry missed-result items or aliases into the next execution (running=false)" time="0.0031635">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not carry missed-result items or aliases into the next execution (running=true)" time="0.0027137">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps separate completed assistant items with distinct native ids in one turn" time="0.0019272">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; ignores a late cumulative echo without absorbing the next distinct item" time="0.0022671">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; streams a new cumulative Codex body after a completed body and intervening tool" time="0.0060292">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps one selected-session assistant message across an interleaved turn, result, and history refresh" time="0.0039967">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; renders each selected-session delta through Markdown and keeps the sidebar preview" time="0.0574068">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps interleaved native items in event order while each item streams" time="0.0023718">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; keeps thinking, tools, and content in arrival order across interleaved stream updates" time="0.0028254">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; does not append background-session stream or result messages to the selected chat" time="0.0018836">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+        <testcase classname="hooks/useWebSocket.test.tsx" name="useWebSocket worker.stream lastMessage preview &gt; reloads persisted app settings when another client saves them" time="0.0022123">
+            <system-err>
+[sessionStore] loadSessions failed
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/appSettingsStore.test.ts" timestamp="2026-10-27T08:50:56.628Z" hostname="ablaze" tests="30" failures="0" errors="0" skipped="0" time="0.0179612">
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; starts with defaults before the backend load completes" time="0.0019001">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the sidebar collapse handle visibility" time="0.0012567">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies backend ui settings on load" time="0.0008248">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; validates server values on load, falling back to defaults" time="0.0002974">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps defaults when the backend load fails" time="0.0003045">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; waits for one in-flight settings GET before resolving creation membership" time="0.0008142">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; uses DEFAULT_SETTINGS after a failed hydration instead of waiting indefinitely" time="0.0003075">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; writes each change back to the backend (PUT)" time="0.0012556">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the cross-workspace management confirmation switch and defaults old settings to enabled" time="0.0005193">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the Locker desktop notification switch, off by default, and reloads it" time="0.0004895">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes reportWorkerKillErrors and defaults old settings to off" time="0.0002165">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors persists and applies the server echo" time="0.0002518">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors rejects and leaves the store unchanged on failure" time="0.000971">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes autoForceSend per key and defaults old settings to all off" time="0.0002506">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend persists the strict object and applies the server echo" time="0.0002775">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend rejects and leaves the store unchanged on failure" time="0.0002919">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; resets all settings to defaults and writes them back" time="0.0005505">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; does not overwrite a change made while the initial load is in flight" time="0.0003001">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizeSettings fills missing fields with defaults" time="0.0010604">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; normalizes unread-recording scope sets with the backend rule" time="0.0003716">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies the exclusive toggle rules for unread-recording scopes" time="0.0003677">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists unread-recording only after the server saved it" time="0.0004916">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the previous unread-recording value when the save fails" time="0.0003205">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; surfaces partial apply failures while keeping the saved values" time="0.0003121">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the legacy all default for old settings objects" time="0.0002113">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; sanitizes persisted bindings while preserving explicit clears" time="0.0006052">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; persists, clears and restores shortcut overrides through the existing ui endpoint" time="0.0007079">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; keeps composer defaults compatible and reports a failed write without a false saved value" time="0.0005833">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; rejects reserved combinations instead of silently hijacking the browser" time="0.0002299">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; loads persisted shortcuts with missing and malformed entries falling back safely" time="0.0003398">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/lockerUnreadStore.test.tsx" timestamp="2026-10-27T08:50:56.636Z" hostname="ablaze" tests="9" failures="0" errors="0" skipped="0" time="0.294313">
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; parses the aggregate and per-Session counts, ignoring non-positive values" time="0.0334263">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; keeps the last counts when the endpoint fails and ignores a missing map" time="0.0294112">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; pauses while the page is hidden and refetches when visible again" time="0.0301352">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; stays silent by default even when the unread total grows" time="0.0143698">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; notifies once for an increase while hidden once the switch is on" time="0.017433">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; stays silent while the page is visible" time="0.0142625">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; stays silent when the browser permission was denied" time="0.0141993">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; never notifies when unread decreases (messages read)" time="0.0311699">
+        </testcase>
+        <testcase classname="stores/lockerUnreadStore.test.tsx" name="locker unread store &gt; Locker desktop notifications &gt; focuses Pan and opens Locker when the notification is clicked" time="0.1086289">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/AppSettingsModal.test.tsx" timestamp="2026-10-27T08:50:56.638Z" hostname="ablaze" tests="64" failures="0" errors="0" skipped="0" time="4.3315472">
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; renders nothing when closed" time="0.0246719">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; defaults to Lifecycle and keeps Reset on Appearance" time="0.1093719">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads lifecycle preferences from config with ask defaults and saves updates" time="0.1175994">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists a custom wake message from Behavior" time="0.1384581">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows lifecycle preference save errors and keeps the last saved value" time="0.0836138">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a preference load error and retries the server read" time="0.1130991">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved offline policy without asking again" time="0.0525655">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Exit using the saved preserve-running policy without asking again" time="0.0631557">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved offline policy without asking again" time="0.0624039">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; confirms Restart using the saved preserve-running policy without asking again" time="0.0437771">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; refreshes both lifecycle statuses on every modal open and clears stale Exit state" time="0.0585908">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle actions disabled after a status fetch error until Retry succeeds" time="0.0624898">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; ignores status responses from an earlier modal-open cycle" time="0.0303786">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not let a lifecycle action response from an earlier open overwrite the new status" time="0.06216">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps all settings tabs reachable in a horizontal-only scroller" time="0.051747">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps the canonical category order with the integrated Shortcuts page" time="0.0212909">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; places each setting on exactly its category page" time="0.1399522">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; navigates from Lifecycle to the exact Behavior policy without writing or acting" time="0.1072145">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; focuses the Behavior policy after preferences finish loading, then reopens on Lifecycle" time="0.0941346">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps lifecycle load errors available across tab switches and focuses the section on jump" time="0.0979775">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads the Data catalog on demand and keeps long paths usable in a narrow panel" time="0.0515671">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Data catalog loading and failure states without blocking other tabs" time="0.0931133">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads disabled retention policies, edits days, saves, and shows recent scan counts" time="0.0862985">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists independent orphan workdir settings and warns in English" time="0.0391683">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; projects the shared Jobs retention editor in Data and saves via its canonical API" time="0.0343713">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows retention settings loading and failure while keeping the Data path panel usable" time="0.0132898">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows message visibility on the Appearance tab and keeps its settings and persistence" time="0.0416352">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; selects TUI, Bubble or Raw chat view from Appearance and persists the chosen style" time="0.0234034">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the default new Session Workspace preference and persists it" time="0.0156763">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Behavior worker-kill report switch off by default and persists it" time="0.0284336">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows Behavior save errors and keeps the last saved value" time="0.0270413">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows three independent auto Force switches, all off by default" time="0.0146982">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists one auto Force switch without changing the others" time="0.0516592">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows auto Force save failures and keeps the last saved switch position" time="0.0575868">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles merged tool/thinking groups on the Appearance tab and persists the setting" time="0.0457193">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the per-session scroll memory on the Appearance tab and persists it" time="0.0441666">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the message navigation rail on the Appearance tab and persists it" time="0.0536365">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles only the Chat view switcher on the Appearance tab and persists it" time="0.0628474">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Codex warning Toast option on the Notifications tab" time="0.0443033">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows the Locker switch off by default and asks for permission when enabled" time="0.0557587">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; keeps the Locker switch on and explains a denied notification permission" time="0.0571358">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the Locker switch and explains the missing Notification API" time="0.031484">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; loads and replaces the Codex whitelist on the Adapters tab" time="0.0598986">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a readable Codex refresh error in the Adapters tab" time="0.0301673">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the Codex terminal input popup option and persists it" time="0.0117531">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; is full-screen on mobile and ~75% of the viewport on desktop" time="0.0064675">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes when the backdrop is clicked" time="0.0071423">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; does not close when clicking inside the card" time="0.0086833">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; closes on Escape" time="0.0130702">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles a setting through a switch and writes the store" time="0.0161699">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; persists the Session history search setting when its switch changes" time="0.0200917">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; exposes the group-by settings only on the Appearance tab without duplicates" time="0.0219889">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles Show Group by on the Appearance tab and persists it" time="0.0198135">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; toggles the desktop sidebar collapse handle on the Appearance tab and persists it" time="0.0213201">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; changes Default group by on the Appearance tab and persists the selection" time="0.0210228">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; scopes Reset to saved UI preferences and keeps lifecycle/worker/remote untouched" time="0.0214827">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and reports successful main-service recovery" time="1.1066331">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires confirmation and schedules a stop-only Pan exit without health polling" time="0.0831929">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows an unavailable exit control and API error state" time="0.0424366">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; allows stopping the bounded health check and does not call health forever" time="0.0897406">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables the main-service control when restart scripts are unavailable" time="0.0311309">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; shows a finite timeout when the restarted service never becomes healthy" time="0.0665599">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; requires an explicit lifecycle status refresh when the final restart status read fails" time="0.0912649">
+        </testcase>
+        <testcase classname="components/layout/AppSettingsModal.test.tsx" name="AppSettingsModal &gt; disables restart and exit when the platform denies service.lifecycle" time="0.0317849">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/SourceNotificationPanel.test.tsx" timestamp="2026-10-27T08:50:56.654Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.2315011">
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; offers independent sources with System/Browser and QQ Report, no Subscribe" time="0.1816008">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; preserves a source draft and shows a failed save" time="0.0408953">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; Behavior persists Session error routing independently of Notifications" time="0.0080521">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/PostboxModal.test.tsx" timestamp="2026-10-27T08:50:56.656Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.0771722">
+        <testcase classname="components/session/PostboxModal.test.tsx" name="msgBridge settings tabs &gt; shows QQ, System, Browser tabs and explicit browser permission UX" time="0.0765491">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -302,14 +302,14 @@ export function PostboxModal({ open, onClose, sessionId }: PostboxModalProps) {
             </div>
             {tab === 'system' && (
               <div className="space-y-3 text-sm">
-                <p className="text-xs text-text-secondary">Pan sends completion notifications from the backend. System delivery is best-effort and reports unsupported platforms.</p>
+                <p className="text-xs text-text-secondary">Pan sends completion notifications from the backend. System delivery is best-effort and reports unsupported platforms. Behavior → Session errors also uses this connection when enabled.</p>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={detailSession?.notificationSettings?.system ?? false}
                   disabled={!canEdit || busyKey !== null} onChange={(e) => { void toggleNotification('system', e.target.checked); }} /> Completion notifications</label>
               </div>
             )}
             {tab === 'browser' && (
               <div className="space-y-3 text-sm">
-                <p className="text-xs text-text-secondary">Browser permission is requested only by this button, never when a background completion arrives.</p>
+                <p className="text-xs text-text-secondary">Browser permission is requested only by this button, never when a background completion arrives. Behavior → Session errors also uses this connection when enabled.</p>
                 <button type="button" className="rounded border border-border-default px-3 py-1.5 text-xs hover:bg-bg-tertiary"
                   onClick={async () => { if (!('Notification' in window)) return; const permission = await Notification.requestPermission(); showToast(`Browser notifications: ${permission}`); }}>
                   Request browser permission

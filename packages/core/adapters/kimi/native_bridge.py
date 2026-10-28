@@ -15,7 +15,11 @@ Verified against kimi 2.3.1 (2026-10-24):
 - Ctrl+C cancels the running turn: wire ``turn.cancel`` → ``turn.step.interrupted``
   → ``turn.ended`` (``reason: "cancelled"``).
 - Workspace trust is a file marker (``<home>/workspace-trust/*`` with
-  ``{"root": ...}``); the TUI blocks on the prompt until it exists.
+  ``{"root": ...}``); the TUI blocks on the prompt until it exists. A fresh TUI
+  creates its session only after that prompt is answered, so the trust screen
+  is a legitimate pre-session state, not a startup failure: the bridge starts
+  the control channel first and keeps the session wait tied to the TUI
+  lifetime instead of a fixed startup deadline.
 - One session has exactly one owning CLI process: ``kimi web`` answers 40931 and
   ACP ``session/resume`` returns "in use by another Kimi Code CLI instance"
   while this TUI holds it. The bridge is that single owner.
@@ -495,26 +499,46 @@ def run(kimi_path: str, cwd: str, session_id: str | None, kimi_home: str | None,
 
         threading.Thread(target=drain, daemon=True).start()
 
-        sid = session_id
-        if not sid:
-            deadline = time.time() + 20
-            while time.time() < deadline and not stop.is_set():
-                sid = discover_session_id(home, cwd, started_ms)
-                if sid:
-                    break
-                time.sleep(0.2)
-            if not sid:
-                emit({"type": "pan.native_error", "error": "Kimi TUI session was not created"})
-                return
-            # Same init shape as stream mode: the worker persists cli_session_id.
-            emit({"role": "meta", "type": "session.resume_hint", "session_id": sid})
-
-        # Baseline for the fact channel: skip everything already on disk.
-        existing_wire = find_wire_file(home, sid)
-        wire_offset = existing_wire.stat().st_size if existing_wire is not None else 0
-        threading.Thread(target=wire_tail_loop, args=(bridge, sid, stop, wire_offset),
-                         daemon=True).start()
+        # The trust prompt is the first screen of an untrusted workspace and
+        # only the user can answer it. Announce it before any session wait so
+        # the view knows why the TUI has no session yet.
         threading.Thread(target=ready_watch_loop, args=(bridge, stop), daemon=True).start()
+
+        sid = session_id
+        wire_started = False
+
+        def start_wire(session: str, offset: int) -> None:
+            nonlocal wire_started
+            if wire_started:
+                return
+            wire_started = True
+            threading.Thread(target=wire_tail_loop, args=(bridge, session, stop, offset),
+                             daemon=True).start()
+
+        if sid:
+            # Resumed session: skip turns that predate this bridge. A fresh
+            # session (no id yet) starts at 0 — every line belongs to a turn
+            # this bridge either submitted or observed.
+            existing_wire = find_wire_file(home, sid)
+            start_wire(sid, existing_wire.stat().st_size if existing_wire is not None else 0)
+        else:
+            # A fresh TUI creates its session only after the folder-trust
+            # prompt is answered (or on the first message). Keep polling for it
+            # for as long as the TUI lives: a fixed startup deadline would kill
+            # the very prompt the user is answering (and the TUI with it). The
+            # control loop stays free to service that prompt while this runs.
+            def discovery_loop():
+                while not stop.is_set():
+                    found = discover_session_id(home, cwd, started_ms)
+                    if found:
+                        # Same init shape as stream mode: the worker persists cli_session_id.
+                        emit({"role": "meta", "type": "session.resume_hint",
+                              "session_id": found})
+                        start_wire(found, 0)
+                        return
+                    time.sleep(0.2)
+
+            threading.Thread(target=discovery_loop, daemon=True).start()
 
         inbox: queue.Queue = queue.Queue()
 
@@ -524,38 +548,66 @@ def run(kimi_path: str, cwd: str, session_id: str | None, kimi_home: str | None,
             inbox.put(None)
 
         threading.Thread(target=read_input, daemon=True).start()
+
+        # A Pan prompt must never be pasted into the trust prompt, and waiting
+        # for trust must not block the keystrokes that answer it: hold the
+        # prompt until the marker exists while the control channel stays live.
+        pending_prompt: str | None = None
         while not stop.is_set():
             try:
                 line = inbox.get(timeout=0.2)
             except queue.Empty:
-                continue
+                line = ""
             if line is None:
                 break
-            try:
-                message = json.loads(line)
-                if not isinstance(message, dict):
-                    raise ValueError("Invalid bridge message")
-                if message.get("type") == "user":
-                    content = (message.get("message") or {}).get("content") or []
-                    text = "".join(part.get("text", "") for part in content
-                                   if isinstance(part, dict) and part.get("type") == "text")
-                    if not bridge.trusted.wait(30):
-                        raise ControlRejected(
-                            "Kimi workspace trust is pending — answer the prompt in the Terminal TUI")
-                    try:
-                        bridge.submit(text)
-                    except Exception as error:  # noqa: BLE001 - a failed task must terminate
-                        if bridge.tracker.busy:
-                            # A late echo means the prompt did get in (queued or
-                            # running); its turn result is the authoritative end.
-                            continue
+            if line:
+                try:
+                    message = json.loads(line)
+                    if not isinstance(message, dict):
+                        raise ValueError("Invalid bridge message")
+                    if message.get("type") == "user":
+                        content = (message.get("message") or {}).get("content") or []
+                        text = "".join(part.get("text", "") for part in content
+                                       if isinstance(part, dict) and part.get("type") == "text")
+                        if pending_prompt is not None:
+                            emit({"role": "result", "is_error": True, "cancelled": False,
+                                  "result": "Kimi TUI is still waiting for workspace trust",
+                                  "kimi_stop_reason": "input-rejected"})
+                        else:
+                            pending_prompt = text
+                    else:
+                        bridge.control(message)
+                except Exception:  # noqa: BLE001 - control errors already answered by receipt
+                    continue
+            # Terminal ownership wins: while the user holds the TUI, Pan keeps
+            # the prompt pending instead of pasting into their input. The
+            # receipt wait may block this loop, but discovery/wire tailing run
+            # on their own thread so the first turn's echo is still observed.
+            if (pending_prompt is not None and not stop.is_set()
+                    and bridge.trusted.is_set()
+                    and bridge.owner.snapshot()["mode"] == "pan"):
+                text, pending_prompt = pending_prompt, None
+                try:
+                    bridge.submit(text)
+                except Exception as error:  # noqa: BLE001 - a failed task must terminate
+                    if bridge.tracker.busy:
+                        # A late echo means the prompt did get in (queued or
+                        # running); its turn result is the authoritative end.
+                        continue
+                    if stop.is_set():
                         emit({"role": "result", "is_error": True, "cancelled": False,
-                              "result": f"Kimi TUI did not accept the prompt: {error}",
-                              "kimi_stop_reason": "input-rejected"})
-                else:
-                    bridge.control(message)
-            except Exception:  # noqa: BLE001 - control errors already answered by receipt
-                continue
+                              "result": "Kimi Terminal TUI closed before the prompt was accepted",
+                              "kimi_stop_reason": "tui-closed"})
+                        continue
+                    emit({"role": "result", "is_error": True, "cancelled": False,
+                          "result": f"Kimi TUI did not accept the prompt: {error}",
+                          "kimi_stop_reason": "input-rejected"})
+        if pending_prompt is not None:
+            # The TUI exited (declined trust / crashed) before the prompt was
+            # accepted; report it instead of leaving the task without a result.
+            emit({"role": "result", "is_error": True, "cancelled": False,
+                  "result": "Kimi Terminal TUI closed before the workspace trust was confirmed",
+                  "kimi_stop_reason": "tui-closed"})
     finally:
         stop.set()
         backend.terminate(force=True)

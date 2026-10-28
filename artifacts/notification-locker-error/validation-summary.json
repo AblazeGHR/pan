@@ -1,0 +1,54 @@
+{
+  "implementationSha": "fdcbfdf30373b66867d97b07b4683aa86e087833",
+  "checks": {
+    "backend-frozen.xml": {
+      "total": 125,
+      "failures": 0,
+      "skips": []
+    },
+    "frontend-frozen.xml": {
+      "total": 218,
+      "failures": 0,
+      "skips": []
+    },
+    "http-frozen.xml": {
+      "total": 1,
+      "failures": 0,
+      "skips": []
+    },
+    "backend-expanded-1.xml": {
+      "total": 186,
+      "failures": 0,
+      "skips": [
+        {
+          "name": "test_oneshot_error_empty_result_report_carries_last_assistant_message",
+          "reason": "Oneshot mode retired by user; implementation retained"
+        },
+        {
+          "name": "test_error_report_keeps_existing_error_result_and_adds_context",
+          "reason": "Oneshot mode retired by user; implementation retained"
+        }
+      ]
+    }
+  },
+  "exitCodes": {
+    "backend-frozen": 0,
+    "frontend-frozen": 0,
+    "http-frozen": 0,
+    "tsc-frozen": 0,
+    "build-frozen": 0,
+    "normal-pre-commit": 0
+  },
+  "protectedRefs": {
+    "main": "7f303faa355bfc763f0452ad68d31b920e4dc6e1",
+    "practical": "5b6165ca7d1b2751b5ddf736a9679bcefb24a068"
+  },
+  "scope": {
+    "realQQ": false,
+    "realSystemNotification": false,
+    "realCLIWorker": false,
+    "push": false,
+    "merge": false,
+    "existingServiceOperation": false
+  }
+}

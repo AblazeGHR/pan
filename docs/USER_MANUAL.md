@@ -212,6 +212,16 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 ### 通知与未读记录
 
+**Behavior → Session errors → msgBridge** 控制 Session 的新错误是否使用该 Session 的 System、Browser、QQ Report 连接；默认开启以保留 QQ 错误报告。**Notifications → Locker new unread / New errors** 是两个独立、默认关闭的全局通知源，可分别启停并选择 System、Browser 或 QQ Report 联系人。新源只有通知转发，没有 QQ Subscribe 或接收 Session；原 Session 的 Subscribe/Report 保留。同一 error 的 Session/全局配置按事件和渠道/QQ目标去重，两处都开 System 只发送一次。开关重开不补发历史；QQ/System 不依赖浏览器打开，Browser 需要已登录页面和已授予的通知权限。错误覆盖范围、失败/unknown 回执与持久化说明见[通知源契约](design/notification-sources-v1.md)。
+
+### 错误通知排除
+
+Behavior 的「Session errors → msgBridge」与 Notifications 的「New errors」共用同一份错误排除设置。
+可开启排除、搜索结构化错误类型并勾选；关闭排除仍保留选择。每次修改自动保存，另一入口同步显示。
+类型来自服务端已知的来源/错误码，例如 `codex_error_payload/usageLimitExceeded`，不分析错误正文。
+未知或缺少结构化类型的错误默认仍转发。排除只影响未来新接纳的错误通知，不删除错误历史，
+不影响 manager 报告、Locker 未读通知或已接纳的通知。
+
 在 **App Settings → Notification → Completion bell defaults** 选择 System、Browser、QQ Report 或 QQ Subscribe，再点 **Save completion defaults**。QQ 选项必须选择至少一个默认联系人，可按名称或号码搜索。默认值在下次点亮未亮的 Session Bell 时应用，不替换已有连接。Browser 还需浏览器通知权限；启用 Bell 时 QQ bot 和所选联系人须可用。QQ Report 发送结果，QQ Subscribe 接收 QQ 收件箱提醒。
 
 **Unread recording** 默认 All sessions，可选 No sessions 或 Bell on/off、Pinned 等类别；Bell on 与 Bell off 互斥，Pinned 可与其中一个按并集组合；All sessions 与 No sessions 互斥，且都不能与类别同时选择。排除的 Session 保持零未读，重新纳入只统计新完成结果，不恢复旧未读。Session 菜单可单独启用记录；保存全局规则或 **Reapply settings** 会清除这些覆盖。

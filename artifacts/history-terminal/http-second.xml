@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="4.987" timestamp="2026-10-27T16:53:27.931775+08:00" hostname="ablaze"><testcase classname="tests.test_history_terminal_http" name="test_history_terminal_production_browser" time="4.650"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  AssertionError [ERR_ASSERTION]: {&quot;error&quot;:&quot;Session name cannot contain spaces&quot;}&#10;      at api (file:///D:/project/pan-worktrees/history-terminal-events-20261027/packages/web/e2e/history-terminal-live.mjs:24:12)&#10;      at async file:///D:/project/pan-worktrees/history-terminal-events-20261027/packages/web/e2e/history-terminal-live.mjs:29:13 {&#10;    generatedMessage: false,&#10;    code: 'ERR_ASSERTION',&#10;    actual: false,&#10;    expected: true,&#10;    operator: '==',&#10;    diff: 'simple'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/history-terminal-live.mjs', 'http://127.0.0.1:51105', 'D:\\project\\p...R_ASSERTION\',\n  actual: false,\n  expected: true,\n  operator: \'==\',\n  diff: \'simple\'\n}\n\nNode.js v24.22.1\n').returncode">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5505/test_history_terminal_producti0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000246A5BEB360&gt;
+
+    def test_history_terminal_production_browser(tmp_path, monkeypatch):
+        assert base.PORT not in {8767, 8768}, "Use scripts/run_tests_isolated.py"
+        monkeypatch.setattr(base, "FAKE_CLI", FAKE_CLI)
+        monkeypatch.setattr(base, "SERVER_LAUNCHER", Path(__file__).parent / "support/automation_http_server.py")
+        rt = base._PanRuntime(tmp_path / "owned-history-profile")
+        rt.data_root.mkdir()
+        (rt.data_root / "config.json").write_text(json.dumps({"plugin_manifests": [],
+            "scheduler": {"enabled": False}, "memory": {"enabled": False}}), encoding="utf-8")
+        out = Path("artifacts/history-terminal/http").resolve()
+        out.mkdir(parents=True, exist_ok=True)
+        evidence = {"port": base.PORT, "ownedProfile": str(rt.data_root)}
+        try:
+            rt.start()
+            env = {**os.environ, "PAN_TEST_HISTORY_KEY": (
+                rt.data_root / "automation/user.key").read_text(encoding="utf-8")}
+            result = subprocess.run(["node", "packages/web/e2e/history-terminal-live.mjs", rt.base_url, str(out)],
+                cwd=base.ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=150,
+                **command_window_options())
+            (out / "browser.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+            evidence["browserExit"] = result.returncode
+&gt;           assert result.returncode == 0, result.stdout + result.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E
+E             AssertionError [ERR_ASSERTION]: {"error":"Session name cannot contain spaces"}
+E                 at api (file:///D:/project/pan-worktrees/history-terminal-events-20261027/packages/web/e2e/history-terminal-live.mjs:24:12)
+E                 at async file:///D:/project/pan-worktrees/history-terminal-events-20261027/packages/web/e2e/history-terminal-live.mjs:29:13 {
+E               generatedMessage: false,
+E               code: 'ERR_ASSERTION',
+E               actual: false,
+E               expected: true,
+E               operator: '==',
+E               diff: 'simple'
+E             }
+E
+E             Node.js v24.22.1
+E
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/history-terminal-live.mjs', 'http://127.0.0.1:51105', 'D:\\project\\p...R_ASSERTION\',\n  actual: false,\n  expected: true,\n  operator: \'==\',\n  diff: \'simple\'\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_history_terminal_http.py:32: AssertionError</failure></testcase></testsuite></testsuites>

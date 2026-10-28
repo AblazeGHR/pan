@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { lockerRequest } from '@/views/lockerModel';
 import { wsClient } from '@/services/ws';
 import { isMockMode } from '@/demo/mockBackend';
 import { useSessionStore, workerResultMarkerId, markCompletedLiveRows } from '@/stores/sessionStore';
@@ -39,6 +40,7 @@ function appendTerminalResultMarker(
   event: StreamEvent,
   deferUntilCoverage = false,
 ): void {
+  if (event.historyTerminalId) return;
   const status = terminalResultStatus(event);
   const markerId = workerResultMarkerId(sessionId, event);
   const marker: Message = {
@@ -286,6 +288,7 @@ export function useWebSocket() {
               : {}),
           },
           terminalKey: typeof last.terminalKey === 'string' ? last.terminalKey : undefined,
+          historyTerminalId: typeof last.historyTerminalId === 'string' ? last.historyTerminalId : undefined,
           resultCursor: typeof last.resultCursor === 'number' ? last.resultCursor : undefined,
           taskSeq: typeof last.taskSeq === 'number' ? last.taskSeq : undefined,
           executionSeq: typeof last.executionSeq === 'number' ? last.executionSeq : undefined,
@@ -731,8 +734,29 @@ export function useWebSocket() {
     }));
 
     // Result event
+    const seenSourceNotifications = new Set<string>();
+    unsubscribers.push(wsClient.on('notification.source', (e: StreamEvent) => {
+      const ref = e.notificationId;
+      if (typeof ref !== 'string' || seenSourceNotifications.has(ref)) return;
+      seenSourceNotifications.add(ref);
+      if (seenSourceNotifications.size > 1024) seenSourceNotifications.delete(seenSourceNotifications.values().next().value!);
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      void lockerRequest<{ title: string; body: string; sessionId: string; source: string }>(
+        `/api/notifications/browser-events/${encodeURIComponent(ref)}`,
+      ).then((payload) => {
+        if (!active) return;
+        const notice = new Notification(payload.title, { body: payload.body, tag: `pan-event-${ref}` });
+        notice.onclick = () => { void openSessionFromNotification(payload.sessionId); };
+      }).catch(() => { /* Auth/visibility loss cannot expose private event content. */ });
+    }));
+
     unsubscribers.push(wsClient.on('worker.result', (e: StreamEvent) => {
       ingestLiveSessionSummary(e);
+      // History facts survive stale Worker frames too. Refresh their canonical
+      // page without allowing an old execution to clear the current stream.
+      if (e.historyTerminalId && e.sessionId === useSessionStore.getState().currentSessionId) {
+        scheduleSelectedHistory();
+      }
       if (!isCurrentWorkerEvent(e, true)) {
         // A terminal event attributed to an older worker generation is dropped
         // (a late result must not clear its replacement), but the drop must not

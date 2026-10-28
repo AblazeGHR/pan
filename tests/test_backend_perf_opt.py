@@ -192,14 +192,16 @@ def test_result_flushes_debounced_blocks_through_read_stdout(monkeypatch):
 
     asyncio.run(worker._read_stdout(w))
 
-    assert _no_ts(s.history) == [{"role": "assistant", "content": "hi"}], s.history
+    assert _no_ts(s.history[:1]) == [{"role": "assistant", "content": "hi"}], s.history
+    assert len(s.history) == 2 and s.history[1]["terminal"]["status"] == "done"
+    assert s.history[1]["terminal"]["anchorMessageId"] == s.history[0]["messageId"]
     # 落盘的 assistant 正文必须带 Pan 身份（防抖 + result flush 不影响身份分配）。
-    (assistant_id,) = _message_ids(s.history)
+    (assistant_id,) = _message_ids(s.history[:1])
     assert _sess.is_pan_message_id(assistant_id), (
         f"streamed assistant history must carry a Pan messageId, got {assistant_id!r}"
     )
     assert s.last_result["status"] == "done"
-    assert saved == [1], f"expected exactly 1 save (result flush), got {saved}"
+    assert saved == [2], f"expected one atomic save of body and terminal, got {saved}"
     _cleanup()
 
 

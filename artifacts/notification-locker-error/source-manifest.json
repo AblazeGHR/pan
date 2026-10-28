@@ -1,0 +1,30 @@
+{
+  "implementationSha": "fdcbfdf30373b66867d97b07b4683aa86e087833",
+  "baselineSha": "7f303faa355bfc763f0452ad68d31b920e4dc6e1",
+  "files": {
+    "docs/USER_MANUAL.en.md": "5de832c58878222cab7a36b4cd2f95e62d6f24191c1f2992b15c1309a306ebf3",
+    "docs/USER_MANUAL.md": "29a9a7c61e341f4b4c860b4e2b77ec13489ff6072cf47bd4d6d21e87ce0636c6",
+    "docs/design/notification-sources-v1.md": "c5bfa95c978ab3ceed2e518c6d724c659486e487e52344ac3cd4a5db27c2fab1",
+    "packages/core/config.py": "cb62a17105e8f124e3a264202f3339e456e85b525a4ca552ee57fe587a94bf8c",
+    "packages/core/session_error_log.py": "ad7c3624d315b5d0be3e7ab51f4e43d06a0c9f3e89aecc2a9c78e8913f5a7d86",
+    "packages/core/source_notifications.py": "8c2eb67356cee994eff5f7a06054ba7e2bdff6d3ff9c9de9d817d3712512f33f",
+    "packages/core/worker.py": "704e4927b1d97abf326e3c30d6e614faab53122965c57a0270cc615ed163dbed",
+    "packages/interactions/api.py": "54cd38f2af4999ceda24a5463e36ff655bac332b92617807c2e442b386742c36",
+    "packages/interactions/store.py": "19e3f9717fd1530908475edf7fccdf77b1872a7712d330a1347888276e4cd764",
+    "packages/interactions/user_cards.py": "5a5b9027cc203050b8c5b9ceecfee461636a00b772a86124011dab573e63ce7c",
+    "packages/web/e2e/notification-sources.mjs": "e335ba35845f32789668789524d2da15ab9103ecf78c3d27f527e27fc3e257e7",
+    "packages/web/server.py": "ba9781a400b351e3656e2a653d4394ee60b46fcf1556459aa5f3f832a69d672b",
+    "packages/web/src/components/layout/AppSettingsModal.tsx": "f20512f72c78df9ca7480ef06cf0192d3dbc2ad92d4181293c00a11b3db3a190",
+    "packages/web/src/components/layout/SessionErrorBridgeSetting.tsx": "59b52ffb8418168e195a72755634e6ef3d3f447ce8898a04cab969c1d4164bfc",
+    "packages/web/src/components/layout/SourceNotificationPanel.test.tsx": "181fbf61c9abc561f068168eb52ca579c06f7d18edeba70a6c82392e501fb079",
+    "packages/web/src/components/layout/SourceNotificationPanel.tsx": "e9fefc1ef94966d8a50d24d61538863a1e250b445c479213dc7eb19c0066dcf6",
+    "packages/web/src/components/session/PostboxModal.tsx": "7ba19e0fc0bb0e678d606cbefe56baf2caa4d8779957a499fd5a31e691f576eb",
+    "packages/web/src/hooks/useWebSocket.ts": "7f1c963f98db59b0b8c38ae7a0f76777c8293e41df1ba9a99135e35d53f41e9d",
+    "packages/web/src/stores/appSettingsStore.ts": "a6df4c8cd159049d675e2f230548858c80999b2327c313253126ab6affa39b04",
+    "packages/web/src/types/index.ts": "dd641ce9b1e46d3f3ba259a2497aeba07871a620d7a1fdbf66925fb39cd470f7",
+    "tests/support/notification_http_server.py": "dc6d951e433e0f5c2a04ecf7a73f8b7f6b11e791bc808b4d19dc976e0cc5cf52",
+    "tests/test_notification_http.py": "01654b800de8add7417ec97e35e899db90b41a2596398433a9e3e7d7b6f0f0bd",
+    "tests/test_source_notifications.py": "360b19d6bd4ee2165d198df841c9e3481a492fddb50145f86f1a542667611b4c"
+  },
+  "hashFormat": "SHA-256 of Git blob bytes (canonical repository line endings)"
+}

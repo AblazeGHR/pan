@@ -232,6 +232,7 @@ DEFAULT_CONFIG: dict = {
         # Behavior → Message auto force send：三类新入队消息是否自动复用
         # Force send 能力路由（system=Job 终态、ma=MA/管理器消息、
         # report=完成报告）。缺省三项全部关闭，保持既有排队行为。
+        "sessionErrorBridge": True,
         "autoForceSend": {"system": False, "ma": False, "report": False},
         # 自动完成报告策略；summary 是独立策略，决定报告是否附带本轮输入
         # 正文的前 100 个 Unicode 字符（不调用模型）。四项来源开关默认全关，
@@ -241,6 +242,8 @@ DEFAULT_CONFIG: dict = {
         # 是否通过 Toast 显示 Codex CLI 原生 warning
         "notifications": {
             "codexWarningToast": True,
+            "lockerUnread": {"enabled": False, "system": False, "browser": False, "qqReport": False, "qqTargets": []},
+            "newError": {"enabled": False, "system": False, "browser": False, "qqReport": False, "qqTargets": []},
             "completionBridge": {"system": True, "browser": False, "qqReport": False, "qqSubscribe": False, "qqTargets": []},
             # 全局未读记录策略（packages/core/unread_policy.py 的单一谓词）：
             # ["all"] 全部记录（旧配置默认）| ["none"] 不记录任何 Session |

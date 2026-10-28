@@ -107,6 +107,8 @@ export function findManualReportTargets(
   // window's own epoch/revision/total.  A run whose boundary cannot be
   // recovered here (other epoch, unknown revision) is unprovable.
   const boundaries = new Map<TerminalIdentity, number>();
+  const byOffset = new Map(messages.map(message => [proof.offsetOf(message), message]));
+  const byId = new Map(messages.map(message => [message.messageId, message]));
   for (const terminal of terminals) {
     if (terminal.historyEpoch !== proof.epoch) continue;
     if (typeof terminal.historyRevision !== 'number'
@@ -116,7 +118,14 @@ export function findManualReportTargets(
     const coveredEnd = proof.total - (proof.revision - terminal.historyRevision);
     if (!Number.isSafeInteger(coveredEnd) || coveredEnd <= 0
         || coveredEnd > proof.total) continue;
-    boundaries.set(terminal, coveredEnd);
+    const boundary = byOffset.get(coveredEnd - 1);
+    if (boundary?.kind === 'terminal' && boundary.terminal) {
+      const anchor = byId.get(boundary.terminal.anchorMessageId ?? undefined);
+      const offset = anchor?.role === 'assistant' ? proof.offsetOf(anchor) : undefined;
+      if (offset !== undefined) boundaries.set(terminal, offset + 1);
+    } else {
+      boundaries.set(terminal, coveredEnd);
+    }
   }
 
   // A run's final row is the last covered row; its absolute offset is unique.

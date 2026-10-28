@@ -4,6 +4,25 @@ import type { GroupMode } from '@/stores/uiStore';
 import { useUIStore } from '@/stores/uiStore';
 import { fetchUiSettings, updateUiSettings } from '@/services/api';
 
+export type NotificationSource = 'lockerUnread' | 'newError';
+export interface ErrorNotificationExclusions { enabled: boolean; types: string[] }
+export function sanitizeErrorExclusions(value: unknown): ErrorNotificationExclusions {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return { enabled: raw.enabled === true, types: Array.isArray(raw.types) && raw.types.every((v) => typeof v === 'string') ? [...new Set(raw.types as string[])] : [] };
+}
+export interface SourceNotificationSettings {
+  enabled: boolean;
+  qqReport: boolean;
+  system: boolean;
+  browser: boolean;
+  qqTargets: string[];
+}
+export function sanitizeSourceNotification(value: unknown): SourceNotificationSettings {
+  const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return { enabled: raw.enabled === true, qqReport: raw.qqReport === true, system: raw.system === true, browser: raw.browser === true,
+    qqTargets: sanitizeCompletionBridge(raw).qqTargets };
+}
+
 export interface CompletionBridgeDefaults {
   system: boolean;
   browser: boolean;
@@ -198,6 +217,8 @@ export interface AppSettings {
    * either way.
    */
   reportWorkerKillErrors: boolean;
+  sessionErrorBridge: boolean;
+  errorNotificationExclusions: ErrorNotificationExclusions;
   /**
    * Automatically route newly enqueued structured messages through Force
    * send. `system` = Job terminal notices, `ma` = manager/meta-agent
@@ -242,6 +263,8 @@ export interface AppSettings {
      */
     lockerDesktop: boolean;
     completionBridge?: CompletionBridgeDefaults;
+    lockerUnread?: SourceNotificationSettings;
+    newError?: SourceNotificationSettings;
     /**
      * Which Sessions record done unread. Persisted globally in
      * config.json (``ui.notifications.unreadRecording``) and enforced by the
@@ -267,6 +290,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showTaskAgent: true,
   showQQ: true,
   reportWorkerKillErrors: false,
+  sessionErrorBridge: true,
+  errorNotificationExclusions: { enabled: false, types: [] },
   autoForceSend: DEFAULT_AUTO_FORCE_SEND,
   showCodexTerminalInput: false,
   mergeConsecutiveNonBodyBlocks: false,
@@ -278,6 +303,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     codexWarningToast: true,
     lockerDesktop: false,
     completionBridge: DEFAULT_COMPLETION_BRIDGE,
+    lockerUnread: { enabled: false, system: false, browser: false, qqReport: false, qqTargets: [] },
+    newError: { enabled: false, system: false, browser: false, qqReport: false, qqTargets: [] },
     unreadRecording: DEFAULT_UNREAD_RECORDING,
     confirmCrossWorkspaceManagement: true,
     confirmAgentSystemQueueEdit: true,
@@ -360,6 +387,8 @@ export function sanitizeSettings(
       typeof parsed.reportWorkerKillErrors === 'boolean'
         ? parsed.reportWorkerKillErrors
         : DEFAULT_SETTINGS.reportWorkerKillErrors,
+    sessionErrorBridge: typeof parsed.sessionErrorBridge === 'boolean' ? parsed.sessionErrorBridge : true,
+    errorNotificationExclusions: sanitizeErrorExclusions(parsed.errorNotificationExclusions),
     autoForceSend: sanitizeAutoForceSend(parsed.autoForceSend),
     showCodexTerminalInput:
       typeof parsed.showCodexTerminalInput === 'boolean'
@@ -384,6 +413,8 @@ export function sanitizeSettings(
     shortcuts: sanitizeShortcuts(parsed.shortcuts),
     notifications: {
       completionBridge: sanitizeCompletionBridge(notifications.completionBridge),
+      lockerUnread: sanitizeSourceNotification(notifications.lockerUnread),
+      newError: sanitizeSourceNotification(notifications.newError),
       unreadRecording: sanitizeUnreadRecording(notifications.unreadRecording),
       confirmAgentSystemQueueEdit: typeof notifications.confirmAgentSystemQueueEdit === 'boolean' ? notifications.confirmAgentSystemQueueEdit : true,
       codexWarningToast:
@@ -430,6 +461,7 @@ interface AppSettingsStore extends AppSettings {
   /** Persist the Locker desktop-notification switch. */
   setLockerDesktop: (v: boolean) => void;
   saveCompletionBridge: (v: CompletionBridgeDefaults) => Promise<void>;
+  saveSourceNotification: (source: NotificationSource, value: SourceNotificationSettings) => Promise<void>;
   /**
    * Persist the unread-recording scope set. Resolves only after the server
    * wrote the settings; a failure rejects and leaves the store unchanged.
@@ -442,6 +474,8 @@ interface AppSettingsStore extends AppSettings {
    */
   saveAutoReport: (value: AutoReportSettings) => Promise<void>;
   saveReportWorkerKillErrors: (v: boolean) => Promise<void>;
+  saveSessionErrorBridge: (v: boolean) => Promise<void>;
+  saveErrorNotificationExclusions: (value: ErrorNotificationExclusions) => Promise<void>;
   /**
    * Persist the three automatic Force switches. Resolves only after the
    * server wrote the settings; a failure rejects and leaves the store on the
@@ -629,6 +663,13 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       return saveShortcuts({});
     },
 
+    saveSourceNotification: async (source, value) => {
+      dirty = true;
+      const response = await updateUiSettings({ notifications: { [source]: value } });
+      const next = sanitizeSettings(response).notifications[source];
+      set((state) => ({ notifications: { ...state.notifications, [source]: next } }));
+    },
+
     saveCompletionBridge: async (value) => {
       if ((value.qqReport || value.qqSubscribe) && value.qqTargets.length === 0) {
         throw new Error('Select at least one QQ contact before enabling QQ Report or Subscribe by default.');
@@ -664,6 +705,17 @@ export const useAppSettingsStore = create<AppSettingsStore>((set, get) => {
       dirty = true;
       const response = await updateUiSettings({ autoReport: value });
       set({ autoReport: sanitizeAutoReport(response.autoReport) });
+    },
+
+    saveSessionErrorBridge: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ sessionErrorBridge: value });
+      set({ sessionErrorBridge: sanitizeSettings(response).sessionErrorBridge });
+    },
+    saveErrorNotificationExclusions: async (value) => {
+      dirty = true;
+      const response = await updateUiSettings({ errorNotificationExclusions: value });
+      set({ errorNotificationExclusions: sanitizeErrorExclusions(response.errorNotificationExclusions) });
     },
 
     saveReportWorkerKillErrors: async (value) => {

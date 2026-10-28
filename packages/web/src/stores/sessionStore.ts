@@ -255,6 +255,7 @@ interface SessionStore {
       status?: string;
       cancelled?: boolean;
       result?: string;
+      historyTerminalId?: string;
       terminalCoverage?: TerminalCoverage;
       historyEpoch?: string;
       historyRevision?: number;
@@ -1530,7 +1531,40 @@ function projectTranscript(
     if (offset >= anchorOffset && !emitted.has(offset)) pushCanonicalRow(offset, message);
   }
   if (window.end !== null) pushTerminalMarkersAt(window.end);
-  return display;
+  return anchorHistoryTerminals(display);
+}
+
+/** Fixed server anchors beat frame arrival order, including late old results.
+ * Missing/paged-out anchors keep an independent row at its canonical offset.
+ * Never infer an anchor from whichever message happens to be last. */
+export function anchorHistoryTerminals(rows: Message[]): Message[] {
+  const anchors = new Set(rows.filter(row => row.kind !== 'terminal').map(row => row.messageId));
+  const events = new Map<string, Message[]>();
+  const seen = new Set<string>();
+  const result: Message[] = [];
+  for (const row of rows) {
+    const terminal = row.terminal;
+    if (row.kind !== 'terminal' || !terminal) continue;
+    if (seen.has(terminal.eventId)) continue;
+    seen.add(terminal.eventId);
+    if (terminal.anchorMessageId && anchors.has(terminal.anchorMessageId)) {
+      const group = events.get(terminal.anchorMessageId) ?? [];
+      group.push(row);
+      events.set(terminal.anchorMessageId, group);
+    }
+  }
+  seen.clear();
+  for (const row of rows) {
+    if (row.kind === 'terminal' && row.terminal) {
+      if (seen.has(row.terminal.eventId)) continue;
+      seen.add(row.terminal.eventId);
+      if (row.terminal.anchorMessageId && anchors.has(row.terminal.anchorMessageId)) continue;
+    }
+    result.push(row);
+    if (row.messageId) result.push(...(events.get(row.messageId) ?? []).sort(
+      (a, b) => a.terminal!.order - b.terminal!.order));
+  }
+  return result;
 }
 
 function withTranscript(
@@ -3479,7 +3513,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const terminal = s.terminalWatermarks[sessionId];
       const previousBuffer = s.liveStreamBuffers[sessionId];
       const result = typeof event.result === 'string' ? event.result : '';
-      const hasResult = result.trim().length > 0;
+      const hasResult = result.trim().length > 0
+        && !(event.historyTerminalId && event.status === 'error');
       const status = event.status === 'error'
         ? 'error'
         : event.status === 'cancelled' || event.cancelled

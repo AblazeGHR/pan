@@ -131,6 +131,9 @@ class UserCardStore:
             if changed!=1:
                 raise InteractionError('conflict','Revision changed')
             self.stop_if_done(db,owner)
+            from packages.core.source_notifications import stage
+            stage(db, 'lockerUnread', row['id'] + ':answered', owner,
+                  f"Pan: Locker new answer\nSession: {owner}\nItem: {row['id']}\n{data['body']}", recipient=row['recipient'])
             return self.view(self.get(db,row['id'],owner=owner))
 
     def delete(self, principal, cid):

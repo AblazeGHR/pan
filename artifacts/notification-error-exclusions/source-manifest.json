@@ -1,0 +1,20 @@
+{
+  "docs/USER_MANUAL.en.md": "c00fcf8bad9a1184a706a2b7154a4fdc38d36ef7",
+  "docs/USER_MANUAL.md": "0a7c160f7085b833c3c0a80464dd1b879c3b2498",
+  "docs/design/notification-sources-v1.md": "fd74a93679dc4f365169a3668ee41e0456ee28f6",
+  "packages/core/source_notifications.py": "e72f28a9114c7e39ea4409c594c962e93aec1d88",
+  "packages/interactions/api.py": "f11962344622479d676a06b9fbb0a0f384b5ac89",
+  "packages/web/e2e/notification-sources.mjs": "c5eaec359da9eb43bae0c92bf0469330849c1574",
+  "packages/web/server.py": "1dd30d943f2b43dfc5418d13bc3ddabb8d030250",
+  "packages/web/src/components/layout/AppSettingsModal.test.tsx": "a008022ad65397d855332f8dde2292e39f26b3bd",
+  "packages/web/src/components/layout/ErrorNotificationExclusions.test.tsx": "25d43e2af4f42afbad19a87345b16592fcab51f5",
+  "packages/web/src/components/layout/ErrorNotificationExclusions.tsx": "08472fd9dcdba7c14345edb3ff92807b424579f7",
+  "packages/web/src/components/layout/SessionErrorBridgeSetting.tsx": "3a47124e409b7d749fb2edce3fc84e133a1e32a7",
+  "packages/web/src/components/layout/SourceNotificationPanel.test.tsx": "d07ae8d9e5a6d34077c611ac12b8cd3575af828f",
+  "packages/web/src/components/layout/SourceNotificationPanel.tsx": "5e879c6adc1cef756865398038354556b64edfc4",
+  "packages/web/src/services/api.ts": "734815577ac766601c732b87bbadd8ffe6d897f4",
+  "packages/web/src/stores/appSettingsStore.ts": "dd450bda7c1814bd02966aad9c56c547e93a8a06",
+  "tests/support/notification_http_server.py": "ffa8930ef5b52f91a89c8ec33bb07c1efeec83c9",
+  "tests/test_error_notification_exclusions.py": "eea85a78a0c3431df4adc733610dbf0efa99abf4",
+  "tests/test_notification_http.py": "12a32eda833d59c9df7e3ef1255abce6b111e5fe"
+}

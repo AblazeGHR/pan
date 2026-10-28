@@ -1,0 +1,119 @@
+{
+  "backend-frozen": {
+    "exit": 0,
+    "tests": 169,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "frontend": {
+    "exit": 0,
+    "tests": 222,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "http-frozen": {
+    "exit": 0,
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "tsc": {
+    "exit": 0
+  },
+  "build": {
+    "exit": 0,
+    "compressedAssets": 90
+  },
+  "baseline": {
+    "backend": 125,
+    "frontend": 218,
+    "untouchedEvidence": "artifacts/notification-locker-error"
+  },
+  "httpEvidence": {
+    "port": 55726,
+    "realQQ": false,
+    "realSystem": false,
+    "ownedPidBirths": [
+      [
+        7656,
+        1793161549.5581768
+      ],
+      [
+        16336,
+        1793161549.5657687
+      ],
+      [
+        31064,
+        1793161576.385252
+      ],
+      [
+        13720,
+        1793161576.3924167
+      ]
+    ],
+    "sharedExclusions": true,
+    "catalogTypes": 25,
+    "unknownDefaultForward": true,
+    "exclusionEpoch": true,
+    "exclusionAuth": true,
+    "backgroundQQ": true,
+    "samePathSystemCount": 1,
+    "duplicateEventNoReplay": true,
+    "reopenNoHistory": true,
+    "restartNoReplay": true,
+    "authRead": true,
+    "workers": 0,
+    "deliveryStates": [
+      "queued",
+      "sent",
+      "unknown"
+    ],
+    "ownedCleanupPassed": true,
+    "portReleased": true
+  },
+  "browserEvidence": {
+    "realLogin": true,
+    "errors": [],
+    "requests": [
+      {
+        "status": 200,
+        "method": "PUT"
+      },
+      {
+        "status": 200,
+        "method": "PUT"
+      },
+      {
+        "status": 200,
+        "method": "PUT"
+      },
+      {
+        "status": 200,
+        "method": "PUT"
+      },
+      {
+        "status": 200,
+        "method": "PUT"
+      },
+      {
+        "status": 200,
+        "method": "PUT"
+      }
+    ],
+    "sharedExclusionSaveRead": true,
+    "selectionRetainedWhenDisabled": true,
+    "errorTypeScrollWindow": {
+      "height": 160,
+      "scroll": 696,
+      "overflow": "auto"
+    },
+    "liveAuthenticatedBrowserDelivery": true,
+    "browserProvider": "recording fake",
+    "duplicateEventBrowserCount": 1,
+    "sessionPostboxPreserved": true,
+    "chromiumVersion": "153.0.8010.12"
+  }
+}
