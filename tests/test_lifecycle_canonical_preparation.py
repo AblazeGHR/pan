@@ -111,6 +111,26 @@ def test_concurrent_exit_and_restart_share_one_worker_preparation(prepared):
     assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
 
 
+@pytest.mark.parametrize("again", ["exit", "restart"])
+def test_lost_memory_still_fences_duplicate_or_cross_operation(prepared, again):
+    async def exercise():
+        first = await server.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True}})
+        server._canonical_lifecycle_pending.clear()
+        # A conflicting choice must query the original effect; it must not
+        # change the frozen plan or create a new operation after memory loss.
+        second = await server.api_system_main_lifecycle({"operation": again,
+            "options": {"markRunningSessionsOffline": False}})
+        return first, second
+    first, second = asyncio.run(exercise())
+    assert first["accepted"] and not second["accepted"] and second["status"] == "busy"
+    assert second["effectId"] == first["effectId"] and second["requestId"] == first["requestId"]
+    assert [row[0] for row in prepared.events] == ["gate", "shutdown", "launch"]
+    doc = ExecutionStore(lifecycle_action.receipt_root(prepared.root)).get(first["effectId"])
+    assert doc["frozenPlan"]["arguments"]["options"]["markRunningSessionsOffline"] is True
+    assert doc["result"] is None
+
+
 def test_partial_worker_failure_is_unknown_and_never_launches_or_reopens(prepared):
     async def fail_after_partial(**kwargs):
         prepared.events.append(("partial-shutdown", kwargs))

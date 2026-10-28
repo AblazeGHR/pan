@@ -4096,11 +4096,38 @@ async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = No
             # Both operations share one service and Worker gate. Even a
             # different choice or operation must query the original effect.
             return {**pending, "ok": False, "accepted": False, "status": "busy", "pending": True}
+        # In-memory state can be lost independently of the durable intent.
+        # Derive both operations' original identities for this same host and
+        # consult the existing store before admitting or preparing anything.
+        # Never create a store solely to perform this duplicate lookup.
+        from packages.jobs.independent_executor import ExecutionStore, effect_id
+        root = _PROJECT_DIR.expanduser().resolve()
+        port = _main_restart_port()
+        receipt_root = lifecycle_action.receipt_root(root)
+        if (receipt_root / "executions.sqlite3").is_file():
+            store = ExecutionStore(receipt_root)
+            for existing_operation in ("exit", "restart"):
+                existing_request = "request_" + hashlib.sha256(
+                    f"main-lifecycle:{root}:{port}:{existing_operation}:{current_pid}:{current_birth}".encode("utf-8")
+                ).hexdigest()[:24]
+                _, existing_identity, _ = lifecycle_action.protected_plan(
+                    root=root, port=port, old_pid=current_pid, old_pid_created_at=current_birth,
+                    operation=existing_operation, options={}, request_id=existing_request)
+                try:
+                    existing = store.get(effect_id(existing_identity["effectKey"]))
+                except KeyError:
+                    continue
+                pending = {"ok": False, "accepted": False, "status": "busy", "pending": True,
+                           "actionId": lifecycle_action.ACTION_ID, "operation": existing_operation,
+                           "requestId": existing_request, "jobId": existing["jobId"],
+                           "effectId": existing["effectId"]}
+                _canonical_lifecycle_pending[existing["effectId"]] = pending
+                return pending
         options = await _snapshot_main_lifecycle_options(options, operation)
         # Stable across a lost HTTP response/reloaded host; the canonical
         # effect fence then returns the original receipt instead of relaunching.
         request_id = "request_" + hashlib.sha256(
-            f"main-lifecycle:{_PROJECT_DIR.resolve()}:{_main_restart_port()}:{operation}:{current_pid}:{current_birth}".encode("utf-8")
+            f"main-lifecycle:{root}:{port}:{operation}:{current_pid}:{current_birth}".encode("utf-8")
         ).hexdigest()[:24]
         result = await _canonical_lifecycle_handoff(
             operation, options, request_id, current_pid, float(current_birth),
