@@ -1,0 +1,86 @@
+{
+  "port": 53564,
+  "launcher": "D:\\project\\pan-worktrees\\quota-native-admission-20261028\\evidence\\quota-native\\production_http_server.py",
+  "generations": [
+    {
+      "pid": 18256,
+      "birthTime": 1793161869.565302,
+      "listeners": [
+        {
+          "pid": 18256,
+          "birthTime": 1793161869.565302
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 18256,
+          "birthTime": 1793161869.565302,
+          "retired": true
+        },
+        {
+          "pid": 34416,
+          "birthTime": 1793161869.5762107,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    },
+    {
+      "pid": 27292,
+      "birthTime": 1793161877.8439755,
+      "listeners": [
+        {
+          "pid": 27292,
+          "birthTime": 1793161877.8439755
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 27292,
+          "birthTime": 1793161877.8439755,
+          "retired": true
+        },
+        {
+          "pid": 37212,
+          "birthTime": 1793161877.8507984,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    }
+  ],
+  "realAccountQueries": 0,
+  "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
+  "jobId": "job_649342a9afb2dc97e35dd60c",
+  "runId": "run_793d0a0f7a7a4208890acc16",
+  "attemptId": "attempt_bab7cc8f4a66497ba4c6a9a3",
+  "effectKey": {
+    "operationOrdinal": 0,
+    "runId": "run_793d0a0f7a7a4208890acc16",
+    "stepId": "query",
+    "targetId": "system_quota_query_v1"
+  },
+  "adapterCalls": [
+    {
+      "method": "query",
+      "pid": 18256,
+      "at": 1793161872.9063776
+    },
+    {
+      "method": "query",
+      "pid": 18256,
+      "at": 1793161874.0901544
+    }
+  ],
+  "queryCalls": 2,
+  "onceExecutionQueries": 1,
+  "monitorBindingQueries": 1,
+  "wakeCalls": 0,
+  "effects": 1,
+  "attempts": 1,
+  "unknownPreserved": true,
+  "noResendAfterProcessRestart": true,
+  "allOwnedProcessesStopped": true
+}

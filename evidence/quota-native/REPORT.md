@@ -102,7 +102,7 @@ creation. Earlier monitor publication-order timeouts were not saved as raw files
 their cause was publishing before subscription refresh. The restored strict TCP
 monitor cases now cover publication/admission/execution and business mapping.
 
-Cold re-open here means new app/service/executor objects with real startup/shutdown
+The original a66edbaa cold re-open tests mean new app/service/executor objects with real startup/shutdown
 and reopened durable stores in the same test process, not OS-process crash or
 power-loss injection. Canonical read/recovery does not invoke the query provider.
 No real supplier, account switch, CLI, Worker restart or actual Session wake was
@@ -115,3 +115,15 @@ No edits to shared worker/server/process/log/pin/cancel/fence/contracts/schedule
 conftest or original TA test changes are included. Shared edits are limited to
 the explicitly released quota symbols in TypedExecutor and FinalService plus
 automation API/policy. No main/practical update, merge, push or deployment.
+
+## Additive production-process closure
+
+The same-Session follow-up adds a strict independently launched production-server
+successor without changing product code or the three original red tests.
+See [PROCESS_HTTP.md](PROCESS_HTTP.md) for exact node mappings, OS PID/birth/listener
+cleanup evidence and the new command/results. This supersedes the earlier
+same-process-only limit for **graceful owned OS process replacement**; abrupt
+crash/power loss, real suppliers, real-profile migration and deployment remain
+unverified. `source.json` is the original a66edbaa validation snapshot;
+`process-source.json` records the additive test/launcher source and verifies that
+all five product files still match that original snapshot.
