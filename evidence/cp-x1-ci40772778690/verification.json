@@ -1,0 +1,37 @@
+{
+  "base": "b3d2f6be8b8200be3aee83df965d3b77fd0cd5e1",
+  "remote_run": 40772778690,
+  "remote_source": "e97a6957",
+  "remote_artifact_sha256": {
+    "3.12/locker-requests.json": "55183bd677eb1561880641237711802867a43391e82cf664e0928448238122b2",
+    "3.12/locker-server.json": "602fd75049bac2981323979f4c7ec3f6b47859ed1b2308ae0be55d9a628054ee",
+    "3.12/result.json": "cf3e0a991893a843c3c0c78104786e8d2ec6d42d3fc842ab7a409260c0d5b2c5",
+    "3.14/locker-requests.json": "0b26832e5828e4fe2b75962031478c92da8a4623e6e891ec4b39073695d32281",
+    "3.14/locker-server.json": "2eb7a60efba10e3e81c1dc15f9f304b1b60194a3fd5b3348b998ef4e62ac6961",
+    "3.14/result.json": "b08672b8b821470981eebb38bf71992e89c3bb5bf15f6471fdae1684979483af"
+  },
+  "local_python": "3.14.5",
+  "fresh_build_exit": 0,
+  "isolated_focused_tests_initial": {
+    "passed": 45,
+    "exit": 0
+  },
+  "dedicated_final": {
+    "passed": 4,
+    "exit": 0
+  },
+  "owned_http_chromium_and_contract_final": {
+    "passed": 7,
+    "exit": 0,
+    "original_fixture_ids": 113,
+    "responses": 114,
+    "finished": 114,
+    "failed": 0,
+    "port_released": true
+  },
+  "intermediate_test_spy_failure": {
+    "failed": 1,
+    "cause": "wrong module for notification spy",
+    "corrected": true
+  }
+}
