@@ -1,0 +1,6 @@
+{
+  "rawArchive": "lifetime-baseline-red.raw.zip",
+  "rawSha256": "27402efa3457ab71cab15a4ae76edf690a0ac5d01ee21c68988fa21b56522bbd",
+  "readableSha256": "2c479aa6233323878369ef4a4659354e7a49cf796e83d985c59675a0c0918784",
+  "change": "normalize line endings/trailing whitespace in readable XML only; preserve exact original bytes in zip"
+}

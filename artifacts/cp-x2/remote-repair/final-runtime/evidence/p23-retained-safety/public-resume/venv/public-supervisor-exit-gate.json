@@ -1,0 +1,19 @@
+{
+  "executorPort": 63610,
+  "label": "public-supervisor-exit-gate",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 5,
+  "launcherIsSupervisor": false,
+  "ownershipRootIsScript": false,
+  "supervisorAliveBlockedCompletion": true,
+  "supervisorExitConfirmed": true,
+  "effects": 1,
+  "cleanupCalls": 1,
+  "canonicalPort": 63611,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "venv"
+}

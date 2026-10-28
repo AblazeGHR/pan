@@ -64,14 +64,19 @@ def live(tmp_path):
         yield item
     finally:
         # Only documents in this fixture's own root can identify cleanup targets.
-        from packages.core.platform.execution_host import supervisor_alive
+        from packages.core.platform.execution_host import supervisor_alive, supervisor_exit_evidence
         store = ExecutionStore(service.root / "executions")
         with store.connect() as db:
             documents = [json.loads(row[0]) for row in db.execute("SELECT document FROM executions")]
+        from tests.job_posix_diagnostics import save_process_proof
+        save_process_proof(tmp_path.name + '-logs-before-cleanup', documents=documents, checks=item.checks)
         for doc in documents:
-            if doc.get("supervisorIdentity") and supervisor_alive(doc["supervisorIdentity"]):
-                ExecutionHost(store).cleanup_execution(doc["effectId"], doc["attempt"])
-                wait(lambda: supervisor_alive(doc["supervisorIdentity"]), lambda alive: not alive)
+            if doc.get("supervisorIdentity"):
+                if doc.get("result") is None and supervisor_alive(doc["supervisorIdentity"]):
+                    ExecutionHost(store).cleanup_execution(doc["effectId"], doc["attempt"])
+                # False/unknown alive is not an exit proof. Keep teardown red
+                # unless the original supervisor's exit is actually established.
+                wait(lambda: supervisor_exit_evidence(doc["supervisorIdentity"]), lambda proof: proof["confirmed"])
         client.close()
         server.should_exit = True
         thread.join(8)
@@ -84,6 +89,7 @@ def live(tmp_path):
         out = Path("evidence/p23-process-logs") / ("venv" if sys.prefix != sys.base_prefix else "system")
         out.mkdir(parents=True, exist_ok=True)
         (out / (tmp_path.name + ".json")).write_text(json.dumps(item.checks, indent=2), encoding="utf-8")
+        save_process_proof(tmp_path.name + '-logs-after-cleanup', documents=documents, checks=item.checks)
 
 
 def start(c, code):
@@ -167,14 +173,14 @@ asyncio.run(s.close())
 def test_default_real_large_unicode_combined_log_cold_reopen_and_archive(live):
     c = live
     chunk = "输出🙂 stderr你好\n".encode()
-    child_code = "import os,time; os.write(1,b'child-output\\n'); time.sleep(30)"
+    child_code = "import os; os.write(1,b'child-output\\n')"
     start(c, "import os,sys,subprocess\n"
         "open('effects','a').write('once\\n')\n"
         f"chunk={chunk!r}\n"
         "for i in range(7000):\n os.write(1,chunk); os.write(2,b'ERR\\n')\n"
         f"child=subprocess.Popen([sys.executable,'-c',{child_code!r}])\n"
         "open('child-pid','w').write(str(child.pid))\n"
-        "import time; time.sleep(.3)\n")
+        "assert child.wait(10) == 0\n")
     doc = terminal(c)
     raw, texts = all_bytes(c, limit=4093)
     assert len(raw) > 150000 and b"child-output\n" in raw
@@ -510,3 +516,54 @@ def test_public_log_authentication_and_revoked_agent_read(live):
         assert delegated.get(c.url).status_code == 403
         assert delegated.get(f"/api/job-runs/{c.rid}/logs").status_code == 403
     c.checks.update(invalidBearerRejected=True, revokedReadRejected=True)
+
+@pytest.mark.skipif(os.name != 'posix', reason='POSIX lost-leader process log/owned subtree boundary')
+def test_large_unicode_log_leader_loss_remains_unknown_and_original_queryable(live):
+    c = live
+    release = c.tmp / 'orphan-release'
+    leader_exit = c.tmp / 'leader-exit'
+    ready = c.tmp / 'child-ready'
+    chunk = "输出🙂 stderr你好\n".encode()
+    child_code = ("from pathlib import Path; import sys,time,os; os.write(1,b'child-output\\n'); "
+                  "Path(sys.argv[1]).touch(); exec('while not Path(sys.argv[2]).exists(): time.sleep(.02)')")
+    child_pid = None
+    try:
+        start(c, "import os,sys,subprocess,time\nfrom pathlib import Path\n"
+            "open('effects','a').write('once\\n')\n"
+            f"chunk={chunk!r}\n"
+            "for i in range(7000):\n os.write(1,chunk); os.write(2,b'ERR\\n')\n"
+            f"child=subprocess.Popen([sys.executable,'-c',{child_code!r},{str(ready)!r},{str(release)!r}])\n"
+            "open('child-pid','w').write(str(child.pid))\n"
+            f"while not Path({str(leader_exit)!r}).exists(): time.sleep(.02)\n")
+        wait(lambda: ready.exists(), bool)
+        child_pid = int((c.tmp / 'child-pid').read_text())
+        original = c.store.get(c.eid)
+        leader_exit.touch()
+        doc = wait(lambda: c.store.get(c.eid), lambda d: d['result'] is not None)
+        assert doc['result']['outcome'] == 'unknown'
+        assert doc['result']['cleanupProof']['confirmed'] is False
+        assert child_pid in doc['result']['cleanupProof']['ownedTree']['remaining'] or doc['evidence']['processIdentity']['pgid'] in doc['result']['cleanupProof']['ownedTree']['remaining']
+        import psutil
+        assert psutil.pid_exists(child_pid)
+        run = c.client.get('/api/job-runs/' + c.rid).json()
+        response = c.client.post('/api/job-runs/' + c.rid + '/operations', json={
+            'operation': 'cancel', 'expectedStateRevision': run['stateRevision'], 'requestKey': 'lost-leader-query'})
+        assert response.status_code == 202, response.text
+        operation = response.json()['operationId']
+        for _ in range(2):
+            asyncio.run(c.service.recover_external_receipts())
+            assert c.client.get('/api/operations/' + operation).json()['status'] == 'unknown'
+            assert c.store.get(c.eid)['attempt'] == original['attempt']
+            assert c.store.get(c.eid)['logRef'] == original['logRef']
+        raw, texts = all_bytes(c, limit=4093)
+        assert raw.count(chunk) == 7000 and raw.count(b'ERR\n') == 7000
+        assert b'child-output\n' in raw and ''.join(texts).encode() == raw
+        assert (c.tmp / 'effects').read_text().splitlines() == ['once']
+        assert psutil.pid_exists(child_pid)
+        c.checks.update(lostLeaderUnknown=True, originalQueryable=True, effects=1)
+    finally:
+        leader_exit.touch()
+        release.touch()  # Owned fixture cooperative exit, never product kill authority.
+        if child_pid:
+            import psutil
+            wait(lambda: psutil.pid_exists(child_pid), lambda exists: not exists)

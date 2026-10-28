@@ -267,21 +267,40 @@ def read_posix_identity(pid: int) -> tuple[ProcessIdentity | None, str | None]:
     return None, None
 
 
+def _darwin_birth(identity: ProcessIdentity) -> tuple[str, int, int, int] | None:
+    """Parse lifetime-v1 or legacy; unknown encodings grant no authority."""
+    try:
+        values = identity.birth.split(":")
+        if len(values) != 4:
+            return None
+        if values[0] == "lifetime-v1":
+            unique, seconds, micros = map(int, values[1:])
+            version = "lifetime-v1"
+        else:
+            unique, _exec_version, seconds, micros = map(int, values)
+            version = "legacy"
+        if unique <= 0 or seconds <= 0 or not 0 <= micros < 1_000_000:
+            return None
+        return version, unique, seconds, micros
+    except (ValueError, TypeError):
+        return None
+
+
 def _strong_identity(identity: ProcessIdentity | None) -> bool:
-    return (identity is not None and identity.kind in {"starttime", "proc_uniqueid"}
-            and bool(identity.boot_id))
+    if identity is None or not identity.boot_id:
+        return False
+    if identity.kind == "starttime":
+        return True
+    parsed = _darwin_birth(identity) if identity.kind == "proc_uniqueid" else None
+    return parsed is not None and parsed[0] == "lifetime-v1"
 
 
 def _same_darwin_process(expected: ProcessIdentity, observed: ProcessIdentity) -> bool:
     if (expected.kind != "proc_uniqueid" or observed.kind != "proc_uniqueid"
             or expected.pid != observed.pid or expected.boot_id != observed.boot_id):
         return False
-    try:
-        first = [int(value) for value in expected.birth.split(":")]
-        second = [int(value) for value in observed.birth.split(":")]
-        return len(first) == len(second) == 4 and first[0] == second[0]
-    except ValueError:
-        return False
+    first, second = _darwin_birth(expected), _darwin_birth(observed)
+    return first is not None and second is not None and first[1] == second[1]
 
 
 def _tree_members(pid: int, pgid: int) -> tuple[ProcessIdentity, ...]:
@@ -478,11 +497,11 @@ class PosixProcessOwner(ProcessOwner):
             )
         if (_same_darwin_process(identity, observed)
                 and not observed.matches(identity)):
-            # pidversion can change on exec without process exit. This is not
-            # PID reuse and must never become supervisor-exit evidence.
+            # A changed start timeval or legacy-format ambiguity is not proof
+            # of PID reuse and must never become supervisor-exit evidence.
             return IdentityCheck(status=ProcessStatus.UNKNOWN, ours=None,
                 expected=identity, observed=observed,
-                detail="Darwin execution generation changed within original process; no signal/exit authority")
+                detail="Darwin birth record changed or crossed legacy format within same unique process; no signal/exit authority")
         if state == "Z":
             return IdentityCheck(
                 status=ProcessStatus.DEAD,

@@ -44,6 +44,17 @@ def _sleep_cmd(seconds: int = 120) -> list[str]:
     return [PYTHON, "-c", f"import time; time.sleep({int(seconds)})"]
 
 
+def _mismatched_birth(identity: ProcessIdentity) -> str:
+    # Exercise a VALID different lifetime, separately from malformed-record
+    # negatives; the status/refusal assertions below are unchanged.
+    if identity.kind == "proc_uniqueid":
+        parts = identity.birth.split(":")
+        assert parts[0] == "lifetime-v1" and len(parts) == 4
+        parts[1] = str(int(parts[1]) + 1)
+        return ":".join(parts)
+    return f"{identity.birth}-forged"
+
+
 @contextlib.contextmanager
 def spawned(owner: ProcessOwner, argv: list[str], **kwargs):
     """spawn + 保证清理（kill_tree 失败不影响 close 兜底）。"""
@@ -188,7 +199,7 @@ class ProcessOwnerContract:
     def test_check_detects_reused_pid(self, owner: ProcessOwner) -> None:
         with spawned(owner, _sleep_cmd()) as handle:
             forged = dataclasses.replace(
-                handle.identity, birth=f"{handle.identity.birth}-forged"
+                handle.identity, birth=_mismatched_birth(handle.identity)
             )
             check = owner.check(forged)
             assert check.status is ProcessStatus.ALIVE
@@ -199,7 +210,7 @@ class ProcessOwnerContract:
         other = type(owner)()
         with spawned(owner, _sleep_cmd()) as handle:
             forged = dataclasses.replace(
-                handle.identity, birth=f"{handle.identity.birth}-forged"
+                handle.identity, birth=_mismatched_birth(handle.identity)
             )
             record = {
                 "schema": IDENTITY_SCHEMA,
