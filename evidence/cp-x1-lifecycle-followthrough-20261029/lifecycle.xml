@@ -1,0 +1,1521 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="33" skipped="0" tests="69" time="325.358" timestamp="2026-10-28T19:06:31.752035+08:00" hostname="windows-local"><testcase classname="tests.test_main_service_exit" name="test_exit_status_is_available_from_python_launcher_on_windows" time="0.012" /><testcase classname="tests.test_main_service_exit" name="test_exit_job_records_choice_and_exact_pre_exit_running_snapshot" time="0.172"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F5F0B00&gt;
+
+    def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+            SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+            SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        created_tasks = []
+    
+        def capture_task(coro, **kwargs):
+            created_tasks.append(kwargs.get("name"))
+            coro.close()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+    
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": "ask",
+            "markRunningSessionsOffline": False,
+            "runningSessionIds": ["running-a", "running-b"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:63: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_ask_requires_explicit_choice_before_job_or_worker_gate" time="0.004"><failure message="Failed: DID NOT RAISE HTTPException">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F592450&gt;
+
+    def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
+    
+&gt;       with pytest.raises(srv.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_main_service_exit.py:81: Failed</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_legacy_ask_exit_job_without_choice_fails_before_worker_or_legal_state_changes" time="0.115" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]" time="0.005"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F5F58C0&gt;
+strategy = 'ask', legacy_choice = True, expected_mark_offline = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]" time="0.025"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F665A50&gt;
+strategy = 'ask', legacy_choice = False, expected_mark_offline = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]" time="0.027"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F666050&gt;
+strategy = 'offline', legacy_choice = False, expected_mark_offline = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]" time="0.004"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F700140&gt;
+strategy = 'preserve-running', legacy_choice = True
+expected_mark_offline = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_rejects_non_boolean_running_state_choice" time="0.003" /><testcase classname="tests.test_main_service_exit" name="test_exit_schedules_worker_shutdown_and_python_supervisor" time="0.014"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F5DFE70&gt;
+
+    def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(launcher, "resolve_python_argv", lambda *args, **kwargs: ([sys.executable], "test"))
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        calls = []
+    
+        async def fake_shutdown_all(**kwargs):
+            calls.append(("shutdown", kwargs))
+    
+        class FakeProcess:
+            pid = 4242
+    
+        monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True},
+        }))
+        asyncio.run(asyncio.sleep(0))
+        assert result["ok"] is True
+&gt;       assert result["status"] == "scheduled"
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_main_service_exit.py:199: KeyError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_duplicate_exit_is_rejected_without_second_request" time="0.026"><failure message="assert True is False">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F5DF310&gt;
+
+    def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(srv, "_main_exit_pending", True)
+        monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
+&gt;       assert result["ok"] is False
+E       assert True is False
+
+tests\test_main_service_exit.py:218: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_internal_shutdown_requests_uvicorn_lifespan_exit" time="0.027" /><testcase classname="tests.test_main_service_exit" name="test_exit_wrapper_is_launcher_only" time="0.004" /><testcase classname="tests.test_main_service_restart" name="test_restart_is_disabled_only_off_platform" time="0.017" /><testcase classname="tests.test_main_service_restart" name="test_restart_returns_scheduled_before_python_supervisor_finishes" time="0.073"><failure message="Failed: supervisor must wait for Worker shutdown">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F6F9180&gt;
+
+    def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch):
+        calls = []
+        tasks = []
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": "ask", "startupPreference": "wake-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
+    
+        def close_gate_after_snapshot():
+            saved = background_jobs.list_jobs(srv._main_restart_registry_root())[0]
+            assert saved["options"] == {
+                "exitStrategy": "ask",
+                "markRunningSessionsOffline": False,
+                "runningSessionIds": [],
+            }
+            calls.append(("gate", True))
+    
+        monkeypatch.setattr(worker, "begin_shutdown", close_gate_after_snapshot)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: tasks.append(coro))
+    
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
+            "supervisor must wait for Worker shutdown",
+        ))
+&gt;       result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+
+tests\test_main_service_restart.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\web\server.py:4090: in api_system_main_lifecycle
+    result = await _canonical_lifecycle_handoff(
+packages\web\server.py:4034: in _canonical_lifecycle_handoff
+    result = await TypedExecutor(lifecycle_executor=protected).execute(
+packages\actions\typed_executor.py:356: in execute
+    return await self.lifecycle_executor.execute(attempt=attempt, effect_key=key, frozen_plan=frozen_plan, retry=retry)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\main_lifecycle.py:73: in execute
+    await asyncio.to_thread(self.launch, self.store.root, doc["effectId"])
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+packages\jobs\independent_executor.py:372: in launch_execution
+    return launch_detached([sys.executable, "-m", "packages.jobs.independent_execution_runner",
+packages\core\platform\execution_host.py:40: in launch_detached
+    bootstrap = _spawn([sys.executable, "-m", "packages.core.platform.execution_host",
+packages\core\platform\execution_host.py:24: in _spawn
+    return subprocess.Popen(argv, cwd=repo, env=env, stdin=subprocess.DEVNULL,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+args = (['D:\\project\\Pan-main\\.venv\\Scripts\\python.exe', '-m', 'packages.core.platform.execution_host', '--bootstrap', '...rap\\f6ae691031a837d8c8f379704f4872ccf7675cd6f44616d0.json', 'f6ae691031a837d8c8f379704f4872ccf7675cd6f44616d0', ...],)
+kwargs = {'cwd': WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027'), 'env': {'123PAN': 'D:\\software\\123pan...mData', 'ALL_PROXY': 'http://127.0.0.1:7890', 'ANDROID_HOME': 'D:\\android\\sdk', ...}, 'stdin': -3, 'stdout': -3, ...}
+
+&gt;   monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
+        "supervisor must wait for Worker shutdown",
+    ))
+E   Failed: supervisor must wait for Worker shutdown
+
+tests\test_main_service_restart.py:57: Failed</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_ask_requires_explicit_choice_before_any_side_effect" time="0.153"><failure message="Failed: DID NOT RAISE HTTPException">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F6F9390&gt;
+
+    def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": "ask", "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
+    
+&gt;       with pytest.raises(srv.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_main_service_restart.py:94: Failed</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]" time="0.005"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CABB6B0&gt;
+strategy = 'ask', choice = True, expected = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected,
+            "runningSessionIds": ["running"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_restart.py:138: TypeError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]" time="0.005"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CABB390&gt;
+strategy = 'ask', choice = False, expected = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected,
+            "runningSessionIds": ["running"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_restart.py:138: TypeError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]" time="0.004"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9F6A2C30&gt;
+strategy = 'offline', choice = False, expected = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected,
+            "runningSessionIds": ["running"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_restart.py:138: TypeError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]" time="0.020"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CBAFF50&gt;
+strategy = 'preserve-running', choice = True, expected = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected,
+            "runningSessionIds": ["running"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_restart.py:138: TypeError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_drains_workers_before_single_supervisor_handoff" time="0.195" /><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_failure_is_durable_and_does_not_repeat_worker_shutdown" time="0.409" /><testcase classname="tests.test_main_service_restart" name="test_restart_worker_shutdown_failure_does_not_launch_supervisor" time="0.161" /><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_launcher_keeps_detached_python_command" time="0.090" /><testcase classname="tests.test_main_service_restart" name="test_persisted_duplicate_restart_is_rejected_without_spawn" time="0.004"><failure message="KeyError: 'status'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FD3FCB0&gt;
+
+    def test_persisted_duplicate_restart_is_rejected_without_spawn(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(srv, "_main_restart_pending", True)
+        monkeypatch.setattr(srv, "_main_restart_request_id", "already-running")
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": True},
+        }))
+&gt;       assert result["status"] == "busy"
+               ^^^^^^^^^^^^^^^^
+E       KeyError: 'status'
+
+tests\test_main_service_restart.py:318: KeyError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_and_start_entry_have_no_batch_business_chain" time="0.004" /><testcase classname="tests.test_main_service_restart" name="test_restart_compatibility_wrapper_only_delegates_to_python" time="0.003" /><testcase classname="tests.test_legal_offline_http" name="test_external_running_kill_snapshot_manual_changes_restart_and_successor_idle" time="7.986" /><testcase classname="tests.test_legal_offline_http" name="test_safe_idle_and_captured_429_survive_idle_cli_kill_without_illegal[normal]" time="7.630" /><testcase classname="tests.test_legal_offline_http" name="test_safe_idle_and_captured_429_survive_idle_cli_kill_without_illegal[fail-429]" time="7.760" /><testcase classname="tests.test_legal_offline_http" name="test_hard_service_crash_identifies_unfinished_run_once_before_dispatch" time="9.186" /><testcase classname="tests.test_legal_offline_http" name="test_all_locked_restart_stays_dormant_and_constructed_idle_does_not_recover[False]" time="8.152" /><testcase classname="tests.test_legal_offline_http" name="test_all_locked_restart_stays_dormant_and_constructed_idle_does_not_recover[True]" time="8.001" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[SIGINT]" time="6.242" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[SIGTERM]" time="6.036" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[idle-SIGINT]" time="6.205" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[idle-SIGTERM]" time="5.973" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[safe-api]" time="29.463"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit4')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CBE4830&gt;
+method = 'safe-api'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9CD72400&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[preserve-api]" time="29.302"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit5')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CBD95C0&gt;
+method = 'preserve-api'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9CD70460&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-config]" time="29.483"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit6')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CC85550&gt;
+method = 'q-config'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9CD73480&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu]" time="29.526"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit7')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CB60980&gt;
+method = 'q-menu'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FBFC040&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu-2]" time="29.462"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit8')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0C520&gt;
+method = 'q-menu-2'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FBFCB40&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu-3]" time="29.499"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit9')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0C6E0&gt;
+method = 'q-menu-3'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FBFD430&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-triple]" time="29.573"><failure message="AssertionError: timed out waiting for owned host stopped: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_host_signal_vs_exit10')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0C280&gt;
+method = 'q-triple'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+&gt;           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function test_owned_host_signal_vs_exit_api_handshake.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FBFC250&gt;
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_clear_illegal_startup_policy_retires_persisted_incident_without_successor" time="11.103" /><testcase classname="tests.test_legal_offline_http" name="test_manual_pending_recovery_and_safe_offline_are_one_state" time="4.287" /><testcase classname="tests.test_legal_offline_http" name="test_safe_unlock_dispatches_without_waiting_for_watchdog" time="7.866" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0D5C0&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'base'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-independent]" time="0.181" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0E9E0&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'base'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-independent]" time="0.252" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]" time="0.020"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_4')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0E4A0&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-outer'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-independent]" time="0.204" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]" time="0.012"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_6')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9CD0EDD0&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'venv-outer'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-independent]" time="0.268" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]" time="0.014"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_8')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC408A0&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-inner'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-independent]" time="0.263" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]" time="0.052"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_runner_death_at_creation_10')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC40750&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'venv-inner'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-independent]" time="0.300" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_multigeneration_tre0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC40980&gt;
+kind = 'legacy', failure = 'root-exit'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
+    def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        monkeypatch.setattr(legacy._sessions, 'get', lambda sid: {'id': sid})
+        monkeypatch.setattr(legacy, 'PROJECT_ROOT', Path(__file__).resolve().parents[1])
+        helper = Path(__file__).parent / 'helpers/lifecycle_fault_runner.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        gate = tmp_path / 'gate.json'
+        original_popen = subprocess.Popen
+        runners = []
+        def spawn(command, **kwargs):
+            if failure == 'wait-error':
+                job_id = command[command.index('--job-id') + 1]
+                command = [sys.executable, str(helper.resolve()), '--kind', kind, '--fault', failure,
+                           '--root', str(root), '--job-id', job_id, '--evidence', str(gate)]
+            proc = original_popen(command, **kwargs)
+            runners.append(proc)
+            return proc
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
+        store = JobStore(root) if kind == 'independent' else None
+        job = (historical_process(root, argv, tmp_path)
+&gt;              if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                             ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-independent]" time="1.072" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]" time="0.009"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_owned_multigeneration_tre2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC40600&gt;
+kind = 'legacy', failure = 'wait-error'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
+    def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        monkeypatch.setattr(legacy._sessions, 'get', lambda sid: {'id': sid})
+        monkeypatch.setattr(legacy, 'PROJECT_ROOT', Path(__file__).resolve().parents[1])
+        helper = Path(__file__).parent / 'helpers/lifecycle_fault_runner.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        gate = tmp_path / 'gate.json'
+        original_popen = subprocess.Popen
+        runners = []
+        def spawn(command, **kwargs):
+            if failure == 'wait-error':
+                job_id = command[command.index('--job-id') + 1]
+                command = [sys.executable, str(helper.resolve()), '--kind', kind, '--fault', failure,
+                           '--root', str(root), '--job-id', job_id, '--evidence', str(gate)]
+            proc = original_popen(command, **kwargs)
+            runners.append(proc)
+            return proc
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
+        store = JobStore(root) if kind == 'independent' else None
+        job = (historical_process(root, argv, tmp_path)
+&gt;              if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                             ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-independent]" time="0.506" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_job_attribute_failure_prevents_creation_and_deletes_list[legacy]" time="0.007" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_job_attribute_failure_prevents_creation_and_deletes_list[independent]" time="0.006" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]" time="5.015"><failure message="assert False&#10; +  where False = until(&lt;function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC23E20&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_controller_process_crash_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC418D0&gt;
+kind = 'legacy'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_path, monkeypatch, kind):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys.executable, str(helper.resolve()), kind, str(root),
+                                 str(tree.resolve()), str(tmp_path)], creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        handles = []
+        runner = None
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC23E20&gt;)
+
+tests\test_job_lifecycle_prevention.py:262: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[independent]" time="0.740" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]" time="5.013"><failure message="assert False&#10; +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC22F00&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_legacy_runner_registers_i0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC434D0&gt;
+runtime_profile = 'base'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        import psutil
+        runtime = sys._base_executable
+        if runtime_profile == 'venv':
+            runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
+            if not runtime and sys.prefix != sys.base_prefix:
+                runtime = sys.executable
+            if not runtime:
+                import venv
+                venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
+                runtime = str(tmp_path / 'venv/Scripts/python.exe')
+        assert Path(runtime).is_file()
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
+                                 str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        runner = None
+        redirector = None
+        handles = []
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC22F00&gt;)
+
+tests\test_job_lifecycle_prevention.py:335: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]" time="5.013"><failure message="assert False&#10; +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC23D70&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5821/test_legacy_runner_registers_i1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021A9FC40210&gt;
+runtime_profile = 'venv'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        import psutil
+        runtime = sys._base_executable
+        if runtime_profile == 'venv':
+            runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
+            if not runtime and sys.prefix != sys.base_prefix:
+                runtime = sys.executable
+            if not runtime:
+                import venv
+                venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
+                runtime = str(tmp_path / 'venv/Scripts/python.exe')
+        assert Path(runtime).is_file()
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
+                                 str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        runner = None
+        redirector = None
+        handles = []
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x0000021A9FC23D70&gt;)
+
+tests\test_job_lifecycle_prevention.py:335: AssertionError</failure></testcase></testsuite></testsuites>
