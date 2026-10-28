@@ -128,13 +128,15 @@ class WorkerSessionProvider:
     ) -> Mapping[str, Any]:
         from packages.core import worker
 
-        return await worker.send_session(
+        client_id = "effect_" + contracts.digest(dict(effect_key))[:40]
+        result = await worker.send_session(
             session_id,
             text,
             source=source,
             source_session_id=source_session_id,
-            client_message_id="effect_" + contracts.digest(dict(effect_key))[:40],
+            client_message_id=client_id,
         )
+        return await _original_queue_receipt(worker, session_id, result, client_message_id=client_id)
 
 
 class WorkerAssignProvider:
@@ -152,13 +154,26 @@ class WorkerAssignProvider:
     ) -> Mapping[str, Any]:
         from packages.core import worker
 
-        return await worker.assign(
+        result = await worker.assign(
             session_id,
             text,
             source=source,
             task_id=task_id,
             source_session_id=source_session_id,
         )
+        return await _original_queue_receipt(worker, session_id, result, task_id=task_id)
+
+
+async def _original_queue_receipt(worker, session_id, result, **identity):
+    """Expose the original queue ID omitted by some legacy queued responses."""
+    if not isinstance(result, Mapping) or result.get("status") not in {"queued", "pending", "sent_to_cli"} or result.get("queueItemId"):
+        return result
+    async with worker.queue_lock(session_id):
+        session = worker._get_session_shallow(session_id)
+        item = worker._find_queue_item_by_idempotency(session, **identity) if session is not None else None
+        if item is not None:
+            return {**result, "queueItemId": worker._queue_item_id(item), "consumption": "unconfirmed"}
+    return result
 
 
 @dataclass(frozen=True)

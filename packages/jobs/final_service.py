@@ -19,6 +19,7 @@ from packages.jobs import final_contracts as fc
 from packages.jobs.chains import resolve as resolve_bindings
 from packages.jobs.final_runtime import FinalRuntime
 from packages.jobs.final_runtime.executor import TypedExecutor, WorkerSessionProvider
+from packages.actions.typed_executor import WorkerAssignProvider
 from packages.jobs.final_runtime.ledger import aggregate, new_id, now, principal
 from packages.scheduler.creators import CreatorStore, CanonicalEventStore, CreatorRuntime, EventBus
 from packages.scheduler.composition import CompositionCoordinator
@@ -83,7 +84,7 @@ class FinalService:
         self.creator_runtime = CreatorRuntime(self.creators, self.bus, authorize=self._guard_creator)
         self.compositions = CompositionCoordinator(self.creators, self)
         self.admission = TriggerAdmission(self)
-        self.executor = executor or TypedExecutor(session_provider=WorkerSessionProvider())
+        self.executor = executor or TypedExecutor(session_provider=WorkerSessionProvider(), assign_provider=WorkerAssignProvider())
         self._product_executor = self.executor if executor is None else None
         self.task = None
         self.closed = False
@@ -539,6 +540,8 @@ class FinalService:
             action = frozen["actions"][step["actionRef"]["id"]]
             if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(arguments):
                 error("invalid_schema", "Step input does not match Action schema")
+            if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
+                self._session_source(arguments, actor)
         admission = self.final.ledger.admit(job, self.root, plan=frozen, cause=cause or {"type": "manual"},
                                           authority=actor, operation_id=operation_id, rerun_of=rerun,
                                           authorization_revision=max(1, self.auth.permissions_status()["revision"]))
@@ -867,6 +870,47 @@ class FinalService:
                 value.update(cancel={"supported": True}, reconcile={"supported": True},
                     providerRef={"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.process-cleanup.v1"), "generation": 2})
                 self.publish_action("product_process_cleanup_v1", value)
+                # Publication only. The original owned runner supplies logRef;
+                # custom provider receipts are not decorated by this schema.
+                logged = copy.deepcopy(value)
+                logged["providerRef"] = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.process-logs.v1"), "generation": 3}
+                logged["outputSchema"].setdefault("properties", {})["logRef"] = {"type": "object"}
+                self.publish_action("product_process_logs_v1", logged)
+
+        # Additive publications: old releases and frozen Runs retain their
+        # original schemas/digests. These remain ordinary typed Actions.
+        from packages.core.worker import SOURCE_TYPES
+        for op in ("session-message", "session-broadcast", "assign"):
+            fields = copy.deepcopy(schemas["session-message" if op == "assign" else op])
+            if op == "session-broadcast":
+                fields["sessionIds"].pop("uniqueItems", None)  # worker fanout keeps first occurrence
+            fields.update(source={"enum": sorted(SOURCE_TYPES)}, sourceSessionId=string)
+            if op == "assign":
+                fields["taskId"] = string
+            self.publish_action("product_" + op.replace("-", "_") + "_v2", {
+                "name": op, "inputSchema": {"type": "object", "properties": fields,
+                    "required": ["sessionIds" if op == "session-broadcast" else "sessionId", "text"], "additionalProperties": False},
+                "outputSchema": {"type": "object"},
+                "providerRef": {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.session.v2"), "generation": 2},
+                "execution": {"operation": op, "config": {}}, "effectClass": "write_local",
+                "requiredCapabilities": [], "completionContracts": [{"id": "durable-queue-accepted", "schema": {"type": "object"}, "terminalProofSchema": {"type": "object"}}],
+                "defaultCompletion": "durable-queue-accepted", "cancel": {"supported": False}, "reconcile": {"supported": False},
+                "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
+
+    @staticmethod
+    def _session_source(arguments, authority):
+        """Source is message context, never a grant or a transport identity.
+
+        The current delegated transport authenticates an Agent capability, not
+        a particular Session. It cannot assert a Session or a user identity.
+        A Bearer-authenticated user may select existing agent message context;
+        worker.assign/send_session still validate that context and queue gates.
+        """
+        source = arguments.get("source", "automation")
+        sid = arguments.get("sourceSessionId")
+        if authority.get("type") != "user" and (source != "automation" or sid is not None):
+            error("authorization_denied", "Transport has no authenticated Session source identity")
+        return {**arguments, "source": source}
 
     def actions(self, *, actor):
         self._permit(actor, "action", "read")
@@ -899,6 +943,7 @@ class FinalService:
 
     async def dispatch_once(self):
         """Drive WP02 records through WP05, one serial boundary per Run."""
+        await self.recover_session_receipts()
         await self.recover_external_receipts()
         async with self._dispatch_lock:
             with self.transaction() as db:
@@ -964,6 +1009,8 @@ class FinalService:
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
                     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):
                         error("invalid_schema", "Action input schema rejected mapping")
+                    if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
+                        args = self._session_source(args, frozen["authority"])
                 except (fc.ContractError, ValueError) as exc:
                     self.final.ledger.fail_step_without_attempt(job, self.root, run_id, step["stepId"])
                     self.final.ledger.transition_run(job, self.root, run_id, "failed")
@@ -1132,6 +1179,11 @@ class FinalService:
                         pending.append((job["jobId"], rid, copy.deepcopy(intent), copy.deepcopy(intent["targets"])))
                 for target in self._external_targets(job):
                     rid = target["attempt"]["runId"]
+                    if self.executor is self._product_executor:
+                        frozen = state["plans"][rid]["frozen"]
+                        step = next(s for s in frozen["steps"] if s["stepId"] == target["attempt"]["stepId"])
+                        if frozen["actions"][step["actionRef"]["id"]]["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
+                            continue  # Original local queue lookup owns Session reconciliation.
                     if rid not in cancelled:
                         pending.append((job["jobId"], rid, None, [target]))
         for job_id, rid, intent, targets in pending:
@@ -1198,6 +1250,88 @@ class FinalService:
                     self._save(db, "job", job_id, job)
                     if target_state != "retry_wait":
                         self._settle(db, job, rid)
+
+    async def recover_session_receipts(self):
+        """Query the original local worker queue/task identity; never send.
+
+        Session providers have no remote reconcile protocol. Only the default
+        local host can prove durable enqueue from its existing worker store.
+        Missing/expired receipts remain unknown. Fanout stays one parent effect.
+        """
+        if self.executor is not self._product_executor:
+            return
+        from packages.core import worker
+        from packages.actions.typed_executor import EffectReceipt
+        with self.transaction(readonly=True) as db:
+            pending = []
+            for job in self._all(db, "job"):
+                state = aggregate(job, self.root)
+                for target in self._external_targets(job):
+                    attempt = target["attempt"]
+                    if attempt["state"] != "uncertain":
+                        continue
+                    plan = state["plans"][attempt["runId"]]
+                    frozen = plan["frozen"]
+                    step = next(s for s in frozen["steps"] if s["stepId"] == attempt["stepId"])
+                    action = frozen["actions"][step["actionRef"]["id"]]
+                    op = action["execution"]["operation"]
+                    if op not in {"session-message", "session-broadcast", "assign"}:
+                        continue
+                    args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
+                    prior = next(e["receipt"] for e in state["effects"] if e["attemptId"] == attempt["attemptId"])
+                    pending.append((target, op, args, copy.deepcopy(prior)))
+        for target, op, args, prior in pending:
+            key = target["effectKey"]
+            ids = list(dict.fromkeys(args["sessionIds"])) if op == "session-broadcast" else [args["sessionId"]]
+            rows = []
+            for sid in ids:
+                child = {**key, "targetId": sid} if op == "session-broadcast" else key
+                previous = next((r for r in prior.get("receipt", {}).get("targets", []) if r.get("effectKey") == child), None) if op == "session-broadcast" else prior
+                if previous and previous.get("outcome") in {"succeeded", "rejected"}:
+                    rows.append(previous)
+                    continue
+                def lookup():
+                    session = worker._get_session_shallow(sid)
+                    if session is None:
+                        return None
+                    if op == "assign":
+                        task_id = args.get("taskId") or "effect_" + fc.digest(child)[:40]
+                        item = worker._find_queue_item_by_idempotency(session, task_id=task_id)
+                    else:
+                        item = worker._find_queue_item_by_idempotency(session, client_message_id="effect_" + fc.digest(child)[:40])
+                    # A key collision is not proof for a different body.
+                    if item is None or ("text" in item and item["text"] != args["text"]):
+                        return None
+                    return {"status": "accepted", "sessionId": sid, "queueItemId": worker._queue_item_id(item),
+                            "taskId": item.get("taskId"), "consumption": "unconfirmed"}
+                try:
+                    async with worker.queue_lock(sid):
+                        observed = await asyncio.to_thread(lookup)
+                except Exception:
+                    observed = None  # Unreadable original evidence stays unknown.
+                rows.append(EffectReceipt(child, "succeeded" if observed else "unknown", observed or {"code": "original_receipt_unavailable"},
+                                          target_selection={"sessionIds": [sid]}).as_dict())
+            outcomes = [r["outcome"] for r in rows]
+            if "unknown" in outcomes:
+                continue  # Absence cannot prove rejection, even after restart.
+            outcome = "succeeded" if all(s == "succeeded" for s in outcomes) else "rejected" if all(s == "rejected" for s in outcomes) else "partial"
+            if outcome == "partial":
+                continue  # Existing canonical uncertain aggregate stays queryable.
+            receipt = rows[0] if op != "session-broadcast" else EffectReceipt(key, outcome,
+                {"targets": rows, "matched": len(rows), "succeeded": outcomes.count("succeeded"),
+                 "rejected": outcomes.count("rejected"), "unknown": 0}, target_selection={"sessionIds": ids}).as_dict()
+            with self.transaction() as db:
+                job = self._get(db, "job", target["jobId"])
+                state = aggregate(job, self.root)
+                aid, rid = target["attempt"]["attemptId"], target["attempt"]["runId"]
+                if state["attempts"][aid]["state"] != "uncertain" or rid in state.get("cancellations", {}):
+                    continue
+                resolved = self._apply_original_receipt(job, target, receipt)
+                result = ("completed" if all(s["state"] == "completed" for s in state["steps"][rid].values()) else "retry_wait") if resolved == "completed" else "failed"
+                self.final.ledger.transition_run(job, self.root, rid, result, operation="reconcile")
+                self._save(db, "job", job["jobId"], job)
+                if result != "retry_wait":
+                    self._settle(db, job, rid)
 
     def targets(self, event):
         with self.transaction(readonly=True) as db:
