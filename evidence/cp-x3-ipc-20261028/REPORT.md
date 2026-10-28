@@ -31,3 +31,9 @@ Failure is `history-terminal-live.mjs:90` first assertDisplay after late duplica
 ## Acceptance boundaries
 
 Windows named-pipe roundtrip/concurrency/start-failure cleanup and existing IPC authorization checks pass. Unix private path allocation is policy-tested on Windows, including mocked short fallback and bind-failure unwind; this is not Unix transport evidence. Real Unix long-path roundtrip and mode checks remain target-platform tests. No fresh Ubuntu/macOS success claimed until MA's next remote run. No push/remote dispatch/main/practical/deployment/account/real data operations. Existing assertions and skips preserved; owned HTTP fixtures cleaned their own processes/ports.
+
+## Fresh production prerequisite and original browser rerun
+
+MA subsequently authorized validation-only fresh production build and original history fixture rerun. Source SHA `cf7510f5152655992e376092d946962812950137` (baseline036 plus IPC candidate), own worktree serving /react. `pnpm build` in packages/web exited0; 88 compressed assets verified. Fresh entry `index-JbINMieB-pc2.js`; exact times and SHA256 in `fresh-dist-provenance.json`, complete build output in `fresh-build.log`.
+
+Original unchanged `tests/test_history_terminal_http.py` via the isolated Python runner then exited0, 1 passed (`fresh-history.xml`, `fresh-history.log`). Fresh runtime/browser/WS evidence is in `fresh-history-runtime.json`, `fresh-history-browser.json` and `fresh-history-browser.log`. This supersedes the stale-dist run for current local browser acceptance; stale evidence above remains intact. No UI, server, Worker or browser assertion edits. Linux/macOS post-fix transport/HTTP/browser evidence remains pending MA's remote rerun.

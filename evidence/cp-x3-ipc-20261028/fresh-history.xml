@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="12.790" timestamp="2026-10-28T15:13:27.789888+08:00" hostname="ablaze"><testcase classname="tests.test_history_terminal_http" name="test_history_terminal_production_browser" time="12.682" /></testsuite></testsuites>
