@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="2.781" timestamp="2026-10-28T15:10:10.740985+08:00" hostname="windows-local"><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart_real_http" time="0.011"><failure message="NameError: name 'monkeypatcreal_http' is not defined">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5764/test_owned_host_configuration_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002001D211E00&gt;
+
+    def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+&gt;       monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+        ^^^^^^^^^^^^^^^^^^^
+E       NameError: name 'monkeypatcreal_http' is not defined
+
+tests\test_quota_host_http.py:45: NameError</failure></testcase><testcase classname="tests.test_quota_policy_http" name="test_quota_policy_owned_http_default_unavailable_is_unknown_real_http" time="0.002"><failure message="NameError: name 'monkeypatcreal_http' is not defined">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5764/test_quota_policy_owned_http_d0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002001D2123F0&gt;
+
+    def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+&gt;       monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        ^^^^^^^^^^^^^^^^^^^
+E       NameError: name 'monkeypatcreal_http' is not defined
+
+tests\test_quota_policy_http.py:45: NameError</failure></testcase><testcase classname="tests.test_agent_inbox_http" name="test_real_http_mcp_fake_cli" time="2.110"><failure message="AssertionError: assert False&#10; +  where False = is_relative_to(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5764/test_real_http_mcp_fake_cli0/profile/data'))&#10; +    where is_relative_to = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs').is_relative_to&#10; +      where WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs') = resolve()&#10; +        where resolve = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs').resolve&#10; +          where WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs') = Path('D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\data\\background_jobs')">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5764/test_real_http_mcp_fake_cli0')
+
+    def test_real_http_mcp_fake_cli(tmp_path):
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        data = tmp_path / "profile" / "data"
+        data.mkdir(parents=True)
+        (data / "workdirs/fake").mkdir(parents=True)
+        (data / "config.json").write_text(json.dumps({
+            "port": port, "scheduler": {"enabled": False}, "memory": {"enabled": False},
+            "plugin_manifests": [str(ROOT / "manifest.json"), str(ROOT / "packages/mcp/manifest.json")],
+            "logging": {"file": str(data / "logs/pan.log")},
+            "qq": {"mode": "selective"}}), encoding="utf-8")
+        env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_")}
+        env.update(PYTHONIOENCODING="utf-8", PAN_E2E_FAKE_CLI=str(ROOT / "tests/support/fake_stream_cli.py"),
+                   PAN_E2E_FAKE_LOG=str(data / "fake-cli.jsonl"), PAN_TEST_DISABLE_QUEUE_WATCHDOG="1", PAN_TEST_INBOX_NONCE=secrets.token_hex(16))
+        base = f"http://127.0.0.1:{port}"
+        def request(method, path, body=None):
+            req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
+                                         method=method, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as response:
+                return json.load(response)
+        def eventually(fn, timeout=15):
+            deadline = time.monotonic() + timeout
+            while time.monotonic() &lt; deadline:
+                try:
+                    result = fn()
+                    if result:
+                        return result
+                except (OSError, ValueError):
+                    pass
+                time.sleep(.1)
+            raise AssertionError("condition did not become true")
+        log = (tmp_path / "server.log").open("w", encoding="utf-8")
+        process = subprocess.Popen([sys.executable, "-m", "tests.support.agent_inbox_http_server", "--port", str(port),
+                                    "--data-root", str(data)], cwd=ROOT, env=env, stdout=log, stderr=log,
+                                    **command_window_options())
+        try:
+            ident = eventually(lambda: request("GET", "/__test/inbox-identity"))
+            assert ident["port"] == port and ident["nonce"] == env["PAN_TEST_INBOX_NONCE"]
+            actual = psutil.Process(ident["pid"])
+            assert process.pid == actual.pid or process.pid in {p.pid for p in actual.parents()}
+            assert "tests.support.agent_inbox_http_server" in " ".join(actual.cmdline())
+            assert any(c.status == "LISTEN" and c.laddr.port == port for c in actual.net_connections(kind="tcp"))
+            assert Path(ident["cwd"]).resolve() == ROOT
+            for path in ident["roots"].values():
+&gt;               assert Path(path).resolve().is_relative_to(data)
+E               AssertionError: assert False
+E                +  where False = is_relative_to(WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5764/test_real_http_mcp_fake_cli0/profile/data'))
+E                +    where is_relative_to = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs').is_relative_to
+E                +      where WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs') = resolve()
+E                +        where resolve = WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs').resolve
+E                +          where WindowsPath('D:/project/pan-worktrees/xplat-job-fast-gates-20261027/data/background_jobs') = Path('D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\data\\background_jobs')
+
+tests\test_agent_inbox_http.py:66: AssertionError</failure></testcase></testsuite></testsuites>
