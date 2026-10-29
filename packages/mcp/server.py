@@ -36,8 +36,10 @@ Tools exposed:
     - agent_inbox: Shared Locker list/read/consume and subscription/mode/backlog/recovery
     - notification_send: Send a Pan system notification to self or managed session
     - reminder_register/list/cancel: Manage durable one-shot reminders
-    - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
-    - agent_message_job_create/get/list/update/cancel: Schedule Session messages or broadcasts
+    - agent_background_get/list/cancel: Retained historical Runner reads/cancel
+    - agent_message_job_get/list/cancel: Retained historical message reads/cancel
+    - job_*, event_creator_*, trigger_*: Canonical Job and scheduling operations
+      Retired write-name calls return structured migration guidance only.
     - agent_send_many: Send one message to selected Sessions
     - scheduler_list/get/runs: Read-only historical scheduled tasks and execution history
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
@@ -1920,8 +1922,9 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
     This is the backend fan-out counterpart to selecting Sessions in the
     Dashboard.  Each target uses the ordinary ``agent_send_to_queue`` queue semantics;
-    use ``agent_message_job_create`` with ``target_session_ids`` for a durable
-    scheduled fan-out.
+    use a canonical broadcast Job with a Creator/Trigger or a complete Template
+    for durable scheduled fan-out. Retired message-create calls give migration
+    guidance and do not schedule work.
 
     完整编排流程见 /pan skill。
     """
