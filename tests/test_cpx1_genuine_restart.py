@@ -42,12 +42,15 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
     (root / 'config.json').write_text(json.dumps(config), encoding='utf-8')
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PAN_') and k.upper() != 'PYTHONPATH'}
     env.update({'PYTHONPATH': str(root), 'PAN_PORT': str(port)})
+    # The owned child reproduces the CI console's restrictive encoding; the
+    # host implementation must handle it without changing its global streams.
+    env.update({'PYTHONIOENCODING': 'cp1252:strict', 'PYTHONUTF8': '0'})
     base = f'http://127.0.0.1:{port}'
     process = None
     effect = None
     doc = None
     old_identity = None
-    observed = {'sourceSha': source, 'portAllowed': True}
+    observed = {'sourceSha': source, 'portAllowed': True, 'childOutputEncoding': 'cp1252:strict'}
 
     def request(method, route, **kwargs):
         with httpx.Client(base_url=base, timeout=2, trust_env=False) as client:
