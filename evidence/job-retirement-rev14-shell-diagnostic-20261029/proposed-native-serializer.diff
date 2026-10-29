@@ -1,0 +1,34 @@
+Review proposal only. NOT APPLIED or acceptance-tested. No ProcessOwner API change.
+Restricted to the exact cmd /d /s /c raw-command envelope emitted by the existing
+shell helper; all other argv retain CRT serialization. Review interpreter
+identity matching against custom COMSPEC and the child env before authorization.
+
+diff --git a/packages/core/platform/process_creation_win.py b/packages/core/platform/process_creation_win.py
+--- a/packages/core/platform/process_creation_win.py
++++ b/packages/core/platform/process_creation_win.py
+@@
++def _owned_command_line(args):
++    # cmd's command-language tail is not a CRT argument. Preserve its raw
++    # contents inside the /s outer quotes; do not replace quotes in command.
++    comspec = os.environ.get('COMSPEC') or os.path.join(
++        os.environ['SystemRoot'], 'System32', 'cmd.exe')
++    if (len(args) == 5 and list(args[1:4]) == ['/d', '/s', '/c']
++            and os.path.normcase(os.path.abspath(args[0]))
++                == os.path.normcase(os.path.abspath(comspec))):
++        return subprocess.list2cmdline(args[:4]) + ' "' + args[4] + '"'
++    return subprocess.list2cmdline(args)
++
++
+ class OwnedPopen(subprocess.Popen):
+@@
+             process, thread, pid = create_owned_process(
+-                subprocess.list2cmdline(values['args']),
++                _owned_command_line(values['args']),
+                 os.fsdecode(values['cwd']) if values['cwd'] is not None else None,
+
+Required before applying: focused serializer contract tests (including the
+nonmatching interpreter/flag forms), real unchanged r14 quoted-command positive,
+ordinary argv bytes/space/quote/backslash fidelity, hidden/nonhidden creation,
+creation-time ownership failure/partial cleanup and inherited stdio coverage.
+This proposal changes no native creation flags, handle lists, token, suspended
+membership proof, resume, cleanup, retry/admission or frozen plan fields.
