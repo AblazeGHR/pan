@@ -1,0 +1,56 @@
+{
+  "schema": "pan.retirement.frontend-caller-boundaries/revision13",
+  "acceptedBaseline": "d0b8f821319863c3ee0c2fcd3ed1a2c667ede407",
+  "testedSourceSha": "d3e2e9cf33d78624c4b5631152b872014da369ba",
+  "testFile": "packages/web/src/views/CanonicalJobsView.retirement-r13.test.tsx",
+  "checks": [
+    {
+      "id": "R13-assign",
+      "test": "existing assign caller writes exact literal fields and immutable Action reference to a passive canonical Job",
+      "path": "CanonicalJobsView -> CanonicalDefinitionFields -> canonicalJobs.write -> POST /api/jobs",
+      "verified": "Fixture catalog product_assign_v2 revision/digest, literal sessionId/text/source/sourceSessionId/taskId, raw multiline text, requestKey, expectedRevision=0, one definition write and no Run request",
+      "notProven": "Old NewJobForm aliases/default entry mapping; server authorization or actual Worker/provider effects"
+    },
+    {
+      "id": "R13-process",
+      "test": "existing process caller preserves argv boundaries/cwd/hideWindow without guessing command-string shell syntax",
+      "verified": "Fixture catalog product_process_logs_v1 exact ref/completion, argv array boundaries, raw cwd and boolean hideWindow, one passive POST /api/jobs",
+      "notProven": "Legacy command conversion, actual process launch/cleanup/exit, remote platform semantics"
+    },
+    {
+      "id": "R13-unselected",
+      "test": "missing Action selection rejects locally without a legacy fallback write",
+      "verified": "Unselected steps cause local validation with zero writes"
+    },
+    {
+      "id": "R13-conflict",
+      "test": "server rejection preserves the structured draft without retrying a legacy endpoint",
+      "verified": "Fixture 409 revision_conflict leaves raw draft; exactly one canonical request; no fallback",
+      "notProven": "Actual backend CAS enforcement (unchanged, not rerun in this frontend-only batch)"
+    },
+    {
+      "id": "R13-no-creator",
+      "test": "no-Creator Template exposes structured unsupported and keeps activation false without a fallback or Run request",
+      "verified": "Fixture 422 capability_unsupported uses existing visible error, instantiate expectedRevision and activate=false; no Run/fallback request",
+      "sourceBoundary": "FinalService.instantiate_time_template rejects empty composition.creators; read only, not modified",
+      "notProven": "Frontend fixture is not a new real-HTTP backend reproduction"
+    }
+  ],
+  "capabilityDisposition": [
+    { "id": "M01", "status": "open-user-entry-compatibility", "currentEvidence": "R13-process", "completeCapabilityAccepted": false },
+    { "id": "M05", "status": "open-legacy-default-assign-entry", "currentEvidence": "R13-assign; R13-no-creator", "completeCapabilityAccepted": false },
+    { "id": "M07", "status": "open-command-field-adapter-entry", "currentEvidence": "R13-process", "completeCapabilityAccepted": false }
+  ],
+  "original43AndRemainingNine": "No statuses changed. Preserve successors.json and rev6 acceptance-matrix.json as historical evidence; this frontend fixture suite is not a strict provider successor for any newly closed original node.",
+  "counts": { "react": 59, "failures": 0, "errors": 0, "skipped": 0, "dedicatedReactSubset": 5, "browserScenarioGroups": 3 },
+  "remaining": [
+    "normalize_legacy_form_fields is not exposed by a current canonical route and has no production caller",
+    "NewJobForm only production importer is selected-session broadcast; assign/shell scheduled legacy shape has no active entry",
+    "JobTemplateEditor and UnifiedJobForm have no production importer; old Template write API cannot be revived",
+    "no-Creator Template decision remains open; no new endpoint created",
+    "selected-session broadcast migration error is hidden after setPanel(null); outside assign/shell slice",
+    "MCP compatibility acceptance remains bounded to prior revision12 evidence",
+    "monitoring/stable-reset, unknown fallback/clear-target, real migration and deployment remain open"
+  ],
+  "unverifiedLayers": [ "provider execution", "real backend HTTP in this batch", "production-bundle browser interaction", "remote CI", "real accounts/data migration", "deployment" ]
+}
