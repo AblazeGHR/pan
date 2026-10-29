@@ -1,0 +1,18 @@
+{
+  "sourceManifestSha256": "9f45203b5d911092a4ed639a8e58100c4afcfc93a877cd17ee0a7e4f1279083f",
+  "bundleFileSha256": "cbacc462be3becf38f953b3557bee7098b172d37f0b5b52673b401eb04acd59e",
+  "bundleDigest": "30ce7ecb0ab32de31dfaf7a0fa5e505fbb8ac5c168dd8b98d679b38c830f48e4",
+  "planDigest": "fb58b84a8819cee15b34195e2dc4e4d58da3c522ba9434d37cd846830134448d",
+  "contextDigest": "91f33c5488218aa5bfbc691e674ba8186b48c75bd4f8b301b8cd7b6aec041d62",
+  "externallyPinnedSyntheticReceiptDigest": "224ef573cf5a34faf5f125f24850c3aa34974e039df15fd79d75c54f762e8d9c",
+  "canonicalSchemaManifestSha256": "44dae5d764fc9b5a7bee02f06ab9517ffef21adc175e69b9740eade148c76ecd",
+  "runtimeSchemaArtifactsDigest": "1bd83e27bc16dfa52469928420b33cf08de7f54bb0122182ef9483f900ec7ed1",
+  "actions": {
+    "process.exec": {
+      "id": "product_process",
+      "revision": 1,
+      "digest": "ca55d420fd308df532c605da482d291e34c96601b2ab66507f59a2a475d93ff9"
+    }
+  },
+  "trustScope": "synthetic fixture only; no real user approval or grant; schema/source binding is QA evidence"
+}

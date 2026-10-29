@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.471" timestamp="2026-10-29T23:41:11.097861+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_synthetic_manual_packet_does_not_claim_historical_user_decisions" time="0.072"><failure message="AssertionError: assert ('此前 21 项' not in '# unrecogni...move-Item。\n'&#10;  &#10;  '此前 21 项' is contained here:&#10;    ognized，包含此前 21 项和 4 条消息计划；不再等待逐项业务选择。&#10;  ?           +++++++&#10;    本清单仅提供未来人工删除入口，不授予本任务删除、结算、kill、重投或服务操作权限。&#10;    &#10;    1. 先打开 manual-delete.csv/JSON，按单个 ID 审阅类型、原因、SHA 和 dependenciesBeforeDelete。...&#10;  &#10;  ...Full output truncated (9 lines hidden), use '-vv' to show)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6317/test_synthetic_manual_packet_d0')
+
+    def test_synthetic_manual_packet_does_not_claim_historical_user_decisions(tmp_path):
+        from scripts.job_final_migration.p9d_support import manual_deletion_packet
+        _, root, packet, _ = evidence_for(tmp_path, n_simple=2, n_complex=2)
+        output = tmp_path / "manual"
+        rows = manual_deletion_packet(packet, output, original_root=str(root))
+        guide = (output / "MANUAL_DELETE.md").read_text(encoding="utf-8")
+        assert len(rows) == 3
+&gt;       assert "此前 21 项" not in guide and "4 条消息计划" not in guide
+E       AssertionError: assert ('此前 21 项' not in '# unrecogni...move-Item。\n'
+E         
+E         '此前 21 项' is contained here:
+E           ognized，包含此前 21 项和 4 条消息计划；不再等待逐项业务选择。
+E         ?           +++++++
+E           本清单仅提供未来人工删除入口，不授予本任务删除、结算、kill、重投或服务操作权限。
+E           
+E           1. 先打开 manual-delete.csv/JSON，按单个 ID 审阅类型、原因、SHA 和 dependenciesBeforeDelete。...
+E         
+E         ...Full output truncated (9 lines hidden), use '-vv' to show)
+
+tests\test_job_migration_runtime_readiness.py:142: AssertionError</failure></testcase></testsuite></testsuites>

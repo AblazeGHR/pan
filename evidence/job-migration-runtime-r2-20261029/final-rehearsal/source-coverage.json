@@ -1,0 +1,357 @@
+{
+  "schema": "pan.job-final-migration.source-coverage/v1",
+  "root": "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-r2\\final-74d19f86\\snapshot\\source-copy",
+  "paths": [
+    {
+      "path": "background_jobs",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "background_jobs/jobs",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "background_jobs/jobs/job_bad.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "62e7c99b9a255534d224bf06193ced188da814a0e4819e8fe1a2fb5d93a98b72",
+      "bytes": 20,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_8246b7187070567e9c26591f",
+          "originalId": null,
+          "classification": "unknown",
+          "reasonCodes": [
+            "corrupt_record"
+          ]
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_future.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "3e71c83890197b0b4624df43da898a26fe3d054757dd83c09d407bb140b3b165",
+      "bytes": 52,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_5a407cb1e96c2f7ccf2dca86",
+          "originalId": "job_future",
+          "classification": "unknown",
+          "reasonCodes": [
+            "unknown_schema"
+          ]
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_r2_0.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "466afd76296ef2d3dc4fbf6c9e1840589c248f31abed489d4032b4e19a24f2ec",
+      "bytes": 1133,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_f84c6dca34681546313d609f",
+          "originalId": "job_r2_0",
+          "classification": "simple",
+          "reasonCodes": []
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_r2_1.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "582699ffd433bfdc11f2aac8805391b1334e133c58bb138eb31ae2d656d65bb5",
+      "bytes": 1133,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_c96e42e08960a7a7330db67d",
+          "originalId": "job_r2_1",
+          "classification": "simple",
+          "reasonCodes": []
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_r2_2.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "a5cfc45da7400242c77e99c9122522f8196312d1093905ef2434b460475f5b81",
+      "bytes": 1132,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_e66c449eb74be26d6d9ae23a",
+          "originalId": "job_r2_2",
+          "classification": "complex",
+          "reasonCodes": [
+            "active_resource"
+          ]
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_r2_3.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "d6c50a81f3c4e4eb24fde1254b223b6236577e6f5c1710dbd8b3432e12527636",
+      "bytes": 1134,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_628abe0555a0a2bdcb8278a0",
+          "originalId": "job_r2_3",
+          "classification": "complex",
+          "reasonCodes": [
+            "active_resource"
+          ]
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/jobs/job_r2_4.json",
+      "nodeType": "file",
+      "sourceType": "lite-input",
+      "disposition": "handled",
+      "migrationHandled": true,
+      "sha256": "4a417e31afefc7ced80b53db5ed48522f1a7e8a0802fd92afe01b68c61055c0a",
+      "bytes": 1131,
+      "reason": "lite read/backup scope; per-record disposition remains authoritative",
+      "recordDispositions": [
+        {
+          "migrationId": "mig1_36c755e1f46b7e930346c865",
+          "originalId": "job_r2_4",
+          "classification": "complex",
+          "reasonCodes": [
+            "pending_notice"
+          ]
+        }
+      ],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/logs",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "background_jobs/logs/job_r2_0.log",
+      "nodeType": "file",
+      "sourceType": "historical-log",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "c8a422e21c815cb215f607c9ea6e6ff8ae57807e01b5f46c7258b02c3f8776f1",
+      "bytes": 34,
+      "reason": "preserved historical bytes; read only via a separately pinned log reference",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/logs/job_r2_1.log",
+      "nodeType": "file",
+      "sourceType": "historical-log",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "f1ae8bbb4925fe346b64c9f0ce1804a57a80b5a428b6de61cff3c6d84381622a",
+      "bytes": 34,
+      "reason": "preserved historical bytes; read only via a separately pinned log reference",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/logs/job_r2_2.log",
+      "nodeType": "file",
+      "sourceType": "historical-log",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "3fc87671c6313dc0064b94586b6eb97317d2357dece06aaf07c13d50bd2c1103",
+      "bytes": 34,
+      "reason": "preserved historical bytes; read only via a separately pinned log reference",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/logs/job_r2_3.log",
+      "nodeType": "file",
+      "sourceType": "historical-log",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "8472c4983981e5cf61d072a0e874dd43f3d4d3cb312101397fdcb61df63a7d0d",
+      "bytes": 34,
+      "reason": "preserved historical bytes; read only via a separately pinned log reference",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/logs/job_r2_4.log",
+      "nodeType": "file",
+      "sourceType": "historical-log",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "c53f46e42e6d8ff4bb0839115bc244104b843f6b3fc4bfcdf0502ed6eb825908",
+      "bytes": 34,
+      "reason": "preserved historical bytes; read only via a separately pinned log reference",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "background_jobs/pins.json",
+      "nodeType": "file",
+      "sourceType": "pins-metadata",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "c42f735ff802f7e3f50567e276b93ee1826bfc83ba46ebea761100220880e211",
+      "bytes": 17,
+      "reason": "preserved policy evidence, not a migrated Job identity",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "independent",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "independent/outbox.sqlite3",
+      "nodeType": "file",
+      "sourceType": "opaque-sqlite-or-sidecar",
+      "disposition": "unrecognized",
+      "migrationHandled": false,
+      "sha256": "f6697a5635af77b66d005bbde6106d5a98990548663dfd4df65105de448a0d79",
+      "bytes": 56,
+      "reason": "schema/consistency/owner unverified; raw bytes only, SQLite never opened",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "scheduler",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "scheduler/drive-cursor.json",
+      "nodeType": "file",
+      "sourceType": "independent-cursor-or-pending",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "f0cf5c97e4ae3511f5f973ba338b09063fb5f7c920c2c9ddc78195e14818252b",
+      "bytes": 26,
+      "reason": "not covered by lite mapper; no cursor/receipt adoption",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "scheduler/time-events.sqlite3",
+      "nodeType": "file",
+      "sourceType": "opaque-sqlite-or-sidecar",
+      "disposition": "unrecognized",
+      "migrationHandled": false,
+      "sha256": "1caa95e72400eef1e77b51c52825665e5509ddeb4bdf00909ef287c3b7a04aae",
+      "bytes": 48,
+      "reason": "schema/consistency/owner unverified; raw bytes only, SQLite never opened",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "sessions",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "sessions/queue-pending.json",
+      "nodeType": "file",
+      "sourceType": "independent-cursor-or-pending",
+      "disposition": "preserved",
+      "migrationHandled": false,
+      "sha256": "ba0067032c86fb1e9ff5a3b4ba247750a0fe0dbb91f89adc22c10f38fa185a32",
+      "bytes": 23,
+      "reason": "not covered by lite mapper; no cursor/receipt adoption",
+      "recordDispositions": [],
+      "targetIds": []
+    },
+    {
+      "path": "unknown-profile",
+      "nodeType": "directory",
+      "disposition": "container",
+      "migrationHandled": false,
+      "sha256": null
+    },
+    {
+      "path": "unknown-profile/blob.bin",
+      "nodeType": "file",
+      "sourceType": "unrecognized-profile-content",
+      "disposition": "unrecognized",
+      "migrationHandled": false,
+      "sha256": "ac3341f40ae8f938faa55094d43fec6a823f6a074baf2770784ecb39a762e916",
+      "bytes": 22,
+      "reason": "no fixed mapper/inspector for this path; preserve without interpretation",
+      "recordDispositions": [],
+      "targetIds": []
+    }
+  ],
+  "inventoryDigest": "7d3addaa13e02a49523e2199970a695e69726134b84c07c289f20fc7667632e5",
+  "errors": [],
+  "discoveryComplete": true,
+  "accounting": {
+    "discoveredPaths": 25,
+    "discoveredFiles": 18,
+    "handledFiles": 7,
+    "preservedFiles": 8,
+    "unrecognizedFiles": 3
+  },
+  "unmappedPaths": [
+    "background_jobs/logs/job_r2_0.log",
+    "background_jobs/logs/job_r2_1.log",
+    "background_jobs/logs/job_r2_2.log",
+    "background_jobs/logs/job_r2_3.log",
+    "background_jobs/logs/job_r2_4.log",
+    "background_jobs/pins.json",
+    "independent/outbox.sqlite3",
+    "scheduler/drive-cursor.json",
+    "scheduler/time-events.sqlite3",
+    "sessions/queue-pending.json",
+    "unknown-profile/blob.bin"
+  ],
+  "blockingAuthorityPaths": [],
+  "wholeProfileMigrationComplete": false,
+  "runtimeAdoptionProven": false,
+  "coverageDigest": "168ef6b7bb828beaa99f7424a6e9631c5d84cbeb6c4458064fda92bc6c85c5e3"
+}

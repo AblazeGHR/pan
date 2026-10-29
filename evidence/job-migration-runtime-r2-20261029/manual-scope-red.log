@@ -1,0 +1,30 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_synthetic_manual_packet_does_not_claim_historical_user_decisions ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6317/test_synthetic_manual_packet_d0')
+
+    def test_synthetic_manual_packet_does_not_claim_historical_user_decisions(tmp_path):
+        from scripts.job_final_migration.p9d_support import manual_deletion_packet
+        _, root, packet, _ = evidence_for(tmp_path, n_simple=2, n_complex=2)
+        output = tmp_path / "manual"
+        rows = manual_deletion_packet(packet, output, original_root=str(root))
+        guide = (output / "MANUAL_DELETE.md").read_text(encoding="utf-8")
+        assert len(rows) == 3
+>       assert "��ǰ 21 ��" not in guide and "4 ����Ϣ�ƻ�" not in guide
+E       AssertionError: assert ('��ǰ 21 ��' not in '# unrecogni...move-Item��\n'
+E         
+E         '��ǰ 21 ��' is contained here:
+E           ognized��������ǰ 21 ��� 4 ����Ϣ�ƻ������ٵȴ�����ҵ��ѡ��
+E         ?           +++++++
+E           ���嵥���ṩδ���˹�ɾ����ڣ������豾����ɾ�������㡢kill����Ͷ��������Ȩ�ޡ�
+E           
+E           1. �ȴ� manual-delete.csv/JSON�������� ID �������͡�ԭ��SHA �� dependenciesBeforeDelete��...
+E         
+E         ...Full output truncated (9 lines hidden), use '-vv' to show)
+
+tests\test_job_migration_runtime_readiness.py:142: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_runtime_readiness.py::test_synthetic_manual_packet_does_not_claim_historical_user_decisions
+1 failed in 0.69s

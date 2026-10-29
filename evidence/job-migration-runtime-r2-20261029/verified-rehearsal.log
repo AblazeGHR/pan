@@ -1,0 +1,128 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+{
+  "source": "4d4ce5431f1e4d587d9374e5a697e12404d7f4bf",
+  "baseline": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "syntheticOnly": true,
+  "p9d": {
+    "simpleImported": 2,
+    "unrecognizedPreserved": 5,
+    "manualDeletionEntries": 5,
+    "canonicalRows": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "historyReadable": 2,
+    "logsReadable": 2,
+    "originalKeyReceiptsAdopted": 2,
+    "receiptBasis": "source-stated delivered; not a new or externally verified delivery",
+    "effectsExecuted": 0,
+    "newRuns": 0,
+    "newOutbox": 0,
+    "unknownSettled": 0,
+    "activeIds": [],
+    "activeLegacyMigratedSet": 0,
+    "legacyZeroScope": "imported set in isolated profile",
+    "remainingLegacyIdentities": 5,
+    "allLegacyZeroProven": false,
+    "sourceFilesUnchanged": 18,
+    "offlineReplayWrites": 0,
+    "restartCountsUnchanged": true,
+    "ownerEpochBeforeRestart": 4,
+    "ownerEpochAfterRestart": 5,
+    "authorizationReceiptDigest": "f1519f6a450a8fc50e5c622720cbda2cd064b8c3022b8816c926f5f965f289ea",
+    "packetDigest": "6eccd8afd404aaa12fb59b687878d181d3125c6757d01a9cbf361bad2b1d033d",
+    "bundleDigest": "0dde482668c5f8431061d2260f168acc74617339d34644df723eaf5d5b998f5f",
+    "planDigest": "789f1da32ace9b9abdf65856d82e95cc6529460d6ef58b1b3eca929c86dc5a17",
+    "runtimeImported": true,
+    "productionMigrated": false,
+    "manualDeletionExecuted": false,
+    "realSourceOpened": false,
+    "sourceCoverageDigest": "e21ab75a9d119a2c83bde22fd71f85c0038ddc89c883de2b40ac04bb3c003430",
+    "wholeProfileMigrationComplete": false,
+    "unmappedSourcePaths": [
+      "background_jobs/logs/job_r2_0.log",
+      "background_jobs/logs/job_r2_1.log",
+      "background_jobs/logs/job_r2_2.log",
+      "background_jobs/logs/job_r2_3.log",
+      "background_jobs/logs/job_r2_4.log",
+      "background_jobs/pins.json",
+      "independent/outbox.sqlite3",
+      "scheduler/drive-cursor.json",
+      "scheduler/time-events.sqlite3",
+      "sessions/queue-pending.json",
+      "unknown-profile/blob.bin"
+    ]
+  },
+  "coldProcess": {
+    "pid": 41608,
+    "counts": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "objects": [
+      {
+        "id": "job_c96e42e08960a7a7330db67d",
+        "state": "disabled",
+        "schemaVersion": 2
+      },
+      {
+        "id": "job_f84c6dca34681546313d609f",
+        "state": "disabled",
+        "schemaVersion": 2
+      }
+    ],
+    "owner": {
+      "epoch": 6,
+      "nonce": "b5bb74e5f6a9481f9c71dae725ea0edf",
+      "state": "active"
+    },
+    "effects": 0,
+    "legacyWriterRejected": true
+  },
+  "ownerBeforeRelease": {
+    "epoch": 7,
+    "nonce": "2c0600bacf69421cad37f23eebac3e7d",
+    "state": "active"
+  },
+  "staleEpochRejected": true,
+  "concurrentOwnerRejected": true,
+  "oldWriterRejected": true,
+  "offlineRollbackRemovedRuntimeRows": false,
+  "runtimeRowsUnchangedAcrossOfflineRollback": true,
+  "sourceUnchanged": true,
+  "copiedOriginalsUnchanged": true,
+  "coverageDigest": "7bc14b488b34c12409eb69c4a907d443c7fc687d3c37fe9a5d4fa2fc27565d55",
+  "wholeProfileMigrationComplete": false,
+  "validationBindings": {
+    "sourceManifestSha256": "08dab3a73b007581cdd331200703a53198ae11bb6f83a42a860b51ea5b029767",
+    "bundleFileSha256": "74874b401346182ef01eddef95af0a693a918401580041f18d95ccc16c63103a",
+    "bundleDigest": "0dde482668c5f8431061d2260f168acc74617339d34644df723eaf5d5b998f5f",
+    "planDigest": "789f1da32ace9b9abdf65856d82e95cc6529460d6ef58b1b3eca929c86dc5a17",
+    "contextDigest": "60c946093f3c0c4a71b1ccaf27d120dde0e5b2357085d0243fb7df845516775d",
+    "externallyPinnedSyntheticReceiptDigest": "f1519f6a450a8fc50e5c622720cbda2cd064b8c3022b8816c926f5f965f289ea",
+    "canonicalSchemaManifestSha256": "44dae5d764fc9b5a7bee02f06ab9517ffef21adc175e69b9740eade148c76ecd",
+    "runtimeSchemaArtifactsDigest": "1bd83e27bc16dfa52469928420b33cf08de7f54bb0122182ef9483f900ec7ed1",
+    "actions": {
+      "process.exec": {
+        "id": "product_process",
+        "revision": 1,
+        "digest": "ca55d420fd308df532c605da482d291e34c96601b2ab66507f59a2a475d93ff9"
+      }
+    },
+    "trustScope": "synthetic fixture only; no real user approval or grant; schema/source binding is QA evidence"
+  },
+  "resourceCleanup": {
+    "childExit": 0,
+    "runtimeTaskClosed": true,
+    "ownerLockReleased": true,
+    "ownerState": "closed",
+    "portsOpened": [],
+    "temporaryFiles": []
+  }
+}

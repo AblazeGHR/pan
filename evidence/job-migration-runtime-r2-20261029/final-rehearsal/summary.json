@@ -1,0 +1,127 @@
+{
+  "source": "74d19f86b7b5b9babc9921acd7c85a6de4fc152a",
+  "baseline": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "syntheticOnly": true,
+  "p9d": {
+    "simpleImported": 2,
+    "unrecognizedPreserved": 5,
+    "manualDeletionEntries": 5,
+    "canonicalRows": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "historyReadable": 2,
+    "logsReadable": 2,
+    "originalKeyReceiptsAdopted": 2,
+    "receiptBasis": "source-stated delivered; not a new or externally verified delivery",
+    "effectsExecuted": 0,
+    "newRuns": 0,
+    "newOutbox": 0,
+    "unknownSettled": 0,
+    "activeIds": [],
+    "activeLegacyMigratedSet": 0,
+    "legacyZeroScope": "imported set in isolated profile",
+    "remainingLegacyIdentities": 5,
+    "allLegacyZeroProven": false,
+    "sourceFilesUnchanged": 18,
+    "offlineReplayWrites": 0,
+    "restartCountsUnchanged": true,
+    "ownerEpochBeforeRestart": 4,
+    "ownerEpochAfterRestart": 5,
+    "authorizationReceiptDigest": "224ef573cf5a34faf5f125f24850c3aa34974e039df15fd79d75c54f762e8d9c",
+    "packetDigest": "21b73939530f9c2dc9374507c0c0f566ead392f7261ebace84fe14427e47364f",
+    "bundleDigest": "30ce7ecb0ab32de31dfaf7a0fa5e505fbb8ac5c168dd8b98d679b38c830f48e4",
+    "planDigest": "fb58b84a8819cee15b34195e2dc4e4d58da3c522ba9434d37cd846830134448d",
+    "runtimeImported": true,
+    "productionMigrated": false,
+    "manualDeletionExecuted": false,
+    "realSourceOpened": false,
+    "sourceCoverageDigest": "2d4c6e5868086c587024fe292c004df7e02f04c75f4df877234b61606fcc0e75",
+    "wholeProfileMigrationComplete": false,
+    "unmappedSourcePaths": [
+      "background_jobs/logs/job_r2_0.log",
+      "background_jobs/logs/job_r2_1.log",
+      "background_jobs/logs/job_r2_2.log",
+      "background_jobs/logs/job_r2_3.log",
+      "background_jobs/logs/job_r2_4.log",
+      "background_jobs/pins.json",
+      "independent/outbox.sqlite3",
+      "scheduler/drive-cursor.json",
+      "scheduler/time-events.sqlite3",
+      "sessions/queue-pending.json",
+      "unknown-profile/blob.bin"
+    ]
+  },
+  "coldProcess": {
+    "pid": 43976,
+    "counts": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "objects": [
+      {
+        "id": "job_c96e42e08960a7a7330db67d",
+        "state": "disabled",
+        "schemaVersion": 2
+      },
+      {
+        "id": "job_f84c6dca34681546313d609f",
+        "state": "disabled",
+        "schemaVersion": 2
+      }
+    ],
+    "owner": {
+      "epoch": 6,
+      "nonce": "a1b43c8a4f534268bacc8cc492ef91c7",
+      "state": "active"
+    },
+    "effects": 0,
+    "legacyWriterRejected": true
+  },
+  "ownerBeforeRelease": {
+    "epoch": 7,
+    "nonce": "a1600eefb8e4447b9c5ea02e2b9919bb",
+    "state": "active"
+  },
+  "staleEpochRejected": true,
+  "concurrentOwnerRejected": true,
+  "oldWriterRejected": true,
+  "offlineRollbackRemovedRuntimeRows": false,
+  "runtimeRowsUnchangedAcrossOfflineRollback": true,
+  "sourceUnchanged": true,
+  "copiedOriginalsUnchanged": true,
+  "coverageDigest": "168ef6b7bb828beaa99f7424a6e9631c5d84cbeb6c4458064fda92bc6c85c5e3",
+  "wholeProfileMigrationComplete": false,
+  "validationBindings": {
+    "sourceManifestSha256": "9f45203b5d911092a4ed639a8e58100c4afcfc93a877cd17ee0a7e4f1279083f",
+    "bundleFileSha256": "cbacc462be3becf38f953b3557bee7098b172d37f0b5b52673b401eb04acd59e",
+    "bundleDigest": "30ce7ecb0ab32de31dfaf7a0fa5e505fbb8ac5c168dd8b98d679b38c830f48e4",
+    "planDigest": "fb58b84a8819cee15b34195e2dc4e4d58da3c522ba9434d37cd846830134448d",
+    "contextDigest": "91f33c5488218aa5bfbc691e674ba8186b48c75bd4f8b301b8cd7b6aec041d62",
+    "externallyPinnedSyntheticReceiptDigest": "224ef573cf5a34faf5f125f24850c3aa34974e039df15fd79d75c54f762e8d9c",
+    "canonicalSchemaManifestSha256": "44dae5d764fc9b5a7bee02f06ab9517ffef21adc175e69b9740eade148c76ecd",
+    "runtimeSchemaArtifactsDigest": "1bd83e27bc16dfa52469928420b33cf08de7f54bb0122182ef9483f900ec7ed1",
+    "actions": {
+      "process.exec": {
+        "id": "product_process",
+        "revision": 1,
+        "digest": "ca55d420fd308df532c605da482d291e34c96601b2ab66507f59a2a475d93ff9"
+      }
+    },
+    "trustScope": "synthetic fixture only; no real user approval or grant; schema/source binding is QA evidence"
+  },
+  "resourceCleanup": {
+    "childExit": 0,
+    "runtimeTaskClosed": true,
+    "ownerLockReleased": true,
+    "ownerState": "closed",
+    "portsOpened": [],
+    "temporaryFiles": []
+  }
+}
