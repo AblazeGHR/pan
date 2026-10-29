@@ -1,0 +1,62 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev9_qq_http.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev9-20261029\\immutable-qq-http.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "testedSourceSha": "0a9e00e74900ef33c3c24d9e7b5f27b085d4f3a5",
+  "boundFileSha256": {
+    "packages/actions/qq_channel_provider.py": "97e94bac8fca621d22daa37f7e2ae652b3c5c4e1de8a895e400564e9c5e71c96",
+    "packages/actions/typed_executor.py": "32dd8901fe744b000a3db6e07ecb74655acd1434cfea9a435962b8ca0f2f6bb7",
+    "packages/jobs/final_service.py": "44d07335a3b0e6a6d06f47a93dab8f1d0293bb814ee2d6c11f73ba4b8fb2c6e6",
+    "tests/test_retirement_rev9_qq_http.py": "ed337d1a0e0784d79d3c090bcb577ad5a6a5b3ce1ca13cca9b7f89290345610c"
+  },
+  "sourceStable": true,
+  "productFileSha256": "44d07335a3b0e6a6d06f47a93dab8f1d0293bb814ee2d6c11f73ba4b8fb2c6e6",
+  "elapsedSeconds": 93.646,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[None]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[222222]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_edit_after_admission_keeps_actual_original_bot_target_text",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 5,
+    "failure": 2,
+    "error": 0,
+    "skipped": 0
+  }
+}

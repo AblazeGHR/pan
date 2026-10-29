@@ -1,0 +1,47 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev9_qq_http.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev9-20261029\\initial-http.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "testedSourceSha": "93fc1d931c2754565d8667fe41f7c036fe7c1ec0",
+  "productFileSha256": "44d07335a3b0e6a6d06f47a93dab8f1d0293bb814ee2d6c11f73ba4b8fb2c6e6",
+  "elapsedSeconds": 63.253,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_edit_after_admission_keeps_actual_original_bot_target_text",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]",
+      "status": "failure"
+    }
+  ],
+  "counts": {
+    "passed": 2,
+    "failure": 3,
+    "error": 0,
+    "skipped": 0
+  }
+}

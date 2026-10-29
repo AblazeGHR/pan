@@ -1,0 +1,14 @@
+{
+  "original-backlog": {
+    "sha": "43655680f030765de5bce5ea5b675c7a0e2672d5",
+    "path": "packages/core/background_jobs.py",
+    "symbol": "async def _redeliver_undelivered(",
+    "fullFileSha256": "ce79eb46f7a76c64d682a45c3b12386293e7538141d8d16a3121f871c61b1081"
+  },
+  "original-backlog-test": {
+    "sha": "43655680f030765de5bce5ea5b675c7a0e2672d5",
+    "path": "tests/test_jobs_api.py",
+    "symbol": "def test_scheduled_qq_backlog_retry_runs_without_session_target(",
+    "fullFileSha256": "e76ec6d924b5a13127fb370432bf31dbdd4d84474b6569fea0c75483a16bfddc"
+  }
+}
