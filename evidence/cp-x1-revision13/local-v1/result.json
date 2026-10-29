@@ -1,0 +1,12 @@
+{
+  "exitCode": 0,
+  "pytestExitCode": 0,
+  "completionContractExitCode": 0,
+  "nodes": [
+    "tests/test_terminal_broadcast.py::test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich",
+    "tests/test_cp_x1_terminal_enrichment_diagnostic.py::test_terminal_finishes_while_enrichment_is_held",
+    "tests/test_locker_order_scroll_live.py::test_locker_order_scroll_live",
+    "tests/test_cpx1_locker_read_offload.py"
+  ],
+  "python": "3.14.5"
+}

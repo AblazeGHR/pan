@@ -48,13 +48,18 @@ def test_locker_order_scroll_live(tmp_path, monkeypatch):
         auth={'Authorization':'Bearer '+rt.request('POST','/api/automation/login',json={'key':key})['token']}
         items=rt.request('GET','/api/user-locker-messages?limit=500',headers=auth)['messages']+rt.request('GET','/api/user-inbox',headers=auth)['cards']
         ids=[item['id'] for item in sorted(items,key=lambda item:(item['createdAt'],item['id']))]
+        assert len(ids) == 113 and len(set(ids)) == 113
         fixture={'ids':ids,'locker':row['lockerId'],'source':source['id'],'nonce':nonce}
         fixture_path=OUT/'fixture.json';fixture_path.write_text(json.dumps(fixture),encoding='utf-8')
+        bulk_timeout_ms = min(120000, 10000 + len(ids) * 500)
         result=subprocess.run(['node',str(ROOT/'packages/web/e2e/locker-order-scroll.mjs'),rt.base_url,str(OUT),str(fixture_path)],
-            cwd=ROOT,env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=90)
+            cwd=ROOT,env={**os.environ,'PAN_TEST_JOB_KEY':key},capture_output=True,text=True,encoding='utf-8',timeout=max(90, (bulk_timeout_ms + 60000)//1000 + 1))
         (OUT/'browser.log').write_text(result.stdout+'\n'+result.stderr,encoding='utf-8')
         proof['browserExitCode']=result.returncode
         assert result.returncode==0,result.stdout+'\n'+result.stderr
+        persisted = rt.request('GET','/api/user-locker-messages?limit=500',headers=auth)['messages'] + rt.request('GET','/api/user-inbox?limit=500',headers=auth)['cards']
+        by_id = {item['id']: item for item in persisted}
+        assert all(item_id in by_id and by_id[item_id]['read'] is True for item_id in ids)
         assert not rt.request('GET', f"/api/sessions/{source['id']}/history")['history']
         assert not rt.request('GET', f"/api/sessions/{source['id']}/queue")['items']
     finally:
