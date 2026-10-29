@@ -1,0 +1,61 @@
+{
+  "schema": "pan.retirement.compatibility/revision11",
+  "acceptedBaseline": "cce3a647d838301cfb3956615156bcf48f4d3553",
+  "testedSourceSha": "6ce6ab8ac2a35c63d5ece20038dae27a81815690",
+  "changedFiles": [
+    "packages/jobs/final_service.py",
+    "tests/test_retirement_rev11_compat.py"
+  ],
+  "command": {
+    "exit": 0,
+    "counts": {
+      "passed": 142,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "elapsedSeconds": 84.936
+  },
+  "mapping": {
+    "assign": {
+      "oldFields": [
+        "sessionId",
+        "targetSessionId",
+        "target",
+        "text",
+        "message",
+        "source",
+        "sourceSessionId",
+        "taskId"
+      ],
+      "successor": "normalize_legacy_form_fields -> product_assign_v2 -> WorkerAssignProvider",
+      "status": "verified-real-owned-queue"
+    },
+    "shell": {
+      "oldFields": [
+        "command",
+        "argv",
+        "cwd",
+        "hideWindow"
+      ],
+      "successor": "normalize_legacy_form_fields -> product_process_cleanup_v1 -> existing process executor",
+      "status": "verified-real-owned-process"
+    },
+    "template": {
+      "status": "bounded-conflict",
+      "reason": "canonical instantiate requires a Scheduler Creator; no-Creator default assign template returns capability_unsupported",
+      "decision": "do not restore generic dispatcher or add a new protocol"
+    }
+  },
+  "counts": {
+    "passed": 142,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "unverified": [
+    "frontend form caller wiring",
+    "remote CI/deployment",
+    "real data migration"
+  ]
+}

@@ -1,0 +1,96 @@
+diff --git a/packages/jobs/final_service.py b/packages/jobs/final_service.py
+index 8d19afbb..d2684195 100644
+--- a/packages/jobs/final_service.py
++++ b/packages/jobs/final_service.py
+@@ -12,0 +13 @@ import json
++import os
+@@ -49,0 +51,89 @@ def object_ref(kind, item):
++def normalize_legacy_form_fields(fields, *, kind=None, canonical=None):
++    """Map the old assign/shell form into canonical Action arguments.
++
++    This is a pure form boundary adapter. It does not publish, persist, spawn,
++    send, or select a provider. Callers still compose the returned arguments
++    with the immutable product Action and pass them through normal admission.
++    Unknown fields and disagreement with an explicit canonical value fail
++    before persistence. ``command`` is converted to an explicit argv boundary
++    using the platform shell; an argv supplied by the caller is preserved.
++    """
++    if not isinstance(fields, dict):
++        raise fc.ContractError("invalid_schema", "Legacy form fields must be an object")
++    if kind is None:
++        kind = "shell" if any(key in fields for key in ("command", "argv", "cwd", "hideWindow")) else "assign"
++    if kind not in {"assign", "shell"}:
++        raise fc.ContractError("invalid_schema", "Only assign and shell legacy forms are supported")
++    allowed = ({"sessionId", "targetSessionId", "target", "text", "message", "source",
++                "sourceSessionId", "taskId"} if kind == "assign" else
++               {"command", "argv", "cwd", "hideWindow"})
++    unknown = sorted(set(fields) - allowed)
++    if unknown:
++        raise fc.ContractError("invalid_schema", "Unknown legacy form field(s): " + ", ".join(unknown))
++
++    def agree(name, value):
++        if canonical is not None and name in canonical and canonical[name] != value:
++            raise fc.ContractError("reference_conflict", f"Legacy and canonical {name} disagree")
++
++    if kind == "assign":
++        target = fields.get("sessionId", fields.get("targetSessionId"))
++        if "sessionId" in fields and "targetSessionId" in fields and fields["sessionId"] != fields["targetSessionId"]:
++            raise fc.ContractError("reference_conflict", "sessionId and targetSessionId disagree")
++        if "target" in fields:
++            target_value = fields["target"]
++            if isinstance(target_value, dict):
++                if set(target_value) != {"sessionId"} or not isinstance(target_value["sessionId"], str):
++                    raise fc.ContractError("invalid_schema", "target must contain only sessionId")
++                target_value = target_value["sessionId"]
++            if not isinstance(target_value, str):
++                raise fc.ContractError("invalid_schema", "target must be a Session id")
++            if target is not None and target != target_value:
++                raise fc.ContractError("reference_conflict", "target and sessionId disagree")
++            target = target_value
++        text = fields.get("text", fields.get("message"))
++        if "text" in fields and "message" in fields and fields["text"] != fields["message"]:
++            raise fc.ContractError("reference_conflict", "text and message disagree")
++        if not isinstance(target, str) or not target:
++            raise fc.ContractError("invalid_schema", "assign form requires sessionId")
++        if not isinstance(text, str) or not text:
++            raise fc.ContractError("invalid_schema", "assign form requires text")
++        result = {"sessionId": target, "text": text}
++        for name in ("source", "sourceSessionId", "taskId"):
++            if name in fields:
++                if not isinstance(fields[name], str) or not fields[name]:
++                    raise fc.ContractError("invalid_schema", f"{name} must be non-empty text")
++                result[name] = fields[name]
++        if canonical is not None:
++            for name, value in result.items():
++                agree(name, value)
++            result = dict(canonical)
++        return result
++
++    if "command" in fields and "argv" in fields:
++        raise fc.ContractError("reference_conflict", "command and argv cannot both be supplied")
++    argv = fields.get("argv")
++    if argv is None:
++        command = fields.get("command")
++        if not isinstance(command, str) or not command:
++            raise fc.ContractError("invalid_schema", "shell form requires command or argv")
++        if os.name == "nt":
++            argv = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command]
++        else:
++            argv = ["/bin/sh", "-c", command]
++    if (not isinstance(argv, list) or not argv or
++            any(not isinstance(item, str) or not item or "\x00" in item for item in argv)):
++        raise fc.ContractError("invalid_schema", "argv must be a non-empty list of text")
++    cwd = fields.get("cwd")
++    if not isinstance(cwd, str) or not cwd:
++        raise fc.ContractError("invalid_schema", "shell form requires cwd")
++    hide = fields.get("hideWindow", True)
++    if type(hide) is not bool:
++        raise fc.ContractError("invalid_schema", "hideWindow must be boolean")
++    result = {"argv": list(argv), "cwd": cwd, "hideWindow": hide}
++    if canonical is not None:
++        for name, value in result.items():
++            agree(name, value)
++        result = dict(canonical)
++    return result
++
++
