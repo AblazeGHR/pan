@@ -15,7 +15,8 @@
       "originalResult": "failed",
       "disposition": "canonical_successor_proven",
       "remainingDifference": "legacy registry/task projection remains an observation difference",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "exit_restart",
@@ -23,7 +24,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]"
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -31,7 +33,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -39,7 +42,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-exit]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-exit]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -47,7 +51,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-exit]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-exit]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -55,7 +60,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-exit]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-exit]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -63,7 +69,8 @@
       "originalResult": "failed",
       "disposition": "canonical_successor_proven",
       "remainingDifference": "legacy supervisor module/argv and task-name assertions remain retired observations; genuine host handshake is covered",
-      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]"
+      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "exit_restart",
@@ -71,7 +78,8 @@
       "originalResult": "failed",
       "disposition": "fixture_observation",
       "remainingDifference": "old fixture sets _main_exit_pending without a canonical intent; canonical duplicate requires durable original identity",
-      "successor": "tests/test_lifecycle_canonical_preparation.py::test_duplicate_and_cross_operation_reject_while_original_effect_queryable"
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_duplicate_and_cross_operation_reject_while_original_effect_queryable",
+      "category": "fixture_mismatch"
     },
     {
       "group": "exit_restart",
@@ -79,7 +87,8 @@
       "originalResult": "failed",
       "disposition": "canonical_successor_proven",
       "remainingDifference": "legacy _perform_main_restart/registry names differ; genuine restart proof has no active Worker tree",
-      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]"
+      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "exit_restart",
@@ -87,7 +96,8 @@
       "originalResult": "passed",
       "disposition": "original_pass",
       "remainingDifference": "",
-      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]"
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]",
+      "category": "canonical_proven"
     },
     {
       "group": "exit_restart",
@@ -95,7 +105,8 @@
       "originalResult": "failed",
       "disposition": "fixture_observation",
       "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-restart]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-restart]",
+      "category": "fixture_mismatch"
     },
     {
       "group": "exit_restart",
@@ -103,7 +114,8 @@
       "originalResult": "failed",
       "disposition": "fixture_observation",
       "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-restart]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-restart]",
+      "category": "fixture_mismatch"
     },
     {
       "group": "exit_restart",
@@ -111,7 +123,8 @@
       "originalResult": "failed",
       "disposition": "fixture_observation",
       "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-restart]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-restart]",
+      "category": "fixture_mismatch"
     },
     {
       "group": "exit_restart",
@@ -119,7 +132,8 @@
       "originalResult": "failed",
       "disposition": "fixture_observation",
       "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
-      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-restart]"
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-restart]",
+      "category": "fixture_mismatch"
     },
     {
       "group": "owned_host",
@@ -127,7 +141,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/safe-api.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/safe-api.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -135,7 +150,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/preserve-api.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/preserve-api.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -143,7 +159,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-config.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-config.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -151,7 +168,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -159,7 +177,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-2.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-2.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -167,7 +186,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-3.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-3.json",
+      "category": "canonical_proven"
     },
     {
       "group": "owned_host",
@@ -175,7 +195,8 @@
       "originalResult": "passed",
       "disposition": "genuine_main_pass",
       "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
-      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-triple.json"
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-triple.json",
+      "category": "canonical_proven"
     },
     {
       "group": "controller",
@@ -183,7 +204,8 @@
       "originalResult": "failed",
       "disposition": "original_red_open",
       "remainingDifference": "legacy controller/desktop publication; canonical claim-before-spawn successor proves no child-before-claim window",
-      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-base]"
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-base]",
+      "category": "cp_x2_platform_boundary"
     },
     {
       "group": "controller",
@@ -191,7 +213,8 @@
       "originalResult": "failed",
       "disposition": "original_red_open",
       "remainingDifference": "legacy self-registration is retired; canonical persisted supervisor identity and cancel cleanup are proven",
-      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-base]"
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-base]",
+      "category": "cp_x2_platform_boundary"
     },
     {
       "group": "controller",
@@ -199,7 +222,8 @@
       "originalResult": "failed",
       "disposition": "original_red_open",
       "remainingDifference": "legacy self-registration is retired; named-venv canonical identity and cleanup are proven",
-      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-named-venv]"
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-named-venv]",
+      "category": "cp_x2_platform_boundary"
     },
     {
       "group": "controller",
@@ -207,7 +231,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -215,7 +240,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -223,7 +249,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -231,7 +258,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -239,7 +267,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "canonical observation/fence or controller handoff proof",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -247,7 +276,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "canonical observation/fence or controller handoff proof",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -255,7 +285,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "canonical observation/fence or controller handoff proof",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "controller",
@@ -263,7 +294,8 @@
       "originalResult": "passed",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "canonical observation/fence or controller handoff proof",
-      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "runner_exit",
@@ -271,7 +303,8 @@
       "originalResult": "historical_red",
       "disposition": "canonical_successor_pass",
       "remainingDifference": "canonical independent executor uses ExecutionStore/outbox instead of legacy completed row",
-      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[root-exit]"
+      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[root-exit]",
+      "category": "canonical_proof_retired_observation"
     },
     {
       "group": "runner_exit",
@@ -279,7 +312,8 @@
       "originalResult": "historical_red",
       "disposition": "canonical_unknown_preserved",
       "remainingDifference": "old test expects failed; canonical runner correctly preserves unknown on wait exception and proves cleanup, so this is a semantic migration difference requiring product/acceptance decision",
-      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[wait-error]"
+      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[wait-error]",
+      "category": "canonical_proof_semantic_gap"
     }
   ],
   "validation": {
@@ -290,5 +324,12 @@
     "creationEdges": "evidence/cp-x1-lifecycle-r14/creation-edges.xml",
     "canonicalRunner": "evidence/cp-x1-lifecycle-r14/canonical-tree-exit.xml"
   },
-  "remoteValidation": "not rerun by this TA; MA owns non-main CI"
+  "remoteValidation": "not rerun by this TA; MA owns non-main CI",
+  "classificationLegend": {
+    "canonical_proof_retired_observation": "(a) old registry/task-name/argv observation has an exact canonical successor; original red is preserved",
+    "fixture_mismatch": "(b) old monkeypatch or pending flag does not model a durable held canonical intent; no product change authorized",
+    "canonical_proven": "(a) required behavior is proven by the canonical successor",
+    "cp_x2_platform_boundary": "(d) private desktop/atomic creation belongs to CP-X2; no platform edits here",
+    "canonical_proof_semantic_gap": "(a/c boundary) canonical safety proof exists but outcome classification differs from the retired assertion; no silent relabeling"
+  }
 }

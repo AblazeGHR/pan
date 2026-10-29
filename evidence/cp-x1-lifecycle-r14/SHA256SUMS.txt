@@ -19,7 +19,7 @@ ec835b5adfa530173701c503b7094a5364e30c273ff001c6ff54f38262e43543  evidence/cp-x1
 c872b23804d53bf0f43f920be06151398a6ebdc87da05a2b7294b2ce1be65230  evidence/cp-x1-lifecycle-r14/genuine-main-last4.xml
 7f0f4f516e859ef848192bb86d1ec658ba8799e439ed192536deb62c2bfdc2ae  evidence/cp-x1-lifecycle-r14/genuine-restart.json
 5e90fb799355a11c39c9c1c5b8f25b238ad69fa0567fc79c78f231d103c9e9dd  evidence/cp-x1-lifecycle-r14/genuine-restart.xml
-ff428b41f9f6596253de848f477e0adf937e6d59e3b10515f11ce98816c20900  evidence/cp-x1-lifecycle-r14/node-closure.json
+820bcf4d7170acc277a94e80db53167f8da18848752f033f4230476b2213ee7f  evidence/cp-x1-lifecycle-r14/node-closure.json
 3b3953f8fc3f769257a9a273c05b88729b3edc4d805adb05f82312756ca28f4b  evidence/cp-x1-lifecycle-r14/original14.xml
 7e35778f08d4968ef401fee1d2951b7ee777c2f8f6f69cc9c19b47e15e467560  evidence/cp-x1-lifecycle-r14/owned-host-genuine/preserve-api.json
 bb1e97405a1b6fbc2c088ffbe0a51f0829b06aedfaad3f4f5c43b6dfe8fb2adc  evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-config.json
@@ -28,4 +28,4 @@ b415c6c1385198e10cb472f96fa9a7bef30c613b8b2c43029e46ea1c13fcaa08  evidence/cp-x1
 13674ab64784fc19c828a2f4725c35eb30bb9708184d17c5fcf5260b8e35f7e8  evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu.json
 136b87ddb019bef68d0f0a2649c4a5ae8e783b53be59d3a9d7c7d011a715d020  evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-triple.json
 f762fb2a300d9c65258100dc33d8959c43b513bd35542df5546fb13500c2b13b  evidence/cp-x1-lifecycle-r14/owned-host-genuine/safe-api.json
-9579b0a645d57fe2f9b53f1cfda85316c02123d7e05db7dc0d10da0915e9e99d  evidence/cp-x1-lifecycle-r14/platform-fast-helper.xml`n
+9579b0a645d57fe2f9b53f1cfda85316c02123d7e05db7dc0d10da0915e9e99d  evidence/cp-x1-lifecycle-r14/platform-fast-helper.xml
