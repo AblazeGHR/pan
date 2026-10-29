@@ -37,6 +37,8 @@ jobs:
           tests/test_cpx1_genuine_restart.py tests/test_cpx1_canonical_tree_exit.py
           tests/test_cpx1_console_encoding.py
           tests/test_plugin_event_lifecycle.py tests/test_plugin_events.py
+          tests/test_job_automatic_recovery.py tests/test_automation_retry_parallel.py
+          tests/test_job_final_http_service.py
           -q -ra --tb=short
           --junitxml=${{ runner.temp }}/lifecycle-validation/focused.xml
       - name: Upload fresh logs, diagnostics and platform skips
