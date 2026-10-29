@@ -197,6 +197,7 @@ class FinalService:
                                or not (a["retry"]["idempotent"] or a["retry"]["sameKeySupported"]) for a in checked[:len(value["steps"])])):
                     error("capability_unsupported", "Automatic recovery supports only process failed/timeout with finite policy and stableResetSeconds=0")
             self._check_literal_product_sessions(value, checked)
+            self._check_literal_product_qq(value, checked)
         if kind == "trigger":
             selector = value["creatorSelector"]
             if selector["mode"] == "ids":
@@ -212,7 +213,10 @@ class FinalService:
         # Restrict business lookup to known product operations, never argument
         # names on arbitrary custom Actions. No Worker or history is needed.
         products = {"product_session_message": ("session-message", "sessionId"),
-                    "product_session_broadcast": ("session-broadcast", "sessionIds")}
+                    "product_session_broadcast": ("session-broadcast", "sessionIds"),
+                    "product_session_message_v2": ("session-message", "sessionId"),
+                    "product_session_broadcast_v2": ("session-broadcast", "sessionIds"),
+                    "product_assign_v2": ("assign", "sessionId")}
         for index, (step, action) in enumerate(zip(value["steps"], checked)):
             product = products.get(action["id"])
             config = action.get("definition") or {}
@@ -235,6 +239,35 @@ class FinalService:
                     raise fc.ContractError("invalid_schema", "Session target does not exist",
                         path=path,
                         details={"reason": "session_not_found", "id": sid})
+
+    @staticmethod
+    def _check_literal_product_qq(value, checked):
+        """Validate known literals on the immutable trusted QQ publication only."""
+        from packages.jobs.actions import normalize_scheduled_qq_action
+        provider = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1}
+        for index, (step, action) in enumerate(zip(value["steps"], checked)):
+            config = action.get("definition") or {}
+            if (action["id"] != "product_channel" or config.get("system") is not True
+                    or config.get("providerRef") != provider
+                    or config.get("execution", {}).get("operation") != "channel"):
+                continue
+            arguments = step["arguments"]
+            fixed = {key: arguments[key]["value"] for key in ("targetType", "targetId", "botUin")
+                     if arguments.get(key, {}).get("from") == "literal"}
+            if fixed:
+                # Supply valid validation-only values for unresolved fields;
+                # never persist them or turn a dynamic binding into a target.
+                _, invalid = normalize_scheduled_qq_action({"api": "send_qq", "args": {
+                    "targetType": "user", "targetId": "10000", **fixed}})
+                if invalid:
+                    raise fc.ContractError("invalid_schema", invalid,
+                        path=f"definition.steps.{index}.arguments")
+            text = arguments.get("text", {})
+            if text.get("from") == "literal":
+                raw = text["value"]
+                if not isinstance(raw, str) or not raw.strip():
+                    raise fc.ContractError("invalid_schema", "QQ text must contain a non-whitespace character",
+                        path=f"definition.steps.{index}.arguments.text")
 
     def _scope(self, actor, operation):
         return fc.idempotency_scope(principal(actor), self.profile_id, "create" if operation == "run-again" else operation)
