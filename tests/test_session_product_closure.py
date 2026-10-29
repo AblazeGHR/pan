@@ -127,11 +127,17 @@ def test_product_http_real_queue_source_and_cold_original_query(h, op):
 
 
 def test_product_missing_target_rejects_without_spawn(h):
+    sessions.save(sessions.Session(id="ses_missing", name="Owned admission target", queue_paused=True))
+    workers_before = set(worker.workers)
     job = enabled(h, config(h, "assign", sessionId="ses_missing", text="body"))
     admitted = launch(h, job)
+    assert sessions.get("ses_missing", load_history=False) is not None
+    sessions.delete("ses_missing")
+    assert sessions.get("ses_missing", load_history=False) is None
     asyncio.run(h.service.dispatch_once())
     assert h.client.get("/api/job-runs/" + admitted["runId"]).json()["state"] == "failed"
     assert sessions.get("ses_missing") is None
+    assert set(worker.workers) == workers_before
 
 
 @pytest.mark.parametrize("op", ["session-message", "assign", "session-broadcast"])
@@ -185,6 +191,8 @@ def test_assign_connection_failure_cold_query_stays_unknown(h, monkeypatch):
 
 
 def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch):
+    sessions.save(sessions.Session(id="ses_missing", name="Owned fanout admission target", queue_paused=True))
+    workers_before = set(worker.workers)
     original = worker.send_session
     calls = []
     async def transport(sid, text, **kwargs):
@@ -195,6 +203,9 @@ def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch
     monkeypatch.setattr(worker, "send_session", transport)
     job = enabled(h, config(h, "session-broadcast", sessionIds=["ses_a", "ses_b", "ses_missing", "ses_a"], text="body"))
     admitted = launch(h, job)
+    assert sessions.get("ses_missing", load_history=False) is not None
+    sessions.delete("ses_missing")
+    assert sessions.get("ses_missing", load_history=False) is None
     asyncio.run(h.service.dispatch_once())
     history = h.service.final.history(job["id"])
     receipt = history["effects"][0]["receipt"]
@@ -206,6 +217,7 @@ def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch
         asyncio.run(cold.dispatch_once())
         assert cold.get_run(admitted["runId"], actor={"type": "user", "id": "local"})["state"] == "uncertain"
         assert calls == ["ses_a", "ses_b", "ses_missing"]
+        assert set(worker.workers) == workers_before
     finally:
         asyncio.run(cold.close())
 
