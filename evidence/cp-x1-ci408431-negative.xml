@@ -1,0 +1,89 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="6" time="0.270" timestamp="2026-10-29T16:43:45.720670+08:00" hostname="ablaze"><testcase classname="tests.test_cpx1_console_encoding" name="test_console_prompt_menu_result_and_error_on_strict_stream[cp1252]" time="0.013"><failure message="UnicodeEncodeError: 'charmap' codec can't encode characters in position 5-6: character maps to &lt;undefined&gt;">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F2CD009810&gt;
+encoding = 'cp1252'
+
+    @pytest.mark.parametrize('encoding', ['cp1252', 'ascii', 'utf-8'])
+    def test_console_prompt_menu_result_and_error_on_strict_stream(monkeypatch, encoding):
+        raw = io.BytesIO()
+        output = io.TextIOWrapper(raw, encoding=encoding, errors='strict', write_through=True)
+        monkeypatch.setattr(sys, 'stdout', output)
+        monkeypatch.setattr(console_exit.threading.Thread, 'start', lambda self: None)
+&gt;       console = console_exit.start_console_exit(43210, lambda: 'ask', stream=Tty())
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_cpx1_console_encoding.py:21: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\console_exit.py:82: in start_console_exit
+    print("Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;encodings.cp1252.IncrementalEncoder object at 0x000001F2CD0356A0&gt;
+input = 'Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。'
+final = False
+
+    def encode(self, input, final=False):
+&gt;       return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeEncodeError: 'charmap' codec can't encode characters in position 5-6: character maps to &lt;undefined&gt;
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\encodings\cp1252.py:19: UnicodeEncodeError</failure></testcase><testcase classname="tests.test_cpx1_console_encoding" name="test_console_prompt_menu_result_and_error_on_strict_stream[ascii]" time="0.005"><failure message="UnicodeEncodeError: 'ascii' codec can't encode characters in position 5-6: ordinal not in range(128)">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F2CD0096E0&gt;
+encoding = 'ascii'
+
+    @pytest.mark.parametrize('encoding', ['cp1252', 'ascii', 'utf-8'])
+    def test_console_prompt_menu_result_and_error_on_strict_stream(monkeypatch, encoding):
+        raw = io.BytesIO()
+        output = io.TextIOWrapper(raw, encoding=encoding, errors='strict', write_through=True)
+        monkeypatch.setattr(sys, 'stdout', output)
+        monkeypatch.setattr(console_exit.threading.Thread, 'start', lambda self: None)
+&gt;       console = console_exit.start_console_exit(43210, lambda: 'ask', stream=Tty())
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_cpx1_console_encoding.py:21: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+port = 43210
+strategy = &lt;function test_console_prompt_menu_result_and_error_on_strict_stream.&lt;locals&gt;.&lt;lambda&gt; at 0x000001F2CD0BB270&gt;
+stream = &lt;test_cpx1_console_encoding.Tty object at 0x000001F2CCF482D0&gt;
+
+    def start_console_exit(port, strategy, *, stream=None):
+        stream = sys.stdin if stream is None else stream
+        if stream is None or not stream.isatty():
+            return None
+        def submit(payload):
+            from .lifecycle_action import ACTION_ROUTE
+            request = Request(f"http://127.0.0.1:{port}{ACTION_ROUTE}",
+                              data=json.dumps({"operation": "exit", **payload}).encode(),
+                              headers={"Content-Type": "application/json"}, method="POST")
+            try:
+                with urlopen(request, timeout=10) as response:
+                    return json.load(response)
+            except HTTPError as exc:
+                return {"ok": False, "error": exc.read().decode(errors="replace")}
+        console = ConsoleExit(submit, strategy)
+&gt;       print("Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。")
+E       UnicodeEncodeError: 'ascii' codec can't encode characters in position 5-6: ordinal not in range(128)
+
+packages\core\console_exit.py:82: UnicodeEncodeError</failure></testcase><testcase classname="tests.test_cpx1_console_encoding" name="test_console_prompt_menu_result_and_error_on_strict_stream[utf-8]" time="0.004" /><testcase classname="tests.test_cpx1_console_encoding" name="test_absent_stdout_uses_available_stderr" time="0.005"><failure message="AssertionError: assert '输入' in ''&#10; +  where '' = &lt;built-in method getvalue of _io.StringIO object at 0x000001F2CCEE7130&gt;()&#10; +    where &lt;built-in method getvalue of _io.StringIO object at 0x000001F2CCEE7130&gt; = &lt;_io.StringIO object at 0x000001F2CCEE7130&gt;.getvalue">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F2CD03AE00&gt;
+
+    def test_absent_stdout_uses_available_stderr(monkeypatch):
+        output = io.StringIO()
+        monkeypatch.setattr(sys, 'stdout', None)
+        monkeypatch.setattr(sys, 'stderr', output)
+        monkeypatch.setattr(console_exit.threading.Thread, 'start', lambda self: None)
+        assert console_exit.start_console_exit(43210, lambda: 'offline', stream=Tty())
+&gt;       assert '输入' in output.getvalue()
+E       AssertionError: assert '输入' in ''
+E        +  where '' = &lt;built-in method getvalue of _io.StringIO object at 0x000001F2CCEE7130&gt;()
+E        +    where &lt;built-in method getvalue of _io.StringIO object at 0x000001F2CCEE7130&gt; = &lt;_io.StringIO object at 0x000001F2CCEE7130&gt;.getvalue
+
+tests\test_cpx1_console_encoding.py:50: AssertionError</failure></testcase><testcase classname="tests.test_cpx1_console_encoding" name="test_broken_console_output_is_not_swallowed" time="0.003" /><testcase classname="tests.test_cpx1_console_encoding" name="test_both_streams_absent_are_explicit" time="0.003"><failure message="Failed: DID NOT RAISE OSError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F2CD07E250&gt;
+
+    def test_both_streams_absent_are_explicit(monkeypatch):
+        monkeypatch.setattr(sys, 'stdout', None)
+        monkeypatch.setattr(sys, 'stderr', None)
+        monkeypatch.setattr(console_exit.threading.Thread, 'start', lambda self: None)
+&gt;       with pytest.raises(OSError, match='no console output stream'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE OSError
+
+tests\test_cpx1_console_encoding.py:68: Failed</failure></testcase></testsuite></testsuites>

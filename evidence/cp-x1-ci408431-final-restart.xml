@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="10.015" timestamp="2026-10-29T16:45:29.372242+08:00" hostname="ablaze"><testcase classname="tests.test_cpx1_genuine_restart" name="test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner" time="9.904" /></testsuite></testsuites>
