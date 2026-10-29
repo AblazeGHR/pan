@@ -1,0 +1,13 @@
+{
+  "source": "d210ad06f1dea5e6c4eb1588e73b69605c436eeb",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-release-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-c",
+    "import packages.web.server as s; assert s.app is not None; print(\"server import OK\")"
+  ],
+  "exitCode": 0,
+  "platform": "win32"
+}
