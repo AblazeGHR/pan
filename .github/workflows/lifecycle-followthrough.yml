@@ -35,6 +35,7 @@ jobs:
         run: >
           python scripts/run_tests_isolated.py -- python -m pytest
           tests/test_cpx1_genuine_restart.py tests/test_cpx1_canonical_tree_exit.py
+          tests/test_cpx1_console_encoding.py
           tests/test_plugin_event_lifecycle.py tests/test_plugin_events.py
           -q -ra --tb=short
           --junitxml=${{ runner.temp }}/lifecycle-validation/focused.xml
