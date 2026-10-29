@@ -206,7 +206,12 @@ def test_invalid_unicode_input_is_rejected_without_worker_write(target, monkeypa
 
 def test_creation_is_explicit_native_adapter_and_old_session_data_stays_unchanged(monkeypatch):
     from packages.web import server
+    from packages.core import platform
     from packages.core.manifest_loader import ManifestConfig
+    # Adapter opt-in is independent of the actual host capability. Explicit
+    # unsupported-host creation checks remain in test_native_platform_projection.
+    supports = platform.supports
+    monkeypatch.setattr(platform, "supports", lambda name: name == "terminal.native" or supports(name))
     monkeypatch.setattr(server, "_ensure_manifest_fresh", lambda: None)
     # This unit test bypasses lifespan; an empty explicit plugin catalog avoids
     # depending on another test having loaded the process-global manifest.
