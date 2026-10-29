@@ -26,9 +26,12 @@ def main():
     command = [sys.executable, str(ROOT / "scripts/run_tests_isolated.py"), "--", sys.executable,
                "-m", "pytest", "-p", "tests.support.cpx1_two_node_diagnostic", "-q", "-ra", *nodes]
     result = subprocess.run(command, cwd=ROOT, env=env)
-    (output / "result.json").write_text(json.dumps({"exitCode": result.returncode, "nodes": nodes,
+    completion_contract = subprocess.run(['node', '--test', str(ROOT / 'packages/web/e2e/locker-read-completion.test.mjs')], cwd=ROOT, env=env)
+    exit_code = result.returncode or completion_contract.returncode
+    (output / "result.json").write_text(json.dumps({"exitCode": exit_code, "pytestExitCode": result.returncode,
+                                                    "completionContractExitCode": completion_contract.returncode, "nodes": nodes,
                                                     "python": sys.version.split()[0]}, indent=2), encoding="utf-8")
-    return result.returncode
+    return exit_code
 
 
 if __name__ == "__main__":
