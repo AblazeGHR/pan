@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/minimal-playwright
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.minimal-playwright
     steps:
       - uses: actions/checkout@v4
       - name: Remove only prior generated browser proofs
