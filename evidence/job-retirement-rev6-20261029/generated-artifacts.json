@@ -1,0 +1,38 @@
+[
+  {
+    "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+    "generatedSha256": "e87683b7a07610ea64a913412ad68168992b5901d7956380fb171894d21980a6",
+    "restoredGitBytesSha256": "d91202070751bda1a47d6933b711f5828d4823ca34e52b78ff5473b32c8685c2"
+  },
+  {
+    "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+    "generatedSha256": "dc0928e9d4d60c09c634e241388c5078ab9ad1784890eaedc79ef2ccbce9eea3",
+    "restoredGitBytesSha256": "55a3a692b4cbc226af68b19032945c14fd9030677a60fbfcf45f277a9fd13bc5"
+  },
+  {
+    "originalPath": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-false.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-false.json",
+    "generatedSha256": "cd8950c0106c6fbb81b684734a306c3a9d55bb84a00b8e57129d6c23e84cff22",
+    "restoredGitBytesSha256": "0542a9e255410514b981a5e9e74f0e332425c7a3bb0232dc77ac04edfe9428b1"
+  },
+  {
+    "originalPath": "evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-true.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/p23-retained-safety/public-resume/venv/canonical-delete-unknown-true.json",
+    "generatedSha256": "2f2c48cb672c6a918d2a71f258f980fc07282c28f0b742cfe1dcdb7ec7e16309",
+    "restoredGitBytesSha256": "26dac62ff3db27a4e108d38e748d96419fbb65c062331a2326a988e5ce74cd6c"
+  },
+  {
+    "originalPath": "evidence/p23-retained-safety/public-resume/venv/canonical-late-terminal.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/p23-retained-safety/public-resume/venv/canonical-late-terminal.json",
+    "generatedSha256": "49b05626f673547a60535ecc3e280ea24367960d5d41278eb861956971f200d1",
+    "restoredGitBytesSha256": "c6cfccbc2b5875f06c7f1d3653cd0ca59012f008f287d8cfc25d9ffef8f5e486"
+  },
+  {
+    "originalPath": "evidence/quota-native/tcp.json",
+    "preservedAt": "evidence/job-retirement-rev6-20261029/generated/evidence/quota-native/tcp.json",
+    "generatedSha256": "c7b47332a18b2208290dc560e6495c6831a60079fede692a6f08216e6897993b",
+    "restoredGitBytesSha256": "206ef2fd6bb560e105325eeabab97b3604ee02b6205c3a7d1a7197a7be9e6d1f"
+  }
+]

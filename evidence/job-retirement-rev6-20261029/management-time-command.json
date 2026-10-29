@@ -1,0 +1,371 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_closure_successors.py",
+    "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing",
+    "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+    "tests/test_job_final_creators.py::test_fs01_multiple_rules_and_after_publication_have_independent_cursors",
+    "tests/test_job_final_creators.py::test_fs02_skip_and_backfill_are_distinct_instances_with_actual_drive_time",
+    "tests/test_job_final_creators.py::test_fs02_pause_advances_without_business_event_or_resume_backfill",
+    "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition",
+    "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http",
+    "tests/test_scheduler_time_templates.py::test_default_disabled_graph_lost_receipt_query_and_cold_reopen",
+    "tests/test_scheduler_time_templates.py::test_explicit_activation_authorities_and_no_immediate_run",
+    "tests/test_scheduler_time_templates.py::test_shared_source_reference_checked_and_never_enabled_by_instantiation",
+    "tests/test_job_retained_canonical_pins.py",
+    "tests/test_job_retained_canonical_pin_resolution.py",
+    "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+    "tests/test_job_retained_history_bridge.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\management-time.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 41.099,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_rename_description_roundtrip_cas_and_original_operation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[ ]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[\\t\\n]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_name_semantics_are_consistent_for_every_canonical_kind[template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_multiple_rules_and_after_publication_have_independent_cursors",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs02_skip_and_backfill_are_distinct_instances_with_actual_drive_time",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs02_pause_advances_without_business_event_or_resume_backfill",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_time_templates.py::test_default_disabled_graph_lost_receipt_query_and_cold_reopen",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_scheduler_time_templates.py::test_explicit_activation_authorities_and_no_immediate_run",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_scheduler_time_templates.py::test_shared_source_reference_checked_and_never_enabled_by_instantiation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[json]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[encoding]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_old_pin_corruption_never_enters_native_crud_run_or_retention[read]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_runtime_metadata_pin_cas_persists_without_mutating_config_or_runs",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_lost_pin_response_queries_original_operation_without_reposting",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state0-pin_metadata_unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state1-pinned]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state2-cleanup_or_ownership_unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_canonical_unknown_pin_and_cleanup_pending_block_delete_and_gc[state3-active_or_unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[delete]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_http_pin_true_must_protect_gc_after_runtime_unpin[gc]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_pending_terminal_outbox_reopens_and_acks_same_key_without_reexecution",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_notification_ack_commit_failure_recovers_uncertain_without_resending",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_unknown_run_queries_original_operation_and_never_resends_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_session_notice_is_durable_before_ack_and_settles_original_row_after_restart",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_unrelated_http_edit_and_stale_cas_never_clear_other_hold",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-value1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-value3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-value8]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-value1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-value3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-value8]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[http-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[runtime-metadata]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job2]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job4]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_list_jobs_mixed_kinds_and_filters",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_history_bridge.py::test_run_now_does_not_move_periodic_next_fire_retained_successor",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 81,
+    "failure": 2,
+    "error": 0,
+    "skipped": 0
+  }
+}

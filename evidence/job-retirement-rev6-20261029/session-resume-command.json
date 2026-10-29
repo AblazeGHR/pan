@@ -1,0 +1,400 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query",
+    "tests/test_session_resume_product.py::test_http_fresh_query_per_fire_original_wake_pause_and_identity",
+    "tests/test_session_resume_product.py::test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit",
+    "tests/test_session_resume_product.py::test_scheduled_passive_template_matching_empty_fire_not_backlogged",
+    "tests/test_session_resume_product.py::test_uses_original_configured_wake_and_preserves_pause",
+    "tests/test_session_resume_product.py::test_immutable_publications_and_frozen_plan_preserved",
+    "tests/test_job_retirement_literal_validation.py",
+    "tests/test_job_retirement_name_scope.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\session-resume.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 38.086,
+  "nodes": [
+    {
+      "node": "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[session-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[assign]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[session-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_resume_product.py::test_http_fresh_query_per_fire_original_wake_pause_and_identity",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_resume_product.py::test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_resume_product.py::test_scheduled_passive_template_matching_empty_fire_not_backlogged",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_resume_product.py::test_uses_original_configured_wake_and_preserves_pause",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_resume_product.py::test_immutable_publications_and_frozen_plan_preserved",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-qq]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[invalid1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[123]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[input]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[event]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_custom_session_parameter_name_does_not_acquire_product_business_validation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_resolved_immutable_action_schema_is_used_after_reference_checks",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[botUin-untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[text-]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[endpoint-http://untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[sessionId-untrusted]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_empty_literal_object_is_validated_against_required_action_fields",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[None-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[None-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[123-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[123-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[invalid2-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[invalid2-broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_real_session_validation_keeps_system_grant_and_high_risk_fences",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_business_payload_name_uses_immutable_action_schema_through_http[False]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_business_payload_name_uses_immutable_action_schema_through_http[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_literal_validation.py::test_high_risk_custom_action_remains_fenced_after_literal_validation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[arguments]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[literal]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[schema-default]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-schema]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[creator-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_event_payload_business_name_is_not_a_canonical_name",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-action]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-event_creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-job]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-template]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-trigger]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -jobDefinition]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -creator]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -trigger]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 92,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

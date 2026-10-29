@@ -1,0 +1,29 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_parity.py::test_scheduled_explicit_shell_argv_preserves_command_cwd_exit_and_no_early_creation",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\scheduled-shell.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 1.87,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_scheduled_explicit_shell_argv_preserves_command_cwd_exit_and_no_early_creation",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 1,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

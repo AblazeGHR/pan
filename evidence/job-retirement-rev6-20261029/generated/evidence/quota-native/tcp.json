@@ -1,0 +1,12 @@
+{
+  "ports": [
+    52302,
+    63780
+  ],
+  "attempts": 1,
+  "effects": 1,
+  "state": "uncertain",
+  "coldReopenPreservedIdentity": true,
+  "realAccountQueries": 0,
+  "ownedServersStopped": true
+}

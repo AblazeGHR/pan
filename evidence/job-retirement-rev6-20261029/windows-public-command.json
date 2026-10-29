@@ -1,0 +1,64 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_windows.py",
+    "tests/test_job_retained_safety_canonical.py",
+    "tests/test_job_process_logs.py::test_failed_and_cancelled_real_output_survives_and_no_rerun",
+    "tests/test_hidden_job_token.py::test_hidden_token_preserves_peer_file_and_ipc_access",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\windows-public.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 76.793,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_windows.py::test_canonical_three_generation_gui_console_private_desktop_cleanup[new]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_windows.py::test_canonical_three_generation_gui_console_private_desktop_cleanup[alloc]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_windows.py::test_canonical_bidirectional_file_ipc_stdout_stderr_exit7_cold_log",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_safety_canonical.py::test_terminal_child_writeback_does_not_recreate_retired_parent_successor",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_process_logs.py::test_failed_and_cancelled_real_output_survives_and_no_rerun[7]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_process_logs.py::test_failed_and_cancelled_real_output_survives_and_no_rerun[0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_hidden_job_token.py::test_hidden_token_preserves_peer_file_and_ipc_access",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 9,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}
