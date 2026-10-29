@@ -1,0 +1,10 @@
+{
+  "schema": "pan.minimal-ci.phase/1",
+  "sourceSha": "e19a59a06fb5b6a26f6546d1fbb2c0fc31905b0d",
+  "phase": "check",
+  "argv": [],
+  "exitCode": 0,
+  "seconds": 0.057,
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26200-SP0"
+}

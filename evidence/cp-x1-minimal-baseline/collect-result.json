@@ -1,0 +1,24 @@
+{
+  "schema": "pan.minimal-ci.phase/1",
+  "sourceSha": "9b4506c94ac67a39093961b218b2f01d387d1049",
+  "phase": "collect",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/",
+    "packages/qq/",
+    "packages/wechat/",
+    "-q",
+    "-ra",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\evidence\\cp-x1-minimal-baseline\\collect.xml",
+    "--collect-only"
+  ],
+  "exitCode": 0,
+  "seconds": 18.589,
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26200-SP0"
+}

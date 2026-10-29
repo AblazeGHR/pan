@@ -1,0 +1,32 @@
+{
+  "schema": "pan.minimal-ci.phase/1",
+  "sourceSha": "e19a59a06fb5b6a26f6546d1fbb2c0fc31905b0d",
+  "phase": "legacy",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_scheduler_api.py::test_create_list_get_roundtrip",
+    "tests/test_scheduler_api.py::test_update_task_changes_fields",
+    "tests/test_scheduler_api.py::test_delete_task_removes_it",
+    "tests/test_scheduler_store.py::test_create_writes_job_record",
+    "tests/test_scheduler_store.py::test_update_recomputes_next_fire_on_schedule_change",
+    "tests/test_background_jobs.py::test_start_persists_metadata_and_detaches",
+    "tests/test_background_jobs.py::test_accepted_cancel_wins_runner_exit_race",
+    "tests/test_background_jobs.py::test_retry_inherits_creator_and_target",
+    "tests/test_background_job_api.py::test_mcp_get_list_cancel_retry_use_managed_target",
+    "tests/test_jobs_api.py::test_post_creates_scheduled_task_multi_entry",
+    "tests/test_jobs_api.py::test_patch_rename_and_description",
+    "tests/test_jobs_api.py::test_delete_job_routes_to_compat_for_scheduled_task",
+    "-q",
+    "-ra",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\evidence\\cp-x1-minimal-combined\\legacy.xml"
+  ],
+  "exitCode": 0,
+  "seconds": 1.868,
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26200-SP0"
+}

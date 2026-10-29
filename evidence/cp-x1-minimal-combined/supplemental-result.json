@@ -1,0 +1,23 @@
+{
+  "schema": "pan.minimal-ci.phase/1",
+  "sourceSha": "e19a59a06fb5b6a26f6546d1fbb2c0fc31905b0d",
+  "phase": "supplemental",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_portability_paths.py",
+    "tests/test_terminal_secret_store.py",
+    "tests/test_minimal_ci_helper.py",
+    "-q",
+    "-ra",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\evidence\\cp-x1-minimal-combined\\supplemental.xml"
+  ],
+  "exitCode": 0,
+  "seconds": 2.825,
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26200-SP0"
+}

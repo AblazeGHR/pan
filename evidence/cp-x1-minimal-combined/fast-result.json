@@ -1,0 +1,31 @@
+{
+  "source": "dd01bf631489efe31a93106aaf949ac338c8609d",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_platform_layer.py",
+    "tests/test_platform_api.py",
+    "tests/test_platform_import_chain.py",
+    "tests/test_worker_platform_admission.py",
+    "tests/test_native_platform_projection.py",
+    "tests/test_native_control_api.py",
+    "tests/test_plugin_ipc_endpoint.py",
+    "tests/test_minimal_platform_release.py",
+    "tests/test_background_job_api.py",
+    "tests/test_scheduler_store.py",
+    "tests/test_scheduler_api.py",
+    "tests/test_background_jobs.py::test_start_persists_metadata_and_detaches",
+    "tests/test_background_jobs.py::test_external_cwd_runs_and_projects_one_completion_notice",
+    "tests/test_plugin_event_lifecycle.py",
+    "tests/test_plugin_events.py",
+    "-q",
+    "-ra",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\evidence\\cp-x1-minimal-combined\\fast.xml"
+  ],
+  "exitCode": 0,
+  "platform": "win32"
+}

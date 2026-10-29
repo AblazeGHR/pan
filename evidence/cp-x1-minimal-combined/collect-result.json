@@ -1,0 +1,20 @@
+{
+  "source": "e19a59a06fb5b6a26f6546d1fbb2c0fc31905b0d",
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/",
+    "packages/qq/",
+    "packages/wechat/",
+    "-q",
+    "-ra",
+    "--junitxml=D:\\project\\pan-worktrees\\xplat-minimal-ci-20261029\\evidence\\cp-x1-minimal-combined\\collect.xml",
+    "--collect-only"
+  ],
+  "exitCode": 0,
+  "platform": "win32"
+}
