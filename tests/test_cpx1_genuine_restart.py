@@ -125,6 +125,10 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
         doc = wait(lambda: (d if (d := receipt()) and d.get('result') else None), 110, 'canonical receipt')
         assert doc['effectId'] == effect and doc['frozenPlan']['arguments']['requestId'] == response['requestId']
         assert doc['result']['outcome'] == 'succeeded', doc['result']
+        # The original main has exited and flushed its redirected output: this
+        # proves its real console prompt ran under the restricted encoding.
+        assert b'Pan: \\u8f93\\u5165' in startup_log.read_bytes()
+        observed['restrictedConsolePromptObserved'] = True
         fact = doc['result']['receipt']
         assert fact['phase'] == 'ready' and fact['offlineProof']['ok'] is True
         ready = fact['readyProof']
