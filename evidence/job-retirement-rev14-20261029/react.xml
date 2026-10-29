@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="63" failures="0" errors="0" time="3.534">
+    <testsuite name="views/CanonicalJobsView.retirement-r13.test.tsx" timestamp="2026-10-29T14:55:44.092Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.5378955">
+        <testcase classname="views/CanonicalJobsView.retirement-r13.test.tsx" name="existing assign caller writes exact literal fields and immutable Action reference to a passive canonical Job" time="0.2333455">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r13.test.tsx" name="existing process caller preserves argv boundaries/cwd/hideWindow without guessing command-string shell syntax" time="0.1156859">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r13.test.tsx" name="missing Action selection rejects locally without a legacy fallback write" time="0.0512058">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r13.test.tsx" name="server rejection preserves the structured draft without retrying a legacy endpoint" time="0.0922229">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r13.test.tsx" name="complete no-Creator Template instantiates with activation false without a fallback or Run request" time="0.0446682">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/CanonicalJobsView.retirement-r14.test.tsx" timestamp="2026-10-29T14:55:44.096Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.287913">
+        <testcase classname="views/CanonicalJobsView.retirement-r14.test.tsx" name="simple assign production caller sends complete passive product Template and raw fields without source impersonation controls" time="0.1312857">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r14.test.tsx" name="shell caller passes raw command/cwd to host normalization, never guesses browser shell or executes at save" time="0.0456583">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r14.test.tsx" name="unknown creation queries the original operation and disables duplicate form submission" time="0.0782923">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.retirement-r14.test.tsx" name="missing or disabled fixed publication blocks form writes without a fallback" time="0.0321553">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/CanonicalJobsView.test.tsx" timestamp="2026-10-29T14:55:44.097Z" hostname="ablaze" tests="19" failures="0" errors="0" skipped="0" time="1.4846883">
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="blocks repeat Template instantiation after a lost receipt and queries the original operation" time="0.1204096">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires jobs with canonical CAS envelopes" time="0.1626988">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires triggers with canonical CAS envelopes" time="0.1248003">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires event-creators with canonical CAS envelopes" time="0.1096661">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires job-templates with canonical CAS envelopes" time="0.1248441">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs retry using Run state revision and current Job config" time="0.0638895">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs run-again using Run state revision and current Job config" time="0.0621099">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs clone-and-run using Run state revision and current Job config" time="0.0781524">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs cancel using Run state revision and current Job config" time="0.0620752">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs pause using Run state revision and current Job config" time="0.0628101">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs resume using Run state revision and current Job config" time="0.0625915">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 422 rejection for run operations" time="0.0636538">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 403 rejection for run operations" time="0.0792318">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps an edit draft on conflict and close does not submit" time="0.100134">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="does not resend an unconfirmed request and queries its original identity" time="0.0688318">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows accepted as pending effect and queries by operationId" time="0.0786979">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="renders loading and list errors with a retry" time="0.0315268">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps canonical navigation and performs no legacy transport requests" time="0.0045699">
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="clears canonical data on logout and blocks unauthenticated reads" time="0.0229712">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/automation/CanonicalForms.test.tsx" timestamp="2026-10-29T14:55:44.099Z" hostname="ablaze" tests="12" failures="0" errors="0" skipped="0" time="0.4788585">
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="defaults calendar rules to the current host and clears an override without requiring DST fields" time="0.0345511">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="builds a passive time Template using the native rule form and existing composition keys" time="0.0658382">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="edits one rule without converting or truncating other rule IDs, precision, offsets, timezone, policies or counts" time="0.0212234">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="adds and removes multiple rules and changes type with stable IDs, including the surviving row" time="0.042675">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="edits decimal grace/interval strings, grid, misfire and driveLimit without floating point conversion" time="0.0302265">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="keeps extension fields and unknown existing policy tokens while changing a supported field" time="0.0115872">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="selects server-issued Action revision/digest and completion and edits ordinary string/number/boolean parameters without definition JSON" time="0.0625172">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="moves stable steps, preserves bindings, flags forward output references and keeps the surviving row on removal" time="0.0445883">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="defines Job input fields and uses input or Event paths without flattening typed bindings" time="0.0643009">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="edits policies without dropping exact recovery values, notification recipient identity or existing retention metadata" time="0.0170291">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="retains a previously fixed Action revision and all bindings when a newer catalog revision arrives" time="0.0413433">
+        </testcase>
+        <testcase classname="components/automation/CanonicalForms.test.tsx" name="edits OR event types and nested AND/OR/NOT conditions with structured controls while keeping existing filters" time="0.0422067">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/JobTemplateEditor.test.tsx" timestamp="2026-10-29T14:55:44.100Z" hostname="ablaze" tests="4" failures="0" errors="0" skipped="0" time="0.2818487">
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="fixed instantiate reuses idempotency key after an unknown result and never overlays editor fields" time="0.1267846">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="dirty configuration cannot be used as an instantiate overlay" time="0.0355387">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="template deletion uses the selected revision only after explicit confirmation" time="0.05585">
+        </testcase>
+        <testcase classname="components/jobs/JobTemplateEditor.test.tsx" name="saves passive Template independently from disabled copied Job execution and rotates key only on confirmed revision" time="0.0631262">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/NewJobForm.window.test.tsx" timestamp="2026-10-29T14:55:44.101Z" hostname="ablaze" tests="1" failures="0" errors="0" skipped="0" time="0.1032317">
+        <testcase classname="components/jobs/NewJobForm.window.test.tsx" name="defaults shell Jobs to hidden windows and allows an explicit visible window" time="0.1027122">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/jobs/UnifiedJobForm.test.tsx" timestamp="2026-10-29T14:55:44.101Z" hostname="ablaze" tests="7" failures="0" errors="0" skipped="0" time="0.1790552">
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; preserves a missing Action ID and shows the exact repair location" time="0.0484138">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; creates from Action reference with conservative explicit policies, without kind selector" time="0.0217147">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; refuses extra body for an empty Action schema and keeps the draft" time="0.0191378">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; rejects malformed query instead of keeping an earlier valid query" time="0.0264448">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; requires monitoring declaration before recovery and persists backoff/reset fields" time="0.0245386">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 401" time="0.0202459">
+        </testcase>
+        <testcase classname="components/jobs/UnifiedJobForm.test.tsx" name="Unified Job configuration editor &gt; keeps dirty inputs after HTTP 409" time="0.0178529">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/session/SelectedSessionActions.test.tsx" timestamp="2026-10-29T14:55:44.102Z" hostname="ablaze" tests="11" failures="0" errors="0" skipped="0" time="0.1113907">
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; runs Wake separately from broadcast for the captured targets" time="0.0303259">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; offers Restart, Delayed restart and Kill under the single-Session names" time="0.0055167">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; disables Kill until a target has a live worker, with an explaining title" time="0.0106028">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; kill asks for confirmation, then requests every worker-backed target" time="0.0076839">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; kill reports a worker-less target as an honest no-op instead of requesting it" time="0.006012">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; kill surfaces per-target partial failure as an error toast and stays retryable" time="0.0095688">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; restart runs for every target through the shared worker lifecycle action" time="0.0061591">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; acts on the click-time snapshot even when the selection changes mid-flight" time="0.0124337">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; disables Delayed restart while a target intent is pending and re-enables after it settles" time="0.0109114">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; reports the start action when a delayed restart targets an offline Session" time="0.0049072">
+        </testcase>
+        <testcase classname="components/session/SelectedSessionActions.test.tsx" name="SelectedSessionActions lifecycle menu &gt; propagates busy state so the selection bar can block other actions" time="0.0064998">
+        </testcase>
+    </testsuite>
+</testsuites>

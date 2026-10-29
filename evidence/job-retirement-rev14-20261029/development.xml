@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="12" time="41.512" timestamp="2026-10-29T22:28:35.407851+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev14_templates" name="test_zero_creator_complete_template_default_disabled_same_key_cold_reopen" time="1.378" /><testcase classname="tests.test_retirement_rev14_templates" name="test_production_form_assign_queue_source_frozen_identity_cold_no_duplicate" time="1.414" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[missing-session]" time="1.926" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[stale-ref]" time="2.118" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[conflict]" time="1.808" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[unknown]" time="2.203" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[dynamic]" time="2.077" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[custom]" time="2.179" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[missing-key]" time="1.985" /><testcase classname="tests.test_retirement_rev14_templates" name="test_session_deleted_after_publish_blocks_instantiate_without_writes" time="2.269"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 422&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(client=&lt;httpx.Client object at 0x0000024D24A53950&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000024D24C3E7B0&gt;)
+
+    def test_session_deleted_after_publish_blocks_instantiate_without_writes(h):
+        item = create_template(h.client, form_body(h.client))
+        session.delete('ses_a')
+        before = counts(h.service)
+        response = instantiate(h.client, item)
+&gt;       assert response.status_code == 422, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E       assert 400 == 422
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:147: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev14_templates" name="test_passive_instantiate_failure_rolls_back_and_recovers_same_key" time="2.230" /><testcase classname="tests.test_retirement_rev14_templates" name="test_production_shell_form_real_process_exit_and_original_lookup" time="19.247"><failure message="AssertionError: assert 'failed' == 'completed'&#10;  &#10;  - completed&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000024D24A3A210&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000024D24AD1130&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000024D24AA7380&gt;, serial=0)
+
+    def test_production_shell_form_real_process_exit_and_original_lookup(env):
+        marker = env.tmp / 'shell-result.txt'
+        command = f'"{sys.executable}" -c "from pathlib import Path; Path(\'shell-result.txt\').write_text(\'owned\')"'
+        body = form_body(env.client, kind='shell', fields={'command': command, 'cwd': str(env.tmp), 'hideWindow': True})
+        item = create_template(env.client, body)
+        argv = item['jobDefinition']['steps'][0]['arguments']['argv']['value']
+        assert argv[-1] == command
+        response = instantiate(env.client, item)
+        assert response.status_code == 201, response.text
+        jid = response.json()['result']['objectIds']['job']
+        job = env.client.get('/api/jobs/' + jid).json()
+        assert job['state'] == 'disabled' and not marker.exists()
+        assert env.client.get('/api/jobs/' + jid + '/runs').json()['items'] == []
+        response = control(env, 'jobs', job, 'enable')
+        assert response.status_code == 200, response.text
+        admitted = launch(env, response.json()['result']['object'])
+        for _ in range(400):
+            asyncio.run(env.service.dispatch_once())
+            if env.client.get('/api/job-runs/' + admitted['runId']).json()['state'] == 'completed': break
+            time.sleep(.025)
+&gt;       assert env.client.get('/api/job-runs/' + admitted['runId']).json()['state'] == 'completed'
+E       AssertionError: assert 'failed' == 'completed'
+E         
+E         - completed
+E         + failed
+
+tests\test_retirement_rev14_templates.py:186: AssertionError</failure></testcase></testsuite></testsuites>

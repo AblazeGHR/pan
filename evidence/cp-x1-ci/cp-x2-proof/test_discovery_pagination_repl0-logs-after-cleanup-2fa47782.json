@@ -1,0 +1,62 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_1616ffb8346430652729cf4c8a3540154be03bb5d52757f10bd3d05586ce3902",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_fb62e5e2e88e4f5590702cf6",
+        "leaseId": "lease_d2376efba6de44b4b3567d91",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 36836,
+        "kind": "filetime",
+        "birth": "134377592747026853",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 35412,
+        "kind": "filetime",
+        "birth": "134377592744735539",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            39240
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "discoveryPagination": true,
+    "crossPrincipalCursorRejected": true,
+    "crossProfileCursorRejected": true,
+    "legacyUnavailableExplicit": true,
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

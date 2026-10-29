@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="5.603" timestamp="2026-10-29T22:37:30.487017+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev14_templates" name="test_fresh_production_browser_real_template_http_queue_and_shell" time="4.874"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;idempotency_conflict&quot;,&quot;message&quot;:&quot;idempotency conflict&quot;,&quot;path&quot;:&quot;requestKey&quot;}}&#10;assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000144470446E0&gt;, client=&lt;starlette.testclien...s={'browser': False, 'system': False})}, automation=&lt;packages.automation.service.Service object at 0x0000014446EFE270&gt;)
+
+    def test_fresh_production_browser_real_template_http_queue_and_shell(h):
+        from pathlib import Path
+        import socket
+        import subprocess
+        import threading
+        import uvicorn
+        from starlette.staticfiles import StaticFiles
+        root = Path(__file__).resolve().parents[1]
+        runner = root / 'packages/web/e2e/retirement-r14-production.mjs'
+        built = subprocess.run(['node', str(runner), '--build'], cwd=root, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=100)
+        assert built.returncode == 0, built.stdout + built.stderr
+        h.app.mount('/react', StaticFiles(directory=root / 'packages/web/test-results/retirement-r14-production', html=True))
+        listener = socket.socket()
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+        assert port not in {8767, 8768}
+        server = uvicorn.Server(uvicorn.Config(h.app, log_level='error', lifespan='off'))
+        thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        try:
+            for _ in range(200):
+                if server.started: break
+                time.sleep(.025)
+            assert server.started
+            browser_config = h.tmp / 'browser-config.json'
+            raw = '  Browser 中文\nraw  '
+            command = 'echo owned&gt;&gt;browser-shell-result.txt'
+            browser_config.write_text(json.dumps({'url': f'http://127.0.0.1:{port}', 'token': h.client.headers['Authorization'][7:],
+                'sessionId': 'ses_a', 'text': raw, 'command': command, 'cwd': str(h.tmp)}), encoding='utf-8')
+            before_workers = set(worker.workers)
+            result = subprocess.run(['node', str(runner), str(browser_config)], cwd=root, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=100)
+            assert result.returncode == 0, result.stdout + result.stderr
+            evidence = json.loads(result.stdout.strip().splitlines()[-1])
+            assert len(evidence['instances']) == 2 and evidence['pageErrors'] == []
+            assert not session.get('ses_a').queue_pending and not (h.tmp / 'browser-shell-result.txt').exists()
+            histories = []
+            for instance in evidence['instances']:
+                assert instance['creators'] == instance['triggers'] == {}
+                jid = instance['job']
+                job = h.client.get('/api/jobs/' + jid).json()
+                assert job['state'] == 'disabled'
+                assert h.client.get('/api/jobs/' + jid + '/runs').json()['items'] == []
+                assert job['steps'][0]['arguments']
+                enabled = control(h, 'jobs', job, 'enable')
+&gt;               assert enabled.status_code == 200, enabled.text
+E               AssertionError: {"error":{"code":"idempotency_conflict","message":"idempotency conflict","path":"requestKey"}}
+E               assert 409 == 200
+E                +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:296: AssertionError</failure></testcase></testsuite></testsuites>

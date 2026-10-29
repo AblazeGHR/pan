@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.922" timestamp="2026-10-29T22:27:51.485915+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev14_templates" name="test_zero_creator_complete_template_default_disabled_same_key_cold_reopen" time="1.396"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Content]&gt;.status_code">h = namespace(client=&lt;httpx.Client object at 0x000002229DD492B0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x000002229DA29D30&gt;)
+
+    def test_zero_creator_complete_template_default_disabled_same_key_cold_reopen(h):
+        body = form_body(h.client)
+        # A complete canonical definition works without the convenience envelope.
+        del body['form']
+        body['definition']['jobDefinition']['steps'][0]['arguments'] = {
+            'sessionId': {'from': 'literal', 'value': 'ses_a'}, 'text': {'from': 'literal', 'value': 'raw'}}
+        item = create_template(h.client, body)
+        before = set(worker.workers)
+        first = instantiate(h.client, item)
+&gt;       assert first.status_code == 201, first.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Content]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:64: AssertionError</failure></testcase></testsuite></testsuites>

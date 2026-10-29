@@ -1,0 +1,153 @@
+{
+  "ownedBrowserPort": 57386,
+  "tcpConnectableAfterTests": false,
+  "browserAndServer": "Test finally closes Chromium, joins uvicorn thread and closes socket; assertions passed",
+  "coldServices": "Test finally closes each cold FinalService",
+  "processHosts": "Original fixture cleanup; real process diagnostics retained below",
+  "dependencyJunctionRemaining": "D:\\project\\Pan-main\\packages\\web\\node_modules",
+  "cleanupObstacle": "Automatic approval review rejected combined cleanup and separate Remove-Item junction: blocked by policy; no workaround attempted",
+  "noPackagesInstalled": true,
+  "preservedGeneratedEvidence": [
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_default_real_large_unicod0-logs-after-cleanup-9814f1cc.json",
+      "sha256": "804855a94597a723dc84d05c659bb0512c4d4e481d9dea909aa76c1d710d647f",
+      "bytes": 1644
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_default_real_large_unicod0-logs-before-cleanup-6260fca8.json",
+      "sha256": "f6a2e8c5bd3e60f8a58bbadcd7d6444a3f1b5fcba184a255be0e0f2b4752749e",
+      "bytes": 1584
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_discovery_pagination_repl0-logs-after-cleanup-2fa47782.json",
+      "sha256": "af65ceace6c0560bddee50bd8fc133574393b591593237303ea5f7db2cd215e4",
+      "bytes": 1644
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_discovery_pagination_repl0-logs-before-cleanup-8f8af763.json",
+      "sha256": "8ff8b541899c35f2a996c6a7a7ab2e23b701c7a7617ac9218c530b3bd65bed58",
+      "bytes": 1584
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_failed_and_cancelled_real0-logs-after-cleanup-8a6c2ad5.json",
+      "sha256": "5d10cebc5d0d878debb07a399d4cb5b9dcf95c028e406f2027b8b21bcb3dcbce",
+      "bytes": 1557
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_failed_and_cancelled_real0-logs-before-cleanup-9ae551fd.json",
+      "sha256": "cb624be5ed3e7d161b211477e06e47ca8deb6d6490255428aecd95b58c22a5ba",
+      "bytes": 1497
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_failed_and_cancelled_real1-logs-after-cleanup-c7393a28.json",
+      "sha256": "2e52e2096e04914d1625ce97658b8a07ff946cb419d9ace23d5b7fab39735675",
+      "bytes": 2414
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_failed_and_cancelled_real1-logs-before-cleanup-18cf1243.json",
+      "sha256": "25d1e8c711952482027a8fb261e7db7c78b5a4ed5c1722f68d32c205ece7c882",
+      "bytes": 2354
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_late_terminal_log_keeps_r0-logs-after-cleanup-b140aa12.json",
+      "sha256": "51fad825a6b83510221949fae8a98dc717d1270b6bc5623a676e69434ce4ea14",
+      "bytes": 1579
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_late_terminal_log_keeps_r0-logs-before-cleanup-814e0883.json",
+      "sha256": "7c77f90eff71da8f43fa9629d97eb155be2f08ddaa57694b444b3285f0209916",
+      "bytes": 1519
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_discovery_pending_0-logs-after-cleanup-add7fea5.json",
+      "sha256": "919b564778b780c4430f4b085b9b2c223f298e02be8cf902662985947e33472e",
+      "bytes": 1235
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_discovery_pending_0-logs-before-cleanup-2d39b654.json",
+      "sha256": "434630843e24721d2f21057ba704862903fa85562a52290bb82c6ccc8fe77802",
+      "bytes": 1176
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_authentication0-logs-after-cleanup-64f21c97.json",
+      "sha256": "d62910f4e1fcf42bf5dca1bf3465108435d28d6f17f2f455d61eccd7aba62d8e",
+      "bytes": 1556
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_authentication0-logs-before-cleanup-2faf340d.json",
+      "sha256": "26364f6559816747125f2ef87285b7e15a20ed091344159ba62ef45f7ae541de",
+      "bytes": 1496
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr0-logs-after-cleanup-774790da.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr0-logs-before-cleanup-97fa2936.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr1-logs-after-cleanup-8568b24e.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr1-logs-before-cleanup-da7038fd.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr2-logs-after-cleanup-a59ac81a.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr2-logs-before-cleanup-cc5c2e2e.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr3-logs-after-cleanup-996cbda8.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr3-logs-before-cleanup-f2b22a83.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr4-logs-after-cleanup-f0868a7a.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr4-logs-before-cleanup-39c24595.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr5-logs-after-cleanup-c45c0e24.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr5-logs-before-cleanup-a374d88b.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr6-logs-after-cleanup-4c7c79d2.json",
+      "sha256": "a61ada47519136ee2706ae37ec8d773e0c791b44015e53e4e7a3756359dbc016",
+      "bytes": 170
+    },
+    {
+      "path": "evidence/cp-x1-ci/cp-x2-proof/test_public_log_rejects_arbitr6-logs-before-cleanup-a265d366.json",
+      "sha256": "c4f68f254b4a8924170349444d21fa7624dd756bba4f8a76331df11941f45cf0",
+      "bytes": 107
+    }
+  ],
+  "outsideScopeOperations": "No existing services, real data, deployment, main/practical, push or remote CI"
+}
