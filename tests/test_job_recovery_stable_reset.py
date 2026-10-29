@@ -298,6 +298,22 @@ def test_monitoring_frozen_history_never_executes_as_plain_exit_zero(env):
     assert not state(env, jid)["attempts"] and not state(env, jid)["effects"]
 
 
+def test_historical_monitoring_pending_exit_zero_remains_query_only(env, monkeypatch):
+    row = seed(env, monkeypatch)
+    with env.service.transaction() as db:
+        job = env.service._get(db, "job", row.jid)
+        aggregate(job, env.root)["plans"][row.rid]["frozen"]["steps"][0]["completion"] = {
+            "contract":"monitoring", "parameters":{"signalType":"done"}}
+        env.service._save(db, "job", row.jid, job)
+    row.doc["result"]["outcome"] = "succeeded"
+    row.doc["result"]["receipt"]["exitCode"] = 0
+    observe(env)
+    assert state(env, row.jid)["runs"][row.rid]["state"] == "running"
+    assert not state(env, row.jid)["effects"]
+    assert marker(env, row) is None
+    assert env.service.diagnostics[-1]["code"] == "monitoring_completion_unsupported"
+
+
 def test_monitoring_is_explicitly_unsupported_not_exit_zero_completion(env):
     action = next(a for a in env.service.actions(actor=USER)["items"] if a["id"] == "product_process_cleanup_v1")
     value = definition("action", action)

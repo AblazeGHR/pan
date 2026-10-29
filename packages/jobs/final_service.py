@@ -1825,6 +1825,15 @@ class FinalService:
                 else:
                     receipt = documents[0].get("result")
                     plan = state["plans"][rid]
+                    original_step = next(s for s in plan["frozen"]["steps"]
+                                         if s["stepId"] == targets[0]["attempt"]["stepId"])
+                    if original_step["completion"]["contract"] == "monitoring":
+                        # Historical admissions remain query-only. Until the
+                        # original executor supplies a declared, Attempt-bound
+                        # signal, exit 0 cannot settle monitoring as completed.
+                        self.diagnostics.append({"at": now(), "code": "monitoring_completion_unsupported"})
+                        del self.diagnostics[:-100]
+                        continue
                     pending_aid = plan.get("pendingProcessAttempt")
                     is_pending = pending_aid == targets[0]["attempt"]["attemptId"]
                     # A lookup can race a newer Attempt/cancellation or another
