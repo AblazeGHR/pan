@@ -1,5 +1,9 @@
 # WP08 离线迁移 apply
 
+2026-10-29 revision2 在 MA 明确授权下新增**合成 source-copy → 新自有 profile** 的 runtime-import readiness 验证，
+及逐路径 source coverage guard。入口见 [R2 runbook](RUNTIME_READINESS_RUNBOOK_20261029.md)。这扩展了 revision1
+本批不得调用 P9D 的范围；不追溯改变 revision1 证据，也不授权真实数据迁移。默认 inventory/apply CLI 的离线边界仍如下。
+
 此包在 lite inventory/plan 上扩展，只处理 `simple-script-migratable`。**root 始终只读**；
 `--target` 是 root 外的私有 JSON 迁移包，包含 WP01 `schemaVersion=2` canonical objects、稳定 ID
 分配表、来源/hash、逐条迁移证据、源文件原始 bytes 备份及只读/owner 切换意图。
