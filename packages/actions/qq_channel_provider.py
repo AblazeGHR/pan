@@ -18,6 +18,25 @@ class QQChannelProvider:
     def __init__(self, sender: Callable[..., Awaitable[Mapping[str, Any]]]):
         self._sender = sender
 
+    @staticmethod
+    def receipt_outcome(raw: Mapping[str, Any]) -> str:
+        """A transport failure or missing acknowledgement is never delivery.
+
+        Legacy preflight error codes retain their rejected observation, but
+        are NOT no-send proof and cannot authorize a retry. Only the original
+        nonempty message identity acknowledges a successful QQ send.
+        """
+        if raw.get("ok") is True:
+            message_id = raw.get("message_id")
+            return "succeeded" if (isinstance(message_id, (str, int))
+                and not isinstance(message_id, bool) and str(message_id).strip()) else "unknown"
+        error = raw.get("error")
+        if raw.get("ok") is False and isinstance(error, Mapping) and error.get("code") in {
+                "unknown_bot_uin", "bot_not_connected", "invalid_target_type",
+                "invalid_target_id", "empty_text"}:
+            return "rejected"
+        return "unknown"
+
     async def send(self, target_type: str, target_id: str, text: str, *,
                    bot_uin: str | None = None,
                    effect_key: Mapping[str, Any]) -> dict[str, Any]:

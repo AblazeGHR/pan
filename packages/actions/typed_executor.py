@@ -645,6 +645,9 @@ class TypedExecutor:
         try:
             result = await _invoke_provider(method, target_type, target_id, text, bot_uin=bot_uin, effect_key=key)
             outcome = _status(result)
+            from packages.actions.qq_channel_provider import QQChannelProvider
+            if type(self.channel_provider) is QQChannelProvider and isinstance(result, Mapping):
+                outcome = QQChannelProvider.receipt_outcome(result)
             return EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"targetType": target_type, "targetId": target_id}).as_dict()
         except BaseException as exc:
             outcome, detail = _provider_error(exc)
