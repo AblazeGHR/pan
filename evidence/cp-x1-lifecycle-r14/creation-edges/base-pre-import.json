@@ -1,0 +1,12 @@
+{
+  "mode": "base",
+  "phase": "pre-import",
+  "outerPid": 22800,
+  "outerBirth": "134377190485246326",
+  "innerPid": 22800,
+  "innerBirth": "134377190485246326",
+  "childDead": true,
+  "innerDead": true,
+  "desktopGone": true,
+  "markerExecuted": false
+}

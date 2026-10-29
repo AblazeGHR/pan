@@ -1,0 +1,294 @@
+{
+  "schema": "cp-x1.lifecycle-node-closure/1",
+  "candidateSha": "ce9d0c23ea6e1395bb4b99d7c967676aa35f64e5",
+  "originalEvidence": "evidence/cp-x1-lifecycle-r14/original14.xml",
+  "groups": {
+    "exit_restart": 14,
+    "owned_host": 7,
+    "controller": 11,
+    "runner_exit": 2
+  },
+  "records": [
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+      "originalResult": "failed",
+      "disposition": "canonical_successor_proven",
+      "remainingDifference": "legacy registry/task projection remains an observation difference",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_exit_schedules_worker_shutdown_and_python_supervisor",
+      "originalResult": "failed",
+      "disposition": "canonical_successor_proven",
+      "remainingDifference": "legacy supervisor module/argv and task-name assertions remain retired observations; genuine host handshake is covered",
+      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_exit.py::test_duplicate_exit_is_rejected_without_second_request",
+      "originalResult": "failed",
+      "disposition": "fixture_observation",
+      "remainingDifference": "old fixture sets _main_exit_pending without a canonical intent; canonical duplicate requires durable original identity",
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_duplicate_and_cross_operation_reject_while_original_effect_queryable"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_returns_scheduled_before_python_supervisor_finishes",
+      "originalResult": "failed",
+      "disposition": "canonical_successor_proven",
+      "remainingDifference": "legacy _perform_main_restart/registry names differ; genuine restart proof has no active Worker tree",
+      "successor": "tests/test_lifecycle_strict_successors.py::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+      "originalResult": "passed",
+      "disposition": "original_pass",
+      "remainingDifference": "",
+      "successor": "tests/test_lifecycle_canonical_preparation.py::test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+      "originalResult": "failed",
+      "disposition": "fixture_observation",
+      "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-True-True-restart]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+      "originalResult": "failed",
+      "disposition": "fixture_observation",
+      "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[ask-False-False-restart]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+      "originalResult": "failed",
+      "disposition": "fixture_observation",
+      "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[offline-False-True-restart]"
+    },
+    {
+      "group": "exit_restart",
+      "originalNode": "tests/test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+      "originalResult": "failed",
+      "disposition": "fixture_observation",
+      "remainingDifference": "create_task monkeypatch returns None and cannot represent held canonical task; policy successor passes",
+      "successor": "tests/test_cpx1_lifecycle_policy_matrix.py::test_original_policy_snapshot_gate_and_shutdown_contract[preserve-running-True-False-restart]"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/safe-api.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/preserve-api.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-config.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-2.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-menu-3.json"
+    },
+    {
+      "group": "owned_host",
+      "originalNode": "tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+      "originalResult": "passed",
+      "disposition": "genuine_main_pass",
+      "remainingDifference": "signal variants outside these seven remain unverified; no 404 claim is made",
+      "successor": "evidence/cp-x1-lifecycle-r14/owned-host-genuine/q-triple.json"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_job_lifecycle_prevention.py::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+      "originalResult": "failed",
+      "disposition": "original_red_open",
+      "remainingDifference": "legacy controller/desktop publication; canonical claim-before-spawn successor proves no child-before-claim window",
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-base]"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+      "originalResult": "failed",
+      "disposition": "original_red_open",
+      "remainingDifference": "legacy self-registration is retired; canonical persisted supervisor identity and cancel cleanup are proven",
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-base]"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]",
+      "originalResult": "failed",
+      "disposition": "original_red_open",
+      "remainingDifference": "legacy self-registration is retired; named-venv canonical identity and cleanup are proven",
+      "successor": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-named-venv]"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-base]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[before-claim-named-venv]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-base]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_controller_publication.py::test_canonical_job_cancel_after_controller_crash[after-running-named-venv]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "real canonical supervisor identity, claim ordering and owned cleanup",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_followthrough.py::test_observation_requires_existing_store_and_never_creates_it",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "canonical observation/fence or controller handoff proof",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_followthrough.py::test_observation_verifies_original_fence_and_persisted_frozen_options",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "canonical observation/fence or controller handoff proof",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_followthrough.py::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[after-submit-return]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "canonical observation/fence or controller handoff proof",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "controller",
+      "originalNode": "tests/test_lifecycle_followthrough.py::test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[before-submit-return]",
+      "originalResult": "passed",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "canonical observation/fence or controller handoff proof",
+      "successor": "evidence/cp-x1-lifecycle-r14/controller-strict.xml"
+    },
+    {
+      "group": "runner_exit",
+      "originalNode": "tests/test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]",
+      "originalResult": "historical_red",
+      "disposition": "canonical_successor_pass",
+      "remainingDifference": "canonical independent executor uses ExecutionStore/outbox instead of legacy completed row",
+      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[root-exit]"
+    },
+    {
+      "group": "runner_exit",
+      "originalNode": "tests/test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]",
+      "originalResult": "historical_red",
+      "disposition": "canonical_unknown_preserved",
+      "remainingDifference": "old test expects failed; canonical runner correctly preserves unknown on wait exception and proves cleanup, so this is a semantic migration difference requiring product/acceptance decision",
+      "successor": "tests/test_cpx1_canonical_tree_exit.py::test_canonical_runner_tree_exit_and_error[wait-error]"
+    }
+  ],
+  "validation": {
+    "canonicalPolicy": "evidence/cp-x1-lifecycle-r14/canonical-policy.xml",
+    "canonicalFastLifecycle": "evidence/cp-x1-lifecycle-r14/final-fast-lifecycle.xml",
+    "controller": "evidence/cp-x1-lifecycle-r14/controller-strict.xml",
+    "genuineRestart": "evidence/cp-x1-lifecycle-r14/genuine-restart.json",
+    "creationEdges": "evidence/cp-x1-lifecycle-r14/creation-edges.xml",
+    "canonicalRunner": "evidence/cp-x1-lifecycle-r14/canonical-tree-exit.xml"
+  },
+  "remoteValidation": "not rerun by this TA; MA owns non-main CI"
+}

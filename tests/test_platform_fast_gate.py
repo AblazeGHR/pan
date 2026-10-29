@@ -99,6 +99,8 @@ def test_lifecycle_preparation_nonblocking_and_fence_contracts_are_fast_nodes(tm
     command = gate.phase_command("fast", tmp_path)
     nodes = (
         "tests/test_lifecycle_fast_contract.py",
+        "tests/test_lifecycle_canonical_preparation.py",
+        "tests/test_lifecycle_strict_successors.py",
         "tests/test_lifecycle_prelaunch_fence.py::test_prelaunch_original_error_idempotence_and_attempt_fence",
         "tests/test_lifecycle_prelaunch_fence.py::test_claim_or_launch_marker_forbids_prelaunch_rejection",
     )
