@@ -1,0 +1,1184 @@
+[
+  {
+    "migrationId": "mig1_75cc77ba56d7fea59fe7554e",
+    "id": "job_aaaaaaaaaaaaaaaaaaaaaaaa",
+    "type": "MIG-ACTION-JOB",
+    "sourceKind": "action-job",
+    "owner": {
+      "kind": "user",
+      "id": "user_fixture"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "authorization",
+    "sourceFile": "background_jobs/jobs/job_aaaaaaaaaaaaaaaaaaaaaaaa.json",
+    "originalPath": "background_jobs/jobs/job_aaaaaaaaaaaaaaaaaaaaaaaa.json",
+    "originalDigest": "sha256:0875a1c84fb62e0f7e4b39ae6e4541931de49ecb79b74897e18bef75fbe62891",
+    "sha256": "0875a1c84fb62e0f7e4b39ae6e4541931de49ecb79b74897e18bef75fbe62891",
+    "recordDigest": "{\"action\":{\"actionId\":\"system_session_message\",\"api\":\"action_reference\",\"arguments\":{\"sessionId\":\"sess_target\",\"text\":\"hello\"}},\"authorization\":{\"type\":\"user\",\"userId\":\"user_fixture\"},\"config\":{\"actionId\":\"system_session_message\",\"arguments\":{\"sessionId\":{\"from\":\"literal\",\"value\":\"sess_target\"},\"text\":{\"from\":\"literal\",\"value\":\"hello\"}},\"completion\":{\"kind\":\"ordinary\"},\"description\":\"\",\"enabled\":true,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"notification\":{\"on\":[\"completed\",\"failed\",\"cancelled\",\"unknown\",\"uncertain\",\"cleaning\"],\"target\":\"job\"},\"overlap\":{\"mode\":\"forbid\",\"parallelLimit\":3},\"recovery\":{\"backoffSec\":[5,15,60],\"enabled\":false,\"maxAttempts\":3,\"monitoring\":false,\"stableResetSec\":300},\"schedule\":[],\"trigger\":{\"kind\":\"immediate\"}},\"configRevision\":1,\"createdAt\":1761300000.0,\"creationFingerprint\":\"sha256:fixture\",\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"enabled\":true,\"jobId\":\"job_aaaaaaaaaaaaaaaaaaaaaaaa\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastExecution\":{\"id\":\"run_fixture\",\"status\":\"succeeded\"},\"lastFireAt\":\"2026-10-24T10:00:00\",\"lastStatus\":\"completed\",\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"nextFireAt\":null,\"paused\":false,\"referenceGeneration\":1,\"runCount\":1,\"runStartedAt\":null,\"schedule\":[],\"source\":\"agent\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"sch_actionfixture0001\",\"text\":\"hello\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:26d2429a0b6888a936466e248b6439154d9847045578eb043d16097edd3ab829",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "jobId": "provenance.originalJobId",
+      "authorization": "authorization",
+      "createdAt": "provenance.createdAt",
+      "updatedAt": "provenance.updatedAt",
+      "config.name": "job.metadata.name",
+      "config.description": "job.metadata.description",
+      "config.arguments": "job.action.arguments",
+      "config.schedule": "job.scheduler.rule",
+      "config.trigger": "job.trigger",
+      "config.recovery": "job.policy.recovery",
+      "config.overlap": "job.policy.overlap",
+      "config.notification": "job.policy.notification",
+      "config.completion": "job.policy.completion",
+      "config.enabled": "job.enabled",
+      "config.maxRuns": "job.policy.maxRuns",
+      "config.misfirePolicy": "job.policy.misfirePolicy",
+      "config.actionId": "job.action.actionId"
+    },
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": "2026-10-24T10:00:00",
+      "runCount": 1,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_3bbbc56b1d72303818ec0f06",
+    "id": "job_fallback",
+    "type": "MIG-ACTION-JOB",
+    "sourceKind": "action-job",
+    "owner": {
+      "kind": "user",
+      "id": "user_fixture"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "authorization",
+    "sourceFile": "background_jobs/jobs/job_fallback.json",
+    "originalPath": "background_jobs/jobs/job_fallback.json",
+    "originalDigest": "sha256:c71e83d90933bcfa7d2f0d1add675c0b376b58a07cb1ab6ce8209dbc0ee665f0",
+    "sha256": "c71e83d90933bcfa7d2f0d1add675c0b376b58a07cb1ab6ce8209dbc0ee665f0",
+    "recordDigest": "{\"action\":{\"actionId\":\"system_session_message\",\"api\":\"action_reference\",\"arguments\":{\"sessionId\":\"sess_target\",\"text\":\"hello\"}},\"authorization\":{\"type\":\"user\",\"userId\":\"user_fixture\"},\"config\":{\"actionId\":\"system_session_message\",\"arguments\":{\"fallback\":{\"from\":\"literal\",\"value\":true},\"sessionId\":{\"from\":\"literal\",\"value\":\"sess_target\"},\"text\":{\"from\":\"literal\",\"value\":\"hello\"}},\"completion\":{\"kind\":\"ordinary\"},\"description\":\"\",\"enabled\":true,\"fallback\":true,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"notification\":{\"on\":[\"completed\",\"failed\",\"cancelled\",\"unknown\",\"uncertain\",\"cleaning\"],\"target\":\"job\"},\"overlap\":{\"mode\":\"forbid\",\"parallelLimit\":3},\"recovery\":{\"backoffSec\":[5,15,60],\"enabled\":false,\"maxAttempts\":3,\"monitoring\":false,\"stableResetSec\":300},\"schedule\":[],\"trigger\":{\"kind\":\"immediate\"}},\"configRevision\":1,\"createdAt\":1761300000.0,\"creationFingerprint\":\"sha256:fixture\",\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"enabled\":true,\"jobId\":\"job_fallback\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastExecution\":{\"id\":\"run_fixture\",\"status\":\"succeeded\"},\"lastFireAt\":\"2026-10-24T10:00:00\",\"lastStatus\":\"completed\",\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"nextFireAt\":null,\"paused\":false,\"referenceGeneration\":1,\"runCount\":1,\"runStartedAt\":null,\"schedule\":[],\"source\":\"agent\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"task_fallback\",\"text\":\"hello\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:f4b67fe37aec4da3b68f10b7a803abd9feeab821104248e0c5389aba19f8d277",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unknown_field"
+    ],
+    "reasons": [
+      {
+        "code": "unknown_field",
+        "detail": "config contains unknown field(s): fallback"
+      }
+    ],
+    "rejectionReasons": [
+      "unknown_field: config contains unknown field(s): fallback"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": "2026-10-24T10:00:00",
+      "runCount": 1,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_f5afb4d1445545403601df2a",
+    "id": "job_monitoring",
+    "type": "MIG-ACTION-JOB",
+    "sourceKind": "action-job",
+    "owner": {
+      "kind": "user",
+      "id": "user_fixture"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "authorization",
+    "sourceFile": "background_jobs/jobs/job_monitoring.json",
+    "originalPath": "background_jobs/jobs/job_monitoring.json",
+    "originalDigest": "sha256:230d8d482a8b0ab1feefd5581aca8d78086d4988cdcb694fc7dfd5e473b1ff24",
+    "sha256": "230d8d482a8b0ab1feefd5581aca8d78086d4988cdcb694fc7dfd5e473b1ff24",
+    "recordDigest": "{\"action\":{\"actionId\":\"system_session_message\",\"api\":\"action_reference\",\"arguments\":{\"sessionId\":\"sess_target\",\"text\":\"hello\"}},\"authorization\":{\"type\":\"user\",\"userId\":\"user_fixture\"},\"config\":{\"actionId\":\"system_session_message\",\"arguments\":{\"sessionId\":{\"from\":\"literal\",\"value\":\"sess_target\"},\"text\":{\"from\":\"literal\",\"value\":\"hello\"}},\"completion\":{\"kind\":\"ordinary\"},\"description\":\"\",\"enabled\":true,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"notification\":{\"on\":[\"completed\",\"failed\",\"cancelled\",\"unknown\",\"uncertain\",\"cleaning\"],\"target\":\"job\"},\"overlap\":{\"mode\":\"forbid\",\"parallelLimit\":3},\"recovery\":{\"backoffSec\":[5,15,60],\"enabled\":false,\"maxAttempts\":3,\"monitoring\":true,\"stableResetSec\":300},\"schedule\":[],\"trigger\":{\"kind\":\"immediate\"}},\"configRevision\":1,\"createdAt\":1761300000.0,\"creationFingerprint\":\"sha256:fixture\",\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"enabled\":true,\"jobId\":\"job_monitoring\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastExecution\":{\"id\":\"run_fixture\",\"status\":\"succeeded\"},\"lastFireAt\":\"2026-10-24T10:00:00\",\"lastStatus\":\"completed\",\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"nextFireAt\":null,\"paused\":false,\"referenceGeneration\":1,\"runCount\":1,\"runStartedAt\":null,\"schedule\":[],\"source\":\"agent\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"task_monitoring\",\"text\":\"hello\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:26d2429a0b6888a936466e248b6439154d9847045578eb043d16097edd3ab829",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unsupported_complex_instance"
+    ],
+    "reasons": [
+      {
+        "code": "unsupported_complex_instance",
+        "detail": "legacy monitoring/stable-reset lifecycle has no lossless offline mapping; preserve original and manually recreate against supported recovery contracts"
+      }
+    ],
+    "rejectionReasons": [
+      "unsupported_complex_instance: legacy monitoring/stable-reset lifecycle has no lossless offline mapping; preserve original and manually recreate against supported recovery contracts"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": "2026-10-24T10:00:00",
+      "runCount": 1,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_5c79d3c29eb564c2dbf4d227",
+    "id": "job_stable_reset",
+    "type": "MIG-ACTION-JOB",
+    "sourceKind": "action-job",
+    "owner": {
+      "kind": "user",
+      "id": "user_fixture"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "authorization",
+    "sourceFile": "background_jobs/jobs/job_stable_reset.json",
+    "originalPath": "background_jobs/jobs/job_stable_reset.json",
+    "originalDigest": "sha256:592a4a889fae527a269028b0fa43c61bd033d4d241d150e951eb34f237bfd143",
+    "sha256": "592a4a889fae527a269028b0fa43c61bd033d4d241d150e951eb34f237bfd143",
+    "recordDigest": "{\"action\":{\"actionId\":\"system_session_message\",\"api\":\"action_reference\",\"arguments\":{\"sessionId\":\"sess_target\",\"text\":\"hello\"}},\"authorization\":{\"type\":\"user\",\"userId\":\"user_fixture\"},\"config\":{\"actionId\":\"system_session_message\",\"arguments\":{\"sessionId\":{\"from\":\"literal\",\"value\":\"sess_target\"},\"text\":{\"from\":\"literal\",\"value\":\"hello\"}},\"completion\":{\"kind\":\"ordinary\"},\"description\":\"\",\"enabled\":true,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"notification\":{\"on\":[\"completed\",\"failed\",\"cancelled\",\"unknown\",\"uncertain\",\"cleaning\"],\"target\":\"job\"},\"overlap\":{\"mode\":\"forbid\",\"parallelLimit\":3},\"recovery\":{\"backoffSec\":[5,15,60],\"enabled\":true,\"maxAttempts\":3,\"monitoring\":true,\"stableResetSec\":300},\"schedule\":[],\"trigger\":{\"kind\":\"immediate\"}},\"configRevision\":1,\"createdAt\":1761300000.0,\"creationFingerprint\":\"sha256:fixture\",\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"enabled\":true,\"jobId\":\"job_stable_reset\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastExecution\":{\"id\":\"run_fixture\",\"status\":\"succeeded\"},\"lastFireAt\":\"2026-10-24T10:00:00\",\"lastStatus\":\"completed\",\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"nextFireAt\":null,\"paused\":false,\"referenceGeneration\":1,\"runCount\":1,\"runStartedAt\":null,\"schedule\":[],\"source\":\"agent\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"task_stable_reset\",\"text\":\"hello\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:26d2429a0b6888a936466e248b6439154d9847045578eb043d16097edd3ab829",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unsupported_complex_instance"
+    ],
+    "reasons": [
+      {
+        "code": "unsupported_complex_instance",
+        "detail": "legacy monitoring/stable-reset lifecycle has no lossless offline mapping; preserve original and manually recreate against supported recovery contracts"
+      }
+    ],
+    "rejectionReasons": [
+      "unsupported_complex_instance: legacy monitoring/stable-reset lifecycle has no lossless offline mapping; preserve original and manually recreate against supported recovery contracts"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": "2026-10-24T10:00:00",
+      "runCount": 1,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_6269b46bda6c79522387a35a",
+    "id": "job_target_clear",
+    "type": "MIG-ACTION-JOB",
+    "sourceKind": "action-job",
+    "owner": {
+      "kind": "user",
+      "id": "user_fixture"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "authorization",
+    "sourceFile": "background_jobs/jobs/job_target_clear.json",
+    "originalPath": "background_jobs/jobs/job_target_clear.json",
+    "originalDigest": "sha256:5d9f80cc6554207fc50b11b208e06dc124513ff2f159f33c538691d952af7bd0",
+    "sha256": "5d9f80cc6554207fc50b11b208e06dc124513ff2f159f33c538691d952af7bd0",
+    "recordDigest": "{\"action\":{\"actionId\":\"system_session_message\",\"api\":\"action_reference\",\"arguments\":{\"sessionId\":\"sess_target\",\"text\":\"hello\"}},\"authorization\":{\"type\":\"user\",\"userId\":\"user_fixture\"},\"config\":{\"actionId\":\"system_session_message\",\"arguments\":{\"sessionId\":{\"from\":\"literal\",\"value\":\"sess_target\"},\"target_clear\":{\"from\":\"literal\",\"value\":true},\"text\":{\"from\":\"literal\",\"value\":\"hello\"}},\"completion\":{\"kind\":\"ordinary\"},\"description\":\"\",\"enabled\":true,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"notification\":{\"on\":[\"completed\",\"failed\",\"cancelled\",\"unknown\",\"uncertain\",\"cleaning\"],\"target\":\"job\"},\"overlap\":{\"mode\":\"forbid\",\"parallelLimit\":3},\"recovery\":{\"backoffSec\":[5,15,60],\"enabled\":false,\"maxAttempts\":3,\"monitoring\":false,\"stableResetSec\":300},\"schedule\":[],\"target_clear\":true,\"trigger\":{\"kind\":\"immediate\"}},\"configRevision\":1,\"createdAt\":1761300000.0,\"creationFingerprint\":\"sha256:fixture\",\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"enabled\":true,\"jobId\":\"job_target_clear\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastExecution\":{\"id\":\"run_fixture\",\"status\":\"succeeded\"},\"lastFireAt\":\"2026-10-24T10:00:00\",\"lastStatus\":\"completed\",\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture Action Job\",\"nextFireAt\":null,\"paused\":false,\"referenceGeneration\":1,\"runCount\":1,\"runStartedAt\":null,\"schedule\":[],\"source\":\"agent\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"task_target_clear\",\"text\":\"hello\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:3d80edb24a86598adb8f0c7dc39b1e07e3cd1a63e6887afd52bf311973b54257",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unknown_field"
+    ],
+    "reasons": [
+      {
+        "code": "unknown_field",
+        "detail": "config contains unknown field(s): target_clear"
+      }
+    ],
+    "rejectionReasons": [
+      "unknown_field: config contains unknown field(s): target_clear"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": "2026-10-24T10:00:00",
+      "runCount": 1,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_f338853313d280e0a9ce170b",
+    "id": "job_active",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_active.json",
+    "originalPath": "background_jobs/jobs/job_active.json",
+    "originalDigest": "sha256:5bd96fb15b7a3e1aa94141482676886691110d803455f70ac470f087c0b4190d",
+    "sha256": "5bd96fb15b7a3e1aa94141482676886691110d803455f70ac470f087c0b4190d",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_active\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":false,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"running\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:4cffd4e9e836bdbb65fd4c8198fe2e1c7ea4afd47aeb891b5c26b8f8f9144854",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "active_resource"
+    ],
+    "reasons": [
+      {
+        "code": "active_resource",
+        "detail": "background process is running"
+      }
+    ],
+    "rejectionReasons": [
+      "active_resource: background process is running"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [
+      "status:running"
+    ],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_8c9287c523746c5e1291420c",
+    "id": "job_authority",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "unknown",
+      "id": null
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "none",
+    "sourceFile": "background_jobs/jobs/job_authority.json",
+    "originalPath": "background_jobs/jobs/job_authority.json",
+    "originalDigest": "sha256:1000af209753ab2d5f803c475a42bd40d9cd84237808298040176e9758608442",
+    "sha256": "1000af209753ab2d5f803c475a42bd40d9cd84237808298040176e9758608442",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":null,\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_authority\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":true,\"sourceSessionId\":null,\"sourceStruct\":{},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:ce28fe4b414fe14603cb3991d125254280c124c0096deba2bb559c9a614de365",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unverified_authority"
+    ],
+    "reasons": [
+      {
+        "code": "unverified_authority",
+        "detail": "no creator/source Session or authorization evidence"
+      }
+    ],
+    "rejectionReasons": [
+      "unverified_authority: no creator/source Session or authorization evidence"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_a35162aac607a345a52ae4f3",
+    "id": "job_bbbbbbbbbbbbbbbbbbbbbbbb",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_bbbbbbbbbbbbbbbbbbbbbbbb.json",
+    "originalPath": "background_jobs/jobs/job_bbbbbbbbbbbbbbbbbbbbbbbb.json",
+    "originalDigest": "sha256:326f04ea1749f9e9852f6b14e8f7b8cd7ff16212d40771a96a078473ddf185b3",
+    "sha256": "326f04ea1749f9e9852f6b14e8f7b8cd7ff16212d40771a96a078473ddf185b3",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_bbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":true,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:4cffd4e9e836bdbb65fd4c8198fe2e1c7ea4afd47aeb891b5c26b8f8f9144854",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "jobId": "provenance.originalJobId",
+      "argv": "process.exec.arguments.argv",
+      "cwd": "process.exec.arguments.cwd",
+      "hideWindow": "process.exec.arguments.hideWindow",
+      "name": "job.metadata.name",
+      "description": "job.metadata.description",
+      "createdAt": "provenance.createdAt",
+      "updatedAt": "provenance.updatedAt",
+      "exitCode": "historicalEvidence.exitCode",
+      "logPath": "historicalEvidence.logPath",
+      "terminalEventId": "historicalEvidence.terminalEventId"
+    },
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "old exit/log/resource receipts are historical evidence only",
+      "no new Run is fabricated from the old runCount/status"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_cc528dfd78ec6a5f1a0044c8",
+    "id": "job_pending_notice",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_pending_notice.json",
+    "originalPath": "background_jobs/jobs/job_pending_notice.json",
+    "originalDigest": "sha256:5656232e73355b1af77745e373c69e1826df91d17f2c9281cc2e38c1b20f5dd3",
+    "sha256": "5656232e73355b1af77745e373c69e1826df91d17f2c9281cc2e38c1b20f5dd3",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_pending_notice\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"pending\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":true,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:4cffd4e9e836bdbb65fd4c8198fe2e1c7ea4afd47aeb891b5c26b8f8f9144854",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "pending_notice"
+    ],
+    "reasons": [
+      {
+        "code": "pending_notice",
+        "detail": "terminal notification has not been delivered"
+      }
+    ],
+    "rejectionReasons": [
+      "pending_notice: terminal notification has not been delivered"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [
+      "notificationState:pending"
+    ],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_b13747e0e0f316f76873e378",
+    "id": "job_uncertain",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_uncertain.json",
+    "originalPath": "background_jobs/jobs/job_uncertain.json",
+    "originalDigest": "sha256:60dea8ffb1eb3dd8cf2db97e3cc36f2b3fc6948339b7de4e423d9735c1ab77ae",
+    "sha256": "60dea8ffb1eb3dd8cf2db97e3cc36f2b3fc6948339b7de4e423d9735c1ab77ae",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_uncertain\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":false,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"uncertain\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:4cffd4e9e836bdbb65fd4c8198fe2e1c7ea4afd47aeb891b5c26b8f8f9144854",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "active_resource"
+    ],
+    "reasons": [
+      {
+        "code": "active_resource",
+        "detail": "background process is uncertain"
+      }
+    ],
+    "rejectionReasons": [
+      "active_resource: background process is uncertain"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [
+      "status:uncertain"
+    ],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_13e075fd2f6585011bfd7e81",
+    "id": "job_unknown_field",
+    "type": "MIG-BG",
+    "sourceKind": "background-process",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_unknown_field.json",
+    "originalPath": "background_jobs/jobs/job_unknown_field.json",
+    "originalDigest": "sha256:a77d8541ca59b55ff22f367aa15bd49328bca4010b7f8fcebf9c2be78ae10025",
+    "sha256": "a77d8541ca59b55ff22f367aa15bd49328bca4010b7f8fcebf9c2be78ae10025",
+    "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\work\",\"description\":\"\",\"exitCode\":0,\"futureFlag\":{\"preserve\":true},\"hideWindow\":true,\"jobId\":\"job_unknown_field\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-readiness\\\\verified-c89866f9\\\\data\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":true,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+    "schemaFingerprint": "sha256:69a9b32f29ea073e7279cbcbeaa2a27cdd162a9b4240faecae94883f8630bf2b",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "complex",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unknown_field"
+    ],
+    "reasons": [
+      {
+        "code": "unknown_field",
+        "detail": "background-process record contains unknown field(s): futureFlag"
+      }
+    ],
+    "rejectionReasons": [
+      "unknown_field: background-process record contains unknown field(s): futureFlag"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "runCount": null,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_0a882c68e78cd4c2424d3521",
+    "id": "job_broadcast",
+    "type": "MIG-MSG",
+    "sourceKind": "session-broadcast",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "sessions",
+      "sessionIds": [
+        "sess_a",
+        "sess_b"
+      ]
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_broadcast.json",
+    "originalPath": "background_jobs/jobs/job_broadcast.json",
+    "originalDigest": "sha256:9a79c837ca8b01545d412a7c77a01f95cf051234b3364ab462740c4919f37f9a",
+    "sha256": "9a79c837ca8b01545d412a7c77a01f95cf051234b3364ab462740c4919f37f9a",
+    "recordDigest": "{\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"jobId\":\"job_broadcast\",\"kind\":\"session-broadcast\",\"lastDelivery\":null,\"lastError\":null,\"lastRunAt\":null,\"name\":\"Fixture message\",\"nextRunAt\":\"2030-01-01T00:00:00+00:00\",\"operation\":\"send\",\"runCount\":0,\"schedule\":{\"at\":\"2030-01-01T00:00:00+00:00\",\"type\":\"once\"},\"source\":\"agent\",\"sourceSessionId\":\"sess_creator\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"pending\",\"targetSessionIds\":[\"sess_a\",\"sess_b\",\"sess_a\"],\"targetStruct\":{\"sessionIds\":[\"sess_a\",\"sess_b\"]},\"text\":\"hello later\",\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:fa7a86d8145c0b0f9654f5fea196f8c6d424099407555c81a40422727ddedd5f",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "jobId": "provenance.originalJobId",
+      "text": "session.send.text",
+      "schedule.type": "scheduler.rule.kind",
+      "schedule.at": "scheduler.rule.at",
+      "nextRunAt": "scheduler.nextFireAt",
+      "source": "provenance.source",
+      "creatorSessionId": "authorization.creatorSessionId",
+      "createdAt": "provenance.createdAt",
+      "updatedAt": "provenance.updatedAt",
+      "targetSessionIds": "session.send-many.targetSessionIds"
+    },
+    "cursor": {
+      "nextFireAt": "2030-01-01T00:00:00+00:00",
+      "lastFireAt": null,
+      "runCount": 0,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "duplicate broadcast targets are collapsed in stored order: sess_a"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_1e89fdae2c2495e09298acef",
+    "id": "job_mmmmmmmmmmmmmmmmmmmmmmmm",
+    "type": "MIG-MSG",
+    "sourceKind": "session-message",
+    "owner": {
+      "kind": "session",
+      "id": "sess_creator"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "creatorSessionId",
+    "sourceFile": "background_jobs/jobs/job_mmmmmmmmmmmmmmmmmmmmmmmm.json",
+    "originalPath": "background_jobs/jobs/job_mmmmmmmmmmmmmmmmmmmmmmmm.json",
+    "originalDigest": "sha256:6daad80efd1856998d01d0c4dbc3d896be5981c63280cf5ef0ab90c5e1e30402",
+    "sha256": "6daad80efd1856998d01d0c4dbc3d896be5981c63280cf5ef0ab90c5e1e30402",
+    "recordDigest": "{\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"description\":\"\",\"jobId\":\"job_mmmmmmmmmmmmmmmmmmmmmmmm\",\"kind\":\"session-message\",\"lastDelivery\":null,\"lastError\":null,\"lastRunAt\":null,\"name\":\"Fixture message\",\"nextRunAt\":\"2030-01-01T00:00:00+00:00\",\"operation\":\"send\",\"runCount\":0,\"schedule\":{\"at\":\"2030-01-01T00:00:00+00:00\",\"type\":\"once\"},\"source\":\"agent\",\"sourceSessionId\":\"sess_creator\",\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"pending\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"text\":\"hello later\",\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:65140fa0014e7fd1a282baa3762183080b1e6360da57afdb6a1c4c8863850257",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "jobId": "provenance.originalJobId",
+      "text": "session.send.text",
+      "schedule.type": "scheduler.rule.kind",
+      "schedule.at": "scheduler.rule.at",
+      "nextRunAt": "scheduler.nextFireAt",
+      "source": "provenance.source",
+      "creatorSessionId": "authorization.creatorSessionId",
+      "createdAt": "provenance.createdAt",
+      "updatedAt": "provenance.updatedAt",
+      "targetSessionId": "session.send.targetSessionId"
+    },
+    "cursor": {
+      "nextFireAt": "2030-01-01T00:00:00+00:00",
+      "lastFireAt": null,
+      "runCount": 0,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_69017f06777e27cd0f058b59",
+    "id": "sch_fixture0000000001",
+    "type": "MIG-SCHED",
+    "sourceKind": "scheduled-task",
+    "owner": {
+      "kind": "system",
+      "id": "system"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "system_owned",
+    "sourceFile": "background_jobs/jobs/job_current_schedule.json",
+    "originalPath": "background_jobs/jobs/job_current_schedule.json",
+    "originalDigest": "sha256:b3c0a877fe917e16b38849683f21b06c912684db11bd28c6912a07b2cd7eca03",
+    "sha256": "b3c0a877fe917e16b38849683f21b06c912684db11bd28c6912a07b2cd7eca03",
+    "recordDigest": "{\"action\":{\"api\":\"assign\"},\"createdAt\":1761300000.0,\"creatorSessionId\":null,\"description\":\"\",\"enabled\":true,\"jobId\":\"job_ssssssssssssssssssssssss\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastFireAt\":null,\"lastStatus\":null,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture scheduled job\",\"nextFireAt\":\"2030-01-01T00:00:00\",\"paused\":false,\"runCount\":0,\"runStartedAt\":null,\"schedule\":[{\"at\":\"2030-01-01T00:00:00\",\"enabled\":true,\"id\":\"sce_fixture0001\",\"kind\":\"once\",\"lastFireAt\":null,\"misfirePolicy\":\"fire_now\",\"nextFireAt\":\"2030-01-01T00:00:00\",\"timezone\":\"Asia/Shanghai\"}],\"source\":\"automation\",\"sourceStruct\":{\"type\":\"system\"},\"status\":\"scheduled\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"sch_fixture0000000001\",\"text\":\"hello schedule\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+    "schemaFingerprint": "sha256:ecfec4a8045091326709a25fc1628853d278945b777b7c2fe2fa8ab36cca776b",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "jobId": "provenance.originalJobId",
+      "taskId": "provenance.taskId",
+      "schedule.kind": "scheduler.rule.kind",
+      "schedule.at": "scheduler.rule.at",
+      "schedule.intervalSec": "scheduler.rule.intervalSec",
+      "schedule.cron": "scheduler.rule.cron",
+      "schedule.timezone": "scheduler.rule.timezone",
+      "nextFireAt": "scheduler.nextFireAt",
+      "runCount": "scheduler.cursor.runCount",
+      "misfirePolicy": "scheduler.misfirePolicy",
+      "paused": "scheduler.paused",
+      "action.api": "action.kind",
+      "action.args": "action.arguments",
+      "text": "action.arguments.text",
+      "targetSessionId": "action.arguments.sessionId"
+    },
+    "cursor": {
+      "nextFireAt": "2030-01-01T00:00:00",
+      "lastFireAt": null,
+      "runCount": 0,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_264b33b54b83fc0876c9f2c5",
+    "id": "sch_fixture0000000001",
+    "type": "MIG-SCHED",
+    "sourceKind": "legacy-scheduled-task",
+    "owner": {
+      "kind": "system",
+      "id": "system"
+    },
+    "target": {
+      "kind": "session",
+      "sessionId": "sess_target"
+    },
+    "authEvidence": "system_owned",
+    "sourceFile": "scheduler/tasks/sch_fixture0000000001.json",
+    "originalPath": "scheduler/tasks/sch_fixture0000000001.json",
+    "originalDigest": "sha256:87b07c5ff8de7dd87899cbcedadfdbaf51a1cffea2e35a8411f95359478c7ab1",
+    "sha256": "87b07c5ff8de7dd87899cbcedadfdbaf51a1cffea2e35a8411f95359478c7ab1",
+    "recordDigest": "{\"created_at\":\"2026-10-01T00:00:00\",\"description\":\"\",\"enabled\":true,\"id\":\"sch_fixture0000000001\",\"last_error\":null,\"last_fire_at\":null,\"last_status\":null,\"max_runs\":null,\"misfire_policy\":\"fire_now\",\"name\":\"Fixture legacy scheduled task\",\"next_fire_at\":\"2030-01-01T00:00:00\",\"paused\":false,\"run_count\":0,\"schedule\":{\"anchor\":\"2026-10-01T00:00:00\",\"intervalSec\":3600,\"interval_sec\":3600,\"kind\":\"interval\",\"timezone\":\"Asia/Shanghai\"},\"target_session_id\":\"sess_target\",\"text\":\"hello schedule\",\"updated_at\":\"2026-10-01T00:00:00\"}",
+    "schemaFingerprint": "sha256:dc93e6be4b6f4da279398e6c2bcc2132b549f8fbddc29f4a43be2e1e04baa9b9",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "id": "provenance.originalTaskId",
+      "schedule.kind": "scheduler.rule.kind",
+      "schedule.at": "scheduler.rule.at",
+      "schedule.intervalSec": "scheduler.rule.intervalSec",
+      "schedule.cron": "scheduler.rule.cron",
+      "schedule.timezone": "scheduler.rule.timezone",
+      "next_fire_at": "scheduler.nextFireAt",
+      "run_count": "scheduler.cursor.runCount",
+      "misfire_policy": "scheduler.misfirePolicy",
+      "paused": "scheduler.paused",
+      "action.api": "action.kind",
+      "text": "action.arguments.text",
+      "target_session_id": "action.arguments.sessionId"
+    },
+    "cursor": {
+      "nextFireAt": "2030-01-01T00:00:00",
+      "lastFireAt": null,
+      "runCount": 0,
+      "maxRuns": null
+    },
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_5408e44eb9429ecf49aa148a",
+    "id": "jtpl_fixture0000000000000001",
+    "type": "MIG-TEMPLATE",
+    "sourceKind": "job-template",
+    "owner": {
+      "kind": "registry",
+      "id": "registry"
+    },
+    "target": null,
+    "authEvidence": "registry_scope",
+    "sourceFile": "actions/registry.json",
+    "originalPath": "actions/registry.json",
+    "originalDigest": "sha256:1762b4c1ddbb9a466f2ff07ac57728f41677ca7d0fae8ad0e2f17327e2c51b52",
+    "sha256": "1762b4c1ddbb9a466f2ff07ac57728f41677ca7d0fae8ad0e2f17327e2c51b52",
+    "recordDigest": "sha256:2fc16e7227fa4379ec7f1c096997cc42e6a9eb72e6880d3c9c401c9304a9fa45",
+    "schemaFingerprint": "sha256:5a7cac30d38600e74482242d0ce0adda55e39812a892b8867e96c558cd9e8fa8",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "id": "provenance.originalTemplateId",
+      "name": "template.metadata.name",
+      "description": "template.metadata.description",
+      "revision": "provenance.revision",
+      "referenceGeneration": "provenance.referenceGeneration",
+      "config.name": "template.metadata.name",
+      "config.description": "template.metadata.description",
+      "config.arguments": "template.action.arguments",
+      "config.schedule": "template.scheduler.rule",
+      "config.trigger": "template.trigger",
+      "config.recovery": "template.policy.recovery",
+      "config.overlap": "template.policy.overlap",
+      "config.notification": "template.policy.notification",
+      "config.completion": "template.policy.completion",
+      "config.enabled": "template.enabled",
+      "config.maxRuns": "template.policy.maxRuns",
+      "config.misfirePolicy": "template.policy.misfirePolicy",
+      "config.actionId": "template.action.actionId"
+    },
+    "cursor": {},
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_49902509ace82f6a17e0c191",
+    "id": "trg_fixture0000000000000001",
+    "type": "MIG-TRIGGER",
+    "sourceKind": "direct-trigger",
+    "owner": {
+      "kind": "agent",
+      "id": "agent_fixture"
+    },
+    "target": null,
+    "authEvidence": "authorization",
+    "sourceFile": "automation/registry.json",
+    "originalPath": "automation/registry.json",
+    "originalDigest": "sha256:db52509ee0f6c2a534e5eab8421fe6036ce72f61ade36ce45117af430aefc9f5",
+    "sha256": "db52509ee0f6c2a534e5eab8421fe6036ce72f61ade36ce45117af430aefc9f5",
+    "recordDigest": "sha256:72ee2287a1c749113473800d5380c0beb2a8032b6c7cc4a6d488ddd93f70b759",
+    "schemaFingerprint": "sha256:f5c8a288d205bc29aef870a3776c38d9af2dc6f15be5cb8b86613c31b1e33e3f",
+    "classification": "simple-script-migratable",
+    "classificationDetail": "simple",
+    "status": "classified",
+    "mappingVersion": "1",
+    "reasonCodes": [],
+    "reasons": [],
+    "rejectionReasons": [],
+    "suggestedAction": "plan-only",
+    "targetIds": [],
+    "fieldMap": {
+      "id": "provenance.originalTriggerId",
+      "name": "trigger.metadata.name",
+      "description": "trigger.metadata.description",
+      "eventTypes": "trigger.eventTypes",
+      "eventFilter": "trigger.eventFilter",
+      "condition": "trigger.condition",
+      "actionId": "trigger.actionId",
+      "executionMode": "trigger.executionMode",
+      "maxConcurrency": "trigger.maxConcurrency",
+      "retry": "trigger.retry",
+      "enabled": "trigger.enabled",
+      "createdBy": "provenance.createdBy",
+      "authorization": "authorization",
+      "arguments": "trigger.arguments"
+    },
+    "cursor": {},
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": true,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_26c35e0c897edfc32053b624",
+    "id": null,
+    "type": "UNKNOWN",
+    "sourceKind": null,
+    "owner": {
+      "kind": "unknown",
+      "id": null
+    },
+    "target": null,
+    "authEvidence": "none",
+    "sourceFile": "background_jobs/jobs/job_corrupt.json",
+    "originalPath": "background_jobs/jobs/job_corrupt.json",
+    "originalDigest": "sha256:d7aeddb6d7f6999d468f23bef79fb0de030b72b6f6e10ab9e78a0b133619aae2",
+    "sha256": "d7aeddb6d7f6999d468f23bef79fb0de030b72b6f6e10ab9e78a0b133619aae2",
+    "recordDigest": "{\"error\":\"unreadable\"}",
+    "schemaFingerprint": null,
+    "classification": "incompatible-preserved",
+    "classificationDetail": "unknown",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "corrupt_record"
+    ],
+    "reasons": [
+      {
+        "code": "corrupt_record",
+        "detail": "invalid JSON at line 1 column 2: Expecting property name enclosed in double quotes"
+      }
+    ],
+    "rejectionReasons": [
+      "corrupt_record: invalid JSON at line 1 column 2: Expecting property name enclosed in double quotes"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {},
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_a87505b26a96b3e2b92bad0f",
+    "id": null,
+    "type": "UNKNOWN",
+    "sourceKind": null,
+    "owner": {
+      "kind": "unknown",
+      "id": null
+    },
+    "target": null,
+    "authEvidence": "none",
+    "sourceFile": "background_jobs/jobs/job_duplicate.json",
+    "originalPath": "background_jobs/jobs/job_duplicate.json",
+    "originalDigest": "sha256:5cc3eba80cedbed5791d098da154a252fe6e1d1c752a72b1f70493365587fb0a",
+    "sha256": "5cc3eba80cedbed5791d098da154a252fe6e1d1c752a72b1f70493365587fb0a",
+    "recordDigest": "{\"error\":\"unreadable\"}",
+    "schemaFingerprint": null,
+    "classification": "incompatible-preserved",
+    "classificationDetail": "unknown",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "corrupt_record"
+    ],
+    "reasons": [
+      {
+        "code": "corrupt_record",
+        "detail": "duplicate JSON key: kind"
+      }
+    ],
+    "rejectionReasons": [
+      "corrupt_record: duplicate JSON key: kind"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {},
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  },
+  {
+    "migrationId": "mig1_5a407cb1e96c2f7ccf2dca86",
+    "id": "job_future",
+    "type": "UNKNOWN",
+    "sourceKind": "future",
+    "owner": {
+      "kind": "unknown",
+      "id": null
+    },
+    "target": null,
+    "authEvidence": "none",
+    "sourceFile": "background_jobs/jobs/job_future.json",
+    "originalPath": "background_jobs/jobs/job_future.json",
+    "originalDigest": "sha256:b1ea9c7b406e7eb16df0d2e039a6cd4089263db81f1c80ec0c7a77af2ce732d9",
+    "sha256": "b1ea9c7b406e7eb16df0d2e039a6cd4089263db81f1c80ec0c7a77af2ce732d9",
+    "recordDigest": "{\"jobId\":\"job_future\",\"kind\":\"future\"}",
+    "schemaFingerprint": "sha256:b1820a70af4c80b47ee400af88be4860d23daa67d095a6ad9d074eef1c578715",
+    "classification": "incompatible-preserved",
+    "classificationDetail": "unknown",
+    "status": "preserved_and_reported",
+    "mappingVersion": null,
+    "reasonCodes": [
+      "unknown_schema"
+    ],
+    "reasons": [
+      {
+        "code": "unknown_schema",
+        "detail": "unknown or missing job kind: 'future'"
+      }
+    ],
+    "rejectionReasons": [
+      "unknown_schema: unknown or missing job kind: 'future'"
+    ],
+    "suggestedAction": "preserve-and-manual-recreate",
+    "targetIds": [],
+    "fieldMap": null,
+    "cursor": {},
+    "activeEffectHandles": [],
+    "noticeReceipts": [],
+    "referenceEdges": [],
+    "expectedSemanticDiff": [
+      "none; original record is preserved byte-for-byte"
+    ],
+    "proofs": {
+      "sourceHashVerified": true,
+      "schemaWhitelist": "v1-known-20261025",
+      "authorityVerified": false,
+      "referencesVerified": false,
+      "readOnly": true
+    }
+  }
+]

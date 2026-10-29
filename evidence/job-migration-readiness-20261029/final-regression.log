@@ -1,0 +1,44 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+..................F..................................................... [ 34%]
+........................................................................ [ 69%]
+................................................................         [100%]
+================================== FAILURES ===================================
+__ test_current_action_contract_negative_paths_never_publish[missing-shell] ___
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6293/test_current_action_contract_n4')
+fault = 'missing-shell'
+
+    @pytest.mark.parametrize("fault", ["input", "name", "action-ref", "unpublished", "missing-shell"])
+    def test_current_action_contract_negative_paths_never_publish(tmp_path, fault):
+        from tests.support.job_migration_readiness_rehearsal import current_actions
+        from test_job_final_migration import _scheduled_job
+        root = _make_root(tmp_path)
+        if fault == "missing-shell":
+            value = _scheduled_job()
+            value["action"] = {"api": "shell", "args": {"command": "echo synthetic", "cwd": str(root)}}
+            _write_json(root / "background_jobs/jobs/job_shell.json", value)
+        context = context_for(root)
+        context["actions"] = current_actions()
+        if fault == "action-ref":
+            context["actions"]["process.exec"]["ref"]["digest"] = "0" * 64
+        elif fault == "unpublished":
+            context["actions"]["process.exec"]["object"]["enabled"] = False
+        elif fault in {"input", "name"}:
+            value = _message_job()
+            value["text" if fault == "input" else "name"] = 123 if fault == "input" else "n" * 10000
+            # Exercise mapping/schema against actual current pins, separately from
+            # lite inventory's whitelist checks, with a well-shaped inventoried root.
+            from scripts.job_final_migration.mapping import Mapper
+            item = next(i for i in build_inventory(root)["instances"] if i["id"] == MSG_ID)
+            with pytest.raises(ValueError):
+                Mapper(context).map(item, value)
+            return
+        target = tmp_path / "absent/bundle.json"
+>       with pytest.raises(ValueError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests\test_job_migration_readiness.py:131: Failed
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_readiness.py::test_current_action_contract_negative_paths_never_publish[missing-shell]
+1 failed, 207 passed in 39.17s

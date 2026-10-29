@@ -1,0 +1,158 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+{
+  "baseline": "d350efaf87e6ae60a5a60f037a4d736b52a2243b",
+  "source": "d350efaf87e6ae60a5a60f037a4d736b52a2243b",
+  "inventory": {
+    "total": 20,
+    "simple": 8,
+    "complex": 9,
+    "unknown": 3,
+    "scanErrors": 2,
+    "bySourceType": {
+      "MIG-ACTION-JOB": {
+        "total": 5,
+        "simple": 1,
+        "complex": 4,
+        "unknown": 0
+      },
+      "MIG-BG": {
+        "total": 6,
+        "simple": 1,
+        "complex": 5,
+        "unknown": 0
+      },
+      "MIG-MSG": {
+        "total": 2,
+        "simple": 2,
+        "complex": 0,
+        "unknown": 0
+      },
+      "MIG-SCHED": {
+        "total": 2,
+        "simple": 2,
+        "complex": 0,
+        "unknown": 0
+      },
+      "MIG-TEMPLATE": {
+        "total": 1,
+        "simple": 1,
+        "complex": 0,
+        "unknown": 0
+      },
+      "MIG-TRIGGER": {
+        "total": 1,
+        "simple": 1,
+        "complex": 0,
+        "unknown": 0
+      },
+      "UNKNOWN": {
+        "total": 3,
+        "simple": 0,
+        "complex": 0,
+        "unknown": 3
+      }
+    },
+    "invariant": {
+      "sourceTotal": 20,
+      "simplePlusPreserved": 20,
+      "classificationPending": 0
+    }
+  },
+  "migratedOffline": 8,
+  "preserved": 12,
+  "canonicalObjects": 17,
+  "allocations": {
+    "mig1_0a882c68e78cd4c2424d3521": [
+      "creator_0a882c68e78cd4c2424d3521",
+      "trigger_0a882c68e78cd4c2424d3521",
+      "job_0a882c68e78cd4c2424d3521"
+    ],
+    "mig1_1e89fdae2c2495e09298acef": [
+      "creator_1e89fdae2c2495e09298acef",
+      "trigger_1e89fdae2c2495e09298acef",
+      "job_1e89fdae2c2495e09298acef"
+    ],
+    "mig1_264b33b54b83fc0876c9f2c5": [
+      "creator_264b33b54b83fc0876c9f2c5",
+      "trigger_264b33b54b83fc0876c9f2c5",
+      "job_264b33b54b83fc0876c9f2c5"
+    ],
+    "mig1_49902509ace82f6a17e0c191": [
+      "trigger_49902509ace82f6a17e0c191",
+      "job_49902509ace82f6a17e0c191"
+    ],
+    "mig1_5408e44eb9429ecf49aa148a": [
+      "template_5408e44eb9429ecf49aa148a"
+    ],
+    "mig1_69017f06777e27cd0f058b59": [
+      "creator_69017f06777e27cd0f058b59",
+      "trigger_69017f06777e27cd0f058b59",
+      "job_69017f06777e27cd0f058b59"
+    ],
+    "mig1_75cc77ba56d7fea59fe7554e": [
+      "job_75cc77ba56d7fea59fe7554e"
+    ],
+    "mig1_a35162aac607a345a52ae4f3": [
+      "job_a35162aac607a345a52ae4f3"
+    ]
+  },
+  "sourceUnchanged": true,
+  "unscannedSourceFiles": [
+    "scheduler/cursors-unported.json"
+  ],
+  "committedTargetSha256": "95d9cbebda1244947a40265cd1eae700ebc914b3599b9091ef8a6867edcbbe24",
+  "remainingTemporaryArtifacts": [],
+  "crashRecovery": [
+    {
+      "boundary": "before",
+      "exit": 77,
+      "visibleCommittedBundle": false,
+      "sameIdsAfterRecovery": true,
+      "ownedOrphanTemporaryFilesRemoved": {
+        ".bundle.json.n3hp7vs5.tmp": "95d9cbebda1244947a40265cd1eae700ebc914b3599b9091ef8a6867edcbbe24"
+      }
+    },
+    {
+      "boundary": "after",
+      "exit": 77,
+      "visibleCommittedBundle": true,
+      "sameIdsAfterRecovery": true,
+      "ownedOrphanTemporaryFilesRemoved": {}
+    }
+  ],
+  "runtimeActivated": false,
+  "runtimeFenceVerified": false,
+  "actionPins": {
+    "process.exec": {
+      "id": "product_process_logs_v1",
+      "revision": 1,
+      "digest": "8f215ee76d5672738a6f16ddaf02a3da46f8e49fe9d362710eef870bda8f212a"
+    },
+    "session.send": {
+      "id": "product_session_message_v2",
+      "revision": 1,
+      "digest": "c14fc26aa5d62b21a460fb603ebc69991551c52522cf780fb3429f07404c4617"
+    },
+    "session.send-many": {
+      "id": "product_session_broadcast_v2",
+      "revision": 1,
+      "digest": "e1e749fe0caea1aacf8c9a1a43be721a9f88b69b59a3b2ccc96656188dc446f3"
+    },
+    "session.assign": {
+      "id": "product_assign_v2",
+      "revision": 1,
+      "digest": "b0d3dfdc8331e6c41014018e4bcce1c6561f43709c98ea22f47378af06456f5a"
+    },
+    "qq.send": {
+      "id": "product_channel",
+      "revision": 1,
+      "digest": "be51df6f78393b334a5a43992c2a9d15218cba9ae1d09f5b01a78c77dd8274de"
+    },
+    "system_session_message": {
+      "id": "product_session_message_v2",
+      "revision": 1,
+      "digest": "c14fc26aa5d62b21a460fb603ebc69991551c52522cf780fb3429f07404c4617"
+    }
+  },
+  "offlinePublicationExecutableFlag": true
+}

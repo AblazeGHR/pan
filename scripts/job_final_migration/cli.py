@@ -140,7 +140,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.user_authorization and (not target or args.rollback):
             raise ValueError("user authorization requires context/target and cannot be used with rollback")
         for source in (args.context, args.user_authorization):
-            if source and source.resolve() in {destination, target}:
+            writes = {destination, target}
+            if target:
+                writes.update({target.with_name(target.name + ".bak"),
+                               target.with_name(target.name + ".lock")})
+            if source and source.resolve() in writes:
                 raise ValueError("output/target collides with context/authorization input")
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

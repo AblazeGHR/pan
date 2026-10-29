@@ -320,4 +320,5 @@ def rollback(root: str | Path, target: str | Path, *, expected_digest: str,
     _publish(target, result, recheck)
     return {"operationId": result["operationId"], "state": result["state"],
             "bundleDigest": result["bundleDigest"], "runtimeActivated": False,
+            "runtimeFenceVerified": False,
             "plan": {"executable": False}, "sourceWrites": 0}

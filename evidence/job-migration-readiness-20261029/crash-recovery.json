@@ -1,0 +1,18 @@
+[
+  {
+    "boundary": "before",
+    "exit": 77,
+    "visibleCommittedBundle": false,
+    "sameIdsAfterRecovery": true,
+    "ownedOrphanTemporaryFilesRemoved": {
+      ".bundle.json.dlljgasl.tmp": "54d8a476f17a3640698ef51b7f154168e05c56709fc624db3d08d978e02fda22"
+    }
+  },
+  {
+    "boundary": "after",
+    "exit": 77,
+    "visibleCommittedBundle": true,
+    "sameIdsAfterRecovery": true,
+    "ownedOrphanTemporaryFilesRemoved": {}
+  }
+]
