@@ -1,0 +1,401 @@
+{
+  "sourceSHA": "aa76b83e16ac580d8a548752011b7c81636c6519",
+  "kind": "offline-source-characterization",
+  "historicalRetryIfSHA": "7385f807f4d93fabf10c3d40f15148961b53f337",
+  "historicalSource": {
+    "packages/core/background_jobs.py": {
+      "sha256GitBlobBytes": "ce79eb46f7a76c64d682a45c3b12386293e7538141d8d16a3121f871c61b1081",
+      "symbols": {
+        "start": {
+          "start": 662,
+          "end": 731
+        },
+        "retry_due": {
+          "start": 3179,
+          "end": 3227
+        },
+        "runner_update": {
+          "start": 3068,
+          "end": 3113
+        },
+        "reconcile_running": {
+          "start": 3117,
+          "end": 3175
+        }
+      }
+    },
+    "packages/core/background_retry.py": {
+      "sha256GitBlobBytes": "9ad9296b09ccfb2ceb03b4b495b7984f6b672b72d6842edd3276b4304b7f26af",
+      "symbols": {
+        "policy": {
+          "start": 17,
+          "end": 36
+        },
+        "terminal": {
+          "start": 55,
+          "end": 86
+        },
+        "new_attempt": {
+          "start": 89,
+          "end": 99
+        }
+      }
+    }
+  },
+  "productChangesImplemented": false,
+  "pytestRunsThisBatch": 0,
+  "files": {
+    "packages/core/background_retry.py": {
+      "sha256Checkout": "2b02b9e3e76f4e3e0ac16e0fd296772ba7621153942f205939d09026da7cb25c",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "policy": {
+          "start": 17,
+          "end": 36
+        },
+        "defaults": {
+          "start": 46,
+          "end": 52
+        },
+        "terminal": {
+          "start": 55,
+          "end": 86
+        },
+        "new_attempt": {
+          "start": 89,
+          "end": 99
+        }
+      }
+    },
+    "packages/core/background_jobs.py": {
+      "sha256Checkout": "616aa63dd1b02ad06d54646f02105d9e33fd937b77dd1468267bd7d8a253e3c0",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "runner_update": {
+          "start": 1764,
+          "end": 1809
+        },
+        "reconcile_running": {
+          "start": 1813,
+          "end": 1871
+        },
+        "retry_due": {
+          "start": 1875,
+          "end": 1923
+        }
+      }
+    },
+    "packages/core/background_runner.py": {
+      "sha256Checkout": "37e2c0257efa5111c35f7e4572ae478bf0e1e15ac710105aa8acb5ea281b3b88",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "main": {
+          "start": 15,
+          "end": 22
+        },
+        "_run_legacy": {
+          "start": 26,
+          "end": 66
+        }
+      }
+    },
+    "packages/jobs/final_contracts.py": {
+      "sha256Checkout": "cc1e442181c04a7359d1a65a6bcec490e32a744d6ee4ac5218b3ef9754126dad",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "_job_step_defs": {
+          "start": 1075,
+          "end": 1120
+        },
+        "_normalize_job": {
+          "start": 2260,
+          "end": 2288
+        }
+      }
+    },
+    "packages/jobs/final_service.py": {
+      "sha256Checkout": "298fbff07ab7d848c72956d7a14b50493411a3c9e556c9fc5126d442b5d50292",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "AggregateStore.mutate": {
+          "start": 57,
+          "end": 62
+        },
+        "FinalService.transaction": {
+          "start": 120,
+          "end": 126
+        },
+        "FinalService._references": {
+          "start": 187,
+          "end": 200
+        },
+        "FinalService._admit": {
+          "start": 534,
+          "end": 580
+        },
+        "FinalService.control_run": {
+          "start": 696,
+          "end": 795
+        },
+        "FinalService._guard_effect": {
+          "start": 1053,
+          "end": 1073
+        },
+        "FinalService.dispatch_once": {
+          "start": 1075,
+          "end": 1094
+        },
+        "FinalService._drive_run": {
+          "start": 1096,
+          "end": 1203
+        },
+        "FinalService._settle": {
+          "start": 1213,
+          "end": 1234
+        },
+        "FinalService.recover": {
+          "start": 1236,
+          "end": 1265
+        },
+        "FinalService._cleanup_complete": {
+          "start": 1268,
+          "end": 1279
+        },
+        "FinalService.recover_external_receipts": {
+          "start": 1307,
+          "end": 1389
+        },
+        "FinalService.tick": {
+          "start": 1573,
+          "end": 1590
+        },
+        "FinalService.start": {
+          "start": 1639,
+          "end": 1679
+        }
+      }
+    },
+    "packages/jobs/final_runtime/coordinator.py": {
+      "sha256Checkout": "bc5741549d26a0bb942b41944f15f0571408b2c1e1331f890ce22174545696c8",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "FinalRuntime.compare_and_swap": {
+          "start": 251,
+          "end": 256
+        },
+        "FinalRuntime.metadata": {
+          "start": 258,
+          "end": 265
+        }
+      }
+    },
+    "packages/jobs/final_runtime/ledger.py": {
+      "sha256Checkout": "96beb46ac51c40b09a44907a6c7987e64f67d610658161bdd0066c173e9b2cca",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "aggregate": {
+          "start": 44,
+          "end": 50
+        },
+        "Ledger.admit": {
+          "start": 94,
+          "end": 161
+        },
+        "Ledger.start": {
+          "start": 187,
+          "end": 193
+        },
+        "Ledger.begin_attempt": {
+          "start": 195,
+          "end": 247
+        },
+        "Ledger.admit_effect": {
+          "start": 340,
+          "end": 355
+        },
+        "Ledger.record_effect": {
+          "start": 357,
+          "end": 378
+        }
+      }
+    },
+    "packages/jobs/independent_executor.py": {
+      "sha256Checkout": "cc67e1d91610e6abe598658a4f3cba534102694c2d9ae7eface324adc6fe2219",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "ExecutionStore.admit": {
+          "start": 87,
+          "end": 131
+        },
+        "ExecutionStore.cancel": {
+          "start": 207,
+          "end": 220
+        },
+        "IndependentExecutor.lookup_execution": {
+          "start": 427,
+          "end": 436
+        },
+        "IndependentExecutor.execute": {
+          "start": 465,
+          "end": 483
+        }
+      }
+    },
+    "packages/actions/typed_executor.py": {
+      "sha256Checkout": "e348ad0f2baec8638ed72da36fee3bf32039db0750a57bc1fe5b364553e07009",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "TypedExecutor._process": {
+          "start": 421,
+          "end": 502
+        }
+      }
+    },
+    "packages/scheduler/creators.py": {
+      "sha256Checkout": "41c9c42061d61bd5574983ed1d97bfbde84f37c39209a63b002a2f6f05b494ac",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "CreatorStore.transaction": {
+          "start": 244,
+          "end": 259
+        }
+      }
+    },
+    "tests/test_background_job_retry_if.py": {
+      "sha256Checkout": "3bbe28c126f2025ff9451c2d2b4c0fbb255af2b8a38cee1ae1c130c9ad773167",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "test_reason_match_matrix": {
+          "start": 42,
+          "end": 57
+        },
+        "test_zero_budget_and_spawn_failure_consume_no_extra_attempt": {
+          "start": 67,
+          "end": 80
+        },
+        "test_restart_reconcile_persists_count_backoff_and_limit": {
+          "start": 108,
+          "end": 132
+        },
+        "test_cancel_during_backoff_prevents_retry": {
+          "start": 135,
+          "end": 141
+        },
+        "test_accepted_cancel_beats_orphan_recovery": {
+          "start": 144,
+          "end": 151
+        },
+        "test_concurrent_recovery_and_late_runner_are_fenced": {
+          "start": 154,
+          "end": 166
+        },
+        "test_orphan_does_not_duplicate_live_task": {
+          "start": 169,
+          "end": 176
+        },
+        "test_separate_recovery_process_after_runner_loss": {
+          "start": 243,
+          "end": 290
+        }
+      }
+    },
+    "tests/test_authorization_runtime.py": {
+      "sha256Checkout": "2da6fa197064d74f78526cdae52e1adb50396648966468186e88b55753a4d6a5",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt": {
+          "start": 132,
+          "end": 154
+        }
+      }
+    },
+    "tests/test_automation_retry_parallel.py": {
+      "sha256Checkout": "5d0dcc97c3f6b5a3e1bdcbe0685c1d9c4845fb901615b506c4767d6d34e644bd",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats": {
+          "start": 78,
+          "end": 101
+        },
+        "test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms": {
+          "start": 105,
+          "end": 124
+        },
+        "test_retry_requires_frozen_idempotence_and_cleanup_contract": {
+          "start": 145,
+          "end": 168
+        }
+      }
+    },
+    "tests/test_job_final_independent_execution.py": {
+      "sha256Checkout": "948643bc932a7efc4f49f2aebd7aab20da742318775766e7e52afcf33443e8ce",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "test_fe02_retry_keeps_job_run_step_effect_with_new_attempt_history": {
+          "start": 97,
+          "end": 113
+        },
+        "test_fe02_retry_needs_cleanup_proof": {
+          "start": 117,
+          "end": 122
+        },
+        "test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt": {
+          "start": 219,
+          "end": 238
+        }
+      }
+    },
+    "tests/test_job_final_http_service.py": {
+      "sha256Checkout": "9e164d498eda31f525b8f06d43db1221f46a477cb7390ff58fa5ef38f669e7b2",
+      "baselineEquivalentIgnoringCRLF": true,
+      "symbols": {
+        "test_ft01_revoke_between_steps_prevents_next_effect": {
+          "start": 245,
+          "end": 271
+        },
+        "test_ft01_unknown_is_not_retried_or_replayed_on_restart": {
+          "start": 301,
+          "end": 311
+        },
+        "test_ft02_unbound_automatic_recovery_is_explicit_unsupported": {
+          "start": 542,
+          "end": 547
+        }
+      }
+    }
+  },
+  "checks": {
+    "automatic_unconditionally_rejected": true,
+    "admit_does_not_freeze_recovery": true,
+    "manual_retry_preserves_frozen_action_contract": true,
+    "manual_retry_has_no_job_maxAttempts_limit": true,
+    "driver_does_not_check_backoff_deadline": true,
+    "driver_new_attempt_current_owner": true,
+    "driver_reuses_retry_generation": true,
+    "frozen_authority_rechecked": true,
+    "pulse_existing_quarter_second": true,
+    "recovery_marks_host_loss_unknown": true,
+    "external_recovery_has_no_execution_submit": true,
+    "cleanup_requires_supervisor_exit": true,
+    "runtimeMetadata_already_exists": true,
+    "executor_retry_checks_cleanup": true,
+    "pending_is_currently_unknown": true,
+    "old_extra_retry_formula": true,
+    "old_reason_enum_six": true
+  },
+  "counts": {
+    "sourceFiles": 15,
+    "symbolAnchors": 57,
+    "checksPassed": 17,
+    "checksFailed": 0
+  },
+  "unverified": [
+    "automatic-runtime",
+    "provider-effects",
+    "real-data-migration",
+    "browser",
+    "three-platform-runtime",
+    "remote-CI",
+    "deployment"
+  ]
+}
