@@ -24,6 +24,7 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
     root = (tmp_path / 'owned-checkout').resolve()
     root.mkdir()
     archive = tmp_path / 'owned-source.tar'
+    startup_log = tmp_path / 'owned-main-startup.log'
     with archive.open('wb') as output:
         subprocess.run(['git', 'archive', source, 'main.py', 'packages', 'scripts', 'manifest.json'],
                        cwd=repo, stdout=output, check=True)
@@ -64,6 +65,13 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
             except (httpx.HTTPError, OSError, sqlite3.Error, ValueError):
                 pass
             time.sleep(.05)
+        if label == 'original main readiness':
+            output = startup_log.read_bytes()[-8192:].decode('utf-8', errors='replace') if startup_log.exists() else ''
+            output = output.replace(str(root), '<owned-root>').replace(str(tmp_path), '<owned-tmp>')
+            raise AssertionError('owned restart timed out: ' + label +
+                                 f'; childReturncode={process.poll() if process else None}; '
+                                 f'listenerOwner={launcher.listener_owner(port)}; '
+                                 f'ownedPort={port}; source={source}; startupLogTail={output!r}')
         raise AssertionError('owned restart timed out: ' + label)
 
     def receipt():
@@ -92,10 +100,11 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
         return True
 
     try:
-        process = subprocess.Popen([sys.executable, str(root / 'main.py'),
-            f'--pan-root-marker={root}', f'--pan-port-marker={port}'], cwd=root, env=env,
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            **command_window_options())
+        with startup_log.open('wb') as startup_output:
+            process = subprocess.Popen([sys.executable, str(root / 'main.py'),
+                f'--pan-root-marker={root}', f'--pan-port-marker={port}'], cwd=root, env=env,
+                stdin=subprocess.DEVNULL, stdout=startup_output, stderr=subprocess.STDOUT,
+                **command_window_options())
         identity = wait(lambda: request('GET', '/api/main/identity'), 25, 'original main readiness')
         old_pid, old_birth = identity['pid'], identity['createdAt']
         old_identity = {'pid': old_pid, 'birth': old_birth}

@@ -14,7 +14,7 @@ if fault == "wait-error":
             return getattr(real, name)
 
         def wait(self, handle, *, timeout):
-            if all((Path(tree_root) / f"tree-{i}.json").exists() for i in range(3)):
+            if (Path(tree_root) / "observer-handles-retained").exists():
                 raise OSError("injected owned wait failure")
             return real.wait(handle, timeout=timeout)
 

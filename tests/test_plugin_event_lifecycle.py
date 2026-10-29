@@ -168,6 +168,34 @@ def test_failed_reader_retires_real_process_without_watcher(tmp_path):
     asyncio.run(run())
 
 
+def test_failed_reader_completion_joins_its_cleanup(tmp_path, monkeypatch):
+    async def run():
+        svc, manager, _ = await setup(tmp_path, {'a': session('a', ['producer'])}, manifest())
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_close = adapter.EventConnection._close
+        async def blocked_close(connection):
+            entered.set()
+            await release.wait()
+            await original_close(connection)
+        monkeypatch.setattr(adapter.EventConnection, '_close', blocked_close)
+        try:
+            await manager.reconcile()
+            await until(lambda: manager.connections.get('producer') and manager.connections['producer'].ready)
+            c = manager.connections['producer']
+            publish(tmp_path, type='producer.ping', payload={'value': 'x' * 150000})
+            await asyncio.wait_for(entered.wait(), 1)
+            assert c.closed and not c.reader.done() and not c.cleanup.done()
+            release.set()
+            await asyncio.wait_for(asyncio.shield(c.reader), 2)
+            assert c.cleanup.done() and c.stderr.done() and c.process.returncode is not None
+            assert c.handle not in svc.bus.handles
+        finally:
+            release.set()
+            await manager.close()
+            await svc.close()
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('stage', ['spawn', 'provider.initialize', 'events.initialize', 'plugin_ready', 'events.ready'])
 def test_close_intersects_real_start_without_ready_or_process_leak(tmp_path, monkeypatch, stage):
     async def run():

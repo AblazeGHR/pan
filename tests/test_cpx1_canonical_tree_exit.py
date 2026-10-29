@@ -31,7 +31,13 @@ def test_canonical_runner_tree_exit_and_error(tmp_path, fault):
     try:
         assert until(lambda: all((tmp_path / f"tree-{i}.json").exists() for i in range(3)), timeout=20)
         rows = [json.loads((tmp_path / f"tree-{i}.json").read_text()) for i in range(3)]
-        handles = [retain(row["pid"], row["creationFiletime"]) for row in rows]
+        for row in rows:
+            handles.append(retain(row["pid"], row["creationFiletime"]))
+        assert all(wait_state(handle) is not ProcessStatus.DEAD for handle in handles)
+        if fault == "wait-error":
+            # The runner may fail only after all birth-checked handles are held.
+            assert store.get(doc["effectId"])["result"] is None
+            (tmp_path / "observer-handles-retained").touch()
         assert len({row["desktop"] for row in rows}) == 1
         desktop = rows[0]["desktop"]
         if fault == "root-exit":
