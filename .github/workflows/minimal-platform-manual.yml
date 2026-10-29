@@ -1,0 +1,102 @@
+name: Minimal platform release validation
+on:
+  workflow_dispatch:
+  # One MA-controlled non-main ref can validate before default-branch
+  # workflow_dispatch registration; no feature-branch wildcard is added.
+  push:
+    branches: ['diagnostics/minimal-platform-20261029']
+
+jobs:
+  platform:
+    name: platform (${{ matrix.os }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, python: '3.12'}
+          - {os: windows-latest, python: '3.14'}
+          - {os: ubuntu-latest, python: '3.12'}
+          - {os: macos-latest, python: '3.12'}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install declared dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+      - name: Real server import
+        run: python scripts/validate_minimal_platform.py --phase import --output "${{ runner.temp }}/minimal-platform"
+      - name: Full repository collection
+        if: ${{ !cancelled() }}
+        run: python scripts/validate_minimal_platform.py --phase collect --output "${{ runner.temp }}/minimal-platform"
+      - name: Required extracted contract symbols
+        if: ${{ !cancelled() }}
+        run: python scripts/minimal_release_ci.py --phase check --output "${{ runner.temp }}/minimal-platform"
+      - name: CP-X3 platform and extracted contracts
+        if: ${{ !cancelled() }}
+        run: python scripts/validate_minimal_platform.py --phase fast --output "${{ runner.temp }}/minimal-platform"
+      - name: Additional original contracts
+        if: ${{ !cancelled() }}
+        run: python scripts/minimal_release_ci.py --phase supplemental --output "${{ runner.temp }}/minimal-platform"
+      - name: Original legacy Job and Scheduler contracts
+        if: ${{ !cancelled() }}
+        run: python scripts/minimal_release_ci.py --phase legacy --output "${{ runner.temp }}/minimal-platform"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minimal-platform-${{ matrix.os }}-py${{ matrix.python }}
+          path: ${{ runner.temp }}/minimal-platform/
+          if-no-files-found: error
+
+  ubuntu-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/minimal-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove only prior generated browser proofs
+        run: |
+          rm -f evidence/cp-x3-minimal-20261029/browser.json evidence/cp-x3-minimal-20261029/browser.log evidence/cp-x3-minimal-20261029/browser-runtime.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.7.0'
+      - name: Install Python dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+      - name: Build fresh production bundle
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Record fresh bundle and source
+        run: python scripts/minimal_ci_provenance.py "${{ runner.temp }}/minimal-browser"
+      - name: Install Chromium
+        run: python -m playwright install --with-deps --only-shell chromium
+      - name: CP-X3 authenticated production Chromium
+        run: python scripts/validate_minimal_platform.py --phase browser --output "${{ runner.temp }}/minimal-browser/cpx3"
+      - name: Owned authenticated HTTP, stdio MCP and Chromium
+        if: ${{ !cancelled() }}
+        run: python scripts/minimal_release_ci.py --phase browser --output "${{ runner.temp }}/minimal-browser"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minimal-ubuntu-browser-py3.12
+          path: |
+            ${{ runner.temp }}/minimal-browser/*.json
+            ${{ runner.temp }}/minimal-browser/*.xml
+            ${{ runner.temp }}/minimal-browser/*.log
+            ${{ runner.temp }}/minimal-browser/cpx3/
+            ${{ runner.temp }}/minimal-browser/owned-tmp/**/cleanup.json
+            ${{ runner.temp }}/minimal-browser/owned-tmp/**/shutdown.json
+            evidence/cp-x3-minimal-20261029/browser.json
+            evidence/cp-x3-minimal-20261029/browser-runtime.json
+            evidence/cp-x3-minimal-20261029/browser.log
+          if-no-files-found: error
