@@ -5,6 +5,14 @@ Stopping remains the Worker's explicit tree cleanup, independent of that signal.
 """
 from packages.jobs.window import command_window_options
 from . import is_windows
+import os
+
+
+def shell_command_argv(command: str) -> list[str]:
+    """Explicit argv for a command on this execution host; never the browser OS."""
+    if is_windows():
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command]
+    return ["/bin/sh", "-c", command]
 
 
 def spawn_options(platform: str | None = None) -> dict:

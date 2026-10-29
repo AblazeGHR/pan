@@ -78,6 +78,7 @@ class CanonicalService(Protocol):
     def control(self, kind: str, object_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def retire(self, kind: str, object_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def instantiate_time_template(self, template_id: str, body: dict, *, actor: Mapping[str, Any]): ...
+    def instantiate_template(self, template_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def resolve_time_input(self, body: dict, *, actor: Mapping[str, Any]): ...
     def runs(self, job_id: str, *, actor: Mapping[str, Any], cursor: str | None, limit: int): ...
     def create_run(self, job_id: str, body: dict, *, actor: Mapping[str, Any]): ...
@@ -309,7 +310,17 @@ def definition_routes(base, kind):
 
     async def create(request: Request):
         who = await actor(request, kind, "create")
-        value = write_body(await body(request), create=True)
+        raw = await body(request)
+        # Form is a convenience envelope, never a new canonical document schema.
+        # The service resolves the fixed product publication, normalizes its
+        # arguments and runs the existing write contract before persistence.
+        if kind == "template" and "form" in raw:
+            fields(raw, {"definition", "form", "expectedRevision", "requestKey"},
+                   {"definition", "form", "expectedRevision", "requestKey"})
+            contracts.check_request_key(raw["requestKey"])
+            value = raw
+        else:
+            value = write_body(raw, create=True)
         return write_result(await invoke(request, "write", kind, None, value, actor=who), created=True)
 
     async def update(object_id: str, request: Request):
@@ -367,7 +378,7 @@ async def instantiate_time_template(template_id: str, request: Request):
     contracts.check_request_key(value["requestKey"])
     if type(value.get("activate", False)) is not bool:
         reject("invalid_schema", "activate must be boolean")
-    return write_result(await invoke(request, "instantiate_time_template", template_id, value, actor=who), created=True)
+    return write_result(await invoke(request, "instantiate_template", template_id, value, actor=who), created=True)
 
 
 @router.get("/event-creators/providers")

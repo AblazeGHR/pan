@@ -102,15 +102,14 @@ it('server rejection preserves the structured draft without retrying a legacy en
   expect(writes).toHaveLength(1); expect(writes[0]!.url).toBe('/api/jobs');
 });
 
-it('no-Creator Template exposes structured unsupported and keeps activation false without a fallback or Run request', async () => {
+it('complete no-Creator Template instantiates with activation false without a fallback or Run request', async () => {
   host(); click('JobTemplates'); await screen.findByRole('button', { name: 'Instantiate No Creator' });
   click('Instantiate No Creator');
-  expect((screen.getByLabelText('Activate future time events') as HTMLInputElement).checked).toBe(false);
+  expect((screen.getByLabelText('Enable Job and configured subscriptions') as HTMLInputElement).checked).toBe(false);
   expect(writes).toEqual([]);
-  rejected = 'capability_unsupported'; click('Create from time Template');
-  await screen.findByText(/\[capability_unsupported\]/);
+  click('Create from Template');
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Instantiate Template' })).toBeNull());
   expect(writes).toHaveLength(1);
   expect(writes[0]!.url).toBe('/api/job-templates/passive/instantiate');
   expect(writes[0]!.body).toMatchObject({ activate: false, expectedRevision: 2 });
-  expect(screen.getByRole('region', { name: 'Instantiate time Template' })).toBeTruthy();
 });

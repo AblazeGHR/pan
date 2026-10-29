@@ -106,7 +106,7 @@ def normalize_legacy_form_fields(fields, *, kind=None, canonical=None):
         if canonical is not None:
             for name, value in result.items():
                 agree(name, value)
-            result = dict(canonical)
+            result = {**result, **canonical}
         return result
 
     if "command" in fields and "argv" in fields:
@@ -116,10 +116,8 @@ def normalize_legacy_form_fields(fields, *, kind=None, canonical=None):
         command = fields.get("command")
         if not isinstance(command, str) or not command:
             raise fc.ContractError("invalid_schema", "shell form requires command or argv")
-        if os.name == "nt":
-            argv = [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command]
-        else:
-            argv = ["/bin/sh", "-c", command]
+        from packages.core.platform.worker_runtime import shell_command_argv
+        argv = shell_command_argv(command)
     if (not isinstance(argv, list) or not argv or
             any(not isinstance(item, str) or not item or "\x00" in item for item in argv)):
         raise fc.ContractError("invalid_schema", "argv must be a non-empty list of text")
@@ -133,7 +131,7 @@ def normalize_legacy_form_fields(fields, *, kind=None, canonical=None):
     if canonical is not None:
         for name, value in result.items():
             agree(name, value)
-        result = dict(canonical)
+        result = {**result, **canonical}
     return result
 
 
@@ -454,7 +452,11 @@ class FinalService:
             return self._operation(db, actor, "create", request_key, policy, "job", mutate)
 
     def instantiate_time_template(self, template_id, body, *, actor):
-        """Thin time-composition admission; no Run or second operation ledger.
+        """Compatibility name for the existing generic Template operation."""
+        return self.instantiate_template(template_id, body, actor=actor)
+
+    def instantiate_template(self, template_id, body, *, actor):
+        """Complete passive or time composition; no Run or second operation ledger.
 
         CreatorStore, FinalService operations and the composition callbacks join
         the same SQLite transaction. A failed call rolls all of them back;
@@ -463,7 +465,7 @@ class FinalService:
         if (not isinstance(body, dict) or set(body) - {"expectedRevision", "requestKey", "activate"}
                 or not {"expectedRevision", "requestKey"} <= set(body)
                 or type(body.get("activate", False)) is not bool):
-            error("invalid_schema", "Invalid time Template instantiation")
+            error("invalid_schema", "Invalid Template instantiation")
         self._permit(actor, "template", "use")
         activate = body.get("activate", False)
         request = {**body, "activate": activate}
@@ -475,8 +477,8 @@ class FinalService:
                     error("reference_conflict", "Only a published Template can be instantiated")
                 value = definition("template", template)
                 specs = value["composition"]["creators"]
-                if not specs:
-                    error("capability_unsupported", "A time Template requires a Scheduler")
+                if not specs and value["composition"]["triggers"]:
+                    error("capability_unsupported", "Source-free instantiation supports only a Job-only Template")
                 self._permit(actor, "job", "create")
                 self._references(db, "template", value, enabled=activate)
                 # Use the existing Job target validation before creating the graph.
@@ -552,9 +554,48 @@ class FinalService:
         if not isinstance(expected, str) or expected != self._creator_references(db, creator_id)["referenceDigest"]:
             error("reference_conflict", "Source subscribers changed; review references again")
 
+    def _normalize_template_form(self, db, body, *, actor):
+        """Existing Template POST convenience envelope -> complete canonical definition.
+
+        Only one fixed published product step and a passive empty composition
+        are accepted. The form itself is not a document field or runtime input.
+        """
+        if set(body) != {"definition", "form", "expectedRevision", "requestKey"}:
+            error("invalid_schema", "Unknown form write fields")
+        form = body["form"]
+        if not isinstance(form, dict) or set(form) != {"kind", "fields"} or form["kind"] not in {"assign", "shell"}:
+            error("invalid_schema", "Invalid assign/shell form")
+        value = fc.validate_definition("template", body.get("definition"))
+        job = value["jobDefinition"]
+        if len(job["steps"]) != 1 or value["composition"] != {"creators": [], "triggers": []}:
+            error("invalid_schema", "Simple form requires one product step and no schedule")
+        step = job["steps"][0]
+        expected = "product_assign_v2" if form["kind"] == "assign" else "product_process_logs_v1"
+        action = fc._check_action_ref(step["actionRef"], path="definition.jobDefinition.steps.0.actionRef",
+            completion=step["completion"], completion_path="definition.jobDefinition.steps.0.completion",
+            resolver=self._resolver(db), require_enabled=False)
+        config = action["definition"]
+        if (action["id"] != expected or config.get("system") is not True
+                or config["execution"]["operation"] != ("assign" if form["kind"] == "assign" else "process")):
+            error("reference_conflict", "Form requires the fixed product Action publication")
+        if any(binding["from"] != "literal" for binding in step["arguments"].values()):
+            error("invalid_schema", "Simple form arguments must be literal")
+        explicit = {key: binding["value"] for key, binding in step["arguments"].items()}
+        arguments = normalize_legacy_form_fields(form["fields"], kind=form["kind"], canonical=explicit)
+        if form["kind"] == "assign":
+            arguments = self._session_source(arguments, actor)
+        step["arguments"] = {key: {"from": "literal", "value": val} for key, val in arguments.items()}
+        self._references(db, "job", job)
+        return {**{key: val for key, val in body.items() if key != "form"}, "definition": value}
+
     def write(self, kind, object_id, body, *, actor):
         self._permit(actor, kind, "create" if object_id is None else "updateConfig")
+        if "form" in body:
+            if kind != "template" or object_id is not None:
+                error("invalid_schema", "Form mapping is only available at Template creation")
         allowed = {"definition", "expectedRevision", "requestKey", "requestDigest"}
+        if "form" in body:
+            allowed.add("form")
         if kind == "event_creator":
             allowed.add("expectedReferences")
         if kind == "trigger":
@@ -562,12 +603,18 @@ class FinalService:
         if set(body) - allowed:
             error("invalid_schema", "Unknown write fields")
         value = fc.validate_write(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+        if "form" in body:
+            value["form"] = copy.deepcopy(body["form"])
         if "expectedReferences" in body:
             value["expectedReferences"] = body["expectedReferences"]
         if "expectedCreatorRevisions" in body:
             value["expectedCreatorRevisions"] = body["expectedCreatorRevisions"]
+        request_value = value
         with self.transaction() as db:
             def mutate(operation_id):
+                value = (fc.validate_write(kind, self._normalize_template_form(db,
+                             {key: request_value[key] for key in ("definition", "form", "expectedRevision", "requestKey")}, actor=actor), create=True)
+                         if "form" in request_value else request_value)
                 if kind == "trigger" and "expectedCreatorRevisions" in body:
                     expected = body["expectedCreatorRevisions"]
                     selector = value["definition"]["creatorSelector"]

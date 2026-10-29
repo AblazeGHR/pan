@@ -104,16 +104,16 @@ it('blocks repeat Template instantiation after a lost receipt and queries the or
     click('JobTemplates');
     await screen.findByRole('button', { name: 'Instantiate Example' });
     click('Instantiate Example');
-    expect((screen.getByLabelText('Activate future time events') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Enable Job and configured subscriptions') as HTMLInputElement).checked).toBe(false);
     networkFailure = true;
-    click('Create from time Template');
+    click('Create from Template');
     await screen.findByText('请求结果未确认，请按原身份查询。');
     expect(writes).toHaveLength(1);
     expect(writes[0]!.body).toMatchObject({ activate: false });
-    expect((screen.getByRole('button', { name: 'Create from time Template' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Create from Template' }) as HTMLButtonElement).disabled).toBe(true);
     networkFailure = false;
     click('查询原操作');
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Instantiate time Template' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Instantiate Template' })).toBeNull());
     expect(writes).toHaveLength(1);
   } finally {
     item.state = 'draft';

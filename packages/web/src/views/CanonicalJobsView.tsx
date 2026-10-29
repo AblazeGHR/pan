@@ -25,6 +25,7 @@ import { newId, type EventCreator } from '@/types/automationJobs';
 import { useAutomationDraft } from '@/components/automation/DraftBoundary';
 import { CanonicalDefinitionFields, canonicalFormErrors } from '@/components/automation/CanonicalDefinitionFields';
 import { TimeTemplateFields } from '@/components/automation/TimeTemplateFields';
+import { SimpleTemplateForm } from '@/components/automation/SimpleTemplateForm';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -148,6 +149,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
   const [structuredEdited, setStructuredEdited] = useState(false);
   const [advancedEditing, setAdvancedEditing] = useState(false);
   const [instantiating, setInstantiating] = useState<CanonicalObject | null>(null);
+  const [simpleKind, setSimpleKind] = useState<'assign' | 'shell' | null>(null);
   const [activateTemplate, setActivateTemplate] = useState(false);
   const [enabling, setEnabling] = useState<CanonicalObject | null>(null);
   const [enableReviewed, setEnableReviewed] = useState(false);
@@ -155,7 +157,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
   const [selectedJob, setSelectedJob] = useState<CanonicalObject | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const busy = working || unresolved(pending);
-  useAutomationDraft(!!editor || !!enabling, busy);
+  useAutomationDraft(!!editor || !!enabling || !!simpleKind, busy);
   const alive = useRef(true);
   const mutationActive = useRef(false);
   const load = useCallback(
@@ -197,6 +199,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
       if (!alive.current) return;
       setPending({ operation, requestKey, receipt });
       if (receipt.status === 'completed') {
+        setSimpleKind(null);
         setInstantiating(null);
         setEditor(null);
         setRetiring(null);
@@ -226,7 +229,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
         </Button>
         <Button
           type="button"
-          disabled={busy || !!editor || !!enabling}
+          disabled={busy || !!editor || !!enabling || !!simpleKind}
           onClick={() => {
             const definition = { ...examples[kind] };
             delete definition.name;
@@ -235,6 +238,10 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
         >
           创建 {labels[kind]}
         </Button>
+        {kind === 'job-templates' && (['assign', 'shell'] as const).map((value) => <Button key={value}
+          disabled={busy || !!editor || !!simpleKind} onClick={() => setSimpleKind(value)}>
+          {value === 'assign' ? 'New assign Template' : 'New shell Template'}
+        </Button>)}
       </div>
       {loading && <p role="status">加载中…</p>}
       {error && (
@@ -251,6 +258,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               setInstantiating(null);
               setError('');
               setEditor(null);
+              setSimpleKind(null);
               setRetiring(null);
               setEnabling(null);
               void load();
@@ -258,6 +266,9 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           }}
         />
       )}
+      {simpleKind && <SimpleTemplateForm key={simpleKind} kind={simpleKind} busy={busy}
+        onCancel={() => setSimpleKind(null)}
+        onSubmit={(definition, form) => void mutate('create', (key) => canonicalJobs.writeFormTemplate(definition, form, key))} />}
       {editor && (
         <form
           aria-label={`编辑 ${labels[kind]}`}
@@ -383,12 +394,12 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           </div>
         </section>
       )}
-      {instantiating && <section aria-label="Instantiate time Template" className={`${card} space-y-3`}>
-        <p>Create a new Job, Scheduler and subscription from {instantiating.name}. The Job is not run immediately.</p>
+      {instantiating && <section aria-label="Instantiate Template" className={`${card} space-y-3`}>
+        <p>Create a new Job and any configured Scheduler/subscriptions from {instantiating.name}. The Job is not run immediately.</p>
         <label><input type="checkbox" checked={activateTemplate} disabled={busy}
-          onChange={(e) => setActivateTemplate(e.target.checked)} />Activate future time events</label>
+          onChange={(e) => setActivateTemplate(e.target.checked)} />Enable Job and configured subscriptions</label>
         <Button disabled={busy} onClick={() => void mutate('instantiate-template', (key) =>
-          canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate))}>Create from time Template</Button>
+          canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate))}>Create from Template</Button>
         <Button disabled={busy} onClick={() => setInstantiating(null)}>Cancel instantiation</Button>
       </section>}
       {!loading && !items.length && <p>暂无 canonical {labels[kind]}。</p>}

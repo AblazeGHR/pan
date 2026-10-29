@@ -62,6 +62,8 @@ const part = encodeURIComponent;
 const pageQuery = (cursor?: string | null) =>
   `?limit=100${cursor ? `&cursor=${part(cursor)}` : ''}`;
 export const canonicalJobs = {
+  writeFormTemplate: (definition: JsonObject, form: JsonObject, requestKey: string) =>
+    canonicalRequest<CanonicalReceipt>('job-templates', 'POST', { definition, form, expectedRevision: 0, requestKey }),
   list: (kind: CanonicalKind, cursor?: string | null, signal?: AbortSignal) =>
     canonicalRequest<CanonicalPage<CanonicalObject>>(
       kind + pageQuery(cursor),
