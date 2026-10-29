@@ -1,0 +1,46 @@
+{
+  "source_sha": "c9137b0a5f075c44b03fa5e41777949813d4b663",
+  "original_run": 40760691765,
+  "original_source_sha": "542be56e3b2097bd3a3d61ee153202c696b65a60",
+  "local_groups": {
+    "current-representatives.xml": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "e3dbc71449aee634898bc17f51afc3c1accc7607f46e7b372e3bd6769e85b4cc"
+    },
+    "current-canonical.xml": {
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "83a2bac4f29e4b595021acba36b005098f09de266c4b06e97681c96196fb4ef0"
+    },
+    "current-job-contracts.xml": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "956e448e97552bbc7421b51884dd3432bf9cc165fba80fae35e0721b71921e7d"
+    },
+    "current-boundaries.xml": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "sha256": "ed64774c65c7e6bbb805a94220afa4fa5fd089f5387d365751f714567dabf81d"
+    }
+  },
+  "local_passed": 34,
+  "local_exit_codes": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "records_per_version": 188,
+  "map_sha256": "f8b9840fa9d55d49eacb8632a5f5679ce0d5c7b43201800af7dbd77054b6f0b9",
+  "targeted_locker_run": {
+    "id": 40811998106,
+    "head": "1553e47b2e6adab22c2261eaacfbcceba6800ee0",
+    "result": "success",
+    "full_suite": false
+  }
+}
