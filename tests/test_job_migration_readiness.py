@@ -109,7 +109,7 @@ def test_current_action_contract_negative_paths_never_publish(tmp_path, fault):
     root = _make_root(tmp_path)
     if fault == "missing-shell":
         value = _scheduled_job()
-        value["action"] = {"api": "shell", "args": {"command": "echo synthetic", "cwd": str(root)}}
+        value["action"] = {"api": "shell", "args": {"command": str(root / "synthetic.cmd"), "cwd": str(root)}}
         _write_json(root / "background_jobs/jobs/job_shell.json", value)
     context = context_for(root)
     context["actions"] = current_actions()
