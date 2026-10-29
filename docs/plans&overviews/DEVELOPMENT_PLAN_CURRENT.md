@@ -1,6 +1,6 @@
 # 当前开发计划（滚动快照）
 
-- 更新：2026-10-25
+- 更新：2026-10-29（跨平台候选补充；其余2026-10-25快照未重作验收）
 - 真源：`D:/project/Pan/data/workdirs/PAN_SMA/.workflow/overview.md`（MA 的实时进度与精确对象 ID）
 - 本文件只保留“不能丢”的计划与依赖关系；完成项移入“最近完成”，避免历史堆积。
 
@@ -10,8 +10,8 @@
 |---|---|---|---|
 | Job 统一 / Action 链 / Scheduler Event（Phase 1–5） | 已实现并验证，**仅在集成树** | 分支 `feature/job-chain-phase1-20261025`，集成树 `integration/job-chain-20261025` @ `b6f0e388` | 等用户命令后推进 main；真实数据迁移/部署/远端 CI 未做 |
 | Terminal 无法启动（starting → clean up failed） | 修复中 | Session `ses_c461b12d43ab4394`，分支 `fix/terminal-cleanup-20261025` | 定位 launcher/runner 清理失败根因；隔离实例复现；回归后快进 |
-| 跨平台 Phase A（解锁 + CI） | 并行实施中 | `packages/core/platform/`、导入链、CI | 三平台 import 绿；能力矩阵初版 |
-| 跨平台 Phase B/C（进程所有权 / 前端能力） | 并行实施中 | 见 `CROSS_PLATFORM_PLAN_20261025.md` | 契约测试；不阻塞功能开发 |
+| 跨平台最小普通 Worker/server候选 | 已抽取；待独立同源码CI | main9b4506基线，仅7个产品路径；见 `docs/reports/MINIMAL_CROSS_PLATFORM_RELEASE_20261029.md` | MA运行三平台import/collection/fast与Ubuntu fresh生产浏览器；不继承4a86 Job集成发布 |
+| 完整 POSIX ProcessOwner / native PTY功能对齐 | 不属于本次最小发布 | POSIX processOwner保持false；Terminal/detach/rewind/lifecycle/SecretStore保持不支持 | 独立后续范围；不得据普通pipe启动宣称全部完成 |
 
 ## 最近完成
 

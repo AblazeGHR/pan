@@ -1,0 +1,48 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-minimal-release-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+_________________ test_minimal_production_capability_browser __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6254/test_minimal_production_capabi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000022FCEBC3820>
+
+    def test_minimal_production_capability_browser(tmp_path, monkeypatch):
+        monkeypatch.setattr(base, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/minimal_platform_browser_server.py')
+        rt = base._PanRuntime(tmp_path / 'production-profile')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'plugin_manifests': [], 'memory': {'enabled': False}}))
+        out = Path('evidence/cp-x3-minimal-20261029').resolve()
+        out.mkdir(exist_ok=True, parents=True)
+        index = Path('packages/web/dist/index.html')
+        assert index.is_file(), 'pnpm build is a prerequisite'
+        facts = {'productionIndexSHA256': hashlib.sha256(index.read_bytes()).hexdigest(), 'port': base.PORT}
+        try:
+            rt.start()
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            result = subprocess.run(['node', 'packages/web/e2e/minimal-platform-production.mjs', rt.base_url, str(out)],
+                env={**os.environ, 'PAN_TEST_MINIMAL_KEY': key}, capture_output=True,
+                encoding='utf-8', timeout=90, **command_window_options())
+            (out / 'browser.log').write_text(result.stdout + result.stderr, encoding='utf-8')
+            facts['browserExit'] = result.returncode
+>           assert result.returncode == 0, result.stdout + result.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             locator.selectOption: Timeout 30000ms exceeded.
+E             Call log:
+E             [2m  - waiting for getByLabel('Adapter', { exact: true })[22m
+E             
+E                 at D:\project\pan-worktrees\xplat-minimal-release-20261029\packages\web\e2e\minimal-platform-production.mjs:27:55 {
+E               log: [ "  - waiting for getByLabel('Adapter', { exact: true })" ],
+E               name: 'TimeoutError'
+E             }
+E             
+E             Node.js v24.22.1
+E             
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/minimal-platform-production.mjs', 'http://127.0.0.1:51730', 'D:\\proj...g: [ "  - waiting for getByLabel(\'Adapter\', { exact: true })" ],\n  name: \'TimeoutError\'\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_minimal_platform_browser.py:30: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_minimal_platform_browser.py::test_minimal_production_capability_browser

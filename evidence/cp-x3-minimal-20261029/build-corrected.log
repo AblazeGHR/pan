@@ -1,0 +1,146 @@
+
+> pan-web@ build D:\project\pan-worktrees\xplat-minimal-release-20261029\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+vite v6.4.3 building for production...
+transforming...
+✓ 2572 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/stores/automationStore.ts is dynamically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/services/api.ts, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/services/api.ts but also statically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/automation/JobUserAuthorization.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/automation/PauseTemplate.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/automation/RunList.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/automation/TriggerEditor.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/jobs/JobTemplateEditor.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/layout/AuthorizationSettings.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/main.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/stores/lockerUnreadStore.ts, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/ActionsView.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/AutomationView.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/JobsView.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/LockerMessageRow.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/LockerView.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/UserCardRow.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/lockerModel.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/lockerModel.ts is dynamically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/services/api.ts but also statically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/chat/InputRow.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/layout/ErrorNotificationExclusions.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/components/layout/UserCardReminderSettings.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/hooks/useWebSocket.ts, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/stores/lockerUnreadStore.ts, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/AttachedReminder.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/CardQuestions.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/LockerMessageRow.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/LockerView.tsx, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/views/UserCardRow.tsx, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/router.tsx is dynamically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/services/lockerDesktopNotify.ts, D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/utils/session-deeplink.ts but also statically imported by D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src/main.tsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+../dist/index.html                                         1.44 kB │ gzip:   0.68 kB
+../dist/assets/KaTeX_Size3-Regular-CTq5MqoE.woff           4.42 kB
+../dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2          4.93 kB
+../dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2          5.21 kB
+../dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2          5.47 kB
+../dist/assets/KaTeX_Size4-Regular-BF-4gkZK.woff           5.98 kB
+../dist/assets/KaTeX_Size2-Regular-oD1tc_U0.woff           6.19 kB
+../dist/assets/KaTeX_Size1-Regular-C195tn64.woff           6.50 kB
+../dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2    6.91 kB
+../dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2       6.91 kB
+../dist/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf            7.59 kB
+../dist/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff     7.66 kB
+../dist/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff        7.72 kB
+../dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2         9.64 kB
+../dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2     10.34 kB
+../dist/assets/KaTeX_Size4-Regular-DWFBv043.ttf           10.36 kB
+../dist/assets/KaTeX_Script-Regular-D5yQViql.woff         10.59 kB
+../dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2       11.32 kB
+../dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2          11.35 kB
+../dist/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf           11.51 kB
+../dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2      12.03 kB
+../dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2        12.22 kB
+../dist/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf           12.23 kB
+../dist/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff      12.32 kB
+../dist/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf     12.34 kB
+../dist/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf        12.37 kB
+../dist/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff        13.21 kB
+../dist/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff           13.30 kB
+../dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2    13.57 kB
+../dist/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff       14.11 kB
+../dist/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff         14.41 kB
+../dist/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff     16.03 kB
+../dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2       16.40 kB
+../dist/assets/KaTeX_Math-Italic-t53AETM-.woff2           16.44 kB
+../dist/assets/KaTeX_Script-Regular-C5JkGWo-.ttf          16.65 kB
+../dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2       16.78 kB
+../dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2           16.99 kB
+../dist/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff        18.67 kB
+../dist/assets/KaTeX_Math-Italic-DA0__PXp.woff            18.75 kB
+../dist/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff        19.41 kB
+../dist/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf       19.44 kB
+../dist/assets/KaTeX_Fraktur-Regular-CB_wures.ttf         19.57 kB
+../dist/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf            19.58 kB
+../dist/assets/KaTeX_Main-Italic-BMLOBm91.woff            19.68 kB
+../dist/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf        22.36 kB
+../dist/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf          24.50 kB
+../dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2             25.32 kB
+../dist/assets/KaTeX_Main-Regular-B22Nviop.woff2          26.27 kB
+../dist/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf      27.56 kB
+../dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2           28.08 kB
+../dist/assets/KaTeX_Main-Bold-Jm3AIy58.woff              29.91 kB
+../dist/assets/KaTeX_Main-Regular-Dr94JaBh.woff           30.77 kB
+../dist/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf         31.20 kB
+../dist/assets/KaTeX_Math-Italic-flOr_0UB.ttf             31.31 kB
+../dist/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf         32.97 kB
+../dist/assets/KaTeX_AMS-Regular-DMm9YOAa.woff            33.52 kB
+../dist/assets/KaTeX_Main-Italic-3WenGoN9.ttf             33.58 kB
+../dist/assets/KaTeX_Main-Bold-waoOVXN0.ttf               51.34 kB
+../dist/assets/KaTeX_Main-Regular-ypZvNtVU.ttf            53.58 kB
+../dist/assets/KaTeX_AMS-Regular-DRggAlZN.ttf             63.63 kB
+../dist/assets/ActionsView-5rGcqsPE.css                    2.11 kB │ gzip:   0.75 kB
+../dist/assets/xterm-6GBZ9nXN.css                          5.24 kB │ gzip:   1.92 kB
+../dist/assets/LockerView-KEFgN0tb.css                    13.51 kB │ gzip:   2.69 kB
+../dist/assets/MarkdownRenderer-aKZrpQSr.css              31.04 kB │ gzip:   8.67 kB
+../dist/assets/index-BGjufXfJ.css                        118.51 kB │ gzip:  19.74 kB
+../dist/assets/check-p75qu5KJ.js                           0.34 kB │ gzip:   0.28 kB │ map:     0.89 kB
+../dist/assets/arrow-left-DnNFY9w3.js                      0.39 kB │ gzip:   0.30 kB │ map:     1.03 kB
+../dist/assets/user-round-DWGLJAnI.js                      0.40 kB │ gzip:   0.32 kB │ map:     1.07 kB
+../dist/assets/play-CEdPRRQJ.js                            0.41 kB │ gzip:   0.32 kB │ map:     0.99 kB
+../dist/assets/pause-CdbACPt9.js                           0.43 kB │ gzip:   0.31 kB │ map:     1.16 kB
+../dist/assets/copy-CgLgLlq0.js                            0.45 kB │ gzip:   0.34 kB │ map:     1.13 kB
+../dist/assets/download-BvXeuJ1a.js                        0.45 kB │ gzip:   0.33 kB │ map:     1.15 kB
+../dist/assets/globe-C2cpPJf7.js                           0.46 kB │ gzip:   0.33 kB │ map:     1.16 kB
+../dist/assets/external-link-P-QP8m4I.js                   0.48 kB │ gzip:   0.34 kB │ map:     1.20 kB
+../dist/assets/file-G03EWR0d.js                            0.49 kB │ gzip:   0.35 kB │ map:     1.13 kB
+../dist/assets/useSessionWorkspace-D2YwqNWv.js             0.49 kB │ gzip:   0.32 kB │ map:     2.35 kB
+../dist/assets/shield-check-BtnwGujz.js                    0.54 kB │ gzip:   0.39 kB │ map:     1.23 kB
+../dist/assets/refresh-cw-e42-0pYX.js                      0.55 kB │ gzip:   0.37 kB │ map:     1.31 kB
+../dist/assets/clipboard-Bka3b3-h.js                       0.61 kB │ gzip:   0.39 kB │ map:     2.05 kB
+../dist/assets/sliders-horizontal-Dd8Kn58v.js              0.66 kB │ gzip:   0.38 kB │ map:     1.77 kB
+../dist/assets/terminal-CBKnrwu0.js                        0.86 kB │ gzip:   0.45 kB │ map:     2.18 kB
+../dist/assets/FreshnessStatus-Cx5MjUE9.js                 1.20 kB │ gzip:   0.65 kB │ map:     3.59 kB
+../dist/assets/qqContactSearch-pD6CbBKo.js                 1.33 kB │ gzip:   0.74 kB │ map:     3.03 kB
+../dist/assets/JobUserAuthorization-BJ84CnCA.js            1.50 kB │ gzip:   0.85 kB │ map:     3.49 kB
+../dist/assets/ManageView-BUSf4Rme.js                      1.67 kB │ gzip:   0.87 kB │ map:     4.81 kB
+../dist/assets/PluginSelection-Cp8T9jRp.js                 1.89 kB │ gzip:   0.95 kB │ map:     4.95 kB
+../dist/assets/DetailPanel-DUmS-ah4.js                     2.57 kB │ gzip:   1.17 kB │ map:     6.71 kB
+../dist/assets/CodeEditor-BNTAbN2I.js                      2.59 kB │ gzip:   1.28 kB │ map:     8.25 kB
+../dist/assets/codexRateLimits-D0VsjuO0.js                 2.75 kB │ gzip:   1.14 kB │ map:    11.09 kB
+../dist/assets/messageFilter-BBtkDje7.js                   3.15 kB │ gzip:   1.61 kB │ map:    22.28 kB
+../dist/assets/NativeTerminal-Cm4n5NiA.js                  3.23 kB │ gzip:   1.66 kB │ map:    11.90 kB
+../dist/assets/editorFileLinks-KUMHHV3L.js                 3.73 kB │ gzip:   1.73 kB │ map:    16.56 kB
+../dist/assets/nativeControlStore-Ih8XqOlC.js              3.74 kB │ gzip:   1.32 kB │ map:    13.48 kB
+../dist/assets/DirectoryInput-wZGe2CP3.js                  5.40 kB │ gzip:   2.07 kB │ map:    21.61 kB
+../dist/assets/JobRetentionSettings-DjncaPPQ.js            6.61 kB │ gzip:   2.53 kB │ map:    17.94 kB
+../dist/assets/PostboxModal-DVr3Vb24.js                    9.90 kB │ gzip:   3.49 kB │ map:    34.54 kB
+../dist/assets/EditorDirectoryRoots-CZYWLNK7.js           11.55 kB │ gzip:   4.22 kB │ map:    36.78 kB
+../dist/assets/GlobalHistorySearch-Dq_-eeEm.js            11.62 kB │ gzip:   4.01 kB │ map:    42.10 kB
+../dist/assets/SessionDetailsModal-BxVE5de7.js            13.69 kB │ gzip:   4.68 kB │ map:    45.29 kB
+../dist/assets/EditorView-BkKdD3zn.js                     14.07 kB │ gzip:   4.82 kB │ map:    40.86 kB
+../dist/assets/SessionHistorySearch-C1LTMIjI.js           14.56 kB │ gzip:   5.14 kB │ map:    46.45 kB
+../dist/assets/monaco-vendor-BuGkLSmr.js                  14.96 kB │ gzip:   5.17 kB │ map:    48.41 kB
+../dist/assets/ScheduleListEditor-BK1JiRiT.js             16.81 kB │ gzip:   5.36 kB │ map:    58.19 kB
+../dist/assets/TerminalPanel-CZWn0saP.js                  17.84 kB │ gzip:   6.85 kB │ map:    46.28 kB
+../dist/assets/ImportModal-CYDSusPT.js                    18.62 kB │ gzip:   4.56 kB │ map:    67.75 kB
+../dist/assets/PluginPanelView-CKZTzlgd.js                19.63 kB │ gzip:   7.45 kB │ map:    64.83 kB
+../dist/assets/AutomationView-BlPp4Jtl.js                 25.59 kB │ gzip:   7.79 kB │ map:    64.09 kB
+../dist/assets/NewJobForm-CmIWxaHu.js                     25.87 kB │ gzip:   7.44 kB │ map:    87.81 kB
+../dist/assets/ManageModal-BhE7kHpP.js                    27.73 kB │ gzip:   8.09 kB │ map:    93.34 kB
+../dist/assets/SessionOperationFields-vfbOb-lY.js         27.95 kB │ gzip:   9.01 kB │ map:    72.83 kB
+../dist/assets/NewSessionModal-Bo__vmgO.js                29.13 kB │ gzip:   8.36 kB │ map:    88.91 kB
+../dist/assets/LockerView-KXy14N9X.js                     37.68 kB │ gzip:  12.37 kB │ map:   127.65 kB
+../dist/assets/MarkdownRenderer-C7ssEknr.js               41.71 kB │ gzip:  13.90 kB │ map:   165.73 kB
+../dist/assets/JobsView-C7kHJcNq.js                       69.22 kB │ gzip:  18.42 kB │ map:   192.39 kB
+../dist/assets/ActionsView-BXBcwFKF.js                    72.23 kB │ gzip:  18.25 kB │ map:   204.31 kB
+../dist/assets/AppSettingsModal-Ckqdlxpm.js              139.37 kB │ gzip:  36.51 kB │ map:   379.36 kB
+../dist/assets/ChatView-D5hk0bmd.js                      248.97 kB │ gzip:  75.05 kB │ map:   977.55 kB
+../dist/assets/react-vendor-DNy7vAOG.js                  288.18 kB │ gzip:  92.33 kB │ map: 1,477.78 kB
+../dist/assets/xterm-XOw-FC4b.js                         334.26 kB │ gzip:  84.78 kB │ map:   697.36 kB
+../dist/assets/index-D9SkOfHI-pc2.js                     444.39 kB │ gzip: 130.28 kB │ map: 1,830.71 kB
+../dist/assets/markdown-vendor-DtD0-HYK.js               602.61 kB │ gzip: 181.48 kB │ map: 2,606.78 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.28s
+Verified 90 compressed production assets

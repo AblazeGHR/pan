@@ -1,0 +1,6 @@
+
+> pan-web@ build D:\project\pan-worktrees\xplat-minimal-release-20261029\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+src/components/chat/MarkdownRenderer.tsx(5,24): error TS2307: Cannot find module 'remark-math' or its corresponding type declarations.
+ ELIFECYCLE  Command failed with exit code 2.

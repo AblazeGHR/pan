@@ -1,0 +1,15 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/xplat-minimal-release-20261029/packages/web/src
+
+ ✓ components/layout/viewEntries.capability.test.ts (5 tests) 2ms
+ ✓ stores/platformStore.test.ts (8 tests) 3ms
+ ✓ views/TerminalPanel.capability.test.tsx (3 tests) 29ms
+ ✓ components/session/NewSessionModal.test.tsx (32 tests | 1 skipped) 1526ms
+ ✓ components/layout/AppSettingsModal.test.tsx (65 tests) 3284ms
+   ✓ AppSettingsModal > requires confirmation and reports successful main-service recovery 1097ms
+
+ Test Files  5 passed (5)
+      Tests  112 passed | 1 skipped (113)
+   Start at  22:32:07
+   Duration  5.52s (transform 847ms, setup 23ms, collect 1.98s, tests 4.84s, environment 2.31s, prepare 508ms)
+

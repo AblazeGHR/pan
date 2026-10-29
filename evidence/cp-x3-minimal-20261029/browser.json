@@ -1,0 +1,23 @@
+{
+  "productionBundle": true,
+  "providerCalls": 0,
+  "scenarios": [
+    {
+      "mode": "denied",
+      "checkboxDisabled": true,
+      "serverPlatform": "windows"
+    },
+    {
+      "mode": "actual",
+      "checkboxDisabled": false,
+      "serverPlatform": "windows"
+    },
+    {
+      "mode": "unknown",
+      "checkboxDisabled": false,
+      "serverPlatform": "windows"
+    }
+  ],
+  "authenticated": true,
+  "ordinarySessionCreated": true
+}

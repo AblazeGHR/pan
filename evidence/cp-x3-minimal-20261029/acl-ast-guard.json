@@ -1,0 +1,6 @@
+{
+  "source": "233c18b948d6013a0ba7934c71b1e2c79ff2e85c",
+  "allFunctionsClassesASTUnchanged": true,
+  "skipReasonUnchanged": "DPAPI / Windows ACL only",
+  "productChanges": false
+}
