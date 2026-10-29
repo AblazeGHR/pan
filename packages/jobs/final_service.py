@@ -276,14 +276,16 @@ class FinalService:
 
     def _references(self, db, kind, value, *, object_id=None, enabled=False):
         checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
+        completion_job = value if kind == "job" else value.get("jobDefinition", {}) if kind == "template" else {}
+        if any(step["completion"]["contract"] == "monitoring" for step in completion_job.get("steps", [])):
+            error("capability_unsupported", "Monitoring requires a trusted Attempt-bound completion signal; process exit alone is insufficient")
         if kind == "job":
             recovery = value.get("recovery", {})
             if recovery.get("automatic"):
                 if (not recovery.get("retryIf") or set(recovery["retryIf"]) - {"failed", "timeout"}
-                        or Decimal(recovery.get("stableResetSeconds", "300")) != 0
                         or any(a["execution"]["operation"] != "process" or a.get("effectClass") == "high_risk"
                                or not (a["retry"]["idempotent"] or a["retry"]["sameKeySupported"]) for a in checked[:len(value["steps"])])):
-                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with finite policy and stableResetSeconds=0")
+                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with trusted cleanup and execution timing")
             self._check_literal_product_sessions(value, checked)
             self._check_literal_product_qq(value, checked)
         if kind == "trigger":
@@ -1352,6 +1354,60 @@ class FinalService:
             return "failed"
         return None
 
+    @staticmethod
+    def _stable_execution_seconds(doc):
+        """Elapsed original execution, never coordinator observation time."""
+        timing = (doc.get("result") or {}).get("receipt", {}).get("executionTiming")
+        if not isinstance(timing, dict) or set(timing) != {
+                "startedAt", "endedAt", "startedMonotonicNs", "endedMonotonicNs"}:
+            return None
+        try:
+            for key in ("startedAt", "endedAt"):
+                fc.check_timestamp(timing[key], key)
+            start, end = (timing[key] for key in ("startedMonotonicNs", "endedMonotonicNs"))
+            if type(start) is not int or type(end) is not int or start < 0 or end < start:
+                return None
+            # Both ticks belong to one original executor invocation. Using its
+            # clock interval also prevents UTC adjustments or offline query lag
+            # from minting a stable recovery window.
+            with localcontext() as context:
+                context.prec = len(str(end)) + 10
+                return Decimal(end - start) / 1000000000
+        except (fc.ContractError, TypeError, ValueError, OverflowError):
+            return None
+
+    def _automatic_budget(self, job, rid, step_id):
+        """Derive consecutive-window usage from monotonic canonical generation.
+
+        Only a stable rejected Attempt installs a baseline. The small per-Step
+        plan marker is a fenced window boundary, never an independent counter.
+        """
+        state = aggregate(job, self.root)
+        plan = state["plans"][rid]
+        count = state["steps"][rid][step_id]["attemptCount"]
+        windows = plan.get("recoveryWindows", {})
+        if not isinstance(windows, dict):
+            error("reconciliation_required", "Invalid recovery windows")
+        window = windows.get(step_id)
+        if window is None:
+            return count
+        if (not isinstance(window, dict) or set(window) != {"afterAttemptId", "baseGeneration"}
+                or not isinstance(window["afterAttemptId"], str)):
+            error("reconciliation_required", "Invalid recovery window")
+        base = window["baseGeneration"]
+        attempt = state["attempts"].get(window["afterAttemptId"])
+        if (type(base) is not int or base < 0 or base >= count or attempt is None
+                or attempt["runId"] != rid or attempt["stepId"] != step_id
+                or attempt["generation"] != base + 1 or attempt["state"] != "failed"):
+            error("reconciliation_required", "Recovery window does not match original failed Attempt")
+        rows = [e for e in state["effects"] if e["attemptId"] == window["afterAttemptId"]]
+        threshold = Decimal(plan["frozen"].get("recovery", {}).get("stableResetSeconds", "0"))
+        elapsed = self._stable_execution_seconds({"result": rows[0]["receipt"]}) if len(rows) == 1 else None
+        if (threshold <= 0 or elapsed is None or elapsed < threshold
+                or rows[0]["outcome"] != "rejected"):
+            error("reconciliation_required", "Recovery window lacks original stable execution evidence")
+        return count - base
+
     def _schedule_automatic(self, db, job, rid, doc):
         state = aggregate(job, self.root)
         plan = state["plans"][rid]
@@ -1360,10 +1416,15 @@ class FinalService:
             return False
         step, _, prior = self._retry_boundary(job, rid)
         count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        used = self._automatic_budget(job, rid, step["stepId"])
         reason = self._process_retry_reason(doc)
-        if (count >= policy["maxAttempts"] or reason not in policy["retryIf"] or not self._cleanup_complete(doc)
+        if (reason not in policy["retryIf"] or not self._cleanup_complete(doc)
                 or not prior or prior[-1]["attemptId"] != doc["attempt"]["attemptId"]):
             return False
+        reset = Decimal(policy["stableResetSeconds"])
+        elapsed = self._stable_execution_seconds(doc) if reset > 0 else None
+        if reset > 0 and elapsed is None:
+            return False  # Old/malformed receipts cannot assert a stable interval.
         action = plan["frozen"]["actions"][step["actionRef"]["id"]]
         if job["canonical"]["state"] not in {"enabled", "paused"}:
             return False
@@ -1371,7 +1432,13 @@ class FinalService:
             self._guard_effect(db, job, rid, plan["frozen"], action)
         except fc.ContractError:
             return False
-        delay = Decimal(policy["backoffSeconds"][min(count - 1, len(policy["backoffSeconds"]) - 1)])
+        if reset > 0 and elapsed >= reset:
+            plan.setdefault("recoveryWindows", {})[step["stepId"]] = {
+                "afterAttemptId": prior[-1]["attemptId"], "baseGeneration": count - 1}
+            used = 1  # The just-ended stable failure is first in its new window.
+        if used >= policy["maxAttempts"]:
+            return False
+        delay = Decimal(policy["backoffSeconds"][min(used - 1, len(policy["backoffSeconds"]) - 1)])
         ended = state["attempts"][prior[-1]["attemptId"]]["endedAt"]
         base = self._recovery_time(ended)
         with localcontext() as context:
@@ -1414,14 +1481,14 @@ class FinalService:
         self._validate_process_document(job, target, doc)
         step, _, prior = self._retry_boundary(job, rid, marker["stepId"])
         policy = self._automatic_policy(plan)
-        count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        used = self._automatic_budget(job, rid, step["stepId"])
         if (not policy or not prior or prior[-1]["attemptId"] != marker["afterAttemptId"]
                 or not self._cleanup_complete(doc) or doc["result"] != prior[-1]["receipt"]
                 or self._process_retry_reason(doc) != marker["reason"] or marker["reason"] not in policy["retryIf"]):
             return False
         action = plan["frozen"]["actions"][step["actionRef"]["id"]]
         try:
-            if job["canonical"]["state"] != "enabled" or count >= policy["maxAttempts"]:
+            if job["canonical"]["state"] != "enabled" or used >= policy["maxAttempts"]:
                 error("authorization_denied", "Automatic retry unavailable")
             self._guard_effect(db, job, rid, plan["frozen"], action)
         except fc.ContractError:
@@ -1503,6 +1570,8 @@ class FinalService:
                     return
                 action = frozen["actions"][step["actionRef"]["id"]]
                 try:
+                    if step["completion"]["contract"] == "monitoring":
+                        error("capability_unsupported", "No trusted Attempt-bound monitoring completion signal")
                     self._guard_effect(db, job, run_id, frozen, action)
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
                     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):

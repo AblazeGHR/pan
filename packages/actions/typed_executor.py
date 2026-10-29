@@ -21,6 +21,7 @@ import inspect
 import os
 import subprocess
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Protocol, Sequence
@@ -445,6 +446,8 @@ class TypedExecutor:
         identity: Mapping[str, Any] | None = None
         cleanup: dict[str, Any] = {"confirmed": False, "remaining": []}
         result: Mapping[str, Any] | None = None
+        started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        started_tick = time.monotonic_ns()
         try:
             handle = await _invoke(self.process_owner.spawn, list(argv), cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, hide_window=hide_window)
             identity = self.process_owner.recoverable_identity(handle)
@@ -503,6 +506,16 @@ class TypedExecutor:
                     cleanup["confirmed"] = False
                     cleanup["closeError"] = True
                     result = EffectReceipt(dict(key), "unknown", {"code": "cleanup_unconfirmed", "processIdentity": copy.deepcopy(identity) if identity else None}, cleanup).as_dict()
+        if result is not None:
+            # Execution-local facts, persisted by the original detached host.
+            # Host downtime, receipt lookup and retry waits cannot extend this
+            # interval. A missing/reversed interval never authorizes reset.
+            result["receipt"]["executionTiming"] = {
+                "startedAt": started_at,
+                "endedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "startedMonotonicNs": started_tick,
+                "endedMonotonicNs": time.monotonic_ns(),
+            }
         return result or EffectReceipt(dict(key), "unknown", {"code": "no_receipt"}, cleanup).as_dict()
 
     async def _session_message(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:

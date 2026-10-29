@@ -138,7 +138,7 @@ def marker(h, row):
 @pytest.mark.parametrize("recovery,code", [
     (policy(retryIf=[]), "capability_unsupported"),
     *[(policy(retryIf=[r]), "capability_unsupported") for r in ["orphaned", "interrupted", "dependency-unavailable", "cancelled"]],
-    (policy(stableResetSeconds="1"), "capability_unsupported"),
+    (policy(stableResetSeconds="-1"), "invalid_schema"),
     (policy(maxAttempts=11), "invalid_schema"), (policy(maxAttempts=True), "invalid_schema"),
     (policy(retryIf=["failed", "failed"]), "invalid_schema"),
     (policy(retryIf=["unknown"]), "invalid_schema"), (policy(retryIf="failed"), "invalid_schema"),
