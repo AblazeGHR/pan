@@ -8,9 +8,12 @@ import json
 import subprocess
 import sys
 
+import pytest
+
 from packages.jobs.final_service import normalize_legacy_form_fields
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='real Windows native command-line/owned creation diagnostic')
 def test_same_raw_command_legacy_shell_vs_current_crt_serialization(tmp_path, monkeypatch):
     assert sys.platform == 'win32', 'This exact diagnostic requires real Windows; no simulated pass'
     from packages.core.platform.desktop_win import DesktopCommand
