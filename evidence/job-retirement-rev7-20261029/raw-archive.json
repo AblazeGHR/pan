@@ -1,0 +1,5 @@
+{
+  "sha256": "b930b995de9c52195236549f0d0812dd25b418fd01d8711cfbcc6ca25e578af5",
+  "entries": 25,
+  "purpose": "preserve raw evidence bytes before Git EOL normalization"
+}

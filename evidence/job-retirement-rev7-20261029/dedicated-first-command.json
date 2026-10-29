@@ -1,0 +1,125 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev7_write_validation.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev7-20261029\\dedicated-first.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 48.612,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[assign]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_assign_original_fixed_target_write_contract_has_no_write_or_spawn[create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_assign_original_fixed_target_write_contract_has_no_write_or_spawn[update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-10000]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -10000]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[targetId-123]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[botUin-123]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[targetType-friend]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[targetId]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[targetType]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[botUin]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[text]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[session_message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[session_broadcast]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[assign]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_custom_action_argument_names_do_not_acquire_product_business_rules[channel]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_custom_action_argument_names_do_not_acquire_product_business_rules[session-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[id]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[system]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[operation]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[provider]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 25,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

@@ -1,0 +1,42 @@
+diff --git a/packages/jobs/final_service.py b/packages/jobs/final_service.py
+index ebedfd43..f0fe0376 100644
+--- a/packages/jobs/final_service.py
++++ b/packages/jobs/final_service.py
+@@ -199,0 +200 @@ class FinalService:
++            self._check_literal_product_qq(value, checked)
+@@ -215 +216,4 @@ class FinalService:
+-                    "product_session_broadcast": ("session-broadcast", "sessionIds")}
++                    "product_session_broadcast": ("session-broadcast", "sessionIds"),
++                    "product_session_message_v2": ("session-message", "sessionId"),
++                    "product_session_broadcast_v2": ("session-broadcast", "sessionIds"),
++                    "product_assign_v2": ("assign", "sessionId")}
+@@ -238,0 +243,29 @@ class FinalService:
++    @staticmethod
++    def _check_literal_product_qq(value, checked):
++        """Validate known literals on the immutable trusted QQ publication only."""
++        from packages.jobs.actions import normalize_scheduled_qq_action
++        provider = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1}
++        for index, (step, action) in enumerate(zip(value["steps"], checked)):
++            config = action.get("definition") or {}
++            if (action["id"] != "product_channel" or config.get("system") is not True
++                    or config.get("providerRef") != provider
++                    or config.get("execution", {}).get("operation") != "channel"):
++                continue
++            arguments = step["arguments"]
++            fixed = {key: arguments[key]["value"] for key in ("targetType", "targetId", "botUin")
++                     if arguments.get(key, {}).get("from") == "literal"}
++            if fixed:
++                # Supply valid validation-only values for unresolved fields;
++                # never persist them or turn a dynamic binding into a target.
++                _, invalid = normalize_scheduled_qq_action({"api": "send_qq", "args": {
++                    "targetType": "user", "targetId": "10000", **fixed}})
++                if invalid:
++                    raise fc.ContractError("invalid_schema", invalid,
++                        path=f"definition.steps.{index}.arguments")
++            text = arguments.get("text", {})
++            if text.get("from") == "literal":
++                raw = text["value"]
++                if not isinstance(raw, str) or not raw.strip():
++                    raise fc.ContractError("invalid_schema", "QQ text must contain a non-whitespace character",
++                        path=f"definition.steps.{index}.arguments.text")
++

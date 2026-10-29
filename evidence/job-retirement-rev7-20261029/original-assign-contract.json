@@ -1,0 +1,36 @@
+{
+  "sourceSha": "43655680f030765de5bce5ea5b675c7a0e2672d5",
+  "path": "packages/jobs/api.py",
+  "sourceSha256": "5da081f47c3bf4ba7d66c9b40b45231288bb6901f7ddffcf1645a2af0f01e4a3",
+  "writeTimeTargetChecks": [
+    {
+      "line": 586,
+      "context": "            target, target_error = _session_target(data, required=required_target)\n            if target_error:\n                return _err(\"invalid_argument\", target_error)\n            sid = target.get(\"sessionId\") if target else None\n        if action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION and sid:\n            return _err(\"invalid_argument\",\n                        \"resume_legal_running does not accept a fixed target Session\")\n        if sid and not _session_exists(sid):\n            return _err(\"session_not_found\", f\"Session {sid} not found\")\n        if \"schedule\" not in data:\n            return _err(\"invalid_schedule\", \"schedule is required\")\n        schedule_error = _validate_scheduled_specs(data[\"schedule\"])"
+    },
+    {
+      "line": 640,
+      "context": "            kind)\n        if unknown:\n            return _err(\"invalid_argument\", unknown)\n        target, target_error = _session_target(data, required=True)\n        if target_error:\n            return _err(\"invalid_argument\", target_error)\n        sid = target[\"sessionId\"]\n        if not _session_exists(sid):\n            return _err(\"session_not_found\", f\"Session {sid} not found\")\n        if \"label\" in data and not isinstance(data[\"label\"], str):\n            return _err(\"invalid_argument\", \"label must be a string\")\n        try:"
+    },
+    {
+      "line": 678,
+      "context": "        if target_error:\n            return _err(\"invalid_argument\", target_error)\n        ids = (target.get(\"sessionIds\") if kind == background_jobs.SESSION_BROADCAST_KIND\n               else [target[\"sessionId\"]])\n        if not ids:\n            return _err(\"invalid_argument\", \"broadcast target.sessionIds is required\")\n        for sid in ids:\n            if not _session_exists(sid):\n                return _err(\"session_not_found\", f\"Session {sid} not found\")\n        if \"schedule\" not in data:\n            return _err(\"invalid_schedule\", \"schedule is required\")\n        schedule_error = _validate_message_schedule(data[\"schedule\"])"
+    },
+    {
+      "line": 920,
+      "context": "                allow_many=kind == background_jobs.SESSION_BROADCAST_KIND)\n            if target_error:\n                return _err(\"invalid_argument\", target_error)\n            target_ids = (target.get(\"sessionIds\")\n                          if kind == background_jobs.SESSION_BROADCAST_KIND\n                          else [target[\"sessionId\"]])\n            for sid in target_ids or []:\n                if not _session_exists(sid):\n                    return _err(\"session_not_found\", f\"Session {sid} not found\")\n                access_error = _source_target_access_error(\n                    job.get(\"sourceSessionId\"), sid)\n                if access_error:"
+    },
+    {
+      "line": 1001,
+      "context": "                        \"resume_legal_running does not accept a fixed target Session\")\n        if (kind == background_jobs.SCHEDULED_TASK_KIND\n                and isinstance(job.get(\"action\"), dict)\n                and job[\"action\"].get(\"api\") == \"send_qq\"\n                and \"action\" not in data and sid):\n            return _err(\"invalid_argument\", \"send_qq does not accept a Session target\")\n        if sid:\n            if not _session_exists(sid):\n                return _err(\"session_not_found\", f\"Session {sid} not found\")\n            access_error = _source_target_access_error(\n                job.get(\"sourceSessionId\"), sid)\n            if access_error:"
+    },
+    {
+      "line": 1033,
+      "context": "            if \"target\" in data and target_sid:\n                return _err(\"invalid_argument\", \"send_qq does not accept a Session target\")\n            changes[\"target\"] = {\"sessionId\": None}\n        elif action_api in {\"assign\", \"send_session\"}:\n            if not isinstance(target_sid, str) or not target_sid.strip():\n                return _err(\"invalid_argument\",\n                            f\"target.sessionId is required for {action_api}\")\n            if not _session_exists(target_sid):\n                return _err(\"session_not_found\", f\"Session {target_sid} not found\")\n        elif (action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION\n              and \"target\" in data and target_sid):\n            return _err(\"invalid_argument\","
+    },
+    {
+      "line": 1040,
+      "context": "            if not _session_exists(target_sid):\n                return _err(\"session_not_found\", f\"Session {target_sid} not found\")\n        elif (action_api == background_jobs.RESUME_LEGAL_RUNNING_ACTION\n              and \"target\" in data and target_sid):\n            return _err(\"invalid_argument\",\n                        \"resume_legal_running does not accept a fixed target Session\")\n        elif (action_api != background_jobs.RESUME_LEGAL_RUNNING_ACTION\n              and target_sid and not _session_exists(target_sid)):\n            return _err(\"session_not_found\", f\"Session {target_sid} not found\")\n        merged_text = data.get(\"text\", job.get(\"text\"))\n        if action_api in {\"assign\", \"send_session\"}:\n            if not isinstance(merged_text, str) or not merged_text.strip():"
+    }
+  ],
+  "reason": "Scheduled assign/send_session require an existing fixed target on POST and PATCH; native v2 uses same contract."
+}
