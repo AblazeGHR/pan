@@ -244,6 +244,7 @@ def test_fc01_each_definition_object_accepts_a_minimal_valid_definition(kind):
         assert value["overlap"] == {"mode": "forbid", "maxActive": 1, "maxPending": 0}
         assert value["recovery"] == {
             "automatic": False,
+            "retryIf": [],
             "maxAttempts": 3,
             "backoffSeconds": ["5", "15", "60"],
             "stableResetSeconds": "300",

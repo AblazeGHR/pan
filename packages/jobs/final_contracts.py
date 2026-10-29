@@ -1097,6 +1097,7 @@ def _job_step_defs() -> dict[str, Any]:
         "Recovery": _obj(
             {
                 "automatic": {"type": "boolean", "default": False},
+                "retryIf": _arr({"enum": ["failed", "orphaned", "timeout", "interrupted", "cancelled", "dependency-unavailable"]}, unique=True),
                 "maxAttempts": {"type": "integer", "minimum": 1, "maximum": 10, "default": 3},
                 "backoffSeconds": _arr(_DURATION, min_items=1, max_items=MAX_BACKOFF_STEPS, unique=False),
                 "stableResetSeconds": _DURATION,
@@ -2275,6 +2276,7 @@ def _normalize_job(value: dict[str, Any]) -> dict[str, Any]:
     recovery = value.get("recovery")
     if isinstance(recovery, dict):
         recovery.setdefault("automatic", False)
+        recovery.setdefault("retryIf", [])
         recovery.setdefault("maxAttempts", 3)
         recovery.setdefault("backoffSeconds", ["5", "15", "60"])
         recovery.setdefault("stableResetSeconds", "300")

@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+from datetime import datetime, timezone
+from decimal import Decimal, localcontext
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -185,10 +187,15 @@ class FinalService:
         return resolve
 
     def _references(self, db, kind, value, *, object_id=None, enabled=False):
-        if kind == "job" and value.get("recovery", {}).get("automatic"):
-            error("capability_unsupported", "Automatic recovery requires a separately bound recovery policy")
         checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
         if kind == "job":
+            recovery = value.get("recovery", {})
+            if recovery.get("automatic"):
+                if (not recovery.get("retryIf") or set(recovery["retryIf"]) - {"failed", "timeout"}
+                        or Decimal(recovery.get("stableResetSeconds", "300")) != 0
+                        or any(a["execution"]["operation"] != "process" or a.get("effectClass") == "high_risk"
+                               or not (a["retry"]["idempotent"] or a["retry"]["sameKeySupported"]) for a in checked[:len(value["steps"])])):
+                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with finite policy and stableResetSeconds=0")
             self._check_literal_product_sessions(value, checked)
         if kind == "trigger":
             selector = value["creatorSelector"]
@@ -559,6 +566,7 @@ class FinalService:
             self.final.ledger.run(job, self.root, rerun)
         frozen = {"steps": copy.deepcopy(cfg["steps"]), "actions": {a["id"]: a for a in actions if a.get("definition")},
                   "input": input_value, "event": copy.deepcopy(value.get("event", {})),
+                  "recovery": copy.deepcopy(cfg["recovery"]),
                   "authority": copy.deepcopy(actor), "configRevision": item["configRevision"]}
         for step in cfg["steps"]:
             if any(binding["from"] == "step" for binding in step["arguments"].values()):
@@ -693,6 +701,28 @@ class FinalService:
         self._permit(actor, "job", "read")
         return self._page(self.final.runs(job_id), "runs:" + job_id, cursor, limit, actor)
 
+    def _retry_boundary(self, job, run_id, step_id=None):
+        """Shared manual safety checks; automatic policy adds stricter gates."""
+        state = aggregate(job, self.root)
+        failed = [step for step in state["steps"][run_id].values() if step["state"] == "failed"]
+        if step_id and (not failed or step_id != failed[0]["stepId"]):
+            error("not_retryable", "Retry must resume the failed boundary")
+        if not failed or run_id not in state["plans"]:
+            error("not_retryable", "Frozen snapshot unavailable")
+        if any(e["outcome"] in {"unknown", "partial"} for e in state["effects"] if e["effectKey"]["runId"] == run_id):
+            error("reconciliation_required", "Unknown Effect cannot be retried")
+        frozen = state["plans"][run_id]["frozen"]
+        failed_id = failed[0]["stepId"]
+        step = next(s for s in frozen["steps"] if s["stepId"] == failed_id)
+        policy = frozen["actions"][step["actionRef"]["id"]]["retry"]
+        prior = [e for e in state["effects"] if e["effectKey"]["runId"] == run_id and e["effectKey"]["stepId"] == failed_id]
+        if any(e["outcome"] == "succeeded" for e in prior):
+            error("not_retryable", "Successful effect cannot be repeated")
+        if prior and (not (policy["idempotent"] or policy["sameKeySupported"]) or
+                      (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed"))):
+            error("not_retryable", "Effect lacks retry/cleanup proof")
+        return step, policy, prior
+
     def control_run(self, run_id, body, *, actor):
         self._permit(actor, "job", "execute")
         operation = body["operation"]
@@ -731,23 +761,8 @@ class FinalService:
                         error("reconciliation_required", "Unknown effect must be reconciled")
                     if run["state"] != "failed":
                         error("not_retryable", "Run is not failed")
-                    failed = [step for step in state["steps"][run_id].values() if step["state"] == "failed"]
-                    if body.get("stepId") and (not failed or body["stepId"] != failed[0]["stepId"]):
-                        error("not_retryable", "Retry must resume the failed boundary")
-                    if not failed or run_id not in state["plans"]:
-                        error("not_retryable", "Frozen snapshot unavailable")
-                    if any(e["outcome"] in {"unknown", "partial"} for e in state["effects"] if e["effectKey"]["runId"] == run_id):
-                        error("reconciliation_required", "Unknown Effect cannot be retried")
-                    frozen = state["plans"][run_id]["frozen"]
-                    failed_id = failed[0]["stepId"]
-                    step = next(s for s in frozen["steps"] if s["stepId"] == failed_id)
-                    policy = frozen["actions"][step["actionRef"]["id"]]["retry"]
-                    prior = [e for e in state["effects"] if e["effectKey"]["runId"] == run_id and e["effectKey"]["stepId"] == failed_id]
-                    if any(e["outcome"] == "succeeded" for e in prior):
-                        error("not_retryable", "Successful effect cannot be repeated")
-                    if prior and (not (policy["idempotent"] or policy["sameKeySupported"]) or
-                                  (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed"))):
-                        error("not_retryable", "Effect lacks retry/cleanup proof")
+                    self._retry_boundary(job, run_id, body.get("stepId"))
+                    state["plans"][run_id].pop("autoRecovery", None)
                     self.final.ledger.transition_run(job, self.root, run_id, "retry_wait", operation="retry")
                     result["attemptId"] = None
                     pending = True
@@ -1072,6 +1087,142 @@ class FinalService:
             if not fixed_lifecycle:
                 error("authorization_denied", "Arbitrary high-risk effects are forbidden")
 
+    @staticmethod
+    def _recovery_time(timestamp=None):
+        value = datetime.fromisoformat(timestamp.replace("Z", "+00:00")) if timestamp else datetime.now(timezone.utc)
+        delta = value - datetime(1970, 1, 1, tzinfo=timezone.utc)
+        return Decimal(delta.days * 86400 + delta.seconds) + Decimal(delta.microseconds) / 1000000
+
+    @staticmethod
+    def _automatic_policy(plan):
+        # Old frozen Runs never acquire policy from a later definition edit.
+        policy = plan["frozen"].get("recovery", {})
+        return policy if policy.get("automatic") and policy.get("retryIf") else None
+
+    def _automatic_due(self, plan):
+        if "autoRecovery" not in plan:
+            return True
+        try:
+            deadline = Decimal(fc.check_duration(plan["autoRecovery"]["eligibleAt"], "eligibleAt"))
+            return self._recovery_time() >= deadline
+        except (fc.ContractError, KeyError, TypeError):
+            return False  # Corrupt/missing metadata cannot mean immediately due.
+
+    def _validate_process_document(self, job, target, doc):
+        """Only a fenced original host lookup supplies automatic retry proof."""
+        from packages.jobs.independent_executor import fence, effect_id
+        state = aggregate(job, self.root)
+        expected, key = target["attempt"], target["effectKey"]
+        current = state["attempts"][expected["attemptId"]]
+        plan = state["plans"][current["runId"]]
+        frozen = plan["frozen"]
+        step = next(s for s in frozen["steps"] if s["stepId"] == current["stepId"])
+        action = frozen["actions"][step["actionRef"]["id"]]
+        executable = {**copy.deepcopy(action["execution"]["config"]), "operation": action["execution"]["operation"],
+                      "effect": action["effectClass"], "arguments": resolve_bindings(
+                          step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))}
+        if (action["execution"]["operation"] != "process" or action["effectClass"] == "high_risk"
+                or target["jobId"] != job["jobId"] or doc.get("jobId") != job["jobId"]
+                or fence(current) != fence(expected) or fence(doc.get("attempt", {})) != fence(expected)
+                or (key["runId"], key["stepId"]) != (current["runId"], current["stepId"])
+                or state["steps"][current["runId"]][current["stepId"]]["attemptCount"] != current["generation"]
+                or doc.get("effectKey") != key or doc.get("effectId") != effect_id(key)
+                or doc.get("planDigest") != fc.digest(executable) or doc.get("frozenPlan") != executable
+                or (doc.get("result") and doc["result"].get("effectKey") != key)):
+            error("revision_conflict", "Original process proof differs from frozen Attempt/effect/plan")
+
+    @staticmethod
+    def _process_retry_reason(doc):
+        result = doc.get("result") or {}
+        receipt = result.get("receipt", {})
+        if result.get("outcome") != "rejected":
+            return None
+        if receipt.get("code") == "timeout":
+            return "timeout"
+        if ("code" not in receipt and type(receipt.get("exitCode")) is int
+                and receipt["exitCode"] != 0):
+            return "failed"
+        return None
+
+    def _schedule_automatic(self, db, job, rid, doc):
+        state = aggregate(job, self.root)
+        plan = state["plans"][rid]
+        policy = self._automatic_policy(plan)
+        if not policy or state["runs"][rid]["state"] != "failed" or rid in state.get("cancellations", {}):
+            return False
+        step, _, prior = self._retry_boundary(job, rid)
+        count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        reason = self._process_retry_reason(doc)
+        if (count >= policy["maxAttempts"] or reason not in policy["retryIf"] or not self._cleanup_complete(doc)
+                or not prior or prior[-1]["attemptId"] != doc["attempt"]["attemptId"]):
+            return False
+        action = plan["frozen"]["actions"][step["actionRef"]["id"]]
+        if job["canonical"]["state"] not in {"enabled", "paused"}:
+            return False
+        try:
+            self._guard_effect(db, job, rid, plan["frozen"], action)
+        except fc.ContractError:
+            return False
+        delay = Decimal(policy["backoffSeconds"][min(count - 1, len(policy["backoffSeconds"]) - 1)])
+        ended = state["attempts"][prior[-1]["attemptId"]]["endedAt"]
+        base = self._recovery_time(ended)
+        with localcontext() as context:
+            context.prec = len(str(base)) + len(str(delay)) + 8
+            deadline = format(base + delay, "f")
+        plan["autoRecovery"] = {"stepId": step["stepId"], "afterAttemptId": prior[-1]["attemptId"],
+                                "eligibleAt": deadline, "reason": reason}
+        self.final.ledger.transition_run(job, self.root, rid, "retry_wait", operation="retry")
+        self._save(db, "job", job["jobId"], job)
+        return True
+
+    async def _automatic_original(self, job_id, rid):
+        with self.transaction(readonly=True) as db:
+            job = self._get(db, "job", job_id)
+            state = aggregate(job, self.root)
+            marker = copy.deepcopy(state["plans"][rid].get("autoRecovery"))
+            if marker is None:
+                return None, None
+            if not isinstance(marker, dict):
+                return marker, None
+            aid = marker.get("afterAttemptId")
+            prior = [e for e in state["effects"] if e["attemptId"] == aid]
+            if len(prior) != 1 or aid not in state["attempts"]:
+                return marker, None
+            target = {"jobId": job_id, "attempt": copy.deepcopy(state["attempts"][aid]),
+                      "effectKey": copy.deepcopy(prior[0]["effectKey"])}
+        try:
+            doc = await self._external_adapter(job_id).lookup_execution(
+                attempt=target["attempt"], effect_key=target["effectKey"])
+            return marker, (target, doc)
+        except Exception:
+            return marker, None  # No resend or cleanup to obtain evidence.
+
+    def _claim_automatic(self, db, job, rid, marker, original):
+        state = aggregate(job, self.root)
+        plan = state["plans"][rid]
+        if plan.get("autoRecovery") != marker or not self._automatic_due(plan) or original is None:
+            return False
+        target, doc = original
+        self._validate_process_document(job, target, doc)
+        step, _, prior = self._retry_boundary(job, rid, marker["stepId"])
+        policy = self._automatic_policy(plan)
+        count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        if (not policy or not prior or prior[-1]["attemptId"] != marker["afterAttemptId"]
+                or not self._cleanup_complete(doc) or doc["result"] != prior[-1]["receipt"]
+                or self._process_retry_reason(doc) != marker["reason"] or marker["reason"] not in policy["retryIf"]):
+            return False
+        action = plan["frozen"]["actions"][step["actionRef"]["id"]]
+        try:
+            if job["canonical"]["state"] != "enabled" or count >= policy["maxAttempts"]:
+                error("authorization_denied", "Automatic retry unavailable")
+            self._guard_effect(db, job, rid, plan["frozen"], action)
+        except fc.ContractError:
+            self.final.ledger.start(job, self.root, rid)
+            self.final.ledger.transition_run(job, self.root, rid, "failed")
+            self._settle(db, job, rid, failure="authorization_denied")
+            return False
+        return True
+
     async def dispatch_once(self):
         """Drive WP02 records through WP05, one serial boundary per Run."""
         await self.recover_session_receipts()
@@ -1085,7 +1236,8 @@ class FinalService:
                     # Queued cancellation, however, needs no effect slot.
                     candidates.extend((job["jobId"], run["runId"]) for run in runs if run["state"] == "cancelling")
                     occupied = sum(run["state"] in {"running", "uncertain", "settling"} for run in runs)
-                    ready = [r for r in runs if r["state"] in {"queued", "retry_wait", "paused_at_boundary"}]
+                    ready = [r for r in runs if r["state"] in {"queued", "retry_wait", "paused_at_boundary"}
+                             and self._automatic_due(aggregate(job, self.root)["plans"][r["runId"]])]
                     # Canonical JSON sorts map keys, so dictionary iteration
                     # after reload is not admission order.
                     ready.sort(key=lambda run: (run["createdAt"], run["runId"]))
@@ -1094,11 +1246,14 @@ class FinalService:
             await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
 
     async def _drive_run(self, job_id, run_id):
+        marker, original = await self._automatic_original(job_id, run_id)
         with self.transaction() as db:
             job = self._get(db, "job", job_id)
             state = aggregate(job, self.root)
             run = state["runs"][run_id]
             plan = state["plans"][run_id]
+            if run["state"] not in {"queued", "retry_wait", "paused_at_boundary", "cancelling"}:
+                return
             if run["state"] == "cancelling":
                 self._cancel_boundary(db, job, run_id)
                 return
@@ -1111,8 +1266,9 @@ class FinalService:
                 return
             if job["canonical"]["state"] == "paused":
                 return
-            self.final.ledger.start(job, self.root, run_id)
-            self._save(db, "job", job_id, job)
+            if not plan.get("autoRecovery"):
+                self.final.ledger.start(job, self.root, run_id)
+                self._save(db, "job", job_id, job)
             self._complete_boundary_controls(db, run_id, {"resume"})
         while True:
             with self.transaction() as db:
@@ -1129,6 +1285,9 @@ class FinalService:
                     self._complete_boundary_controls(db, run_id, {"pause"})
                     return
                 frozen = plan["frozen"]
+                if plan.get("autoRecovery"):
+                    if not self._claim_automatic(db, job, run_id, marker, original):
+                        return
                 step = next((s for s in frozen["steps"] if state["steps"][run_id][s["stepId"]]["state"] != "completed"), None)
                 if step is None:
                     self.final.ledger.transition_run(job, self.root, run_id, "completed")
@@ -1153,6 +1312,7 @@ class FinalService:
                     self.final.ledger.transition_run(job, self.root, run_id, "failed")
                     self._settle(db, job, run_id, failure=getattr(exc, "code", "invalid_schema"))
                     return
+                self.final.ledger.start(job, self.root, run_id)
                 attempt = self.final.ledger.begin_attempt(
                     job, self.root, run_id, step["stepId"],
                     owner_epoch=self.owner.token[0] if self.owner.token else 1,
@@ -1163,6 +1323,7 @@ class FinalService:
                         op["response"]["result"]["attemptId"] = attempt["attemptId"]
                         db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
                 effect_key = self.final.ledger.admit_effect(job, self.root, attempt["attemptId"], action["id"])
+                plan.pop("autoRecovery", None)
                 executable = {**copy.deepcopy(action["execution"]["config"]),
                               "operation": action["execution"]["operation"], "effect": action["effectClass"], "arguments": args}
                 if executable["operation"] == "channel":
@@ -1184,6 +1345,15 @@ class FinalService:
                 # A fenced lookup may have already committed this very receipt
                 # while the original callback was delayed in transport.
                 if state["attempts"][attempt["attemptId"]]["state"] != "running":
+                    return
+                if (self.executor is self._product_executor and executable["operation"] == "process"
+                        and self._automatic_policy(state["plans"][run_id])
+                        and receipt.get("effectKey") == effect_key
+                        and (outcome == "rejected" or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
+                    # Known default-host pending is a query reference, not a lost
+                    # effect. Keep its original running admission until lookup.
+                    state["plans"][run_id]["pendingProcessAttempt"] = attempt["attemptId"]
+                    self._save(db, "job", job_id, job)
                     return
                 self.final.ledger.finish_attempt(job, self.root, attempt["attemptId"], mapped,
                     expected_epoch=attempt["ownerEpoch"], expected_generation=attempt["generation"])
@@ -1254,6 +1424,10 @@ class FinalService:
                 for run in state["runs"].values():
                     active_attempts = [attempt for attempt in state["attempts"].values()
                                        if attempt["runId"] == run["runId"] and attempt["state"] == "running"]
+                    pending = state["plans"][run["runId"]].get("pendingProcessAttempt")
+                    if (run["state"] == "running" and len(active_attempts) == 1
+                            and active_attempts[0]["attemptId"] == pending):
+                        continue  # Original detached host is queried, never resubmitted.
                     if run["state"] != "running" and not active_attempts:
                         continue
                     # A cancelling Run can still own an in-flight effect. A
@@ -1373,17 +1547,42 @@ class FinalService:
                     self._settle(db, job, rid)
                 else:
                     receipt = documents[0].get("result")
+                    plan = state["plans"][rid]
+                    pending_aid = plan.get("pendingProcessAttempt")
+                    is_pending = pending_aid == targets[0]["attempt"]["attemptId"]
+                    # A lookup can race a newer Attempt/cancellation or another
+                    # pulse. The original pending reference is consumed once.
+                    if is_pending:
+                        self._validate_process_document(job, targets[0], documents[0])
+                        if state["attempts"][pending_aid]["state"] != "running":
+                            continue
+                        if receipt and receipt.get("outcome") in {"unknown", "partial"}:
+                            self.final.ledger.finish_attempt(job, self.root, pending_aid, "uncertain")
+                            self.final.ledger.record_effect(job, self.root, pending_aid,
+                                "partial" if receipt["outcome"] == "partial" else "unknown", receipt)
+                            plan.pop("pendingProcessAttempt", None)
+                            self.final.ledger.transition_run(job, self.root, rid, "uncertain")
+                            self._settle(db, job, rid)
+                            continue
+                        if receipt and receipt.get("outcome") == "rejected" and not self._cleanup_complete(documents[0]):
+                            continue  # Includes a supervisor that has not exited yet.
+                    elif self._automatic_policy(plan) and state["attempts"][targets[0]["attempt"]["attemptId"]]["state"] not in {"running", "uncertain"}:
+                        continue
                     if not receipt or receipt.get("outcome") not in {"succeeded", "rejected"}:
                         continue
                     # A control may have arrived while lookup was in flight.
                     if rid in state.get("cancellations", {}):
                         continue
                     outcome = self._apply_original_receipt(job, targets[0], receipt)
+                    if is_pending:
+                        plan.pop("pendingProcessAttempt", None)
                     target_state = ("completed" if all(s["state"] == "completed" for s in state["steps"][rid].values())
                                     else "retry_wait") if outcome == "completed" else "failed"
                     run = state["runs"][rid]
                     self.final.ledger.transition_run(job, self.root, rid, target_state,
                         operation="reconcile" if run["state"] == "uncertain" else None)
+                    if is_pending and outcome == "failed" and self._schedule_automatic(db, job, rid, documents[0]):
+                        continue
                     self._save(db, "job", job_id, job)
                     if target_state != "retry_wait":
                         self._settle(db, job, rid)

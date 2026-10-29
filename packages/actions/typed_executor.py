@@ -452,8 +452,12 @@ class TypedExecutor:
             if getattr(waited, "timed_out", False) or not getattr(waited, "exited", True):
                 terminated = await _invoke(self.process_owner.terminate, handle, grace=self.terminate_grace)
                 tree = await _invoke(self.process_owner.kill_tree, handle, timeout=self.terminate_grace)
+                check = await _invoke(self.process_owner.verify, identity)
+                identity_verified = (getattr(check, "ours", None) is True
+                                     or (getattr(terminated, "exited", False) is True and tree.confirmed is True))
                 cleanup = {
-                    "confirmed": tree.confirmed is True and getattr(terminated, "exited", False) is True,
+                    "confirmed": tree.confirmed is True and getattr(terminated, "exited", False) is True and identity_verified,
+                    "identityVerified": identity_verified,
                     "treeTerminated": tree.confirmed is True,
                     "remaining": list(tree.remaining),
                     "ownedTree": tree.as_dict(),

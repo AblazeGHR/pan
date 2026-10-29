@@ -207,6 +207,20 @@
           "type": "boolean",
           "default": false
         },
+        "retryIf": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "failed",
+              "orphaned",
+              "timeout",
+              "interrupted",
+              "cancelled",
+              "dependency-unavailable"
+            ]
+          },
+          "uniqueItems": true
+        },
         "maxAttempts": {
           "type": "integer",
           "minimum": 1,
