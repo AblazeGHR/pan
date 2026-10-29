@@ -1017,6 +1017,17 @@ class FinalService:
                 "defaultCompletion": "durable-queue-accepted", "cancel": {"supported": False}, "reconcile": {"supported": False},
                 "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
 
+        self.publish_action("product_resume_legal_running_v1", {
+            "name": "Resume Illegal / pending recovery Sessions",
+            "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+            "outputSchema": {"type": "object"},
+            "providerRef": {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.resume-legal-running.v1"), "generation": 1},
+            "execution": {"operation": "resume-legal-running.v1", "config": {}}, "effectClass": "write_local",
+            "requiredCapabilities": [],
+            "completionContracts": [{"id": "durable-queue-accepted", "schema": {"type": "object"}, "terminalProofSchema": {"type": "object"}}],
+            "defaultCompletion": "durable-queue-accepted", "cancel": {"supported": False}, "reconcile": {"supported": False},
+            "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
+
     @staticmethod
     def _session_source(arguments, authority):
         """Source is message context, never a grant or a transport identity.
@@ -1131,6 +1142,12 @@ class FinalService:
                         error("invalid_schema", "Action input schema rejected mapping")
                     if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
                         args = self._session_source(args, frozen["authority"])
+                    if action["execution"]["operation"] == "resume-legal-running.v1":
+                        from packages.actions.session_resume import select
+                        selections = plan.setdefault("resumeSelections", {})
+                        if step["stepId"] not in selections:
+                            selections[step["stepId"]] = select()
+                        args = {"sessionIds": copy.deepcopy(selections[step["stepId"]])}
                 except (fc.ContractError, ValueError) as exc:
                     self.final.ledger.fail_step_without_attempt(job, self.root, run_id, step["stepId"])
                     self.final.ledger.transition_run(job, self.root, run_id, "failed")
@@ -1395,18 +1412,26 @@ class FinalService:
                     step = next(s for s in frozen["steps"] if s["stepId"] == attempt["stepId"])
                     action = frozen["actions"][step["actionRef"]["id"]]
                     op = action["execution"]["operation"]
-                    if op not in {"session-message", "session-broadcast", "assign"}:
+                    if op not in {"session-message", "session-broadcast", "assign", "resume-legal-running.v1"}:
                         continue
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
+                    if op == "resume-legal-running.v1":
+                        selections = plan.get("resumeSelections")
+                        ids = selections.get(step["stepId"]) if isinstance(selections, dict) else None
+                        if not isinstance(ids, list) or any(not isinstance(sid, str) or not sid for sid in ids):
+                            continue  # Missing selection is not an empty successful scan.
+                        args = {"sessionIds": copy.deepcopy(ids)}
                     prior = next(e["receipt"] for e in state["effects"] if e["attemptId"] == attempt["attemptId"])
                     pending.append((target, op, args, copy.deepcopy(prior)))
         for target, op, args, prior in pending:
             key = target["effectKey"]
-            ids = list(dict.fromkeys(args["sessionIds"])) if op == "session-broadcast" else [args["sessionId"]]
+            fanout = op in {"session-broadcast", "resume-legal-running.v1"}
+            resume = op == "resume-legal-running.v1"
+            ids = list(dict.fromkeys(args["sessionIds"])) if fanout else [args["sessionId"]]
             rows = []
             for sid in ids:
-                child = {**key, "targetId": sid} if op == "session-broadcast" else key
-                previous = next((r for r in prior.get("receipt", {}).get("targets", []) if r.get("effectKey") == child), None) if op == "session-broadcast" else prior
+                child = {**key, "targetId": sid} if fanout else key
+                previous = next((r for r in prior.get("receipt", {}).get("results" if resume else "targets", []) if r.get("effectKey") == child), None) if fanout else prior
                 if previous and previous.get("outcome") in {"succeeded", "rejected"}:
                     rows.append(previous)
                     continue
@@ -1417,10 +1442,15 @@ class FinalService:
                     if op == "assign":
                         task_id = args.get("taskId") or "effect_" + fc.digest(child)[:40]
                         item = worker._find_queue_item_by_idempotency(session, task_id=task_id)
+                    elif resume:
+                        from packages.actions.session_resume import client_message_id
+                        item = worker._find_queue_item_by_idempotency(session, client_message_id=client_message_id(child))
+                        if item is not None and item.get("source") != "automation":
+                            return None
                     else:
                         item = worker._find_queue_item_by_idempotency(session, client_message_id="effect_" + fc.digest(child)[:40])
                     # A key collision is not proof for a different body.
-                    if item is None or ("text" in item and item["text"] != args["text"]):
+                    if item is None or (not resume and "text" in item and item["text"] != args["text"]):
                         return None
                     return {"status": "accepted", "sessionId": sid, "queueItemId": worker._queue_item_id(item),
                             "taskId": item.get("taskId"), "consumption": "unconfirmed"}
@@ -1437,9 +1467,10 @@ class FinalService:
             outcome = "succeeded" if all(s == "succeeded" for s in outcomes) else "rejected" if all(s == "rejected" for s in outcomes) else "partial"
             if outcome == "partial":
                 continue  # Existing canonical uncertain aggregate stays queryable.
-            receipt = rows[0] if op != "session-broadcast" else EffectReceipt(key, outcome,
-                {"targets": rows, "matched": len(rows), "succeeded": outcomes.count("succeeded"),
-                 "rejected": outcomes.count("rejected"), "unknown": 0}, target_selection={"sessionIds": ids}).as_dict()
+            receipt = rows[0] if not fanout else EffectReceipt(key, outcome,
+                ({"matchedCount": len(ids), "results": rows} if resume else
+                 {"targets": rows, "matched": len(rows), "succeeded": outcomes.count("succeeded"),
+                  "rejected": outcomes.count("rejected"), "unknown": 0}), target_selection={"sessionIds": ids}).as_dict()
             with self.transaction() as db:
                 job = self._get(db, "job", target["jobId"])
                 state = aggregate(job, self.root)

@@ -117,6 +117,13 @@ class WorkerSessionProvider:
     derived from the effect key.
     """
 
+    async def wake_session(self, session_id: str, *, effect_key: Mapping[str, Any]) -> Mapping[str, Any]:
+        from packages.core import worker
+        from .session_resume import client_message_id
+        client_id = client_message_id(effect_key)
+        result = await worker.wake_session(session_id, source="automation", client_message_id=client_id)
+        return await _original_queue_receipt(worker, session_id, result, client_message_id=client_id)
+
     async def send_session(
         self,
         session_id: str,
@@ -389,6 +396,8 @@ class TypedExecutor:
                 result = await self._session_message(key, plan)
             elif operation in {"session-broadcast", "broadcast"}:
                 result = await self._session_broadcast(key, plan)
+            elif operation == "resume-legal-running.v1":
+                result = await self._session_resume(key, plan)
             elif operation in {"channel", "qq", "send_qq"}:
                 result = await self._channel(key, plan)
             else:
@@ -575,6 +584,31 @@ class TypedExecutor:
         else:
             overall = "partial"
         return EffectReceipt(dict(key), overall, {"targets": rows, "matched": len(rows), "succeeded": outcomes.count("succeeded"), "rejected": outcomes.count("rejected"), "unknown": outcomes.count("unknown")}, target_selection={"sessionIds": ids}).as_dict()
+
+    async def _session_resume(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        ids = plan.get("arguments", {}).get("sessionIds")
+        if not isinstance(ids, list) or any(not isinstance(sid, str) or not sid for sid in ids):
+            raise contracts.ContractError("invalid_schema", "Canonical frozen resume selection required")
+        method = getattr(self.session_provider, "wake_session", None)
+        rows = []
+        for sid in ids:
+            child = {**key, "targetId": sid}
+            if method is None:
+                outcome, detail = "rejected", {"code": "provider_unavailable"}
+            else:
+                try:
+                    detail = await _invoke(method, sid, effect_key=child)
+                    outcome = _status(detail)
+                    detail = dict(detail) if isinstance(detail, Mapping) else {"value": detail}
+                except BaseException as exc:
+                    outcome, detail = _provider_error(exc)
+            rows.append(EffectReceipt(child, outcome, detail, target_selection={"sessionIds": [sid]}).as_dict())
+        outcomes = [row["outcome"] for row in rows]
+        outcome = ("succeeded" if all(s == "succeeded" for s in outcomes) else
+                   "rejected" if all(s == "rejected" for s in outcomes) else
+                   "unknown" if all(s == "unknown" for s in outcomes) else "partial")
+        return EffectReceipt(dict(key), outcome, {"matchedCount": len(ids), "results": rows},
+                             target_selection={"sessionIds": ids}).as_dict()
 
     async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
         action = plan.get("action") if isinstance(plan.get("action"), Mapping) else plan
