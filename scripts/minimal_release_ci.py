@@ -50,6 +50,21 @@ def missing_contracts(root):
     return missing
 
 
+def missing_fast_coverage(root):
+    path = root / 'scripts/validate_minimal_platform.py'
+    try:
+        tree = ast.parse(path.read_text(encoding='utf-8'))
+        assignment = next(node for node in tree.body if isinstance(node, ast.Assign)
+                          and any(isinstance(target, ast.Name) and target.id == 'FAST'
+                                  for target in node.targets))
+        nodes = ast.literal_eval(assignment.value)
+        if not isinstance(nodes, (tuple, list)):
+            raise ValueError('FAST must be a list or tuple')
+    except (OSError, SyntaxError, StopIteration, ValueError) as exc:
+        return ['Cannot inspect CP-X3 FAST manifest: ' + str(exc)]
+    return ['FAST omits required contract file: ' + name for name in REQUIRED if name not in nodes]
+
+
 def command(phase, out):
     nodes = {'supplemental': SUPPLEMENTAL, 'legacy': LEGACY, 'browser': BROWSER}[phase]
     child = [sys.executable, '-m', 'pytest', *nodes, '-q', '-ra',
@@ -69,7 +84,7 @@ def main():
     argv = command(args.phase, out) if args.phase != 'check' else []
     started = time.monotonic()
     with (out / (args.phase + '.log')).open('w', encoding='utf-8') as log:
-        missing = missing_contracts(ROOT) if args.phase == 'check' else []
+        missing = (missing_contracts(ROOT) + missing_fast_coverage(ROOT)) if args.phase == 'check' else []
         if missing:
             log.write('Required extracted contracts missing:\n' + '\n'.join(missing) + '\n')
             exit_code = 4

@@ -26,3 +26,11 @@ def test_missing_required_function_is_reported(tmp_path, monkeypatch):
     (tmp_path / filename).write_text('def existing(): pass\n', encoding='utf-8')
     monkeypatch.setattr(gate, 'REQUIRED', {filename: ('existing', 'required')})
     assert gate.missing_contracts(tmp_path) == [filename + '::required']
+
+
+def test_fast_manifest_must_include_extracted_contract_files(tmp_path, monkeypatch):
+    script = tmp_path / 'scripts/validate_minimal_platform.py'
+    script.parent.mkdir()
+    script.write_text("FAST = ['included.py']\n", encoding='utf-8')
+    monkeypatch.setattr(gate, 'REQUIRED', {'included.py': ('test_one',), 'omitted.py': ('test_two',)})
+    assert gate.missing_fast_coverage(tmp_path) == ['FAST omits required contract file: omitted.py']

@@ -26,6 +26,11 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install declared dependencies
         run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+      - name: Record installed Python packages
+        if: ${{ !cancelled() }}
+        run: |
+          python -c "from pathlib import Path; Path(r'${{ runner.temp }}/minimal-platform').mkdir(parents=True, exist_ok=True)"
+          python -m pip freeze > "${{ runner.temp }}/minimal-platform/dependencies.txt"
       - name: Real server import
         run: python scripts/validate_minimal_platform.py --phase import --output "${{ runner.temp }}/minimal-platform"
       - name: Full repository collection
