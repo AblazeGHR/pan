@@ -1,0 +1,20 @@
+{
+  "errors": [],
+  "browserProvider": "recording fake",
+  "source": "production React",
+  "realLogin": true,
+  "sessionOnlyExcluded": true,
+  "globalOnlyExcluded": true,
+  "kindWithUnknownCodeExcluded": true,
+  "unmatchedTypeForwarded": true,
+  "disabledSelectionPreserved": true,
+  "removedSelectionNoReplay": true,
+  "sharedPersistence": true,
+  "samePathDedup": true,
+  "browserCount": 3,
+  "scrollWindow": {
+    "height": 160,
+    "overflow": "auto"
+  },
+  "chromiumVersion": "153.0.8010.12"
+}

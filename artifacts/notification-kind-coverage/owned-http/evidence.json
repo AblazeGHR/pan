@@ -1,0 +1,29 @@
+{
+  "port": 60154,
+  "realProviders": false,
+  "ownedPidBirths": [
+    [
+      12384,
+      1793259093.862218
+    ],
+    [
+      23456,
+      1793259093.8715484
+    ],
+    [
+      34740,
+      1793259104.8331847
+    ],
+    [
+      37988,
+      1793259104.8408217
+    ]
+  ],
+  "backgroundKindForwarding": true,
+  "restartNoReplay": true,
+  "workers": 0,
+  "externalRecords": 8,
+  "sessionAndGlobalPaths": true,
+  "ownedCleanupPassed": true,
+  "portReleased": true
+}

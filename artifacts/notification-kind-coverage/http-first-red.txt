@@ -1,0 +1,105 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\notification-locker-error-20261027
+.F                                                                       [100%]
+================================== FAILURES ===================================
+___________ test_notification_settings_live_and_background_delivery ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6146/test_notification_settings_liv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001CC2F8088A0>
+
+    def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'data')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        evidence = {'port': h.PORT, 'realQQ': False, 'realSystem': False}
+        fixture = {'x-notification-fixture': nonce}
+        def records(): return rt.request('GET', '/__test/notification/records', headers=fixture)
+        def emit(kind, identity):
+            return rt.request('POST', '/__test/notification/emit', headers=fixture,
+                              json={'owner': owner['id'], 'kind': kind, 'id': identity})
+        try:
+            rt.start()
+            evidence['ownedPidBirths'] = [[pid, born] for pid, born, _ in rt._owned_processes]
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['sessions']).parent == rt.data_root
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
+            auth = {'Authorization': 'Bearer ' + token}
+            catalog_path = '/api/notifications/error-types'
+            assert httpx.get(rt.base_url + catalog_path, trust_env=False).status_code == 401
+            catalog = rt.request('GET', catalog_path, headers=auth)['types']
+            assert len(catalog) > 6 and len({r['id'] for r in catalog}) == len(catalog)
+            assert 'codex_error_payload/usageLimitExceeded' in {r['id'] for r in catalog}
+            assert rt.request('GET', '/api/settings/ui')['errorNotificationExclusions'] == {'enabled': False, 'types': []}
+            assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': {'enabled': True, 'types': []}}, trust_env=False).status_code == 401
+            for bad in ({'enabled': 'yes'}, {'enabled': True, 'types': ['unknown']}, {'enabled': True, 'types': [1]}):
+                assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusions': bad}, headers=auth, trust_env=False).status_code == 422
+            assert httpx.put(rt.base_url + '/api/settings/ui', json={'errorNotificationExclusionsEpoch': 'client'}, headers=auth, trust_env=False).status_code == 422
+            for invalid in ({'sessionErrorBridge': 'yes'}, {'notifications': {'newError': {'qqSubscribe': True}}},
+                            {'notifications': {'lockerUnread': {'system': 'yes'}}}):
+                response = httpx.put(rt.base_url + '/api/settings/ui', json=invalid, headers=auth, trust_env=False)
+                assert response.status_code == 422
+            owner = rt.request('POST', '/api/sessions', json={'name': 'notification-owned-source', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+            assert 'id' in owner, owner
+            emit('locker', 'history-off')
+            browser = subprocess.run(['node', 'packages/web/e2e/notification-sources.mjs', rt.base_url, str(OUT.resolve()), owner['id']],
+                env={**os.environ, 'PAN_TEST_NOTIFICATION_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=120)
+            (OUT / 'browser.log').write_text(browser.stdout + '\n' + browser.stderr, encoding='utf-8')
+>           assert browser.returncode == 0, browser.stderr
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E
+E             ExpectError: expect(locator).toBeVisible() failed
+E
+E             Locator: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })
+E             Expected: visible
+E             Error: strict mode violation: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) resolved to 2 elements:
+E                 1) <input type="checkbox"/> aka getByRole('checkbox', { name: 'codex_error_payload �� usageLimitExceeded' })
+E                 2) <input type="checkbox"/> aka getByRole('checkbox', { name: 'cli.error �� usageLimitExceeded' })
+E
+E             Call log:
+E               - Expect "toBeVisible" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) with timeout 5000ms
+E               - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })
+E
+E                 at captureRawStack (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright-core@1.63.0\node_modules\playwright-core\lib\coreBundle.js:8588:17)
+E                 at callMatcherAsStep (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13310:57)
+E                 at Object.toBeVisible (D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\node_modules\.pnpm\playwright@1.63.0\node_modules\playwright\lib\matchers\expect.js:13302:23)
+E                 at D:\project\pan-worktrees\notification-locker-error-20261027\packages\web\e2e\notification-sources.mjs:43:82 {
+E               matcherResult: {
+E                 message: 'expect(locator).toBeVisible() failed\n' +
+E                   '\n' +
+E                   "Locator: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })\n" +
+E                   'Expected: visible\n' +
+E                   "Error: strict mode violation: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) resolved to 2 elements:\n" +
+E                   `    1) <input type="checkbox"/> aka getByRole('checkbox', { name: 'codex_error_payload �� usageLimitExceeded' })\n` +
+E                   `    2) <input type="checkbox"/> aka getByRole('checkbox', { name: 'cli.error �� usageLimitExceeded' })\n` +
+E                   '\n' +
+E                   'Call log:\n' +
+E                   `  - Expect "toBeVisible" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) with timeout 5000ms\n` +
+E                   "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })\n",
+E                 pass: false,
+E                 actual: undefined,
+E                 name: 'toBeVisible',
+E                 expected: 'visible',
+E                 log: [
+E                   `  - Expect "toBeVisible" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) with timeout 5000ms`,
+E                   "  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })"
+E                 ],
+E                 timeout: undefined,
+E                 ariaSnapshot: undefined
+E               }
+E             }
+E
+E             Node.js v24.22.1
+E
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/notification-sources.mjs', 'http://127.0.0.1:53214', 'D:\\project\\pa... /usageLimitExceeded/ })"\n    ],\n    timeout: undefined,\n    ariaSnapshot: undefined\n  }\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_notification_http.py:57: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_notification_http.py::test_notification_settings_live_and_background_delivery

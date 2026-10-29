@@ -16,7 +16,7 @@ def event(key='error', code='usageLimitExceeded', source='codex_error_payload'):
 @pytest.mark.parametrize('row', n.ERROR_TYPE_CATALOG, ids=lambda r: r['id'])
 def test_every_catalog_type_matches_exact_structured_identity(row):
     source, code = row['id'].split('/')
-    record = event(code=code, source=source)
+    record = {'kind': code} if source == 'kind' else event(code=code, source=source)
     assert n.error_is_excluded(record, {'enabled': True, 'types': [row['id']]})
     assert not n.error_is_excluded(record, {'enabled': False, 'types': [row['id']]})
 
@@ -31,7 +31,7 @@ def test_legacy_invalid_defaults_and_strict_rejects(value):
 @pytest.mark.parametrize('record', [event(code='newProviderCode'), event(source='unknown'),
     {'kind': 'terminal_error', 'errorText': 'usageLimitExceeded'}, {'cli': {'errorSource': 'codex_error_payload'}}])
 def test_unknown_missing_and_prose_forward_by_default(record):
-    assert not n.error_is_excluded(record, {'enabled': True, 'types': [r['id'] for r in n.ERROR_TYPE_CATALOG]})
+    assert not n.error_is_excluded(record, {'enabled': True, 'types': [r['id'] for r in n.ERROR_TYPE_CATALOG if not r['id'].startswith('kind/')]})
 
 
 @pytest.mark.parametrize('session_on,global_on', [(True, False), (False, True), (True, True)])
@@ -74,7 +74,7 @@ def test_admitted_targets_survive_exclusion_epoch_and_cold_reopen(env, monkeypat
 
 def test_unknown_structured_error_still_admitted(env, monkeypatch):
     store, _ = env
-    monkeypatch.setattr(n, 'error_exclusion_policy', lambda: ({'enabled': True, 'types': [r['id'] for r in n.ERROR_TYPE_CATALOG]}, 'all'))
+    monkeypatch.setattr(n, 'error_exclusion_policy', lambda: ({'enabled': True, 'types': [r['id'] for r in n.ERROR_TYPE_CATALOG if not r['id'].startswith('kind/')]}, 'provider-only'))
     n.error_event(event('unknown', code='newCode'))
     assert len(drain(store)) == 1
 

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="38" failures="0" errors="0" time="6.93">
+    <testsuite name="stores/appSettingsStore.test.ts" timestamp="2026-10-29T07:26:17.756Z" hostname="ablaze" tests="30" failures="0" errors="0" skipped="0" time="0.0116384">
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; starts with defaults before the backend load completes" time="0.0012773">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the sidebar collapse handle visibility" time="0.0008498">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies backend ui settings on load" time="0.0005395">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; validates server values on load, falling back to defaults" time="0.0001834">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps defaults when the backend load fails" time="0.0002032">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; waits for one in-flight settings GET before resolving creation membership" time="0.0005476">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; uses DEFAULT_SETTINGS after a failed hydration instead of waiting indefinitely" time="0.0002015">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; writes each change back to the backend (PUT)" time="0.0008708">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the cross-workspace management confirmation switch and defaults old settings to enabled" time="0.0002978">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists the Locker desktop notification switch, off by default, and reloads it" time="0.0003421">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes reportWorkerKillErrors and defaults old settings to off" time="0.0001625">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors persists and applies the server echo" time="0.0001852">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveReportWorkerKillErrors rejects and leaves the store unchanged on failure" time="0.0006288">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizes autoForceSend per key and defaults old settings to all off" time="0.0001643">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend persists the strict object and applies the server echo" time="0.0001857">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; saveAutoForceSend rejects and leaves the store unchanged on failure" time="0.0002036">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; resets all settings to defaults and writes them back" time="0.0003077">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; does not overwrite a change made while the initial load is in flight" time="0.000139">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; sanitizeSettings fills missing fields with defaults" time="0.0006003">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; normalizes unread-recording scope sets with the backend rule" time="0.0002081">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; applies the exclusive toggle rules for unread-recording scopes" time="0.00024">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; persists unread-recording only after the server saved it" time="0.0003097">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the previous unread-recording value when the save fails" time="0.0001985">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; surfaces partial apply failures while keeping the saved values" time="0.0002113">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore &gt; keeps the legacy all default for old settings objects" time="0.0001166">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; sanitizes persisted bindings while preserving explicit clears" time="0.0003891">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; persists, clears and restores shortcut overrides through the existing ui endpoint" time="0.0004446">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; keeps composer defaults compatible and reports a failed write without a false saved value" time="0.0003394">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; rejects reserved combinations instead of silently hijacking the browser" time="0.000135">
+        </testcase>
+        <testcase classname="stores/appSettingsStore.test.ts" name="appSettingsStore shortcuts &gt; loads persisted shortcuts with missing and malformed entries falling back safely" time="0.0002252">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/ErrorNotificationExclusions.test.tsx" timestamp="2026-10-29T07:26:17.766Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.8226709">
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="shares enabled and selections across both entrances; disabling retains them" time="0.650116">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="searches a bounded scroll window with stable checkbox selection" time="0.0593706">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="failed write leaves both saved values unchanged and displays the failure" time="0.0336041">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="legacy missing settings normalize to disabled with no selection" time="0.0002708">
+        </testcase>
+        <testcase classname="components/layout/ErrorNotificationExclusions.test.tsx" name="searches literal tool_failure and shares kind selections while preserving saved provider types" time="0.0784594">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/layout/SourceNotificationPanel.test.tsx" timestamp="2026-10-29T07:26:17.768Z" hostname="ablaze" tests="3" failures="0" errors="0" skipped="0" time="0.2549814">
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; offers independent sources with System/Browser and QQ Report, no Subscribe" time="0.1842277">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; preserves a source draft and shows a failed save" time="0.0569168">
+        </testcase>
+        <testcase classname="components/layout/SourceNotificationPanel.test.tsx" name="source notifications &gt; Behavior persists Session error routing independently of Notifications" time="0.012521">
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -29,7 +29,7 @@ export function ErrorNotificationExclusions() {
   return <div data-testid="error-notification-exclusions" className="space-y-2 rounded border border-border-muted p-2 text-xs">
     <label className="flex items-center gap-2"><input type="checkbox" checked={value.enabled} disabled={busy}
       onChange={(event) => { void update({ ...value, enabled: event.target.checked }); }} />Enable error notification exclusions</label>
-    <p className="text-[11px] text-text-secondary">Shared by Behavior and Notifications. Applies only to future error notifications; error history and manager reports remain. Turning exclusions off retains selections. Unknown or missing structured types are forwarded.</p>
+    <p className="text-[11px] text-text-secondary">Shared by Behavior and Notifications. Applies only to future error notifications; error history and manager reports remain. Turning exclusions off retains selections. A selected Pan kind or provider type excludes the event. Errors without a selected match are forwarded.</p>
     <input aria-label="Search error types" type="search" value={query} onChange={(event) => setQuery(event.target.value)}
       className="w-full rounded border border-border-default bg-bg-primary px-2 py-1" />
     <p>{value.types.length} selected · {filtered.length} of {catalog.length} types</p>

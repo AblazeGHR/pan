@@ -62,7 +62,9 @@ async def emit(payload: dict, request: Request):
             'content': 'Owned Locker content password=private-value', 'ts': '2026-10-27T00:00:00Z'})
         return {'id': row['id']}
     assert payload['kind'] == 'error'
-    eid = await session_error_log.record_session_error_async(kind='terminal_error', terminal=True,
+    error_kind = payload.get('errorKind', 'terminal_error')
+    assert error_kind in session_error_log.KINDS
+    eid = await session_error_log.record_session_error_async(kind=error_kind, terminal=error_kind == 'terminal_error',
         error_text='Owned error password=private-value', error_text_source='pan.runtime', session_id=owner,
         cli_raw={'error_source': 'codex_error_payload', 'error': {'codexErrorInfo': payload['code'], 'message': 'Owned structured error'}} if 'code' in payload else None,
         task_seq=payload['id'], dedupe_token=str(payload['id']))

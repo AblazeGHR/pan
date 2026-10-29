@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="8" time="0.204" timestamp="2026-10-29T15:23:33.823055+08:00" hostname="ablaze"><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[terminal_error]" time="0.022"><failure message="AssertionError: assert 'kind/terminal_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'terminal_error'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/terminal_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[worker_crash]" time="0.002"><failure message="AssertionError: assert 'kind/worker_crash' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'worker_crash'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/worker_crash' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[worker_start_failure]" time="0.002"><failure message="AssertionError: assert 'kind/worker_start_failure' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'worker_start_failure'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/worker_start_failure' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[native_operation_error]" time="0.002"><failure message="AssertionError: assert 'kind/native_operation_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'native_operation_error'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/native_operation_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[transient_provider_error]" time="0.002"><failure message="AssertionError: assert 'kind/transient_provider_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'transient_provider_error'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/transient_provider_error' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_catalog_and_no_cli_predicate_cover_every_admitted_kind[tool_failure]" time="0.002"><failure message="AssertionError: assert 'kind/tool_failure' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}">kind = 'tool_failure'
+
+    @pytest.mark.parametrize('kind', [k for k in session_error_log.KINDS if k != 'cancelled'])
+    def test_catalog_and_no_cli_predicate_cover_every_admitted_kind(kind):
+        identity = f'kind/{kind}'
+&gt;       assert identity in {row['id'] for row in n.ERROR_TYPE_CATALOG}
+E       AssertionError: assert 'kind/tool_failure' in {'cli.error/429', 'cli.error/capacity_exceeded', 'cli.error/http_429', 'cli.error/insufficient_quota', 'cli.error/model_capacity_exceeded', 'cli.error/overloaded', ...}
+
+tests\test_notification_kind_coverage.py:9: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_transient_codex_native_identity_and_code_are_both_selectable" time="0.002"><failure message="AssertionError: assert False&#10; +  where False = &lt;function error_is_excluded at 0x0000020CE1121B10&gt;({'kind': 'tool_failure', 'cli': {'errorSource': 'cli.error', 'error': {'code': 'rate_limit', 'codexErrorInfo': {'responseStreamDisconnected': {'httpStatusCode': 429}}}}}, {'enabled': True, 'types': ['cli.error/responseStreamDisconnected']})&#10; +    where &lt;function error_is_excluded at 0x0000020CE1121B10&gt; = n.error_is_excluded">def test_transient_codex_native_identity_and_code_are_both_selectable():
+        record = {'kind': 'tool_failure', 'cli': {'errorSource': 'cli.error',
+            'error': {'code': 'rate_limit', 'codexErrorInfo': {'responseStreamDisconnected': {'httpStatusCode': 429}}}}}
+&gt;       assert n.error_is_excluded(record, {'enabled': True, 'types': ['cli.error/responseStreamDisconnected']})
+E       AssertionError: assert False
+E        +  where False = &lt;function error_is_excluded at 0x0000020CE1121B10&gt;({'kind': 'tool_failure', 'cli': {'errorSource': 'cli.error', 'error': {'code': 'rate_limit', 'codexErrorInfo': {'responseStreamDisconnected': {'httpStatusCode': 429}}}}}, {'enabled': True, 'types': ['cli.error/responseStreamDisconnected']})
+E        +    where &lt;function error_is_excluded at 0x0000020CE1121B10&gt; = n.error_is_excluded
+
+tests\test_notification_kind_coverage.py:16: AssertionError</failure></testcase><testcase classname="tests.test_notification_kind_coverage" name="test_terminal_codex_rate_limit_is_not_lost_to_native_variant" time="0.002"><failure message="AssertionError: assert False&#10; +  where False = &lt;function error_is_excluded at 0x0000020CE1121B10&gt;({'kind': 'terminal_error', 'cli': {'errorSource': 'codex_error_payload', 'error': {'code': 'rate_limit', 'codexErrorInfo': 'serverOverloaded'}}}, {'enabled': True, 'types': ['codex_error_payload/rate_limit']})&#10; +    where &lt;function error_is_excluded at 0x0000020CE1121B10&gt; = n.error_is_excluded">def test_terminal_codex_rate_limit_is_not_lost_to_native_variant():
+        record = {'kind': 'terminal_error', 'cli': {'errorSource': 'codex_error_payload',
+            'error': {'code': 'rate_limit', 'codexErrorInfo': 'serverOverloaded'}}}
+&gt;       assert n.error_is_excluded(record, {'enabled': True, 'types': ['codex_error_payload/rate_limit']})
+E       AssertionError: assert False
+E        +  where False = &lt;function error_is_excluded at 0x0000020CE1121B10&gt;({'kind': 'terminal_error', 'cli': {'errorSource': 'codex_error_payload', 'error': {'code': 'rate_limit', 'codexErrorInfo': 'serverOverloaded'}}}, {'enabled': True, 'types': ['codex_error_payload/rate_limit']})
+E        +    where &lt;function error_is_excluded at 0x0000020CE1121B10&gt; = n.error_is_excluded
+
+tests\test_notification_kind_coverage.py:22: AssertionError</failure></testcase></testsuite></testsuites>

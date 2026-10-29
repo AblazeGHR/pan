@@ -1,0 +1,123 @@
+{
+  "base": "ae58a4639488db7abb3094fb0c0cd08ef2ca6848",
+  "branch": "fix/notification-error-kind-coverage-20261029",
+  "backend-red": {
+    "tests": 8,
+    "failures": 8,
+    "errors": 0,
+    "skipped": 0,
+    "exit": 1
+  },
+  "backend": {
+    "tests": 202,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "frontend": {
+    "tests": 225,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "http": {
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "build": {
+    "exit": 0,
+    "compressedAssets": 90
+  },
+  "tsc": {
+    "exit": 0
+  },
+  "frozenInstall": {
+    "exit": 0
+  },
+  "catalog": {
+    "total": 43,
+    "generalKinds": 6,
+    "providerIds": 37,
+    "oldProviderIdsPreserved": 25
+  },
+  "owned-http": {
+    "port": 60154,
+    "realProviders": false,
+    "ownedPidBirths": [
+      [
+        12384,
+        1793259093.862218
+      ],
+      [
+        23456,
+        1793259093.8715484
+      ],
+      [
+        34740,
+        1793259104.8331847
+      ],
+      [
+        37988,
+        1793259104.8408217
+      ]
+    ],
+    "backgroundKindForwarding": true,
+    "restartNoReplay": true,
+    "workers": 0,
+    "externalRecords": 8,
+    "sessionAndGlobalPaths": true,
+    "ownedCleanupPassed": true,
+    "portReleased": true
+  },
+  "regression-http": {
+    "port": 60154,
+    "realQQ": false,
+    "realSystem": false,
+    "ownedPidBirths": [
+      [
+        20252,
+        1793259109.0083897
+      ],
+      [
+        35152,
+        1793259109.016265
+      ],
+      [
+        23820,
+        1793259134.0441918
+      ],
+      [
+        28292,
+        1793259134.050644
+      ],
+      [
+        28292,
+        1793259134.050644
+      ]
+    ],
+    "sharedExclusions": true,
+    "catalogTypes": 43,
+    "unknownDefaultForward": true,
+    "exclusionEpoch": true,
+    "exclusionAuth": true,
+    "backgroundQQ": true,
+    "samePathSystemCount": 1,
+    "duplicateEventNoReplay": true,
+    "reopenNoHistory": true,
+    "restartNoReplay": true,
+    "authRead": true,
+    "workers": 0,
+    "deliveryStates": [
+      "queued",
+      "sent",
+      "unknown"
+    ],
+    "ownedCleanupPassed": true,
+    "portReleased": true
+  }
+}
