@@ -1,0 +1,184 @@
+{
+  "kinds": [
+    "terminal_error",
+    "worker_crash",
+    "worker_start_failure",
+    "native_operation_error",
+    "transient_provider_error",
+    "tool_failure"
+  ],
+  "types": [
+    {
+      "id": "kind/terminal_error",
+      "label": "Pan kind \u00b7 terminal_error"
+    },
+    {
+      "id": "kind/worker_crash",
+      "label": "Pan kind \u00b7 worker_crash"
+    },
+    {
+      "id": "kind/worker_start_failure",
+      "label": "Pan kind \u00b7 worker_start_failure"
+    },
+    {
+      "id": "kind/native_operation_error",
+      "label": "Pan kind \u00b7 native_operation_error"
+    },
+    {
+      "id": "kind/transient_provider_error",
+      "label": "Pan kind \u00b7 transient_provider_error"
+    },
+    {
+      "id": "kind/tool_failure",
+      "label": "Pan kind \u00b7 tool_failure"
+    },
+    {
+      "id": "codex_error_payload/429",
+      "label": "codex_error_payload \u00b7 429"
+    },
+    {
+      "id": "codex_error_payload/capacity_exceeded",
+      "label": "codex_error_payload \u00b7 capacity_exceeded"
+    },
+    {
+      "id": "codex_error_payload/http_429",
+      "label": "codex_error_payload \u00b7 http_429"
+    },
+    {
+      "id": "codex_error_payload/insufficient_quota",
+      "label": "codex_error_payload \u00b7 insufficient_quota"
+    },
+    {
+      "id": "codex_error_payload/model_capacity_exceeded",
+      "label": "codex_error_payload \u00b7 model_capacity_exceeded"
+    },
+    {
+      "id": "codex_error_payload/overloaded",
+      "label": "codex_error_payload \u00b7 overloaded"
+    },
+    {
+      "id": "codex_error_payload/quota_exceeded",
+      "label": "codex_error_payload \u00b7 quota_exceeded"
+    },
+    {
+      "id": "codex_error_payload/quota_exhausted",
+      "label": "codex_error_payload \u00b7 quota_exhausted"
+    },
+    {
+      "id": "codex_error_payload/rate_limit",
+      "label": "codex_error_payload \u00b7 rate_limit"
+    },
+    {
+      "id": "codex_error_payload/rate_limit_exceeded",
+      "label": "codex_error_payload \u00b7 rate_limit_exceeded"
+    },
+    {
+      "id": "codex_error_payload/rate_limited",
+      "label": "codex_error_payload \u00b7 rate_limited"
+    },
+    {
+      "id": "codex_error_payload/responseStreamDisconnected",
+      "label": "codex_error_payload \u00b7 responseStreamDisconnected"
+    },
+    {
+      "id": "codex_error_payload/serverOverloaded",
+      "label": "codex_error_payload \u00b7 serverOverloaded"
+    },
+    {
+      "id": "codex_error_payload/server_overloaded",
+      "label": "codex_error_payload \u00b7 server_overloaded"
+    },
+    {
+      "id": "codex_error_payload/too_many_requests",
+      "label": "codex_error_payload \u00b7 too_many_requests"
+    },
+    {
+      "id": "codex_error_payload/unavailable",
+      "label": "codex_error_payload \u00b7 unavailable"
+    },
+    {
+      "id": "codex_error_payload/usageLimitExceeded",
+      "label": "codex_error_payload \u00b7 usageLimitExceeded"
+    },
+    {
+      "id": "codex_error_payload/usage_limit_reached",
+      "label": "codex_error_payload \u00b7 usage_limit_reached"
+    },
+    {
+      "id": "cli.error/429",
+      "label": "cli.error \u00b7 429"
+    },
+    {
+      "id": "cli.error/capacity_exceeded",
+      "label": "cli.error \u00b7 capacity_exceeded"
+    },
+    {
+      "id": "cli.error/http_429",
+      "label": "cli.error \u00b7 http_429"
+    },
+    {
+      "id": "cli.error/insufficient_quota",
+      "label": "cli.error \u00b7 insufficient_quota"
+    },
+    {
+      "id": "cli.error/model_capacity_exceeded",
+      "label": "cli.error \u00b7 model_capacity_exceeded"
+    },
+    {
+      "id": "cli.error/overloaded",
+      "label": "cli.error \u00b7 overloaded"
+    },
+    {
+      "id": "cli.error/quota_exceeded",
+      "label": "cli.error \u00b7 quota_exceeded"
+    },
+    {
+      "id": "cli.error/quota_exhausted",
+      "label": "cli.error \u00b7 quota_exhausted"
+    },
+    {
+      "id": "cli.error/rate_limit",
+      "label": "cli.error \u00b7 rate_limit"
+    },
+    {
+      "id": "cli.error/rate_limit_exceeded",
+      "label": "cli.error \u00b7 rate_limit_exceeded"
+    },
+    {
+      "id": "cli.error/rate_limited",
+      "label": "cli.error \u00b7 rate_limited"
+    },
+    {
+      "id": "cli.error/responseStreamDisconnected",
+      "label": "cli.error \u00b7 responseStreamDisconnected"
+    },
+    {
+      "id": "cli.error/serverOverloaded",
+      "label": "cli.error \u00b7 serverOverloaded"
+    },
+    {
+      "id": "cli.error/server_overloaded",
+      "label": "cli.error \u00b7 server_overloaded"
+    },
+    {
+      "id": "cli.error/too_many_requests",
+      "label": "cli.error \u00b7 too_many_requests"
+    },
+    {
+      "id": "cli.error/unavailable",
+      "label": "cli.error \u00b7 unavailable"
+    },
+    {
+      "id": "cli.error/usageLimitExceeded",
+      "label": "cli.error \u00b7 usageLimitExceeded"
+    },
+    {
+      "id": "cli.error/usage_limit_reached",
+      "label": "cli.error \u00b7 usage_limit_reached"
+    },
+    {
+      "id": "dsh_turn_error/MISSING_CREDENTIAL",
+      "label": "dsh_turn_error \u00b7 MISSING_CREDENTIAL"
+    }
+  ]
+}

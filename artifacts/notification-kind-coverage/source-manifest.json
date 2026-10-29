@@ -1,0 +1,12 @@
+{
+  "packages/core/source_notifications.py": "76a585cf5736ab4a97bcc27199eeecbeb248d71b",
+  "packages/web/e2e/notification-kind-coverage.mjs": "b4ef03233cdd648f36faae4c28e5ad0153cd7491",
+  "packages/web/e2e/notification-sources.mjs": "01192b2e662ef83ff00dce88409565d866f08156",
+  "packages/web/src/components/layout/ErrorNotificationExclusions.test.tsx": "57877321e5ae787e6dbe7e84cea82d7c8c901843",
+  "packages/web/src/components/layout/ErrorNotificationExclusions.tsx": "05a06d190d82521373e3866baed6fcd8d65078b2",
+  "tests/support/notification_http_server.py": "17fa2158fd6d620394d76181f722b85d7c0417b2",
+  "tests/test_error_notification_exclusions.py": "d81ce2110971ad3f3362559a11dcd0f2c7435f6d",
+  "tests/test_notification_http.py": "4ad8489e064637104f5572f905457e5f82f52a59",
+  "tests/test_notification_kind_coverage.py": "1b329efd5ce0fae2d0cd5d809fb817b00ce2528b",
+  "tests/test_notification_kind_http.py": "866a91ac9ad29ff76170b805cb9357c02009b0ba"
+}

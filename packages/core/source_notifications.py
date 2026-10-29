@@ -14,6 +14,7 @@ import hashlib
 
 from . import session
 from .qq_reports import parse_target
+from .session_error_log import KINDS
 
 SOURCES = ('lockerUnread', 'newError')
 # Exact structured identities already recognized by the provider/runtime layer.
@@ -21,11 +22,17 @@ SOURCES = ('lockerUnread', 'newError')
 # entries from prose, logs, or arbitrary client input.
 from .runtime_issues import _CODEX_QUOTA_CODES, _CODEX_CAPACITY_CODES, _CBC_RATE_CODES
 
+ERROR_KINDS = tuple(kind for kind in KINDS if kind != 'cancelled')
+_PROVIDER_CODES = _CODEX_QUOTA_CODES | _CODEX_CAPACITY_CODES | _CBC_RATE_CODES | {'rate_limit', 'unavailable'}
+_CODEX_VARIANTS = {'usageLimitExceeded', 'serverOverloaded', 'responseStreamDisconnected'}
 ERROR_TYPE_CATALOG = tuple(
+    {'id': f'kind/{kind}', 'label': f'Pan kind · {kind}'} for kind in ERROR_KINDS
+) + tuple(
     {'id': f'{source}/{code}', 'label': f'{source} · {code}'}
     for source, codes in (
-        ('codex_error_payload', {'usageLimitExceeded', 'serverOverloaded', 'responseStreamDisconnected'} | _CODEX_QUOTA_CODES | _CODEX_CAPACITY_CODES),
-        ('cli.error', _CODEX_QUOTA_CODES | _CODEX_CAPACITY_CODES | _CBC_RATE_CODES | {'rate_limit'}),
+        ('codex_error_payload', _CODEX_VARIANTS | _PROVIDER_CODES),
+        ('cli.error', _CODEX_VARIANTS | _PROVIDER_CODES),
+        ('dsh_turn_error', {'MISSING_CREDENTIAL'}),
     ) for code in sorted(codes)
 )
 _ERROR_TYPE_IDS = frozenset(row['id'] for row in ERROR_TYPE_CATALOG)
@@ -45,25 +52,48 @@ def normalize_error_exclusions(value, *, strict=False):
     return {'enabled': raw.get('enabled', False), 'types': sorted(set(types))}
 
 
-def error_type(record):
+def _specific_error_types(record):
     cli = record.get('cli')
     if not isinstance(cli, dict):
-        return None
+        return ()
     error = cli.get('error')
-    code = cli.get('errorCode')
-    if code is None and isinstance(error, dict):
-        code = error.get('code')
-        if code is None:
-            code = error.get('codexErrorInfo')
-            # Codex also serializes native enum variants as one-key objects.
-            # Match the stable tag, never its payload/status/message contents.
-            if isinstance(code, dict) and len(code) == 1:
-                code = next(iter(code))
     source = cli.get('errorSource')
-    if not isinstance(source, str) or type(code) not in (str, int):
-        return None
-    identity = f'{source}/{code}'
-    return identity if identity in _ERROR_TYPE_IDS else None
+    raw = cli.get('raw')
+    # The tool sample can retain its structured item error only in cli.raw.
+    # Read that exact producer envelope, never recursively scan raw/history.
+    if error is None and isinstance(raw, dict) and raw.get('type') == 'codex.item_error':
+        from .session_error_log import cli_error_fields, cli_error_provenance
+        error, _, projected_source = cli_error_fields(raw.get('item'), text_only=True)
+        source = source or cli_error_provenance(raw, 'cli.error' if isinstance(error, dict) else projected_source)
+    if not isinstance(source, str):
+        return ()
+    codes = [cli.get('errorCode')]
+    if isinstance(error, dict):
+        codes.extend(error.get(key) for key in ('code', 'type', 'errorCode'))
+        native = error.get('codexErrorInfo')
+        # A one-key native enum object contributes its tag, not payload/status.
+        if isinstance(native, dict):
+            tag = next(iter(native)) if len(native) == 1 else None
+            codes.append(tag if isinstance(tag, str) and tag in _CODEX_VARIANTS else None)
+        else:
+            codes.append(native)
+    return tuple(dict.fromkeys(f'{source}/{code}' for code in codes
+                              if type(code) in (str, int) and f'{source}/{code}' in _ERROR_TYPE_IDS))
+
+
+def error_type(record):
+    """Compatibility projection of the first known provider identity."""
+    return next(iter(_specific_error_types(record)), None)
+
+
+def error_types(record):
+    """One event can match both its Pan kind and multiple provider facts."""
+    if record.get('cancelled') or record.get('kind') == 'cancelled':
+        return frozenset()
+    result = set(_specific_error_types(record))
+    if record.get('kind') in ERROR_KINDS:
+        result.add(f"kind/{record['kind']}")
+    return frozenset(result)
 
 
 def error_exclusion_policy():
@@ -73,8 +103,7 @@ def error_exclusion_policy():
 
 
 def error_is_excluded(record, policy):
-    identity = error_type(record)
-    return policy['enabled'] and identity is not None and identity in policy['types']
+    return policy['enabled'] and bool(error_types(record).intersection(policy['types']))
 
 _log = logging.getLogger(__name__)
 _task = None
@@ -198,10 +227,7 @@ def stage(db, source, identity, owner, text, *, recipient='user', error_record=N
 
 def error_event(record):
     """Observe only classified, non-cancellation Session error events."""
-    if record.get('cancelled') or record.get('kind') not in {
-        'terminal_error', 'worker_crash', 'worker_start_failure',
-        'native_operation_error', 'transient_provider_error', 'tool_failure',
-    }:
+    if record.get('cancelled') or record.get('kind') not in ERROR_KINDS:
         return
     try:
         from packages.interactions.api import get_store

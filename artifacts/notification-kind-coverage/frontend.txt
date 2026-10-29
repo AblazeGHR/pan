@@ -1,0 +1,14 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/notification-locker-error-20261027/packages/web/src
+
+ ✓ stores/appSettingsStore.test.ts (30 tests) 12ms
+ ✓ components/layout/SourceNotificationPanel.test.tsx (3 tests) 255ms
+ ✓ components/layout/ErrorNotificationExclusions.test.tsx (5 tests) 823ms
+   ✓ shares enabled and selections across both entrances; disabling retains them 650ms
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  15:26:10
+   Duration  6.93s (transform 339ms, setup 43ms, collect 2.78s, tests 1.09s, environment 10.62s, prepare 658ms)
+
+JUNIT report written to D:/project/pan-worktrees/notification-locker-error-20261027/artifacts/notification-kind-coverage/frontend-focused.xml

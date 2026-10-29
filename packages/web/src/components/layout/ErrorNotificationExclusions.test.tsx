@@ -5,6 +5,7 @@ import { SessionErrorBridgeSetting } from './SessionErrorBridgeSetting';
 import { SourceNotificationPanel } from './SourceNotificationPanel';
 import { DEFAULT_SETTINGS, sanitizeErrorExclusions, useAppSettingsStore } from '@/stores/appSettingsStore';
 import { updateUiSettings } from '@/services/api';
+import { lockerRequest } from '@/views/lockerModel';
 
 const catalog = Array.from({ length: 80 }, (_, index) => ({ id: `source/code${index}`, label: `Source · code${index}` }));
 vi.mock('@/views/lockerModel', () => ({ lockerRequest: vi.fn(async () => ({ types: catalog })) }));
@@ -56,4 +57,23 @@ it('failed write leaves both saved values unchanged and displays the failure', a
 
 it('legacy missing settings normalize to disabled with no selection', () => {
   expect(sanitizeErrorExclusions(undefined)).toEqual({ enabled: false, types: [] });
+});
+
+it('searches literal tool_failure and shares kind selections while preserving saved provider types', async () => {
+  const types = [{ id: 'kind/tool_failure', label: 'Pan kind · tool_failure' },
+    { id: 'cli.error/rate_limit', label: 'cli.error · rate_limit' }];
+  vi.mocked(lockerRequest).mockResolvedValue({ types });
+  useAppSettingsStore.setState({ errorNotificationExclusions: { enabled: false, types: ['cli.error/rate_limit'] } });
+  render(<><SessionErrorBridgeSetting /><SourceNotificationPanel source="newError" /></>);
+  const behavior = within(screen.getByTestId('session-error-bridge-section'));
+  const global = within(screen.getByTestId('notification-source-newError'));
+  await behavior.findByRole('checkbox', { name: 'Pan kind · tool_failure' });
+  fireEvent.change(behavior.getByRole('searchbox'), { target: { value: 'TOOL_FAILURE' } });
+  expect(within(behavior.getByLabelText('Error types')).getAllByRole('checkbox')).toHaveLength(1);
+  fireEvent.click(behavior.getByRole('checkbox', { name: 'Pan kind · tool_failure' }));
+  await waitFor(() => expect((global.getByRole('checkbox', { name: 'Pan kind · tool_failure' }) as HTMLInputElement).checked).toBe(true));
+  expect((global.getByRole('checkbox', { name: 'cli.error · rate_limit' }) as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(global.getByRole('checkbox', { name: 'Enable error notification exclusions' }));
+  await waitFor(() => expect(useAppSettingsStore.getState().errorNotificationExclusions).toEqual({ enabled: true, types: ['cli.error/rate_limit', 'kind/tool_failure'] }));
+  expect(updateUiSettings).toHaveBeenLastCalledWith({ errorNotificationExclusions: { enabled: true, types: ['cli.error/rate_limit', 'kind/tool_failure'] } });
 });

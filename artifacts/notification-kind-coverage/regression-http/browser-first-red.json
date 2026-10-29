@@ -1,0 +1,11 @@
+{
+  "realLogin": true,
+  "errors": [],
+  "requests": [
+    {
+      "status": 200,
+      "method": "PUT"
+    }
+  ],
+  "failure": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })\nExpected: visible\nError: strict mode violation: getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) resolved to 2 elements:\n    1) <input type=\"checkbox\"/> aka getByRole('checkbox', { name: 'codex_error_payload · usageLimitExceeded' })\n    2) <input type=\"checkbox\"/> aka getByRole('checkbox', { name: 'cli.error · usageLimitExceeded' })\n\nCall log:\n  - Expect \"toBeVisible\" getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ }) with timeout 5000ms\n  - waiting for getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByTestId('error-notification-exclusions').getByRole('checkbox', { name: /usageLimitExceeded/ })\n"
+}

@@ -8,7 +8,7 @@ import subprocess
 import httpx
 from tests import test_real_queue_http_e2e as h
 
-OUT = Path('artifacts/notification-error-exclusions/http')
+OUT = Path('artifacts/notification-kind-coverage/regression-http')
 
 
 def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatch):
@@ -90,7 +90,7 @@ def test_notification_settings_live_and_background_delivery(tmp_path, monkeypatc
         assert sum(new_error['id'] in r.get('text', '') for r in last['records']) == 2
         assert last['workers'] == 0
         before_epoch = rt.request('GET', '/api/settings/ui').get('errorNotificationExclusionsEpoch')
-        exclusions = {'enabled': True, 'types': sorted(row['id'] for row in catalog)}
+        exclusions = {'enabled': True, 'types': sorted(row['id'] for row in catalog if not row['id'].startswith('kind/'))}
         saved = rt.request('PUT', '/api/settings/ui', headers=auth, json={'errorNotificationExclusions': exclusions})
         epoch = saved['errorNotificationExclusionsEpoch']
         assert epoch and epoch != before_epoch
