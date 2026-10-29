@@ -1,0 +1,19 @@
+{
+  "baselineServerSha": "4b577633d2d9ffcdc5bf8a44b12836724c18804e",
+  "serverSha256": "669b508246f61e11750fe02b7bb8a9673647102d95a5b4d952e9369a9a5f0599",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev16_mcp_stdio.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\baseline-mcp.xml"
+  ],
+  "exit": 1,
+  "restoredCurrentBytes": true,
+  "scope": "Real stdio child uses baseline server.py; new exact dedicated test retained"
+}

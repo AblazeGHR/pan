@@ -1,0 +1,62 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+EEEE                                                                     [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_pending_event_cold_retarget_preserves_original_identity_exactly_once _
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev17_backlog.py, line 51
+  def test_pending_event_cold_retarget_preserves_original_identity_exactly_once(h):
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py, line 24
+  @pytest.fixture
+  def h(native_h, tmp_path):
+E       fixture 'native_h' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, h, isolate_session_storage, isolate_terminal_heartbeat_threads, isolate_websocket_clients, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py:24
+_ ERROR at setup of test_pending_event_pause_does_not_consume_original_backlog _
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev17_backlog.py, line 75
+  def test_pending_event_pause_does_not_consume_original_backlog(h):
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py, line 24
+  @pytest.fixture
+  def h(native_h, tmp_path):
+E       fixture 'native_h' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, h, isolate_session_storage, isolate_terminal_heartbeat_threads, isolate_websocket_clients, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py:24
+_ ERROR at setup of test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers _
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev17_backlog.py, line 110
+  def test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers(h):
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py, line 24
+  @pytest.fixture
+  def h(native_h, tmp_path):
+E       fixture 'native_h' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, h, isolate_session_storage, isolate_terminal_heartbeat_threads, isolate_websocket_clients, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py:24
+_ ERROR at setup of test_notice_enqueued_response_lost_is_unknown_cold_never_resends _
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev17_backlog.py, line 144
+  def test_notice_enqueued_response_lost_is_unknown_cold_never_resends(h):
+file D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py, line 24
+  @pytest.fixture
+  def h(native_h, tmp_path):
+E       fixture 'native_h' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, h, isolate_session_storage, isolate_terminal_heartbeat_threads, isolate_websocket_clients, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev16_behavior.py:24
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR tests/test_retirement_rev17_backlog.py::test_pending_event_cold_retarget_preserves_original_identity_exactly_once
+ERROR tests/test_retirement_rev17_backlog.py::test_pending_event_pause_does_not_consume_original_backlog
+ERROR tests/test_retirement_rev17_backlog.py::test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+ERROR tests/test_retirement_rev17_backlog.py::test_notice_enqueued_response_lost_is_unknown_cold_never_resends

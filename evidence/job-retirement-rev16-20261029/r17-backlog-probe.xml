@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="4" time="9.297" timestamp="2026-10-29T23:49:46.363328+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_cold_retarget_preserves_original_identity_exactly_once" time="1.760" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_pause_does_not_consume_original_backlog" time="1.915"><failure message="AssertionError: Paused pre-effect backlog must survive resume&#10;assert 0 == 1&#10; +  where 0 = len([])">tests\test_retirement_rev17_backlog.py:90: in test_pending_event_pause_does_not_consume_original_backlog
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+E   AssertionError: Paused pre-effect backlog must survive resume
+E   assert 0 == 1
+E    +  where 0 = len([])</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers" time="2.553"><failure message="AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:49:52.911909Z', 'legacyId': 'canonical:run_8e5e092a75254e3f90faaaf0', 'outboxId': 'outbox_0f3d0b485e2a07cc77c859bfaf893caad3c778b3', ...}&#10;assert 'uncertain' == 'pending'&#10;  &#10;  - pending&#10;  + uncertain">tests\test_retirement_rev17_backlog.py:129: in test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+    assert row['status'] == 'pending', row
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:49:52.911909Z', 'legacyId': 'canonical:run_8e5e092a75254e3f90faaaf0', 'outboxId': 'outbox_0f3d0b485e2a07cc77c859bfaf893caad3c778b3', ...}
+E   assert 'uncertain' == 'pending'
+E     
+E     - pending
+E     + uncertain</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_notice_enqueued_response_lost_is_unknown_cold_never_resends" time="2.480" /></testsuite></testsuites>

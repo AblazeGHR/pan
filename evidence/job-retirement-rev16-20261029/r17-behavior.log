@@ -1,0 +1,46 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+.........F.F...F..F
+================================== FAILURES ===================================
+____ test_partial_failure_terminal_notice_identifies_actual_failed_target _____
+tests\test_retirement_rev16_behavior.py:267: in test_partial_failure_terminal_notice_identifies_actual_failed_target
+    assert failed_id in json.dumps(emitted[0]['summary']), emitted[0]
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:55:32.126643Z', 'legacyId': 'canonical:run_998dec163b2a461787c87ec4', 'outboxId': 'outbox_d48d830c812ac783fe5270522081c01cd117ef3e', ...}
+E   assert 'ses_b' in '{"runId": "run_998dec163b2a461787c87ec4", "status": "uncertain"}'
+E    +  where '{"runId": "run_998dec163b2a461787c87ec4", "status": "uncertain"}' = <function dumps at 0x000001DD6A8EF690>({'runId': 'run_998dec163b2a461787c87ec4', 'status': 'uncertain'})
+E    +    where <function dumps at 0x000001DD6A8EF690> = json.dumps
+_________ test_pending_event_pause_does_not_consume_original_backlog __________
+tests\test_retirement_rev17_backlog.py:108: in test_pending_event_pause_does_not_consume_original_backlog
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+E   AssertionError: Paused pre-effect backlog must survive resume
+E   assert 0 == 1
+E    +  where 0 = len([])
+_ test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers _
+tests\test_retirement_rev17_backlog.py:202: in test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+    assert row['status'] == 'pending', row
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:55:47.095743Z', 'legacyId': 'canonical:run_1bf3281aecee41239f1a2471', 'outboxId': 'outbox_c6e92c49c40675273e7adc287143e0122d27c2bc', ...}
+E   assert 'uncertain' == 'pending'
+E     
+E     - pending
+E     + uncertain
+__ test_actual_detached_completion_notice_retains_original_exit_log_details ___
+tests\test_retirement_rev17_process_notice.py:68: in test_actual_detached_completion_notice_retains_original_exit_log_details
+    assert summary.get('exitCode') == receipt['exitCode'] == 0, summary
+E   AssertionError: {'runId': 'run_777cac1bda934ef79a4ef25d', 'status': 'completed'}
+E   assert None == 0
+E    +  where None = <built-in method get of dict object at 0x000001DD707F5600>('exitCode')
+E    +    where <built-in method get of dict object at 0x000001DD707F5600> = {'runId': 'run_777cac1bda934ef79a4ef25d', 'status': 'completed'}.get
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev16_behavior.py::test_partial_failure_terminal_notice_identifies_actual_failed_target
+FAILED tests/test_retirement_rev17_backlog.py::test_pending_event_pause_does_not_consume_original_backlog
+FAILED tests/test_retirement_rev17_backlog.py::test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+FAILED tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_notice_retains_original_exit_log_details
