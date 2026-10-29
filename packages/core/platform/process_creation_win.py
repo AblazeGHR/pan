@@ -16,6 +16,24 @@ from packages.core.platform.process_structs_win import _STARTUPINFOW, _PROCESS_I
 from packages.jobs.cleanup import close_resources, stop_window_guard
 
 
+def _owned_command_line(args, env):
+    """Preserve only the configured cmd raw tail; all other argv use CRT rules.
+
+    An explicit child environment replaces the parent environment. Missing,
+    ambiguous, relative or nonmatching COMSPEC cannot identify this envelope;
+    never resolve an interpreter using cwd/PATH or recognize it by basename.
+    """
+    if len(args) == 5 and list(args[1:4]) == ['/d', '/s', '/c']:
+        child_env = os.environ if env is None else env
+        shells = [value for key, value in child_env.items() if key.upper() == 'COMSPEC']
+        if (len(shells) == 1 and isinstance(shells[0], str)
+                and os.path.isabs(shells[0]) and os.path.isabs(args[0])
+                and os.path.normcase(os.path.normpath(args[0]))
+                    == os.path.normcase(os.path.normpath(shells[0]))):
+            return subprocess.list2cmdline(args[:4]) + ' "' + args[4] + '"'
+    return subprocess.list2cmdline(args)
+
+
 def create_owned_process(command, cwd, env, startup, flags, guard, *, hidden, handle_list=()):
     """Existing DesktopCommand creation algorithm, also used by ProcessOwner.
 
@@ -134,7 +152,7 @@ class OwnedPopen(subprocess.Popen):
             startup.hStdInput, startup.hStdOutput, startup.hStdError = p2cr, c2pw, errw
             inherited = self._filter_handle_list([int(p2cr), int(c2pw), int(errw)])
             process, thread, pid = create_owned_process(
-                subprocess.list2cmdline(values['args']),
+                _owned_command_line(values['args'], values['env']),
                 os.fsdecode(values['cwd']) if values['cwd'] is not None else None,
                 values['env'], startup, values['creationflags'], self.owned_guard,
                 hidden=self.hidden, handle_list=inherited)

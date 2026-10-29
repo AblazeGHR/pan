@@ -55,17 +55,20 @@ def test_same_raw_command_legacy_shell_vs_current_crt_serialization(tmp_path, mo
                 finally:
                     child.close()
                 closed = child.closed
-                assert observed[-1]['commandLine'] == subprocess.list2cmdline(argv)
+                expected_line = (subprocess.list2cmdline(argv[:4]) + ' "' + command + '"'
+                                 if mode == 'canonical-shell' else subprocess.list2cmdline(argv))
+                assert observed[-1]['commandLine'] == expected_line
             assert closed
         marker = cwd / 'shell-result.txt'
         outcomes.append({'mode': mode, 'exit': code, 'marker': marker.read_text() if marker.exists() else None,
                          'closed': closed, 'logHex': log_path.read_bytes().hex(), **observed[-1]})
 
-    assert [item['exit'] for item in outcomes] == [0, 1, 1, 0], outcomes
-    assert [item['marker'] for item in outcomes] == ['owned', None, None, 'owned']
+    assert [item['exit'] for item in outcomes] == [0, 0, 1, 0], outcomes
+    assert [item['marker'] for item in outcomes] == ['owned', 'owned', None, 'owned']
     legacy, current, without_s, argv = outcomes
     assert legacy['commandLine'].endswith('/c "' + command + '"')
-    assert '\\"' in current['commandLine']
+    assert current['commandLine'].endswith('/d /s /c "' + command + '"')
+    assert '\\"' in without_s['commandLine']
     assert current['hidden'] and legacy['hidden'] and argv['hidden']
     print('SHELL_DIAGNOSTIC=' + json.dumps({'rawCommand': command,
         'rawCommandUtf16leHex': command.encode('utf-16le').hex(), 'results': outcomes}))
