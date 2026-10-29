@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from packages.core import lifecycle_action, worker
+from packages.core import lifecycle_action, platform, worker
 from packages.jobs import independent_executor
 from packages.jobs.independent_executor import ExecutionStore
 from packages.web import server
@@ -23,6 +23,12 @@ def run_and_drain(coroutine):
 
 @pytest.fixture
 def prepared(tmp_path, monkeypatch):
+    # Exercise shared preparation logic on unsupported hosts without changing
+    # platform identity or claiming real lifecycle support on those hosts.
+    actual_supports = platform.supports
+    if not actual_supports("service.lifecycle"):
+        monkeypatch.setattr(platform, "supports", lambda name:
+                            True if name == "service.lifecycle" else actual_supports(name))
     events = []
     monkeypatch.setattr(server, "_PROJECT_DIR", tmp_path)
     monkeypatch.setattr(server, "_main_restart_port", lambda: 48321)

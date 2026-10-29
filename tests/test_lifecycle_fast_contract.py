@@ -63,3 +63,33 @@ def test_fast_real_host_reports_lifecycle_unsupported_without_effect(tmp_path, m
     assert result.status_code == 501
     assert json.loads(result.body)["error"]["code"] == "unsupported_platform"
     assert not (tmp_path / "data").exists()
+
+
+@pytest.mark.parametrize("operation", ["exit", "restart"])
+def test_fast_unsupported_capability_rejects_without_effect(tmp_path, monkeypatch, operation):
+    """Exercise the negative capability decision without changing host identity."""
+    actual = platform.supports
+    monkeypatch.setattr(platform, "supports", lambda name:
+                        False if name == "service.lifecycle" else actual(name))
+    monkeypatch.setattr(server, "_PROJECT_DIR", tmp_path)
+    result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+        "options": {"markRunningSessionsOffline": True}}))
+    assert result.status_code == 501
+    assert json.loads(result.body)["error"]["code"] == "unsupported_platform"
+    assert not (tmp_path / "data").exists()
+
+
+def test_prepared_scopes_injection_when_host_capability_is_absent(tmp_path, monkeypatch):
+    decisions = []
+    def unsupported(name):
+        decisions.append(name)
+        return name == "other.capability"
+    monkeypatch.setattr(platform, "supports", unsupported)
+    owned = preparation.prepared.__wrapped__(tmp_path, monkeypatch)
+    assert platform.supports("service.lifecycle") is True
+    assert platform.supports("other.capability") is True
+    assert platform.supports("unknown.capability") is False
+    assert decisions == ["service.lifecycle", "other.capability", "unknown.capability"]
+    result = preparation.run_and_drain(server.api_system_main_lifecycle({"operation": "exit",
+        "options": {"markRunningSessionsOffline": True}}))
+    assert result["accepted"] and [item[0] for item in owned.events] == ["gate", "shutdown", "launch"]

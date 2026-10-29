@@ -4,7 +4,7 @@ import threading
 
 import pytest
 
-from packages.core import lifecycle_action, worker
+from packages.core import lifecycle_action, platform, worker
 from packages.jobs import independent_executor
 from packages.jobs.independent_executor import ExecutionStore
 from packages.web import server
@@ -153,6 +153,7 @@ def test_duplicate_during_original_admission_waits_then_returns_original_busy(pr
 
 
 @pytest.mark.parametrize("operation", ["exit", "restart"])
+@pytest.mark.skipif(not platform.supports("service.lifecycle"), reason="real detached lifecycle supervisor requires host service.lifecycle capability")
 def test_public_scheduled_response_precedes_real_detached_runner_completion(tmp_path, monkeypatch, operation):
     """Real protected executor and detached supervisor; no live service target."""
     import os
