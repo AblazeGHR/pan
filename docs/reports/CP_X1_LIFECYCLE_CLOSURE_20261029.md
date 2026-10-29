@@ -1,6 +1,6 @@
 # CP-X1 lifecycle closure
 
-Candidate `ce9d0c23ea6e1395bb4b99d7c967676aa35f64e5` adds only owned lifecycle
+Candidate `bdbe76f1b4d56b83eae3882a5b06304ff70b2fab` adds only owned lifecycle
 tests, owned runner probes, and the platform-fast gate entries. The original
 assertions and the historical red XML remain unchanged in
 `evidence/cp-x1-lifecycle-r14/original14.xml`.
