@@ -7,9 +7,36 @@ retry protocol. The canonical executor/host owns effect intent and replay fences
 """
 from __future__ import annotations
 
+import copy
 from typing import Any, Awaitable, Callable, Mapping
 
 from packages.jobs.actions import normalize_scheduled_qq_action
+
+
+class QQSendResponse(dict):
+    """Local host association for a 2xx original send POST, never a wire token."""
+
+    def __init__(self, raw, arguments):
+        super().__init__(raw)
+        self.arguments = copy.deepcopy(arguments)
+
+
+class QQChannelReceipt(dict):
+    """Original raw mapping plus locally verified pre-send evidence."""
+
+    no_send = None
+
+
+def is_pre_send_phase(phase, wire):
+    """Validate producer phase shape; provenance comes from the original POST."""
+    return (isinstance(phase, dict) and set(phase) == {"producer", "stage", "reason", "arguments"}
+            and phase["arguments"] == wire
+            and (phase["producer"], phase["stage"], phase["reason"]) in (
+                ("onebot.send", "before-call-api", "invalid-target-type"),
+                ("onebot.send", "before-call-api", "invalid-target-id"),
+                ("onebot.send", "before-call-api", "empty-text"),
+                ("onebot.send", "before-call-api", "resolve-not-connected"),
+                ("plugin.api_send", "before-channel-send", "unknown-selected-bot")))
 
 
 class QQChannelProvider:
@@ -58,4 +85,16 @@ class QQChannelProvider:
             raise TypeError("QQ sender returned a non-object receipt")
         # Preserve plugin/channel error and acknowledgement semantics exactly.
         # TypedExecutor maps the existing {ok,error,message_id} shape.
-        return dict(raw)
+        result = QQChannelReceipt(raw)
+        from packages.web import server
+        wire = {"target_type": "private" if target_type == "user" else "group",
+                "target_id": target_id, "text": text}
+        if bot_uin is not None:
+            wire["bot_uin"] = bot_uin
+        phase = raw.get("qqSendPhase")
+        if (self._sender is server._send_scheduled_qq and type(raw) is QQSendResponse
+                and raw.arguments == wire and raw.get("ok") is False
+                and is_pre_send_phase(phase, wire)):
+            result.no_send = {"phase": copy.deepcopy(phase), "effectKey": dict(effect_key),
+                              "arguments": {**args, "text": text}}
+        return result

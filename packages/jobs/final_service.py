@@ -734,7 +734,44 @@ class FinalService:
         self._permit(actor, "job", "read")
         return self._page(self.final.runs(job_id), "runs:" + job_id, cursor, limit, actor)
 
-    def _retry_boundary(self, job, run_id, step_id=None):
+    @staticmethod
+    def _qq_manual_retry_proven(state, frozen, step, prior):
+        """Only an original trusted QQ pre-send receipt replaces cleanup proof."""
+        from packages.actions.qq_channel_provider import is_pre_send_phase
+        try:
+            action = frozen["actions"][step["actionRef"]["id"]]
+            config = action["definition"]
+            if (action["id"] != "product_channel" or config.get("system") is not True
+                    or config.get("execution") != {"operation": "channel", "config": {}}
+                    or config.get("providerRef") != {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1}
+                    or step["actionRef"] != {"id": action["id"], "revision": action["revision"], "digest": fc.digest(config)}
+                    or action["digest"] != fc.digest(config)
+                    or any(binding.get("from") != "literal" for binding in step["arguments"].values())):
+                return False
+            arguments = {name: binding["value"] for name, binding in step["arguments"].items()}
+            wire = {"target_type": "private" if arguments["targetType"] == "user" else "group",
+                    "target_id": arguments["targetId"], "text": arguments["text"]}
+            if "botUin" in arguments:
+                wire["bot_uin"] = arguments["botUin"]
+            effect = prior[-1]
+            receipt = effect["receipt"]
+            proof = receipt["qqNoSend"]
+            attempt = state["attempts"][effect["attemptId"]]
+            key = {"runId": attempt["runId"], "stepId": step["stepId"], "targetId": action["id"], "operationOrdinal": 0}
+            return (effect["outcome"] == receipt["outcome"] == "rejected" and attempt["state"] == "failed"
+                    and attempt["stepId"] == step["stepId"]
+                    and state["steps"][attempt["runId"]][step["stepId"]]["attemptCount"] == attempt["generation"]
+                    and proof["attempt"] == {field: attempt[field] for field in (
+                        "attemptId", "runId", "stepId", "ownerEpoch", "generation", "leaseId")}
+                    and effect["effectKey"] == receipt["effectKey"] == proof["effectKey"] == key
+                    and proof["arguments"] == arguments
+                    and receipt["receipt"].get("ok") is False
+                    and proof["phase"] == receipt["receipt"].get("qqSendPhase")
+                    and is_pre_send_phase(proof["phase"], wire))
+        except (KeyError, TypeError, ValueError, IndexError):
+            return False
+
+    def _retry_boundary(self, job, run_id, step_id=None, *, manual=False):
         """Shared manual safety checks; automatic policy adds stricter gates."""
         state = aggregate(job, self.root)
         failed = [step for step in state["steps"][run_id].values() if step["state"] == "failed"]
@@ -751,8 +788,9 @@ class FinalService:
         prior = [e for e in state["effects"] if e["effectKey"]["runId"] == run_id and e["effectKey"]["stepId"] == failed_id]
         if any(e["outcome"] == "succeeded" for e in prior):
             error("not_retryable", "Successful effect cannot be repeated")
+        qq_proven = manual and prior and self._qq_manual_retry_proven(state, frozen, step, prior)
         if prior and (not (policy["idempotent"] or policy["sameKeySupported"]) or
-                      (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed"))):
+                      (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed") and not qq_proven)):
             error("not_retryable", "Effect lacks retry/cleanup proof")
         return step, policy, prior
 
@@ -794,7 +832,7 @@ class FinalService:
                         error("reconciliation_required", "Unknown effect must be reconciled")
                     if run["state"] != "failed":
                         error("not_retryable", "Run is not failed")
-                    self._retry_boundary(job, run_id, body.get("stepId"))
+                    self._retry_boundary(job, run_id, body.get("stepId"), manual=True)
                     state["plans"][run_id].pop("autoRecovery", None)
                     self.final.ledger.transition_run(job, self.root, run_id, "retry_wait", operation="retry")
                     result["attemptId"] = None

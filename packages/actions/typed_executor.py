@@ -389,7 +389,7 @@ class TypedExecutor:
                     result = EffectReceipt(key, _status(detail), detail).as_dict()
             elif isinstance(plan.get("action"), Mapping) and plan["action"].get("api") == "send_qq":
                 operation = "channel"
-                result = await self._channel(key, plan)
+                result = await self._channel(key, plan, attempt=attempt_map)
             elif operation in {"process", "background-process", "command"}:
                 result = await self._process(key, plan)
             elif operation in {"session-message", "message"}:
@@ -399,7 +399,7 @@ class TypedExecutor:
             elif operation == "resume-legal-running.v1":
                 result = await self._session_resume(key, plan)
             elif operation in {"channel", "qq", "send_qq"}:
-                result = await self._channel(key, plan)
+                result = await self._channel(key, plan, attempt=attempt_map)
             else:
                 raise contracts.ContractError("invalid_schema", "Unknown typed executor operation", path="operation")
         except contracts.ContractError:
@@ -614,7 +614,7 @@ class TypedExecutor:
         return EffectReceipt(dict(key), outcome, {"matchedCount": len(ids), "results": rows},
                              target_selection={"sessionIds": ids}).as_dict()
 
-    async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any], *, attempt=None) -> Mapping[str, Any]:
         action = plan.get("action") if isinstance(plan.get("action"), Mapping) else plan
         if action.get("api") != "send_qq":
             raise contracts.ContractError("invalid_schema", "Only typed send_qq channel effects are supported", path="action.api")
@@ -645,10 +645,19 @@ class TypedExecutor:
         try:
             result = await _invoke_provider(method, target_type, target_id, text, bot_uin=bot_uin, effect_key=key)
             outcome = _status(result)
-            from packages.actions.qq_channel_provider import QQChannelProvider
+            from packages.actions.qq_channel_provider import QQChannelProvider, QQChannelReceipt
+            proof = None
             if type(self.channel_provider) is QQChannelProvider and isinstance(result, Mapping):
                 outcome = QQChannelProvider.receipt_outcome(result)
-            return EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"targetType": target_type, "targetId": target_id}).as_dict()
+                if type(result) is QQChannelReceipt and result.no_send and attempt:
+                    proof = {**copy.deepcopy(result.no_send), "attempt": {field: attempt.get(field)
+                        for field in ("attemptId", "runId", "stepId", "ownerEpoch", "generation", "leaseId")}}
+                elif outcome == "rejected":
+                    outcome = "unknown"  # A copied error code is not a known pre-send rejection.
+            receipt = EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"targetType": target_type, "targetId": target_id}).as_dict()
+            if proof is not None and outcome == "rejected":
+                receipt["qqNoSend"] = proof
+            return receipt
         except BaseException as exc:
             outcome, detail = _provider_error(exc)
             detail.update(targetType=target_type, targetId=target_id)

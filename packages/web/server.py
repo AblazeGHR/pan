@@ -13239,6 +13239,9 @@ async def _qq_plugin_post(path: str, body: dict) -> dict:
             f"{plugin_url}{path}", json=body)
         response.raise_for_status()
         payload = response.json()
+        if path == "/api/qq/send" and isinstance(payload, dict):
+            from packages.actions.qq_channel_provider import QQSendResponse
+            return QQSendResponse(payload, body)
         return payload if isinstance(payload, dict) else {
             "ok": False, "error": {"code": "invalid_response",
                                     "message": "QQ plugin returned a non-object response"}}
