@@ -969,6 +969,10 @@ def _validate_config(finding: Finding, config: Any, index: ActionIndex, *,
         if recovery.get("enabled") and not recovery.get("monitoring"):
             _reason(finding, "unsupported_complex_instance",
                     "recovery is enabled without monitoring")
+        if recovery.get("monitoring"):
+            _reason(finding, "unsupported_complex_instance",
+                    "legacy monitoring/stable-reset lifecycle has no lossless offline mapping; "
+                    "preserve original and manually recreate against supported recovery contracts")
 
     overlap = config.get("overlap")
     if not isinstance(overlap, dict) or set(overlap) - {"mode", "parallelLimit"}:

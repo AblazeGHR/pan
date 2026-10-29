@@ -7,6 +7,7 @@ attestation, never a replacement for runtime authorization or fencing.
 from __future__ import annotations
 
 import copy
+import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -27,9 +28,15 @@ def require(condition: bool, message: str) -> None:
 
 
 def timestamp(value, zone: str | None = None) -> str:
+    fraction = None
     if isinstance(value, (float, int)) and not isinstance(value, bool):
         result = datetime.fromtimestamp(value, timezone.utc)
     else:
+        # datetime validates zone/fold/gap, but truncates sub-microsecond input.
+        # Canonical scheduler timestamps permit decimal precision; retain the
+        # original fractional seconds rather than silently rounding a rule.
+        match = re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)(?:Z|[+-]\d{2}:\d{2})?", value)
+        fraction = match.group(1) if match else None
         result = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if result.tzinfo is None:
             require(bool(zone), "schedule_semantic_loss: timestamp has no timezone")
@@ -41,6 +48,9 @@ def timestamp(value, zone: str | None = None) -> str:
             require(first.astimezone(timezone.utc).astimezone(tz).replace(tzinfo=None) == result,
                     "schedule_semantic_loss: nonexistent local time")
             result = first
+    if fraction is not None:
+        seconds = result.isoformat(timespec="seconds")
+        return seconds[:19] + fraction + seconds[19:]
     return result.isoformat()
 
 
@@ -245,6 +255,8 @@ class Mapper:
             elif typ == "MIG-MSG":
                 key = "session.send-many" if source["kind"] == "session-broadcast" else "session.send"
                 args = {"text": source["text"], "source": source["source"]}
+                if source.get("sourceSessionId") is not None:
+                    args["sourceSessionId"] = source["sourceSessionId"]
                 if source["kind"] == "session-broadcast":
                     args["sessionIds"] = list(dict.fromkeys(source["targetSessionIds"]))
                 else:
