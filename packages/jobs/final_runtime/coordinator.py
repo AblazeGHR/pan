@@ -331,7 +331,24 @@ class FinalRuntime:
                 if not isinstance(receipt, dict):
                     continue
                 body = receipt.get("receipt", {})
-                children = body.get("targets", []) if isinstance(body, dict) else []
+                parent_key = row["effectKey"]
+                plan = state.get("plans", {}).get(parent_key["runId"], {})
+                frozen = plan.get("frozen", {})
+                step = next((s for s in frozen.get("steps", []) if s["stepId"] == parent_key["stepId"]), {})
+                action = frozen.get("actions", {}).get(step.get("actionRef", {}).get("id"), {})
+                from packages.actions.session_resume import OPERATION, client_message_id
+                resume = (action.get("execution", {}).get("operation") == OPERATION
+                          and action.get("id") == "product_resume_legal_running_v1"
+                          and action.get("system") is True and parent_key["targetId"] == action["id"])
+                selections = plan.get("resumeSelections", {})
+                selected = selections.get(parent_key["stepId"], []) if isinstance(selections, dict) else []
+                children = (body.get("targets", body.get("results", []) if resume else [])
+                            if isinstance(body, dict) else [])
+                if resume and isinstance(children, list):
+                    children = [child for child in children if isinstance(child, dict)
+                                and isinstance(child.get("effectKey"), dict)
+                                and child["effectKey"] == {**parent_key, "targetId": child["effectKey"].get("targetId")}
+                                and isinstance(selected, list) and child["effectKey"].get("targetId") in selected]
                 candidates = [receipt] + (children if isinstance(children, list) else [])
                 for target in candidates:
                     if not isinstance(target, dict):
@@ -345,6 +362,8 @@ class FinalRuntime:
                     if key:
                         digest = contracts.digest(key)
                         identities.update({digest, "effect_" + digest, "effect_" + digest[:40]})
+                        if resume and target in children:
+                            identities.add(client_message_id(key))
                     if original_id in identities:
                         run_ids.add(row["effectKey"]["runId"])
             effects = [copy.deepcopy(e) for e in state["effects"] if full or e["effectKey"]["runId"] in run_ids]

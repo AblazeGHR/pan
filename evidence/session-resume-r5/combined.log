@@ -1,0 +1,185 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-source-receipt-20261029
+........................................................................ [ 73%]
+.......F...F...FFFFF.FFFFF                                               [100%]
+================================== FAILURES ===================================
+_______ test_default_disabled_graph_lost_receipt_query_and_cold_reopen ________
+tests\test_scheduler_time_templates.py:40: in test_default_disabled_graph_lost_receipt_query_and_cold_reopen
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"provider_unavailable","message":"provider unavailable"}}
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+__________ test_explicit_activation_authorities_and_no_immediate_run __________
+tests\test_scheduler_time_templates.py:74: in test_explicit_activation_authorities_and_no_immediate_run
+    assert result.status_code == 201, result.text
+E   AssertionError: {"error":{"code":"provider_unavailable","message":"provider unavailable"}}
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+___ test_actual_graph_grants_not_inferred_from_template_use[missing3-False] ___
+tests\test_scheduler_time_templates.py:97: in test_actual_graph_grants_not_inferred_from_template_use
+    with pytest.raises(fc.ContractError, match="test denial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'test denial'
+E     Actual message: 'Current host timezone is unavailable'
+___ test_actual_graph_grants_not_inferred_from_template_use[missing4-True] ____
+tests\test_scheduler_time_templates.py:97: in test_actual_graph_grants_not_inferred_from_template_use
+    with pytest.raises(fc.ContractError, match="test denial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'test denial'
+E     Actual message: 'Current host timezone is unavailable'
+___ test_actual_graph_grants_not_inferred_from_template_use[missing5-True] ____
+tests\test_scheduler_time_templates.py:97: in test_actual_graph_grants_not_inferred_from_template_use
+    with pytest.raises(fc.ContractError, match="test denial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'test denial'
+E     Actual message: 'Current host timezone is unavailable'
+___ test_actual_graph_grants_not_inferred_from_template_use[missing6-True] ____
+tests\test_scheduler_time_templates.py:97: in test_actual_graph_grants_not_inferred_from_template_use
+    with pytest.raises(fc.ContractError, match="test denial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'test denial'
+E     Actual message: 'Current host timezone is unavailable'
+___ test_actual_graph_grants_not_inferred_from_template_use[missing7-True] ____
+tests\test_scheduler_time_templates.py:97: in test_actual_graph_grants_not_inferred_from_template_use
+    with pytest.raises(fc.ContractError, match="test denial"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: Regex pattern did not match.
+E     Expected regex: 'test denial'
+E     Actual message: 'Current host timezone is unavailable'
+______ test_joined_transaction_failure_rolls_back_and_same_key_recovers _______
+tests\test_scheduler_time_templates.py:131: in test_joined_transaction_failure_rolls_back_and_same_key_recovers
+    assert recovered.status_code == 201, recovered.text
+E   AssertionError: {"error":{"code":"provider_unavailable","message":"provider unavailable"}}
+E   assert 503 == 201
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+_____ test_preexisting_composition_checkpoint_resumes_same_ids[reserved] ______
+packages\scheduler\providers.py:256: in zone
+    text = str(name or self.host_zone()).strip()
+                       ^^^^^^^^^^^^^^^^
+packages\core\platform\timezones.py:12: in host_zone_name
+    from tzlocal import reload_localzone
+E   ModuleNotFoundError: No module named 'tzlocal'
+
+The above exception was the direct cause of the following exception:
+tests\test_scheduler_time_templates.py:157: in test_preexisting_composition_checkpoint_resumes_same_ids
+    receipt = fresh.instantiate_time_template(item["id"], request(item), actor=USER)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in instantiate_time_template
+    return self._operation(db, actor, "instantiate-template", body["requestKey"],
+packages\jobs\final_service.py:246: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:357: in mutate
+    source = self.creators.registry.validate_definition(spec["definition"])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\providers.py:166: in validate_definition
+    value = contracts.validate_definition(
+packages\jobs\final_contracts.py:2403: in validate_definition
+    config_validator(value["config"])
+packages\scheduler\providers.py:290: in validate_config
+    self.zone(rule.get("timezone"))
+packages\scheduler\providers.py:258: in zone
+    raise contracts.ContractError("provider_unavailable", "Current host timezone is unavailable",
+E   packages.jobs.final_contracts.ContractError: Current host timezone is unavailable
+_ test_preexisting_composition_checkpoint_resumes_same_ids[disabled_objects_created] _
+packages\scheduler\providers.py:256: in zone
+    text = str(name or self.host_zone()).strip()
+                       ^^^^^^^^^^^^^^^^
+packages\core\platform\timezones.py:12: in host_zone_name
+    from tzlocal import reload_localzone
+E   ModuleNotFoundError: No module named 'tzlocal'
+
+The above exception was the direct cause of the following exception:
+tests\test_scheduler_time_templates.py:152: in test_preexisting_composition_checkpoint_resumes_same_ids
+    h.service.compositions.compose(request_key=key, desired_graph={"job": value["jobDefinition"],
+packages\scheduler\composition.py:135: in compose
+    return self._resume(operation)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\composition.py:161: in _resume
+    self.creators.create(
+packages\scheduler\creators.py:340: in create
+    value = self.registry.validate_definition(definition, migration=migration)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\providers.py:166: in validate_definition
+    value = contracts.validate_definition(
+packages\jobs\final_contracts.py:2403: in validate_definition
+    config_validator(value["config"])
+packages\scheduler\providers.py:290: in validate_config
+    self.zone(rule.get("timezone"))
+packages\scheduler\providers.py:258: in zone
+    raise contracts.ContractError("provider_unavailable", "Current host timezone is unavailable",
+E   packages.jobs.final_contracts.ContractError: Current host timezone is unavailable
+__ test_preexisting_composition_checkpoint_resumes_same_ids[links_verified] ___
+packages\scheduler\providers.py:256: in zone
+    text = str(name or self.host_zone()).strip()
+                       ^^^^^^^^^^^^^^^^
+packages\core\platform\timezones.py:12: in host_zone_name
+    from tzlocal import reload_localzone
+E   ModuleNotFoundError: No module named 'tzlocal'
+
+The above exception was the direct cause of the following exception:
+tests\test_scheduler_time_templates.py:152: in test_preexisting_composition_checkpoint_resumes_same_ids
+    h.service.compositions.compose(request_key=key, desired_graph={"job": value["jobDefinition"],
+packages\scheduler\composition.py:135: in compose
+    return self._resume(operation)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\composition.py:161: in _resume
+    self.creators.create(
+packages\scheduler\creators.py:340: in create
+    value = self.registry.validate_definition(definition, migration=migration)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\providers.py:166: in validate_definition
+    value = contracts.validate_definition(
+packages\jobs\final_contracts.py:2403: in validate_definition
+    config_validator(value["config"])
+packages\scheduler\providers.py:290: in validate_config
+    self.zone(rule.get("timezone"))
+packages\scheduler\providers.py:258: in zone
+    raise contracts.ContractError("provider_unavailable", "Current host timezone is unavailable",
+E   packages.jobs.final_contracts.ContractError: Current host timezone is unavailable
+________________ test_real_delegated_profile_grants_and_revoke ________________
+tests\test_scheduler_time_templates.py:188: in test_real_delegated_profile_grants_and_revoke
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_time_templates.py:179: in check
+    assert (await client.post(url, json=request(item))).status_code == 403
+E   assert 503 == 403
+E    +  where 503 = <Response [503 Service Unavailable]>.status_code
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+tests/test_session_resume_product.py::test_http_fresh_query_per_fire_original_wake_pause_and_identity
+  tests\test_session_resume_product.py:41: PytestWarning: record_property is incompatible with junit_family 'xunit2' (use 'legacy' or 'xunit1')
+    def test_http_fresh_query_per_fire_original_wake_pause_and_identity(h, monkeypatch, record_property):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scheduler_time_templates.py::test_default_disabled_graph_lost_receipt_query_and_cold_reopen
+FAILED tests/test_scheduler_time_templates.py::test_explicit_activation_authorities_and_no_immediate_run
+FAILED tests/test_scheduler_time_templates.py::test_actual_graph_grants_not_inferred_from_template_use[missing3-False]
+FAILED tests/test_scheduler_time_templates.py::test_actual_graph_grants_not_inferred_from_template_use[missing4-True]
+FAILED tests/test_scheduler_time_templates.py::test_actual_graph_grants_not_inferred_from_template_use[missing5-True]
+FAILED tests/test_scheduler_time_templates.py::test_actual_graph_grants_not_inferred_from_template_use[missing6-True]
+FAILED tests/test_scheduler_time_templates.py::test_actual_graph_grants_not_inferred_from_template_use[missing7-True]
+FAILED tests/test_scheduler_time_templates.py::test_joined_transaction_failure_rolls_back_and_same_key_recovers
+FAILED tests/test_scheduler_time_templates.py::test_preexisting_composition_checkpoint_resumes_same_ids[reserved]
+FAILED tests/test_scheduler_time_templates.py::test_preexisting_composition_checkpoint_resumes_same_ids[disabled_objects_created]
+FAILED tests/test_scheduler_time_templates.py::test_preexisting_composition_checkpoint_resumes_same_ids[links_verified]
+FAILED tests/test_scheduler_time_templates.py::test_real_delegated_profile_grants_and_revoke
