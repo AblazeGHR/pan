@@ -36,6 +36,12 @@ FAST_TESTS = (
     "tests/test_job_process_logs.py",
     "tests/test_job_final_executors.py",
     "tests/test_lifecycle_fast_contract.py",
+    # Canonical lifecycle preparation is a cross-platform fast contract: the
+    # durable plan, worker gate, held task and unknown fencing are exercised on
+    # every target.  The genuine host/controller suites remain in the slower
+    # owned-host job below and are not replaced by these unit nodes.
+    "tests/test_lifecycle_canonical_preparation.py",
+    "tests/test_lifecycle_strict_successors.py",
     "tests/test_lifecycle_prelaunch_fence.py::test_prelaunch_original_error_idempotence_and_attempt_fence",
     "tests/test_lifecycle_prelaunch_fence.py::test_claim_or_launch_marker_forbids_prelaunch_rejection",
     "tests/test_job_final_independent_execution.py::test_fe02_concurrent_admission_never_calls_legacy_create_retry",

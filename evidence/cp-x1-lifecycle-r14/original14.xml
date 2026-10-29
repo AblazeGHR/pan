@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="14" time="1.356" timestamp="2026-10-29T11:36:19.282709+08:00" hostname="ablaze"><testcase classname="tests.test_main_service_exit" name="test_exit_job_records_choice_and_exact_pre_exit_running_snapshot" time="0.049"><failure message="assert False is True">tests\test_main_service_exit.py:62: in test_exit_job_records_choice_and_exact_pre_exit_running_snapshot
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_ask_requires_explicit_choice_before_job_or_worker_gate" time="0.006" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]" time="0.044" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]" time="0.041" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]" time="0.059" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]" time="0.042" /><testcase classname="tests.test_main_service_exit" name="test_exit_schedules_worker_shutdown_and_python_supervisor" time="0.048"><failure message="AssertionError: assert ('shutdown', ...n/main-exit'}) == ('shutdown', ...ion_ids': ()})&#10;  &#10;  At index 1 diff: {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': (), 'legal_state_source': 'pan/main-exit'} != {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': ()}&#10;  Use -v to get more diff">tests\test_main_service_exit.py:201: in test_exit_schedules_worker_shutdown_and_python_supervisor
+    assert calls[0] == ("shutdown", {
+E   AssertionError: assert ('shutdown', ...n/main-exit'}) == ('shutdown', ...ion_ids': ()})
+E     
+E     At index 1 diff: {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': (), 'legal_state_source': 'pan/main-exit'} != {'mark_legal_offline': True, 'mark_legal_offline_session_ids': [], 'preserve_legal_running_session_ids': ()}
+E     Use -v to get more diff</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_duplicate_exit_is_rejected_without_second_request" time="0.025"><failure message="fastapi.exceptions.HTTPException: 400: {'code': 'lifecycle_choice_required', 'operation': 'exit', 'field': 'markRunningSessionsOffline', 'message': 'choose whether legal-running Sessions should be marked offline before this service operation'}">tests\test_main_service_exit.py:217: in test_duplicate_exit_is_rejected_without_second_request
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\web\server.py:4167: in api_system_main_lifecycle
+    options = await _snapshot_main_lifecycle_options(options, operation)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:773: in _snapshot_main_lifecycle_options
+    strategy, mark_running_offline = _resolve_main_lifecycle_policy(options, operation)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:756: in _resolve_main_lifecycle_policy
+    raise HTTPException(
+E   fastapi.exceptions.HTTPException: 400: {'code': 'lifecycle_choice_required', 'operation': 'exit', 'field': 'markRunningSessionsOffline', 'message': 'choose whether legal-running Sessions should be marked offline before this service operation'}</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_returns_scheduled_before_python_supervisor_finishes" time="0.043"><failure message="assert False is True">tests\test_main_service_restart.py:63: in test_restart_returns_scheduled_before_python_supervisor_finishes
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_ask_requires_explicit_choice_before_any_side_effect" time="0.006" /><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]" time="0.041"><failure message="assert False is True">tests\test_main_service_restart.py:137: in test_restart_freezes_configured_policy_and_running_snapshot
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]" time="0.041"><failure message="assert False is True">tests\test_main_service_restart.py:137: in test_restart_freezes_configured_policy_and_running_snapshot
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]" time="0.064"><failure message="assert False is True">tests\test_main_service_restart.py:137: in test_restart_freezes_configured_policy_and_running_snapshot
+    assert result["ok"] is True
+E   assert False is True</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]" time="0.042"><failure message="assert False is True">tests\test_main_service_restart.py:137: in test_restart_freezes_configured_policy_and_running_snapshot
+    assert result["ok"] is True
+E   assert False is True</failure></testcase></testsuite></testsuites>

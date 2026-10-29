@@ -152,7 +152,8 @@ def test_canonical_job_cancel_after_controller_crash(tmp_path, runtime_kind, cra
             wait(lambda: all(not alive(row) for row in members), bool)
             supervisor_exit = wait(lambda: supervisor_exit_evidence(doc["supervisorIdentity"]), lambda proof: proof["confirmed"])
             assert (tmp_path / "effects.txt").read_text().splitlines() == ["once"]
-            target = Path("evidence/cp-x1-strict-successors-20261029/controller")
+            override = os.environ.get("CPX1_LIFECYCLE_EVIDENCE_ROOT")
+            target = Path(override) / "controller" if override else Path("evidence/cp-x1-strict-successors-20261029/controller")
             target.mkdir(parents=True, exist_ok=True)
             evidence = {"runtimeKind": runtime_kind,
                 "crashPoint": crash_point,
