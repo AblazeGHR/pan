@@ -68,10 +68,14 @@ def test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner(t
         if label == 'original main readiness':
             output = startup_log.read_bytes()[-8192:].decode('utf-8', errors='replace') if startup_log.exists() else ''
             output = output.replace(str(root), '<owned-root>').replace(str(tmp_path), '<owned-tmp>')
+            pid = process.pid if process else None
+            birth = launcher.process_create_time(pid) if pid and process.poll() is None else None
             raise AssertionError('owned restart timed out: ' + label +
-                                 f'; childReturncode={process.poll() if process else None}; '
+                                 f'; childPid={pid}; childBirth={birth}; '
+                                 f'childReturncode={process.poll() if process else None}; '
                                  f'listenerOwner={launcher.listener_owner(port)}; '
-                                 f'ownedPort={port}; source={source}; startupLogTail={output!r}')
+                                 f'ownedPort={port}; root=<owned-root>; configPort={config["port"]}; '
+                                 f'source={source}; startupLogTail={output!r}')
         raise AssertionError('owned restart timed out: ' + label)
 
     def receipt():
