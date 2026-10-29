@@ -1,0 +1,17 @@
+{
+  "tests/test_lifecycle_canonical_preparation.py": {
+    "original_assertions": 42,
+    "current_assertions": 42,
+    "removed": 0
+  },
+  "tests/test_lifecycle_strict_successors.py": {
+    "original_assertions": 39,
+    "current_assertions": 39,
+    "removed": 0
+  },
+  "tests/test_lifecycle_fast_contract.py": {
+    "original_assertions": 3,
+    "current_assertions": 11,
+    "removed": 0
+  }
+}

@@ -1,0 +1,2162 @@
+{
+  "schema": "cp-x1.ci408221-diagnosis/1",
+  "freeze": "b5b3f81d57e56b735d65d18d4446ae29c4cb39c6",
+  "fixSource": "a1d854eb3d8cb84db819833701b8e19ada9b0ac3",
+  "priorRun": 40760691765,
+  "currentRun": 40822149442,
+  "posix": {
+    "ubuntu": {
+      "sha256": "227657ece5aa801efa462df763d797ae27fdb6dcb18ae0b1be9eabdd9917c06a",
+      "nodes": {
+        "tests.test_lifecycle_canonical_preparation::test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-True-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-False-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-offline-False-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[restart-preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_duplicate_and_cross_operation_reject_while_original_effect_queryable": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_concurrent_exit_and_restart_share_one_worker_preparation": {
+          "kind": "failure",
+          "message": "Failed: Timeout (>300.0s) from pytest-timeout.",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_lost_memory_still_fences_duplicate_or_cross_operation[exit]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_lost_memory_still_fences_duplicate_or_cross_operation[restart]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_partial_worker_failure_is_unknown_and_never_launches_or_reopens": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_scheduled_response_does_not_wait_for_worker_shutdown[exit]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_scheduled_response_does_not_wait_for_worker_shutdown[restart]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_task_creation_failure_preserves_original_unknown_without_launch": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_cancelled_before_task_starts_is_fenced_and_durable": {
+          "kind": "failure",
+          "message": "ValueError: not enough values to unpack (expected 1, got 0)",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_cancel_during_ambiguous_launch_preserves_original_unknown": {
+          "kind": "failure",
+          "message": "assert False",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_admission_failure_never_closes_worker_gate": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE OSError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_duplicate_during_original_admission_waits_then_returns_original_busy": {
+          "kind": "failure",
+          "message": "assert False",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "explicit_skip_real_detached_supervisor_on_unsupported_host"
+        },
+        "tests.test_lifecycle_strict_successors::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "explicit_skip_real_detached_supervisor_on_unsupported_host"
+        }
+      }
+    },
+    "macos": {
+      "sha256": "b973d4eaff8acc31be34624053abc20eab3d5ce08043220d273f8cc1a857da19",
+      "nodes": {
+        "tests.test_lifecycle_canonical_preparation::test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-True-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-False-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-offline-False-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_freeze_before_gate_and_worker_shutdown_before_supervisor[restart-preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_duplicate_and_cross_operation_reject_while_original_effect_queryable": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_concurrent_exit_and_restart_share_one_worker_preparation": {
+          "kind": "failure",
+          "message": "Failed: Timeout (>300.0s) from pytest-timeout.",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_lost_memory_still_fences_duplicate_or_cross_operation[exit]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_lost_memory_still_fences_duplicate_or_cross_operation[restart]": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_partial_worker_failure_is_unknown_and_never_launches_or_reopens": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_canonical_preparation::test_ambiguous_supervisor_launch_is_unknown_and_is_not_replayed": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_scheduled_response_does_not_wait_for_worker_shutdown[exit]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_scheduled_response_does_not_wait_for_worker_shutdown[restart]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_task_creation_failure_preserves_original_unknown_without_launch": {
+          "kind": "failure",
+          "message": "TypeError: 'JSONResponse' object is not subscriptable",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_cancelled_before_task_starts_is_fenced_and_durable": {
+          "kind": "failure",
+          "message": "ValueError: not enough values to unpack (expected 1, got 0)",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_cancel_during_ambiguous_launch_preserves_original_unknown": {
+          "kind": "failure",
+          "message": "assert False",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_admission_failure_never_closes_worker_gate": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE OSError",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_duplicate_during_original_admission_waits_then_returns_original_busy": {
+          "kind": "failure",
+          "message": "assert False",
+          "repair": "prepared_scoped_capability_injection_preserve_assertions"
+        },
+        "tests.test_lifecycle_strict_successors::test_public_scheduled_response_precedes_real_detached_runner_completion[exit]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "explicit_skip_real_detached_supervisor_on_unsupported_host"
+        },
+        "tests.test_lifecycle_strict_successors::test_public_scheduled_response_precedes_real_detached_runner_completion[restart]": {
+          "kind": "failure",
+          "message": "TimeoutError",
+          "repair": "explicit_skip_real_detached_supervisor_on_unsupported_host"
+        }
+      }
+    }
+  },
+  "cause": "api_system_main_lifecycle returns a 501 unsupported_platform JSONResponse before prepared gate/admission/task; prepared previously did not inject service.lifecycle. The two real detached tests cannot inject into a child process and are explicitly skipped only on unsupported real hosts.",
+  "windows": {
+    "3.12": {
+      "priorXmlSha256": "0fed78980d3d85aaae194ee86d4b89a7c16022644414db403f765610640ed876",
+      "currentXmlSha256": "b6d8d55b4a712b7a184ae776ec4709d2213628b36f7efa62765819e78c2113bc",
+      "priorCount": 234,
+      "currentCount": 235,
+      "added": {
+        "tests.test_cpx1_genuine_restart::test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner": {
+          "kind": "failure",
+          "message": "AssertionError: owned restart timed out: original main readiness"
+        },
+        "tests.test_independent_job_service::test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task": {
+          "kind": "failure",
+          "message": "RuntimeError: Job service unavailable\n{\"serviceReturncode\": null, \"requests\": [{\"method\": \"GET\", \"url\": \"http://127.0.0.1:62207/health\", \"timeout\": 1.0, \"elapsed\": 0.5}, {\"method\": \"POST\", \"url\": \"http://127.0.0.1:62207/executions\", \"timeout\": 1.0, \"error\": \"TimeoutError('timed out')\", \"elapsed\": 1.0}], \"durableExecutions\": []}"
+        }
+      },
+      "removed": {
+        "tests.test_terminal_broadcast::test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich": {
+          "kind": "failure",
+          "message": "AssertionError: terminal path waited for enrich: 0.188s; save_body_seconds=[0.0, 0.0, 0.0, 0.0]; event_offsets=[('queue.snapshot', 0.0), ('worker.stream', 0.0), ('worker.stream', 0.0), ('worker.result', 0.0), ('worker.status', 0.0)]; enrich_offsets=[0.0]\nassert 0.18800000000010186 < 0.12"
+        }
+      },
+      "unchanged": {
+        "tests.test_authorization_runtime::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt": {
+          "kind": "failure",
+          "message": "AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'"
+        },
+        "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice": {
+          "kind": "failure",
+          "message": "AssertionError: POST /api/background-jobs: 401 {\"detail\":\"User Bearer or trusted MCP transport required\"}\nassert 401 == 200\n +  where 401 = <Response [401 Unauthorized]>.status_code"
+        },
+        "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start_message'"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_background_job_api::test_http_retry_rejects_running_job": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'retry'"
+        },
+        "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start_broadcast'"
+        },
+        "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_api::test_http_start_reports_missing_session": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_default_side_effects_never_retry": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_http_policy_and_public_status": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_retry_inherits_creator_and_target": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_jobs::test_retry_rejects_running_job": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint retry retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: '_retry'?"
+        },
+        "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_start_persists_metadata_and_detaches": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_notification_is_idempotent": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake": {
+          "kind": "failure",
+          "message": "AssertionError: POST /api/background-jobs: 401 {\"detail\":\"User Bearer or trusted MCP transport required\"}\nOwned server log:"
+        },
+        "tests.test_independent_job_bridge::test_core_routes_only_new_generic_jobs_and_never_reconciles_remote": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation": {
+          "kind": "failure",
+          "message": "AttributeError: 'NoneType' object has no attribute 'app'"
+        },
+        "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.<locals>.<lambda> at 0x0000020D7C9D7CE0>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000020D7C9D6CA0>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000020D7C9D6F20>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_retirement_quota_transport::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence": {
+          "kind": "failure",
+          "message": "assert (409 == 409 and 'fence' in '{\"detail\":\"Cannot bind monitor: quota/current account unknown\"}')\n +  where 409 = <Response [409 Conflict]>.status_code\n +  and   '{\"detail\":\"Cannot bind monitor: quota/current account unknown\"}' = <Response [409 Conflict]>.text"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.independent_service' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\independent_service.py'> has no attribute 'sys'"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break": {
+          "kind": "failure",
+          "message": "ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package"
+        },
+        "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy": {
+          "kind": "failure",
+          "message": "ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000020D6FC48180>()\n +    where <function main at 0x0000020D6FC48180> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_jobs_api::test_action_template_default_assign": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_action_template_send_session": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_partial_failed_event_emitted": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_jobs_api::test_patch_blank_name_rejected": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_enable_disable_stops_entries": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_rename_and_description": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_schedule_replaces_entries": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_text_updates_dispatch_body": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing": {
+          "kind": "failure",
+          "message": "KeyError: 'error'"
+        },
+        "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_requires_existing_session": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_run_records_carry_entry_id": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_runs_and_next_and_run_now": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_structured_identity_new_records": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[safe-api]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_main_service_exit::test_duplicate_exit_is_rejected_without_second_request": {
+          "kind": "failure",
+          "message": "AssertionError: assert 'request_97ba...312247f9139ca' == 'already-exiting'\n  \n  - already-exiting\n  + request_97ba953c385312247f9139ca"
+        },
+        "tests.test_main_service_exit::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException"
+        },
+        "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_schedules_worker_shutdown_and_python_supervisor": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_ask_requires_explicit_choice_before_any_side_effect": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_returns_scheduled_before_python_supervisor_finishes": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_persistence_sharding::test_usage_merge_and_terminal_events_keep_durable_order": {
+          "kind": "failure",
+          "message": "AssertionError: assert '' == 'answer'\n  \n  - answer"
+        },
+        "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _run_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _run_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown": {
+          "kind": "failure",
+          "message": "assert (200 == 409)\n +  where 200 = <Response [200 OK]>.status_code"
+        },
+        "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser": {
+          "kind": "failure",
+          "message": "KeyError: 'result'"
+        },
+        "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]": {
+          "kind": "failure",
+          "message": "httpx.HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:59388/api/jobs'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
+        },
+        "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]": {
+          "kind": "failure",
+          "message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" get_by_role(\"article\", name=\"Jobs Form Job\", exact=True) with timeout 5000ms\n  - waiting for get_by_role(\"article\", name=\"Jobs Form Job\", exact=True)\n\nAria snapshot:\n- complementary:\n  - heading \"Pan\" [level=1]\n  - button \"App settings\"\n  - button \"Switch to light theme\"\n  - button \"Collapse sidebar\"\n  - navigation \"\u754c\u9762\u5165\u53e3\":\n    - button \"\u4e0a\u4e00\u7ec4\u754c\u9762\u5165\u53e3\"\n[+191 more lines; fu"
+        },
+        "tests.test_session_incremental::test_worker_path_saves_incrementally_and_reloads": {
+          "kind": "failure",
+          "message": "AssertionError: assert [{'role': 'as...89240', ...}}] == [{'role': 'as...nt': 'hello'}]\n  \n  Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:97b79a18dc444a729c6eb199bbf76d5f', 'status': 'done', 'occurredAt': '2026-10-29T05:50:25.089240', ...}}\n  \n  Full diff: (-: missing in left side, +: extra in left side)\n    [\n        {\n            'role': 'assistant',\n[+21 more lines; full r"
+        },
+        "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_message_job_default_name_min_vacant": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_settings_ui::test_get_ui_defaults_when_absent": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+78 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_put_ui_full_replacement": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer": {
+          "kind": "failure",
+          "message": "ImportError: cannot import name 'setup' from 'tests.test_event_store' (D:\\a\\pan\\pan\\tests\\test_event_store.py)"
+        }
+      }
+    },
+    "3.14": {
+      "priorXmlSha256": "17a11b70ea2d48a85c8a83517f7f7c0f7ea95d5b863ddc4a4b245d308e170934",
+      "currentXmlSha256": "89b1594b1102541bc3fea56a3d15eb9c92d5d129cc4960fd8415a6ac563d10f9",
+      "priorCount": 234,
+      "currentCount": 234,
+      "added": {
+        "tests.test_cpx1_genuine_restart::test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner": {
+          "kind": "failure",
+          "message": "AssertionError: owned restart timed out: original main readiness"
+        }
+      },
+      "removed": {
+        "tests.test_locker_order_scroll_live::test_locker_order_scroll_live": {
+          "kind": "failure",
+          "message": "AssertionError: \n  node:internal/modules/run_main:107\n      triggerUncaughtException(\n      ^\n  \n  ExpectError: expect(locator).toHaveCount(expected) failed\n  \n  Locator:  getByRole('region', { name: 'Locker messages' }).locator('article:visible').getByRole('button', { name: 'Mark read', exact: true })\n  Expected: 0\n  Received: 94\n  Timeout:  5000ms\n  \n  Call log:\n[+101 more lines; full report in element text]"
+        }
+      },
+      "unchanged": {
+        "tests.test_authorization_runtime::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt": {
+          "kind": "failure",
+          "message": "AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'"
+        },
+        "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice": {
+          "kind": "failure",
+          "message": "AssertionError: POST /api/background-jobs: 401 {\"detail\":\"User Bearer or trusted MCP transport required\"}\nassert 401 == 200\n +  where 401 = <Response [401 Unauthorized]>.status_code"
+        },
+        "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start_message'"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_background_job_api::test_http_retry_rejects_running_job": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'retry'"
+        },
+        "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start_broadcast'"
+        },
+        "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_api::test_http_start_reports_missing_session": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_default_side_effects_never_retry": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_http_policy_and_public_status": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_retry_inherits_creator_and_target": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_background_jobs::test_retry_rejects_running_job": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint retry retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_start_persists_metadata_and_detaches": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_background_jobs::test_terminal_notification_is_idempotent": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake": {
+          "kind": "failure",
+          "message": "AssertionError: POST /api/background-jobs: 401 {\"detail\":\"User Bearer or trusted MCP transport required\"}\nOwned server log:"
+        },
+        "tests.test_independent_job_bridge::test_core_routes_only_new_generic_jobs_and_never_reconciles_remote": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation": {
+          "kind": "failure",
+          "message": "AttributeError: 'NoneType' object has no attribute 'app'"
+        },
+        "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation": {
+          "kind": "failure",
+          "message": "packages.automation.engine.DependencyUnavailable: Canonical Job owner required; legacy Automation host is retired"
+        },
+        "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]": {
+          "kind": "error",
+          "message": "failed on setup with \"AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'run_due_scheduled_tasks'\""
+        },
+        "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.<locals>.<lambda> at 0x0000024CFA6EEC40>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000024CFA6EF7F0>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]": {
+          "kind": "failure",
+          "message": "assert False\n +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000024CFA6EE560>)"
+        },
+        "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?"
+        },
+        "tests.test_job_retirement_quota_transport::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence": {
+          "kind": "failure",
+          "message": "assert (409 == 409 and 'fence' in '{\"detail\":\"Cannot bind monitor: quota/current account unknown\"}')\n +  where 409 = <Response [409 Conflict]>.status_code\n +  and   '{\"detail\":\"Cannot bind monitor: quota/current account unknown\"}' = <Response [409 Conflict]>.text"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.independent_service' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\independent_service.py'> has no attribute 'sys'"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]": {
+          "kind": "failure",
+          "message": "AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?"
+        },
+        "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break": {
+          "kind": "failure",
+          "message": "ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package"
+        },
+        "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy": {
+          "kind": "failure",
+          "message": "ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]": {
+          "kind": "failure",
+          "message": "AssertionError: assert 1 == 0\n +  where 1 = <function main at 0x0000024CEDF8C720>()\n +    where <function main at 0x0000024CEDF8C720> = <module 'packages.core.background_runner' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_runner.py'>.main"
+        },
+        "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.core.background_jobs' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\core\\\\background_jobs.py'> has no attribute 'start'"
+        },
+        "tests.test_jobs_api::test_action_template_default_assign": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_action_template_send_session": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_partial_failed_event_emitted": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_jobs_api::test_patch_blank_name_rejected": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_enable_disable_stops_entries": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_rename_and_description": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_schedule_replaces_entries": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_patch_text_updates_dispatch_body": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing": {
+          "kind": "failure",
+          "message": "KeyError: 'error'"
+        },
+        "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_requires_existing_session": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_run_records_carry_entry_id": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint run_due_scheduled_tasks retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'register_scheduled_tasks'?"
+        },
+        "tests.test_jobs_api::test_runs_and_next_and_run_now": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_jobs_api::test_structured_identity_new_records": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[safe-api]": {
+          "kind": "failure",
+          "message": "AssertionError: timed out waiting for owned host stopped: False"
+        },
+        "tests.test_main_service_exit::test_duplicate_exit_is_rejected_without_second_request": {
+          "kind": "failure",
+          "message": "AssertionError: assert 'request_d5e6...dbf355ad003a7' == 'already-exiting'\n  \n  - already-exiting\n  + request_d5e69b38d37dbf355ad003a7"
+        },
+        "tests.test_main_service_exit::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException"
+        },
+        "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "TypeError: 'NoneType' object is not subscriptable"
+        },
+        "tests.test_main_service_exit::test_exit_schedules_worker_shutdown_and_python_supervisor": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_ask_requires_explicit_choice_before_any_side_effect": {
+          "kind": "failure",
+          "message": "Failed: DID NOT RAISE HTTPException"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_main_service_restart::test_restart_returns_scheduled_before_python_supervisor_finishes": {
+          "kind": "failure",
+          "message": "assert False is True"
+        },
+        "tests.test_persistence_sharding::test_usage_merge_and_terminal_events_keep_durable_order": {
+          "kind": "failure",
+          "message": "AssertionError: assert '' == 'answer'\n  \n  - answer"
+        },
+        "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _run_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _run_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown": {
+          "kind": "failure",
+          "message": "assert (200 == 409)\n +  where 200 = <Response [200 OK]>.status_code"
+        },
+        "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http": {
+          "kind": "failure",
+          "message": "KeyError: 'ok'"
+        },
+        "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire": {
+          "kind": "failure",
+          "message": "AttributeError: <module 'packages.jobs.system_actions' from 'D:\\\\a\\\\pan\\\\pan\\\\packages\\\\jobs\\\\system_actions.py'> has no attribute 'execute'"
+        },
+        "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser": {
+          "kind": "failure",
+          "message": "KeyError: 'result'"
+        },
+        "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]": {
+          "kind": "failure",
+          "message": "httpx.HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:50740/api/jobs'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
+        },
+        "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]": {
+          "kind": "failure",
+          "message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" get_by_role(\"article\", name=\"Jobs Form Job\", exact=True) with timeout 5000ms\n  - waiting for get_by_role(\"article\", name=\"Jobs Form Job\", exact=True)\n\nAria snapshot:\n- complementary:\n  - heading \"Pan\" [level=1]\n  - button \"App settings\"\n  - button \"Switch to light theme\"\n  - button \"Collapse sidebar\"\n  - navigation \"\u754c\u9762\u5165\u53e3\":\n    - button \"\u4e0a\u4e00\u7ec4\u754c\u9762\u5165\u53e3\"\n[+191 more lines; fu"
+        },
+        "tests.test_session_incremental::test_worker_path_saves_incrementally_and_reloads": {
+          "kind": "failure",
+          "message": "AssertionError: assert [{'role': 'as...38898', ...}}] == [{'role': 'as...nt': 'hello'}]\n  \n  Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:794eaff4afa649109d03738d925aee2d', 'status': 'done', 'occurredAt': '2026-10-29T05:57:45.138898', ...}}\n  \n  Full diff: (-: missing in left side, +: extra in left side)\n    [\n        {\n            'role': 'assistant',\n[+21 more lines; full r"
+        },
+        "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_message_job_default_name_min_vacant": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time": {
+          "kind": "failure",
+          "message": "packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime"
+        },
+        "tests.test_settings_ui::test_get_ui_defaults_when_absent": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+78 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_settings_ui::test_put_ui_full_replacement": {
+          "kind": "failure",
+          "message": "AssertionError: assert {'defaultGrou...e': True, ...} == {'autoReport'...e': True, ...}\n  \n  Omitting 10 identical items, use -vv to show\n  Differing items:\n[+73 more lines; full report in element text]"
+        },
+        "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer": {
+          "kind": "failure",
+          "message": "ImportError: cannot import name 'setup' from 'tests.test_event_store' (D:\\a\\pan\\pan\\tests\\test_event_store.py)"
+        }
+      }
+    }
+  },
+  "local": {
+    "junit": "evidence/cp-x1-ci408221-local.xml",
+    "tests": 53,
+    "passed": 51,
+    "skipped": 2,
+    "exitCode": 0,
+    "platform": "Windows",
+    "realUnsupportedHost": "not run locally; existing two real-host checks remain enabled on POSIX",
+    "forcedUnsupportedDecision": "two parameterized 501 assertions passed on Windows without altering host platform identity",
+    "forcedSharedLogic": {
+      "junit": "evidence/cp-x1-ci408221-forced-capability.xml",
+      "passed": 19,
+      "exitCode": 0,
+      "note": "diagnostic overrides service.lifecycle only; two real detached child nodes deselected only in this local diagnostic, with explicit real-host skip on unsupported targets in regular gate"
+    }
+  },
+  "windowsNewDiagnosis": {
+    "tests.test_cpx1_genuine_restart::test_genuine_main_restart_preserves_original_effect_and_confirms_new_owner": "Both versions timeout at original main readiness before restart; child stdout/stderr discarded in old fixture so cause undetermined. Requires owned startup diagnostic before deciding fixture or product.",
+    "tests.test_independent_job_service::test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task": "3.12 only: health returned, POST /executions timed out after 1s with service still running and no durable executions observed. Product vs load/fixture undetermined; shared service owned elsewhere."
+  },
+  "remoteProposal": "MA combines exact fix and runs platform-fast on Ubuntu/macOS/Windows, retaining import, full collection, fast XML and explicit two detached-supervisor skips on unsupported hosts; Windows owned + full remain separate.",
+  "diagnosticSource": "4192a2bdd6284acba811673460232a531b9718d6"
+}
