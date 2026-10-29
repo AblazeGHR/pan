@@ -83,6 +83,11 @@ jobs:
           pnpm build
       - name: Record fresh bundle and source
         run: python scripts/minimal_ci_provenance.py "${{ runner.temp }}/minimal-browser"
+      - name: Frontend capability contracts
+        working-directory: packages/web
+        run: |
+          set -o pipefail
+          pnpm exec vitest run src/components/session/NewSessionModal.test.tsx src/stores/platformStore.test.ts src/components/layout/viewEntries.capability.test.ts src/views/TerminalPanel.capability.test.tsx src/components/layout/AppSettingsModal.test.tsx 2>&1 | tee "${{ runner.temp }}/minimal-browser/frontend-contracts.log"
       - name: Install Chromium
         run: python -m playwright install --with-deps --only-shell chromium
       - name: CP-X3 authenticated production Chromium
