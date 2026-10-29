@@ -39,6 +39,11 @@ jobs:
           tests/test_plugin_event_lifecycle.py tests/test_plugin_events.py
           tests/test_job_automatic_recovery.py tests/test_automation_retry_parallel.py
           tests/test_job_final_http_service.py
+          tests/test_retirement_rev7_write_validation.py
+          tests/test_retirement_rev6_session_validation.py
+          tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin
+          tests/test_job_retirement_literal_validation.py tests/test_job_retirement_name_scope.py
+          tests/test_session_product_closure.py tests/test_scheduler_time_templates.py
           -q -ra --tb=short
           --junitxml=${{ runner.temp }}/lifecycle-validation/focused.xml
       - name: Upload fresh logs, diagnostics and platform skips
