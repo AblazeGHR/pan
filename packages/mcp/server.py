@@ -3253,6 +3253,37 @@ RETAINED_LEGACY_MCP_TOOLS = (
     "scheduler_get",
     "scheduler_runs",
 )
+
+LEGACY_MCP_COMPATIBILITY = {
+    "agent_background_start": "old Runner owner/argv lifecycle has no lossless canonical Job admission mapping",
+    "agent_background_retry": "old retry creates a legacy Job identity; canonical retry requires an original Run/Step/effect and owner fence",
+    "agent_message_job_create": "old message backlog/schedule envelope lacks a canonical Creator/Trigger reference and source admission envelope",
+    "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
+    "scheduler_create": "old scheduler fields lack a canonical Event Creator definition and explicit Trigger/Job composition",
+    "scheduler_update": "old scheduler mutation lacks Creator revision and Trigger reference CAS",
+    "scheduler_delete": "old scheduler delete has no canonical Creator retirement/reference proof envelope",
+    "scheduler_pause": "old scheduler pause is a legacy cursor mutation, not a canonical Creator lifecycle operation",
+    "scheduler_resume": "old scheduler resume is a legacy cursor mutation, not a canonical Creator lifecycle operation",
+    "scheduler_run_now": "old run-now bypasses Event publication and Trigger admission; no canonical event identity is supplied",
+}
+
+
+def legacy_mcp_compatibility(tool_name: str, arguments: dict | None = None) -> dict:
+    """Return a structured compatibility disposition without touching transport.
+
+    Canonical tools remain the only write path. This helper makes removed MCP
+    names explicit to callers and tests while refusing to recreate a dispatcher,
+    legacy registry, scheduler, Runner, or second receipt protocol.
+    """
+    if tool_name not in LEGACY_MCP_COMPATIBILITY:
+        return {"ok": False, "error": {"code": "invalid_tool",
+                "message": f"Unknown legacy MCP tool: {tool_name}"}}
+    if arguments is not None and not isinstance(arguments, dict):
+        return {"ok": False, "error": {"code": "invalid_schema",
+                "message": "legacy MCP arguments must be an object"}}
+    return {"ok": False, "error": {"code": "capability_unsupported",
+            "message": LEGACY_MCP_COMPATIBILITY[tool_name],
+            "tool": tool_name, "canonical": "Use registered job_/trigger_/event_creator_/job_template_ tools"}}
 for _retired_tool in RETIRED_MCP_TOOLS:
     if _retired_tool not in REMOVED_SCHEDULER_MCP_TOOLS:
         mcp.remove_tool(_retired_tool)
