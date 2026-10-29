@@ -1,0 +1,44 @@
+{
+  "priorRun": 40822149442,
+  "currentRun": 40835126735,
+  "currentSha": "1665eedaae2dd97a76e41f54ce0ce6a2f9a9317b",
+  "localSourceSha": "b54654c6ac9ae6d673813ddd6c0101d469a497e6",
+  "windows": {
+    "3.12": {
+      "priorSha256": "b6d8d55b4a712b7a184ae776ec4709d2213628b36f7efa62765819e78c2113bc",
+      "currentSha256": "2a4c952b26fdc019235f0b8b66f00eab4c60ba6e9af1e3286ef7113b7522452c",
+      "priorCount": 235,
+      "currentCount": 235,
+      "sameIdentityAndKind": 234,
+      "added": [
+        {
+          "node": "tests.test_cpx1_canonical_tree_exit::test_canonical_runner_tree_exit_and_error[wait-error]",
+          "kind": "failure",
+          "message": "assert None"
+        }
+      ],
+      "removed": [
+        {
+          "node": "tests.test_independent_job_service::test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_task",
+          "kind": "failure",
+          "message": "RuntimeError: Job service unavailable\n{\"serviceReturncode\": null, \"requests\": [{\"method\": \"GET\", \"url\": \"http://127.0.0.1:62207/health\", \"timeout\": 1.0, \"elapsed\": 0.5}, {\"method\": \"POST\", \"url\": \"http://127.0.0.1:62207/executions\", \"timeout\": 1.0, \"error\": \"TimeoutError('timed out')\", \"elapsed\": 1.0}], \"durableExecutions\": []}"
+        }
+      ]
+    },
+    "3.14": {
+      "priorSha256": "89b1594b1102541bc3fea56a3d15eb9c92d5d129cc4960fd8415a6ac563d10f9",
+      "currentSha256": "059c5ab184e5705d9ed4c6678988bad720a488d6e94bdbef8804dd535ea78b6d",
+      "priorCount": 234,
+      "currentCount": 235,
+      "sameIdentityAndKind": 234,
+      "added": [
+        {
+          "node": "tests.test_plugin_event_lifecycle::test_failed_reader_retires_real_process_without_watcher",
+          "kind": "failure",
+          "message": "AssertionError: assert False\n +  where False = <built-in method done of _asyncio.Task object at 0x0000020C2D133AF0>()\n +    where <built-in method done of _asyncio.Task object at 0x0000020C2D133AF0> = <Task pending name='Task-24757' coro=<EventConnection.drain_stderr() running at D:\\a\\pan\\pan\\packages\\plugins\\event_adapter.py:158> wait_for=<Future finished result=None>>.done\n[+1 more line; full report in element text]"
+        }
+      ],
+      "removed": []
+    }
+  }
+}
