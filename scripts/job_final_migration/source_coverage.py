@@ -78,8 +78,8 @@ def inventory_coverage(root, *, allow_real_profile=False):
                         raise ValueError("file changed during hash")
                     kind, reason = _kind(rel)
                     items = by_path.get(rel, [])
-                    if items or rel in fixed or (path.suffix == ".json" and
-                            path.parent.relative_to(root).as_posix() in {"background_jobs/jobs", "scheduler/tasks"}):
+                    if kind != "existing-runtime-authority" and (items or rel in fixed or (path.suffix == ".json" and
+                            path.parent.relative_to(root).as_posix() in {"background_jobs/jobs", "scheduler/tasks"})):
                         kind, reason = "lite-input", "lite read/backup scope; per-record disposition remains authoritative"
                         disposition = "handled"
                     elif kind in {"historical-log", "pins-metadata", "independent-cursor-or-pending"}:

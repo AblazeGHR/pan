@@ -141,3 +141,15 @@ def test_synthetic_manual_packet_does_not_claim_historical_user_decisions(tmp_pa
     assert len(rows) == 3
     assert "此前 21 项" not in guide and "4 条消息计划" not in guide
     assert "用户已决定全部" not in guide
+
+
+def test_authority_classification_cannot_be_overridden_by_lite_directory(tmp_path):
+    from scripts.job_final_migration.source_coverage import inventory_coverage
+    _, root, _, _ = evidence_for(tmp_path, n_simple=2, n_complex=2)
+    relative = "background_jobs/jobs/job-runtime-owner.json"
+    (root / relative).write_text('{}', encoding="utf-8")
+    result = inventory_coverage(root)
+    assert relative in result["blockingAuthorityPaths"]
+    row = next(r for r in result["paths"] if r["path"] == relative)
+    assert row["sourceType"] == "existing-runtime-authority"
+    assert not row["migrationHandled"] and row["targetIds"] == []
