@@ -1,0 +1,131 @@
+{
+  "sourceSHA": "d210ad06f1dea5e6c4eb1588e73b69605c436eeb",
+  "baseline": "9b4506c94ac67a39093961b218b2f01d387d1049",
+  "suites": [
+    {
+      "file": "acl.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "40",
+      "time": "1.680",
+      "timestamp": "2026-10-29T22:38:01.842374+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "browser-second.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "6.877",
+      "timestamp": "2026-10-29T22:37:38.774944+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "browser.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "1",
+      "time": "35.022",
+      "timestamp": "2026-10-29T22:36:37.866308+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "collect-final.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "0",
+      "time": "4.618",
+      "timestamp": "2026-10-29T22:38:49.636885+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "collect.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "0",
+      "time": "16.783",
+      "timestamp": "2026-10-29T22:34:48.355275+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "compatibility-corrected.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "3.126",
+      "timestamp": "2026-10-29T22:32:25.650984+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "compatibility.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "85",
+      "time": "8.418",
+      "timestamp": "2026-10-29T22:31:57.176065+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "gates.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "69",
+      "time": "4.667",
+      "timestamp": "2026-10-29T22:31:00.472159+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "import.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "28",
+      "time": "1.805",
+      "timestamp": "2026-10-29T22:38:04.454751+08:00",
+      "hostname": "ablaze"
+    },
+    {
+      "file": "worker-plugin.xml",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "9",
+      "tests": "103",
+      "time": "17.523",
+      "timestamp": "2026-10-29T22:34:58.553406+08:00",
+      "hostname": "ablaze"
+    }
+  ],
+  "fullCollectionNodes": 6406,
+  "assets": [
+    {
+      "path": "packages\\web\\dist\\index.html",
+      "sha256": "560401c6c437082837733b81bd8126587599c489b0e27088b1d56d78501f0f0a",
+      "mtime": 1793284491.6549299
+    },
+    {
+      "path": "packages\\web\\dist\\assets\\index-D9SkOfHI-pc2.js",
+      "sha256": "5502b07b996706a66dadf90f981f3cb173f7c81f2e13492bff6601ac0c218f6e",
+      "mtime": 1793284491.751328
+    }
+  ],
+  "frontendSourceTree": "be2217b90cf4f04338b327af1633f66000b7802d",
+  "dependenciesReusedReadOnly": "D:/project/Pan-main/packages/web/node_modules"
+}

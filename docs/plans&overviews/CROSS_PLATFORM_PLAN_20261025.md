@@ -3,11 +3,11 @@
 - 日期：2026-10-25
 - 基线：`58c0739a`（跨平台审计基线 `3bf174b1`，结论见
   `docs/audit/CROSS_PLATFORM_GAPS_20261025.md`，审计工作树 `cross-platform-audit-20261025`）
-- 状态：规划 + Phase A/B/C 正在并行实施；main 仍以 Windows 为已验收平台。
+- 状态（2026-10-29 最小候选）：从 main `9b4506c9` 仅抽取普通 pipe Worker、native gate、短 Unix IPC；Job/Scheduler 保留原行为。目标三平台同源码验收尚待 MA CI，不能把较大的 Job 集成候选4a86证据继承为本候选通过。详细能力矩阵与启动限制见 [最小候选说明](../reports/MINIMAL_CROSS_PLATFORM_RELEASE_20261029.md)。下文阶段计划保留为历史目标，非全部完成声明。
 
 ## 结论与目标
 
-当前基线在 macOS / Linux **启动即失败**（P0：`guard.py` 顶层 `from ctypes import wintypes`），
+原审计基线在 macOS / Linux **启动即失败**（P0：`guard.py` 顶层 `from ctypes import wintypes`），
 不是功能降级。目标不是“一次性移植”，而是建立**平台缝**，让功能开发与跨平台工作并行且互不阻塞：
 
 1. 三平台都能启动、跑 Session/Worker/大部分 API；

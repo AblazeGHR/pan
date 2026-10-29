@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="6.877" timestamp="2026-10-29T22:37:38.774944+08:00" hostname="ablaze"><testcase classname="tests.test_minimal_platform_browser" name="test_minimal_production_capability_browser" time="6.786" /></testsuite></testsuites>

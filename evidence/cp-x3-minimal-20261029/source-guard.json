@@ -1,0 +1,22 @@
+{
+  "base": "9b4506c94ac67a39093961b218b2f01d387d1049",
+  "head": "d210ad06f1dea5e6c4eb1588e73b69605c436eeb",
+  "productSHA256": {
+    "packages/core/platform/plugin_ipc.py": "a7c56c23ced4f30f3b87db8f42d08004eee93f878f620c39bba80f845fc14874",
+    "packages/core/platform/worker_runtime.py": "925bb51755352b935ebc1b1aa2f8ebbcbdc9a54915b80f39dfedfa331cfb3798",
+    "packages/core/worker.py": "8c010044184c54abead121fe760acc91c2ae3574bf60088faea3d8a3a2275e2b",
+    "packages/plugins/ipc.py": "26b8a1ff12862409850c3f3039bc98166d3a1971d4503fb899a145505c7fbe48",
+    "packages/web/native_control_api.py": "3b7957856ff7204b0b72d07297aebebb5f53b179d3edac26515127cdb0a18155",
+    "packages/web/server.py": "d544339fd692958d41322c5c68a506727fade38fb7ed1081002e80d8251a8a00",
+    "packages/web/src/components/session/NewSessionModal.tsx": "57190452d0f907a02ef10b1156036b851f3348d76b1ca3245fa43bc014a72230"
+  },
+  "negativeJobSchedulerOwnerDiff": "empty",
+  "protectedRefs": {
+    "main": "9b4506c94ac67a39093961b218b2f01d387d1049",
+    "practical": "86e421555f366133b25a4069e8575c0a1310ea60"
+  },
+  "approvedPatchSources": [
+    "c8c8c4eb340a9db1285596e161f6a7f54bb032bc",
+    "cf7510f5152655992e376092d946962812950137"
+  ]
+}

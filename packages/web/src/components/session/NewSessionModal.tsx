@@ -6,6 +6,7 @@ import { DirectoryInput } from '@/components/session/DirectoryInput';
 import { SessionTemplateSelect } from '@/components/session/SessionTemplateSelect';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useSessionStore } from '@/stores/sessionStore';
+import { capabilityAvailable, useCapability } from '@/stores/platformStore';
 import { getAvailableCliAdapters, useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { nextSessionDefaultName } from '@/utils/sessionName';
@@ -32,6 +33,7 @@ interface NewSessionModalProps {
 }
 
 export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
+  const terminalSupported = useCapability('terminal.native');
   const [name, setName] = useState('');
   const [workdir, setWorkdir] = useState('');
   const [adapter, setAdapter] = useState('');
@@ -291,6 +293,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
     workspaceIds: string[],
     includeAdvancedSettings: boolean,
   ) => {
+    if (adapter === 'codex' && nativeControl && !capabilityAvailable('terminal.native')) {
+      throw new Error('当前平台暂不支持 Terminal TUI（terminal.native）');
+    }
     const finalName = name.trim() || nextSessionDefaultName(sessions);
     const createSettings = {
       ...(adapter === 'codex' ? { nativeControl } : {}),
@@ -359,6 +364,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
       showToast('Select an available adapter.', 'error');
       return;
     }
+    if (adapter === 'codex' && nativeControl && !capabilityAvailable('terminal.native')) {
+      showToast('当前平台暂不支持 Terminal TUI（terminal.native）', 'error');
+      return;
+    }
     // Preserve the Workspace active when the user submits, even if a directory
     // check or the missing-directory confirmation takes time.
     const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
@@ -391,6 +400,10 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
   };
 
   const confirmDirectoryCreation = async () => {
+    if (adapter === 'codex' && nativeControl && !capabilityAvailable('terminal.native')) {
+      showToast('当前平台暂不支持 Terminal TUI（terminal.native）', 'error');
+      return;
+    }
     const path = directoryCreationPath;
     if (!path || path !== (workdir.trim() ? parseDirectoryInput(workdir).candidate : '')) {
       directoryCreationWorkspaceIds.current = null;
@@ -588,8 +601,9 @@ export function NewSessionModal({ open, onClose }: NewSessionModalProps) {
         </label>
 
         {adapter === 'codex' && (
-          <label className="flex items-center gap-2 text-sm text-text-secondary">
-            <input type="checkbox" checked={nativeControl} onChange={(event) => setNativeControl(event.target.checked)} />
+          <label className="flex items-center gap-2 text-sm text-text-secondary"
+            title={terminalSupported ? undefined : '当前平台暂不支持 Terminal TUI（terminal.native）'}>
+            <input type="checkbox" checked={nativeControl} disabled={!terminalSupported} onChange={(event) => setNativeControl(event.target.checked)} />
             Enable native Terminal TUI control (same persistent agent)
           </label>
         )}

@@ -1,0 +1,73 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-minimal-release-20261029
+F....................................................................... [ 84%]
+.............                                                            [100%]
+================================== FAILURES ===================================
+_______ test_preexisting_profile_keeps_original_jobs_across_owned_start _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6250/test_preexisting_profile_keeps0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000181D4EC0B00>
+
+    def test_preexisting_profile_keeps_original_jobs_across_owned_start(tmp_path, monkeypatch):
+        from tests import test_real_queue_http_e2e as base
+        from packages.core import background_jobs as jobs, session
+        from packages.scheduler import store
+        from packages.core import platform
+        from packages.core import config
+        from packages.core.adapters.cbc.adapter import CbcAdapter
+        rt = base._PanRuntime(tmp_path / 'preexisting-main-profile')
+        rt.data_root.mkdir()
+        config_path = rt.data_root / 'config.json'
+        config_path.write_text(json.dumps({'plugin_manifests': [], 'memory': {'enabled': False}}))
+        monkeypatch.setattr(config, 'CONFIG_FILE', config_path)
+        monkeypatch.setattr(CbcAdapter, 'supported_models', property(lambda self: ['deepseek-v4-flash']))
+        monkeypatch.setattr(jobs, 'DEFAULT_ROOT', rt.data_root / 'background_jobs')
+        monkeypatch.setattr(store, 'DEFAULT_ROOT', rt.data_root / 'background_jobs')
+        monkeypatch.setattr(session, 'SESSION_DIR', rt.data_root / 'sessions')
+        s = session.Session(id='ses-existing', name='existing', adapter='cbc', model='deepseek-v4-flash')
+        session._cache[s.id] = s
+        session.save(s)
+        with monkeypatch.context() as seeded:
+            seeded.setattr(jobs, '_spawn_background_runner', lambda job, **k: job)
+            job = jobs.start(s.id, [sys.executable, '-c', 'pass'], str(tmp_path), name='preexisting process')
+            jobs.runner_update(job['jobId'], status='completed', exitCode=0)
+        task = store.create_task({'name': 'old disabled schedule', 'target_session_id': s.id,
+            'text': 'preserve', 'enabled': False,
+            'schedule': {'kind': 'interval', 'interval_sec': 3600}})
+        before = jobs.get(job['jobId'])
+        facts = {'preexistingSyntheticProfile': True, 'jobId': job['jobId'], 'taskId': task['id'],
+            'port': base.PORT, 'providerCalls': 0}
+        try:
+            rt.start()
+            assert rt.request('GET', '/api/platform')['capabilities'] == platform.capabilities()
+            rows = rt.request('GET', '/api/scheduler/tasks')
+            assert task['id'] in json.dumps(rows)
+            assert jobs.get(job['jobId'])['jobId'] == before['jobId']
+            assert jobs.get(job['jobId'])['status'] == 'completed'
+            assert store.get_task(task['id'])['enabled'] is False
+            facts['startedWithOriginalRecords'] = True
+        finally:
+            rt.stop()
+            facts['portReleased'] = base._port_is_free(base.PORT)
+        # Existing writers and retry stay callable after host startup and stop.
+        store.update_task(task['id'], {'text': 'updated old schedule'})
+        assert store.get_task(task['id'])['text'] == 'updated old schedule'
+        with monkeypatch.context() as retired:
+            spawn = Mock(side_effect=lambda doc, **k: doc)
+            retired.setattr(jobs, '_spawn_background_runner', spawn)
+            jobs._update(job['jobId'], {'status': 'failed'})
+            result = jobs.retry(job['jobId'])
+>           assert result['jobId'] == job['jobId']
+E           AssertionError: assert 'job_23ae72563e98fb5eb2a155f4' == 'job_56d0230b4afbba64e2fc5c79'
+E             
+E             - job_56d0230b4afbba64e2fc5c79
+E             + job_23ae72563e98fb5eb2a155f4
+
+tests\test_minimal_platform_release.py:67: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_minimal_platform_release.py::test_preexisting_profile_keeps_original_jobs_across_owned_start

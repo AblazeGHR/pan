@@ -2287,7 +2287,7 @@ def _session_to_api(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
-        "nativeControlCapable": adapter_supports_native_control(s.adapter),
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
         "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
@@ -2668,7 +2668,7 @@ def _session_summary(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
-        "nativeControlCapable": adapter_supports_native_control(s.adapter),
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
         "workerStatus": worker_status,
         "workerId": worker_id,
         "workerGeneration": worker_generation,
@@ -3179,6 +3179,13 @@ def _build_session_params(
                      f"'{a.name}': {_exc}")
                 _effort = ""
 
+    if "nativeControl" in data:
+        if (type(data["nativeControl"]) is not bool
+                or not adapter_supports_native_control(adapter_name)):
+            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
+        if data["nativeControl"] and not platform_layer.supports("terminal.native"):
+            raise ValueError("unsupported_platform: Native Terminal TUI requires terminal.native")
+
     params = {
         "name": name,
         # User's explicit adapter wins, then the template's (a no-adapter
@@ -3221,9 +3228,6 @@ def _build_session_params(
             raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
     if "nativeControl" in data:
-        if (type(data["nativeControl"]) is not bool
-                or not adapter_supports_native_control(adapter_name)):
-            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
         if data["nativeControl"]:
             params["adapter_config"]["native_control"] = True
     # These are deliberately added only when explicitly supplied.  In

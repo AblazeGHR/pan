@@ -46,7 +46,7 @@ Set-Location ../..
 python main.py
 ```
 
-macOS/Linux：
+macOS/Linux（最小跨平台候选的支持范围与限制见 [候选说明](reports/MINIMAL_CROSS_PLATFORM_RELEASE_20261029.md)，目标平台验收未完成前不作为生产升级保证）：
 
 ```bash
 python3 -m venv .venv

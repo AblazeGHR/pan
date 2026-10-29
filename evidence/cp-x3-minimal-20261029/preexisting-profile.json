@@ -1,0 +1,11 @@
+{
+  "preexistingSyntheticProfile": true,
+  "jobId": "job_e5827e2bffe60c02c412dd59",
+  "taskId": "sch_3ac796cc276a",
+  "port": 53290,
+  "providerCalls": 0,
+  "startedWithOriginalRecords": true,
+  "portReleased": true,
+  "originalCreateUpdateRetry": true,
+  "noCanonicalCutover": true
+}
