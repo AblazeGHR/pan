@@ -78,7 +78,17 @@ from mcp.types import CallToolResult, TextContent
 
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
-mcp = FastMCP("Pan")
+class PanMCP(FastMCP):
+    async def call_tool(self, name: str, arguments: dict):
+        """Dispatch tombstones without registering or executing retired tools."""
+        if name in LEGACY_MCP_COMPATIBILITY:
+            result = legacy_mcp_compatibility(name, arguments)
+            return CallToolResult(content=[TextContent(type="text", text=json.dumps(result))],
+                                  structuredContent=result, isError=True)
+        return await super().call_tool(name, arguments)
+
+
+mcp = PanMCP("Pan")
 _terminal_transport = "stdio"
 
 
@@ -3267,6 +3277,19 @@ LEGACY_MCP_COMPATIBILITY = {
     "scheduler_run_now": "old run-now bypasses Event publication and Trigger admission; no canonical event identity is supplied",
 }
 
+LEGACY_MCP_GUIDANCE = {
+    "agent_background_start": "job_action_list -> job_create (immutable process Action ref, literal argv/cwd) -> job_control(enable) -> job_run; retain request_key and job_operation_find",
+    "agent_background_retry": "job_run_get(original run_id) -> job_run_retry(original run_id, expected_state_revision, request_key); unknown/partial: query original, do not replay",
+    "agent_message_job_create": "job_create(definition, request_key) with immutable Session Action ref; event_creator_create + trigger_create for scheduling, or job_template_create for a complete composition",
+    "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
+    "scheduler_create": "event_creator_create(definition, request_key) -> event_creator_control(enable); trigger_create binds the Creator to a canonical Job",
+    "scheduler_update": "event_creator_get -> event_creator_update(object_id, definition, expected_revision, request_key)",
+    "scheduler_delete": "event_creator_get -> event_creator_retire(object_id, expected_revision, expected_state_revision, request_key); resolve active references first",
+    "scheduler_pause": "event_creator_get -> event_creator_control(object_id, operation='pause', expected_revision, expected_state_revision, request_key)",
+    "scheduler_resume": "event_creator_get -> event_creator_control(object_id, operation='enable', expected_revision, expected_state_revision, request_key)",
+    "scheduler_run_now": "job_get -> job_run(job_id, expected_revision, request_key) for explicit manual intent; this does not advance the Scheduler cursor or fabricate an Event",
+}
+
 
 def legacy_mcp_compatibility(tool_name: str, arguments: dict | None = None) -> dict:
     """Return a structured compatibility disposition without touching transport.
@@ -3283,7 +3306,8 @@ def legacy_mcp_compatibility(tool_name: str, arguments: dict | None = None) -> d
                 "message": "legacy MCP arguments must be an object"}}
     return {"ok": False, "error": {"code": "capability_unsupported",
             "message": LEGACY_MCP_COMPATIBILITY[tool_name],
-            "tool": tool_name, "canonical": "Use registered job_/trigger_/event_creator_/job_template_ tools"}}
+            "tool": tool_name, "canonical": "Use registered job_/trigger_/event_creator_/job_template_ tools",
+            "guidance": LEGACY_MCP_GUIDANCE[tool_name]}}
 for _retired_tool in RETIRED_MCP_TOOLS:
     if _retired_tool not in REMOVED_SCHEDULER_MCP_TOOLS:
         mcp.remove_tool(_retired_tool)
