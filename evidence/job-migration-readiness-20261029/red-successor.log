@@ -1,0 +1,61 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+....FFF.......                                                           [100%]
+================================== FAILURES ===================================
+_ test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.123456789+08:00-None-2030-01-01T00:00:00.123456789+08:00] _
+
+value = '2030-01-01T00:00:00.123456789+08:00', zone = None
+expected = '2030-01-01T00:00:00.123456789+08:00'
+
+    @pytest.mark.parametrize("value,zone,expected", [
+        ("2030-01-01T00:00:00.123456789+08:00", None, "2030-01-01T00:00:00.123456789+08:00"),
+        ("2030-01-01T00:00:00.000000001", "Asia/Shanghai", "2030-01-01T00:00:00.000000001+08:00"),
+    ])
+    def test_explicit_timestamp_preserves_decimal_precision(value, zone, expected):
+>       assert timestamp(value, zone) == expected
+E       AssertionError: assert '2030-01-01T0....123456+08:00' == '2030-01-01T0...3456789+08:00'
+E         
+E         - 2030-01-01T00:00:00.123456789+08:00
+E         ?                           ---
+E         + 2030-01-01T00:00:00.123456+08:00
+
+tests\test_job_migration_readiness.py:66: AssertionError
+_ test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.000000001-Asia/Shanghai-2030-01-01T00:00:00.000000001+08:00] _
+
+value = '2030-01-01T00:00:00.000000001', zone = 'Asia/Shanghai'
+expected = '2030-01-01T00:00:00.000000001+08:00'
+
+    @pytest.mark.parametrize("value,zone,expected", [
+        ("2030-01-01T00:00:00.123456789+08:00", None, "2030-01-01T00:00:00.123456789+08:00"),
+        ("2030-01-01T00:00:00.000000001", "Asia/Shanghai", "2030-01-01T00:00:00.000000001+08:00"),
+    ])
+    def test_explicit_timestamp_preserves_decimal_precision(value, zone, expected):
+>       assert timestamp(value, zone) == expected
+E       AssertionError: assert '2030-01-01T00:00:00+08:00' == '2030-01-01T0...0000001+08:00'
+E         
+E         - 2030-01-01T00:00:00.000000001+08:00
+E         ?                    ----------
+E         + 2030-01-01T00:00:00+08:00
+
+tests\test_job_migration_readiness.py:66: AssertionError
+_________ test_rollback_report_keeps_runtime_fence_boundary_explicit __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6291/test_rollback_report_keeps_run0')
+
+    def test_rollback_report_keeps_runtime_fence_boundary_explicit(tmp_path):
+        root = _make_root(tmp_path)
+        context = context_for(root)
+        target = tmp_path / "bundle.json"
+        result = migration.migrate(root, target, context, apply=True,
+                                   expected_digest=migration.plan_digest(build_inventory(root), context))
+        report = migration.rollback(root, target, expected_digest=result["bundleDigest"])
+        assert report["runtimeActivated"] is False
+>       assert report["runtimeFenceVerified"] is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'runtimeFenceVerified'
+
+tests\test_job_migration_readiness.py:77: KeyError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_readiness.py::test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.123456789+08:00-None-2030-01-01T00:00:00.123456789+08:00]
+FAILED tests/test_job_migration_readiness.py::test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.000000001-Asia/Shanghai-2030-01-01T00:00:00.000000001+08:00]
+FAILED tests/test_job_migration_readiness.py::test_rollback_report_keeps_runtime_fence_boundary_explicit
+3 failed, 11 passed in 6.68s

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="1.073" timestamp="2026-10-29T23:20:05.773542+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_readiness" name="test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped[monitoring]" time="0.046"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6290/test_unsupported_legacy_monito0')
+feature = 'monitoring'
+
+    @pytest.mark.parametrize("feature", ["monitoring", "stable-reset"])
+    def test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped(tmp_path, feature):
+        root = _make_root(tmp_path)
+        value = _action_job()
+        value["config"]["recovery"].update(monitoring=True, enabled=feature == "stable-reset")
+        _write_json(root / f"background_jobs/jobs/{ACTION_JOB_ID}.json", value)
+        before = _snapshot(root)
+        item = next(i for i in build_inventory(root)["instances"] if i["id"] == ACTION_JOB_ID)
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_readiness.py:24: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped[stable-reset]" time="0.017"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6290/test_unsupported_legacy_monito1')
+feature = 'stable-reset'
+
+    @pytest.mark.parametrize("feature", ["monitoring", "stable-reset"])
+    def test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped(tmp_path, feature):
+        root = _make_root(tmp_path)
+        value = _action_job()
+        value["config"]["recovery"].update(monitoring=True, enabled=feature == "stable-reset")
+        _write_json(root / f"background_jobs/jobs/{ACTION_JOB_ID}.json", value)
+        before = _snapshot(root)
+        item = next(i for i in build_inventory(root)["instances"] if i["id"] == ACTION_JOB_ID)
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_readiness.py:24: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_cli_rejects_context_collision_with_bundle_backup_before_publication" time="0.352"><failure message="AssertionError: CaptureResult(out='{&#10;    &quot;tool&quot;: &quot;job-final-migration&quot;,&#10;    &quot;toolSchema&quot;: &quot;pan.job-final-migration.inventory/v1&quot;,&#10;    &quot;ma...7ee3a80b9b5c20f95dbe78b6af1f5c5878a3dccfe&quot;&#10;  }&#10;  ', err='inventory: total=6 simple=6 complex=0 unknown=0 scanErrors=0&#10;  ')&#10;assert 0 == 2">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6290/test_cli_rejects_context_colli0')
+capsys = &lt;_pytest.capture.CaptureFixture object at 0x000002C287CF1FD0&gt;
+
+    def test_cli_rejects_context_collision_with_bundle_backup_before_publication(tmp_path, capsys):
+        root = _make_root(tmp_path)
+        target = tmp_path / "bundle.json"
+        context_path = tmp_path / "bundle.json.bak"
+        context = context_for(root)
+        _write_json(context_path, context)
+        before, context_bytes = _snapshot(root), context_path.read_bytes()
+        digest = migration.plan_digest(build_inventory(root), context)
+        code = main(["--root", str(root), "--target", str(target), "--context", str(context_path),
+                     "--apply", "--expected-digest", digest, "--out", "-"])
+&gt;       assert code == 2, capsys.readouterr()
+E       AssertionError: CaptureResult(out='{
+E           "tool": "job-final-migration",
+E           "toolSchema": "pan.job-final-migration.inventory/v1",
+E           "ma...7ee3a80b9b5c20f95dbe78b6af1f5c5878a3dccfe"
+E         }
+E         ', err='inventory: total=6 simple=6 complex=0 unknown=0 scanErrors=0
+E         ')
+E       assert 0 == 2
+
+tests\test_job_migration_readiness.py:39: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_message_mapping_keeps_explicit_source_session_identity" time="0.364"><failure message="KeyError: 'sourceSessionId'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6290/test_message_mapping_keeps_exp0')
+
+    def test_message_mapping_keeps_explicit_source_session_identity(tmp_path):
+        root = _make_root(tmp_path)
+        value = _message_job()
+        _write_json(root / f"background_jobs/jobs/{MSG_ID}.json", value)
+        context = context_for(root)
+        target = tmp_path / "bundle.json"
+        migration.migrate(root, target, context, apply=True,
+                          expected_digest=migration.plan_digest(build_inventory(root), context))
+        bundle = migration.read_bundle(target)
+        entry = next(e for e in bundle["entries"] if e["id"] == MSG_ID)
+        job = next(r["object"] for r in bundle["canonical"]
+                   if r["kind"] == "job" and r["object"]["id"] in entry["targetIds"])
+&gt;       assert job["steps"][0]["arguments"]["sourceSessionId"] == {
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "from": "literal", "value": value["sourceSessionId"]}
+E       KeyError: 'sourceSessionId'
+
+tests\test_job_migration_readiness.py:56: KeyError</failure></testcase></testsuite></testsuites>

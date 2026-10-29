@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="14" time="6.585" timestamp="2026-10-29T23:22:40.608037+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_readiness" name="test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped[monitoring]" time="0.041" /><testcase classname="tests.test_job_migration_readiness" name="test_unsupported_legacy_monitoring_is_preserved_not_silently_mapped[stable-reset]" time="0.020" /><testcase classname="tests.test_job_migration_readiness" name="test_cli_rejects_context_collision_with_bundle_backup_before_publication" time="0.036" /><testcase classname="tests.test_job_migration_readiness" name="test_message_mapping_keeps_explicit_source_session_identity" time="0.330" /><testcase classname="tests.test_job_migration_readiness" name="test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.123456789+08:00-None-2030-01-01T00:00:00.123456789+08:00]" time="0.003"><failure message="AssertionError: assert '2030-01-01T0....123456+08:00' == '2030-01-01T0...3456789+08:00'&#10;  &#10;  - 2030-01-01T00:00:00.123456789+08:00&#10;  ?                           ---&#10;  + 2030-01-01T00:00:00.123456+08:00">value = '2030-01-01T00:00:00.123456789+08:00', zone = None
+expected = '2030-01-01T00:00:00.123456789+08:00'
+
+    @pytest.mark.parametrize("value,zone,expected", [
+        ("2030-01-01T00:00:00.123456789+08:00", None, "2030-01-01T00:00:00.123456789+08:00"),
+        ("2030-01-01T00:00:00.000000001", "Asia/Shanghai", "2030-01-01T00:00:00.000000001+08:00"),
+    ])
+    def test_explicit_timestamp_preserves_decimal_precision(value, zone, expected):
+&gt;       assert timestamp(value, zone) == expected
+E       AssertionError: assert '2030-01-01T0....123456+08:00' == '2030-01-01T0...3456789+08:00'
+E         
+E         - 2030-01-01T00:00:00.123456789+08:00
+E         ?                           ---
+E         + 2030-01-01T00:00:00.123456+08:00
+
+tests\test_job_migration_readiness.py:66: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_explicit_timestamp_preserves_decimal_precision[2030-01-01T00:00:00.000000001-Asia/Shanghai-2030-01-01T00:00:00.000000001+08:00]" time="0.003"><failure message="AssertionError: assert '2030-01-01T00:00:00+08:00' == '2030-01-01T0...0000001+08:00'&#10;  &#10;  - 2030-01-01T00:00:00.000000001+08:00&#10;  ?                    ----------&#10;  + 2030-01-01T00:00:00+08:00">value = '2030-01-01T00:00:00.000000001', zone = 'Asia/Shanghai'
+expected = '2030-01-01T00:00:00.000000001+08:00'
+
+    @pytest.mark.parametrize("value,zone,expected", [
+        ("2030-01-01T00:00:00.123456789+08:00", None, "2030-01-01T00:00:00.123456789+08:00"),
+        ("2030-01-01T00:00:00.000000001", "Asia/Shanghai", "2030-01-01T00:00:00.000000001+08:00"),
+    ])
+    def test_explicit_timestamp_preserves_decimal_precision(value, zone, expected):
+&gt;       assert timestamp(value, zone) == expected
+E       AssertionError: assert '2030-01-01T00:00:00+08:00' == '2030-01-01T0...0000001+08:00'
+E         
+E         - 2030-01-01T00:00:00.000000001+08:00
+E         ?                    ----------
+E         + 2030-01-01T00:00:00+08:00
+
+tests\test_job_migration_readiness.py:66: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_rollback_report_keeps_runtime_fence_boundary_explicit" time="0.363"><failure message="KeyError: 'runtimeFenceVerified'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6291/test_rollback_report_keeps_run0')
+
+    def test_rollback_report_keeps_runtime_fence_boundary_explicit(tmp_path):
+        root = _make_root(tmp_path)
+        context = context_for(root)
+        target = tmp_path / "bundle.json"
+        result = migration.migrate(root, target, context, apply=True,
+                                   expected_digest=migration.plan_digest(build_inventory(root), context))
+        report = migration.rollback(root, target, expected_digest=result["bundleDigest"])
+        assert report["runtimeActivated"] is False
+&gt;       assert report["runtimeFenceVerified"] is False
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'runtimeFenceVerified'
+
+tests\test_job_migration_readiness.py:77: KeyError</failure></testcase><testcase classname="tests.test_job_migration_readiness" name="test_complete_public_cli_synthetic_offline_chain" time="4.439" /><testcase classname="tests.test_job_migration_readiness" name="test_unproven_owner_or_authority_cannot_publish[oldOwnerStopped-False]" time="0.301" /><testcase classname="tests.test_job_migration_readiness" name="test_unproven_owner_or_authority_cannot_publish[authorizationEvidence-]" time="0.351" /><testcase classname="tests.test_job_migration_readiness" name="test_unproven_owner_or_authority_cannot_publish[fenceEvidence-]" time="0.272" /><testcase classname="tests.test_job_migration_readiness" name="test_unproven_owner_or_authority_cannot_publish[oldOwnerEpoch-0]" time="0.221" /><testcase classname="tests.test_job_migration_readiness" name="test_dst_ambiguous_or_missing_time_refuses_host_guess[2026-11-01T01:30:00]" time="0.003" /><testcase classname="tests.test_job_migration_readiness" name="test_dst_ambiguous_or_missing_time_refuses_host_guess[2026-03-08T02:30:00]" time="0.003" /></testsuite></testsuites>

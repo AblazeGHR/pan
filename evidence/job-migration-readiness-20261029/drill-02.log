@@ -1,0 +1,13 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\tests\support\job_migration_readiness_rehearsal.py", line 236, in <module>
+    print(json.dumps(run(parser.parse_args().output), indent=2))
+                     ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\tests\support\job_migration_readiness_rehearsal.py", line 209, in run
+    packet = build_packet(snapshot, output / "review-packet", expected_manifest_sha256=manifest_sha)
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\scripts\job_final_migration\review_packet.py", line 147, in build_packet
+    require(fc.digest(inventory) == fc.digest(cached), "inventory drift since P9B")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\scripts\job_final_migration\mapping.py", line 26, in require
+    raise ApplyError(message)
+scripts.job_final_migration.mapping.ApplyError: inventory drift since P9B

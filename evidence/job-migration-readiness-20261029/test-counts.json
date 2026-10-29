@@ -1,0 +1,32 @@
+{
+  "final-regression.xml": {
+    "tests": 208,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0
+  },
+  "red-successor.xml": {
+    "tests": 14,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 0
+  },
+  "red.xml": {
+    "tests": 4,
+    "failures": 4,
+    "errors": 0,
+    "skipped": 0
+  },
+  "regression.xml": {
+    "tests": 203,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "verified-regression.xml": {
+    "tests": 208,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}
