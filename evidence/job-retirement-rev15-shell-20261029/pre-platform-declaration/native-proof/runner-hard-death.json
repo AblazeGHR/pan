@@ -1,0 +1,25 @@
+{
+  "sourceSha": "8752e0524ebea7e171aa020987dcba02dd9853e3",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "members": [
+    {
+      "pid": 41680,
+      "birth": 134377604017898531,
+      "desktop": "PanJob_f67370d2b8adbe9f92734af2a0bc8ca3"
+    },
+    {
+      "pid": 32504,
+      "birth": 134377604017288421,
+      "desktop": "PanJob_f67370d2b8adbe9f92734af2a0bc8ca3"
+    },
+    {
+      "pid": 40904,
+      "birth": 134377604016653390,
+      "desktop": "PanJob_f67370d2b8adbe9f92734af2a0bc8ca3"
+    }
+  ],
+  "allDead": true,
+  "desktopGone": true,
+  "runnerExit": 1
+}

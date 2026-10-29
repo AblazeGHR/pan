@@ -1,0 +1,97 @@
+{
+  "schema": "pan.retirement.quoted-shell/revision15",
+  "baseline": "a710d2c9859a8f1b89339f6fe9ac97f270ac5192",
+  "testedSourceSha": "87aa0f455fed0d486986821a3c2df21d18acc428",
+  "productFilesChanged": [
+    "packages/core/platform/process_creation_win.py"
+  ],
+  "methods": [
+    "_owned_command_line",
+    "OwnedPopen._execute_child (serialization expression only)"
+  ],
+  "capability": "M07 exact configured Windows cmd /d /s /c raw-tail",
+  "status": "verified-preserved",
+  "originalNode": "tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner",
+  "strictSuccessors": [
+    "tests/test_retirement_rev14_templates.py::test_production_shell_form_real_process_exit_and_original_lookup",
+    "tests/test_retirement_rev14_templates.py::test_fresh_production_browser_real_template_http_queue_and_shell"
+  ],
+  "regressionFiles": [
+    "tests/test_retirement_rev15_shell_serializer.py",
+    "tests/test_retirement_rev14_shell_diagnostic.py",
+    "tests/test_platform_process_windows_hidden.py",
+    "tests/test_hidden_job_token.py",
+    "tests/test_cpx1_creation_edges.py"
+  ],
+  "preservedRed": [
+    "evidence/job-retirement-rev14-20261029/product.xml",
+    "evidence/job-retirement-rev14-shell-diagnostic-20261029/focused.xml"
+  ],
+  "retainedBoundary": "Unproven COMSPEC/envelope retains original CRT; no unknown replay, generic dispatch or new process protocol",
+  "priorOtherStatuses": "M01/M05 prior bounded evidence unchanged; no aggregate original43/remaining-nine closure",
+  "checks": [
+    {
+      "name": "shell",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev15_shell_serializer.py",
+        "tests/test_retirement_rev14_shell_diagnostic.py",
+        "tests/test_retirement_rev14_templates.py",
+        "tests/test_retirement_rev11_compat.py",
+        "-q",
+        "-s",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev15-shell-20261029\\shell.xml"
+      ],
+      "exit": 0,
+      "seconds": 17.141,
+      "counts": {
+        "total": 45,
+        "passed": 45,
+        "failed": 0,
+        "skipped": 0
+      },
+      "failedNodes": [],
+      "skippedNodes": []
+    },
+    {
+      "name": "ownership",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_platform_process_windows_hidden.py",
+        "tests/test_hidden_job_token.py",
+        "tests/test_cpx1_creation_edges.py",
+        "-q",
+        "-s",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev15-shell-20261029\\ownership.xml"
+      ],
+      "exit": 0,
+      "seconds": 4.19,
+      "counts": {
+        "total": 26,
+        "passed": 26,
+        "failed": 0,
+        "skipped": 0
+      },
+      "failedNodes": [],
+      "skippedNodes": []
+    }
+  ],
+  "overallFinalRunnerExit": 0,
+  "unverifiedLayers": [
+    "remote CI",
+    "other Python/OS execution",
+    "real data migration",
+    "deployment",
+    "full deployed application browser navigation"
+  ]
+}
