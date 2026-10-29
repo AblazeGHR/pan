@@ -71,7 +71,8 @@ function TypedValue({
       {type === 'string' ? (
         <label className="block text-sm">
           {label}
-          <input
+          <textarea
+            aria-label={label}
             className={fieldClass}
             value={String(value ?? '')}
             onChange={(e) => onChange(e.target.value)}
