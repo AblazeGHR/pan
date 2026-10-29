@@ -11,7 +11,6 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 SUPPLEMENTAL = (
     'tests/test_portability_paths.py', 'tests/test_terminal_secret_store.py',
-    'tests/test_plugin_event_lifecycle.py', 'tests/test_plugin_events.py',
     'tests/test_minimal_ci_helper.py',
 )
 LEGACY = (
