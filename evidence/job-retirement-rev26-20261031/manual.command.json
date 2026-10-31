@@ -1,0 +1,64 @@
+{
+  "sourceSha": "9ccf4f2184851a7a67f60823b0c733d47d1386e6",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev10_qq_retry.py",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev26-20261031\\manual.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "seconds": 81.46287099999972,
+  "counts": {
+    "passed": 8,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "executionOrder": [
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_receipt_binding_corruption_and_unknown_partial_never_retry",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_current_authorization_revoked_before_manual_retry_no_write_or_send",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_custom_product_like_action_cannot_use_trusted_retry_exception",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_call_api_entered_channel_not_connected_is_ambiguous_no_proof",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance",
+      "status": "passed"
+    }
+  ],
+  "junit": "manual.xml",
+  "log": "manual.log",
+  "junitSha256": "19f0089efa84fc2e3bc00e63a8d445c2062c54d253456ee34e3d690d14016e2c",
+  "logSha256": "db081109d1e6d83e75a91c4667e59d1d4d5d00c29be9a5958676d0096c25f0bc"
+}

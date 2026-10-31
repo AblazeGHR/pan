@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="31" time="312.074" timestamp="2026-10-31T21:11:04.961910+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once" time="19.581"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 21:11:05 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 21:11:05 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[pause]" time="6.640"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[disable]" time="6.632"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[revoke]" time="6.620"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[None]" time="13.401"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]" time="13.389"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[lost-response]" time="13.376"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[missing-id]" time="13.085"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_unknown_selected_bot_pending_then_current_bot_switch_with_cas_and_no_manual_retry[222222]" time="13.163"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_unknown_selected_bot_pending_then_current_bot_switch_with_cas_and_no_manual_retry[None]" time="13.040"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[missing-proof]" time="6.820"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-attempt]" time="6.863"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-arguments]" time="6.833"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[None-bot_not_connected]" time="8.111"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[222222-bot_not_connected]" time="8.150"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[333333-unknown_bot_uin]" time="8.329"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[targetId-123]" time="5.073"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[botUin-bad]" time="5.071"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[text-  ]" time="4.960"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-reservation-completed-1]" time="15.016"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-invoke-uncertain-0]" time="8.277"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-qq-uncertain-1]" time="14.514"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-receipt-completed-1]" time="14.670"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[None]" time="12.964"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]" time="13.160"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]" time="12.949"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_receipt_binding_corruption_and_unknown_partial_never_retry" time="6.605"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_current_authorization_revoked_before_manual_retry_no_write_or_send" time="6.500"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_custom_product_like_action_cannot_use_trusted_retry_exception" time="6.700"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_call_api_entered_channel_not_connected_is_ambiguous_no_proof" time="12.622"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance" time="8.571"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>
