@@ -177,66 +177,84 @@ def _runtime_delivery_source(root, kind):
 
 
 @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
-def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+@pytest.mark.parametrize("runtime_delivery", [False, True])
+def test_runtime_delivery_inventory_default_frozen_or_explicit_runtime(tmp_path, kind, runtime_delivery):
     from scripts.job_final_migration.inventory import build_inventory
     root = tmp_path / "synthetic-source"
     path, _ = _runtime_delivery_source(root, kind)
     before = hashes(root)
-    inventory = build_inventory(root)
+    inventory = build_inventory(root, runtime_delivery=runtime_delivery)
     item, = inventory["instances"]
-    assert item["classification"] == "incompatible-preserved"
-    assert "runtime_binding_unavailable" in item["reasonCodes"]
-    assert item["targetIds"] == [] and item["fieldMap"] is None
-    gap = item["runtimeBindingGap"]
-    assert gap["owner"] == "Creator/Delivery Manager"
-    assert gap["allowedStates"] == ["pending", "reserved"]
-    assert gap["effectiveStage"] == "event-published-before-queue-or-external-acceptance"
-    assert gap["freezePerTargetAt"] == ["accepted", "success", "unknown", "partial"]
-    assert gap["bindingGenerated"] is False and gap["acceptanceState"] == "unverified"
-    assert "runtimeRevision" in gap["requiredEvidence"] and "per-target receipt" in gap["requiredEvidence"]
-    assert any(field["sourceField"] == "text" and field["requiresActionDeclaration"] ==
-               "runtimeBeforeAcceptance" for field in gap["fields"])
-    assert inventory["plan"]["items"] == []
-    assert inventory["plan"]["preserved"][0]["runtimeBindingGap"] == gap
-    assert inventory["plan"]["preserved"][0]["suggestedAction"] == "retain-source-manager-await-runtime-contract"
+    assert item["classification"] == "simple-script-migratable"
+    assert item["targetIds"] == [] and item["fieldMap"]
+    if runtime_delivery:
+        assert inventory["runtimeDeliveryOptIn"] == {"version": 1, "mode": "before-reservation"}
+        assert item["suggestedAction"] == "plan-runtime-delivery-with-pinned-release"
+        assert item["runtimeMappingRequirements"]["owner"] == "Creator/Delivery Manager"
+    else:
+        assert "runtimeMappingRequirements" not in item and "runtime_binding_unavailable" not in item["reasonCodes"]
+        assert item["suggestedAction"] == "plan-only"
+        from scripts.job_final_migration.mapping import Mapper
+        from tests.test_job_final_migration_apply import context_for
+        mapper = Mapper(context_for(root))
+        mapped = mapper.map(item, json.loads(path.read_bytes()))
+        job = next(row["object"] for row in mapper.objects if row["kind"] == "job")
+        assert "deliveryRuntime" not in job and "runtimeMapping" not in mapped
+        assert all(binding["from"] == "literal" for binding in job["steps"][0]["arguments"].values())
     assert path.is_file() and hashes(root) == before
 
 
-def test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard(tmp_path):
+def test_runtime_delivery_explicit_release_maps_and_stale_release_is_rejected(tmp_path):
     from scripts.job_final_migration.inventory import build_inventory, SIMPLE
-    from scripts.job_final_migration.mapping import Mapper, ApplyError
-    from tests.test_job_final_migration_apply import context_for
+    from scripts.job_final_migration.mapping import Mapper
+    from tests.test_job_migration_runtime_contract import runtime_context
     root = tmp_path / "synthetic-source"
     _, source = _runtime_delivery_source(root, "assign")
-    item, = build_inventory(root)["instances"]
-    item["classification"] = SIMPLE  # stale pre-amendment classification is not proof
-    mapper = Mapper(context_for(root))
-    with pytest.raises(ApplyError, match="runtime_binding_unavailable"):
-        mapper.map(item, source)
-    assert mapper.objects == []
+    item, = build_inventory(root, runtime_delivery=True)["instances"]
+    item["classification"] = SIMPLE
+    mapper = Mapper(runtime_context(root))
+    mapped = mapper.map(item, source)
+    assert mapped["runtimeMapping"]["acceptanceAdopted"] is False
+    jobs = [row["object"] for row in mapper.objects if row["kind"] == "job"]
+    assert jobs and jobs[0]["deliveryRuntime"]["phase"] == "before-reservation"
+    from tests.support.job_migration_readiness_rehearsal import current_actions
+    stale_context = runtime_context(root)
+    stale_context["actions"]["session.assign"] = current_actions()["session.assign"]
+    with pytest.raises(ValueError, match="explicit pinned product runtime release"):
+        migration.migrate(root, tmp_path / "not-created/bundle.json", stale_context)
+    assert not (tmp_path / "not-created").exists()
 
 
-def test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids(tmp_path):
+def test_runtime_delivery_partial_bundle_maps_eligible_and_preserves_uncertain_identity(tmp_path):
     import base64
     from scripts.job_final_migration.inventory import build_inventory
     from tests.test_job_final_migration import _background_job, _write_json
-    from tests.test_job_final_migration_apply import context_for
+    from tests.test_job_migration_runtime_contract import runtime_context
     root = tmp_path / "synthetic-source"
     path, _ = _runtime_delivery_source(root, "send_session")
     original = path.read_bytes()
     _write_json(root / "background_jobs/jobs/job_process.json", _background_job(root))
+    _, uncertain = _runtime_delivery_source(tmp_path / "unused", "send_session")
+    uncertain["id"] = "job_uncertain"
+    uncertain["lastDelivery"] = {"outcome": "unknown", "receiptId": "original-receipt"}
+    uncertain_path = root / "background_jobs/jobs/job_uncertain.json"
+    _write_json(uncertain_path, uncertain)
     before = hashes(root)
-    context = {**context_for(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
+    context = {**runtime_context(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
     target = tmp_path / "offline-bundle.json"
     report = migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
-        expected_digest=migration.plan_digest(build_inventory(root), context))
+        expected_digest=migration.plan_digest(build_inventory(root, runtime_delivery=True), context))
     bundle = migration.read_bundle(target)
-    assert len(bundle["entries"]) == 1 and bundle["entries"][0]["type"] == "MIG-BG"
+    assert len(bundle["entries"]) == 2
+    runtime_entry = next(e for e in bundle["entries"] if e["type"] == "MIG-SCHED")
+    assert runtime_entry["runtimeMapping"]["acceptanceAdopted"] is False
     preserved, = bundle["preserved"]
     assert preserved["targetIds"] == [] and preserved["executable"] is False
-    assert preserved["runtimeBindingGap"]["bindingGenerated"] is False
+    assert "uncertain_effect" in preserved["reasonCodes"]
     relative = path.relative_to(root).as_posix()
     assert base64.b64decode(bundle["sourceBackups"][relative]["bytes"]) == original
+    uncertain_relative = uncertain_path.relative_to(root).as_posix()
+    assert base64.b64decode(bundle["sourceBackups"][uncertain_relative]["bytes"]) == uncertain_path.read_bytes()
     assert report["partialApply"]["allLegacyCleared"] is False
     assert hashes(root) == before
 
@@ -254,12 +272,22 @@ def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
         source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
     path.write_text(json.dumps(source), encoding="utf-8")
     before = path.read_bytes()
-    item, = build_inventory(root)["instances"]
-    assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
-    assert "runtime_binding_unavailable" in item["reasonCodes"]
-    assert item["runtimeBindingGap"]["acceptanceState"] == "unverified"
-    assert ("target_missing" if state == "missing-target" else "pending_notice" if state == "pending-backlog"
-            else "uncertain_effect") in item["reasonCodes"]
+    item, = build_inventory(root, runtime_delivery=True)["instances"]
+    expected = ("target_missing" if state == "missing-target" else "pending_notice" if state == "pending-backlog"
+                else "uncertain_effect")
+    if state == "missing-target":
+        assert item["classification"] == "simple-script-migratable"
+        assert "runtimeMappingRequirements" in item
+    else:
+        assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
+        assert expected in item["reasonCodes"] and "runtime_binding_unavailable" not in item["reasonCodes"]
+    assert "runtimeBindingGap" not in item
+    if state == "pending-backlog":
+        assert json.loads(path.read_bytes())["undeliveredFires"] == [
+            {"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+    elif state in {"unknown", "partial"}:
+        assert json.loads(path.read_bytes())["lastDelivery"] == {
+            "outcome": state, "receiptId": "original-receipt"}
     assert path.read_bytes() == before
 
 
@@ -267,61 +295,67 @@ def test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolut
     import jsonschema
     from packages.jobs.chains import resolve
     from scripts.job_final_migration.inventory import build_inventory
-    from scripts.job_final_migration.render import render_markdown
-    from scripts.job_final_migration.review_packet import _disposition
+    from scripts.job_final_migration.mapping import Mapper
+    from tests.test_job_migration_runtime_contract import runtime_context
     root = tmp_path / "synthetic-source"
     _, source = _runtime_delivery_source(root, "send_session")
-    report = build_inventory(root)
+    report = build_inventory(root, runtime_delivery=True)
     item, = report["instances"]
-    bindings = {field["argument"]: field["proposedBinding"] for field in item["runtimeBindingGap"]["fields"]}
+    bindings = {field["argument"]: field["proposedBinding"] for field in item["runtimeMappingRequirements"]["fields"]}
     for binding in bindings.values():
         jsonschema.validate(binding, fc.schema_artifacts()["common.schema.json"]["$defs"]["Binding"])
     assert resolve(bindings, {"delivery": {"sessionId": "old-target", "text": "old-body"}}, {}, {}) == {
         "sessionId": "old-target", "text": "old-body"}
     assert resolve(bindings, {"delivery": {"sessionId": "new-target", "text": "updated-before-admission"}}, {}, {}) == {
         "sessionId": "new-target", "text": "updated-before-admission"}
-    # This only proves the existing input path. It cannot supply post-admission
-    # reservation/acceptance evidence and must not enable a migrated Job.
-    disposition = _disposition(item, source)
-    assert disposition["decisionIds"] == [] and disposition["implementationFollowUp"] is True
-    assert disposition["historicalExecutionAllowed"] is False
-    rendered = render_markdown(report)
-    assert "Creator/Delivery Manager" in rendered and "no executable binding generated" in rendered
+    assert item["runtimeMappingRequirements"]["owner"] == "Creator/Delivery Manager"
+    mapper = Mapper(runtime_context(root))
+    mapped = mapper.map(item, source)
+    job = next(row["object"] for row in mapper.objects if row["kind"] == "job")
+    assert all(job["steps"][0]["arguments"][key] == value for key, value in bindings.items())
+    assert job["deliveryRuntime"]["owner"] == "delivery-manager"
+    assert job["deliveryRuntime"]["phase"] == "before-reservation"
+    assert job["deliveryRuntime"]["unknownPolicy"] == "query-original"
+    assert mapped["runtimeMapping"]["acceptanceAdopted"] is False
 
 
-def test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication(tmp_path, capsys):
+def test_runtime_delivery_cli_default_and_opt_in_plan_without_publication(tmp_path, capsys):
     from scripts.job_final_migration.cli import main
     from scripts.job_final_migration.inventory import build_inventory
-    from scripts.job_final_migration.mapping import ApplyError
-    from tests.test_job_final_migration_apply import context_for
+    from tests.test_job_migration_runtime_contract import runtime_context
     root = tmp_path / "synthetic-source"
     _runtime_delivery_source(root, "assign")
     before = hashes(root)
     assert main(["--root", str(root), "--out", "-"]) == 0
     report = json.loads(capsys.readouterr().out)
-    assert report["summary"]["simple"] == 0 and report["summary"]["complex"] == 1
-    assert "runtime_binding_unavailable" in report["instances"][0]["reasonCodes"]
-    context = {**context_for(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
-    target = tmp_path / "must-not-exist/bundle.json"
-    with pytest.raises(ApplyError, match="no simple records"):
-        migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
-            expected_digest=migration.plan_digest(build_inventory(root), context))
-    assert not target.parent.exists() and hashes(root) == before
+    assert report["summary"]["simple"] == 1 and report["summary"]["complex"] == 0
+    assert "runtimeDeliveryOptIn" not in report
+    assert main(["--root", str(root), "--out", "-", "--runtime-delivery"]) == 0
+    opted = json.loads(capsys.readouterr().out)
+    assert opted["runtimeDeliveryOptIn"] == {"version": 1, "mode": "before-reservation"}
+    assert opted["summary"]["simple"] == 1 and opted["summary"]["complex"] == 0
+    runtime_report = migration.migrate(root, tmp_path / "runtime-bundle.json", runtime_context(root))
+    assert runtime_report["plan"]["items"][0]["targetIds"] and runtime_report["plan"]["preserved"] == []
+    assert runtime_report["runtimeActivated"] is False and not (tmp_path / "runtime-bundle.json").exists()
+    assert hashes(root) == before
 
 
 def test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order(tmp_path):
     import csv
     import io
+    from scripts.job_final_migration.review_packet import _csv
     from scripts.job_final_migration.inventory import build_inventory
-    from scripts.job_final_migration.review_packet import _csv, _disposition
     root = tmp_path / "synthetic-source"
-    _, source = _runtime_delivery_source(root, "assign")
-    item, = build_inventory(root)["instances"]
-    runtime = {"id": "runtime-source", "runtimeBindingGap": item["runtimeBindingGap"], **_disposition(item, source)}
-    historical = {"id": "unresolved-original", **_disposition(
-        {**item, "reasonCodes": ["uncertain_effect"]}, {})}
+    _runtime_delivery_source(root, "send_session")
+    runtime, = build_inventory(root, runtime_delivery=True)["instances"]
+    runtime_id = runtime["id"]
+    historical = {"id": "unresolved-original", "decisionIds": ["D3"],
+                  "historicalPreserve": "yes", "historicalExecutionAllowed": False}
     for rows in ([historical, runtime], [runtime, historical]):
         parsed = list(csv.DictReader(io.StringIO(_csv(rows).decode("utf-8"))))
-        row = next(r for r in parsed if r["id"] == "runtime-source")
-        assert json.loads(row["runtimeBindingGap"])["owner"] == "Creator/Delivery Manager"
-        assert json.loads(row["decisionIds"]) == [] and row["implementationFollowUp"] == "True"
+        row = next(r for r in parsed if r["id"] == runtime_id)
+        assert json.loads(row["runtimeMappingRequirements"])["owner"] == "Creator/Delivery Manager"
+        assert not row.get("runtimeBindingGap")
+        original = next(r for r in parsed if r["id"] == "unresolved-original")
+        assert json.loads(original["decisionIds"]) == ["D3"]
+        assert original["historicalExecutionAllowed"] == "False"
