@@ -1,0 +1,37 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+___ test_retired_names_actual_stdio_boundary_and_authorized_canonical_path ____
+tests\test_retirement_rev16_mcp_stdio.py:15: in test_retired_names_actual_stdio_boundary_and_authorized_canonical_path
+    asyncio.run(exercise(tmp_path))
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev16_mcp_stdio.py:83: in exercise
+    assert response['result'].get('structuredContent'), response
+E   AssertionError: {'jsonrpc': '2.0', 'id': 5, 'result': {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}}
+E   assert None
+E    +  where None = <built-in method get of dict object at 0x00000175E4846F40>('structuredContent')
+E    +    where <built-in method get of dict object at 0x00000175E4846F40> = {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}.get
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  D:\project\Pan-main\.venv\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev16_mcp_stdio.py::test_retired_names_actual_stdio_boundary_and_authorized_canonical_path

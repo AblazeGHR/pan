@@ -276,16 +276,24 @@ class FinalService:
 
     def _references(self, db, kind, value, *, object_id=None, enabled=False):
         checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
+        completion_job = value if kind == "job" else value.get("jobDefinition", {}) if kind == "template" else {}
+        from packages.jobs.independent_executor import validate_monitoring_completion
+        for step in completion_job.get("steps", []):
+            try:
+                validate_monitoring_completion(step["completion"])
+            except ValueError as exc:
+                error("invalid_schema", str(exc))
         if kind == "job":
             recovery = value.get("recovery", {})
             if recovery.get("automatic"):
                 if (not recovery.get("retryIf") or set(recovery["retryIf"]) - {"failed", "timeout"}
-                        or Decimal(recovery.get("stableResetSeconds", "300")) != 0
                         or any(a["execution"]["operation"] != "process" or a.get("effectClass") == "high_risk"
                                or not (a["retry"]["idempotent"] or a["retry"]["sameKeySupported"]) for a in checked[:len(value["steps"])])):
-                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with finite policy and stableResetSeconds=0")
+                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with trusted cleanup and execution timing")
             self._check_literal_product_sessions(value, checked)
             self._check_literal_product_qq(value, checked)
+            from packages.jobs.session_delivery_runtime import validate_references
+            validate_references(value, checked)
         if kind == "trigger":
             selector = value["creatorSelector"]
             if selector["mode"] == "ids":
@@ -304,7 +312,10 @@ class FinalService:
                     "product_session_broadcast": ("session-broadcast", "sessionIds"),
                     "product_session_message_v2": ("session-message", "sessionId"),
                     "product_session_broadcast_v2": ("session-broadcast", "sessionIds"),
-                    "product_assign_v2": ("assign", "sessionId")}
+                    "product_assign_v2": ("assign", "sessionId"),
+                    "product_assign_runtime_v1": ("assign", "sessionId"),
+                    "product_session_message_runtime_v1": ("session-message", "sessionId"),
+                    "product_session_broadcast_runtime_v1": ("session-broadcast", "sessionIds")}
         for index, (step, action) in enumerate(zip(value["steps"], checked)):
             product = products.get(action["id"])
             config = action.get("definition") or {}
@@ -612,6 +623,7 @@ class FinalService:
         request_value = value
         with self.transaction() as db:
             def mutate(operation_id):
+                runtime_audit = None
                 value = (fc.validate_write(kind, self._normalize_template_form(db,
                              {key: request_value[key] for key in ("definition", "form", "expectedRevision", "requestKey")}, actor=actor), create=True)
                          if "form" in request_value else request_value)
@@ -647,6 +659,25 @@ class FinalService:
                     stored = item
                     if kind == "job":
                         stored = self._get(db, kind, object_id) if old else {"jobId": item["id"]}
+                        if (item.get("deliveryRuntime") or item.get("notification", {}).get("runtime")
+                                or (old and (old.get("deliveryRuntime") or old.get("notification", {}).get("runtime")))):
+                            fields = list(dict.fromkeys(item.get("deliveryRuntime", {}).get("inputFields", [])
+                                + (old.get("deliveryRuntime", {}).get("inputFields", []) if old else [])))
+                            before = definition("job", old) if old else {}
+                            def runtime_values(doc):
+                                inputs = {}
+                                for name in fields:
+                                    current = doc.get("arguments", {})
+                                    for piece in name.split('.'):
+                                        current = current.get(piece) if isinstance(current, dict) else None
+                                    inputs[name] = copy.deepcopy(current)
+                                return {"inputs": inputs,
+                                        "notification": copy.deepcopy(doc.get("notification", {}))}
+                            runtime_audit = {"operationId": operation_id, "actor": principal(actor),
+                                "fromRevision": old["configRevision"] if old else 0,
+                                "toRevision": item["configRevision"], "before": runtime_values(before),
+                                "after": runtime_values(value["definition"])}
+                            stored["runtimeOperationId"] = operation_id
                         stored.update(canonical=item, config=copy.deepcopy(value["definition"]), configRevision=item["configRevision"])
                         aggregate(stored, self.root)["profileId"] = self.profile_id
                     self._save(db, kind, item["id"], stored)
@@ -656,7 +687,7 @@ class FinalService:
                         for cid in item["creatorSelector"]["ids"]:
                             self.creators.bind_link(cid, item["id"], item["targetJobId"])
                 db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, item["id"], fc.canonical_json(actor)))
-                return {"object": item}, [object_ref(kind, item)], False
+                return {"object": item, **({"runtimeAudit": runtime_audit} if runtime_audit else {})}, [object_ref(kind, item)], False
             return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
                                    {"kind": kind, "objectId": object_id, **value}, kind, mutate)
 
@@ -738,6 +769,8 @@ class FinalService:
                   "input": input_value, "event": copy.deepcopy(value.get("event", {})),
                   "recovery": copy.deepcopy(cfg["recovery"]),
                   "authority": copy.deepcopy(actor), "configRevision": item["configRevision"]}
+        if cfg.get("deliveryRuntime"):
+            frozen["deliveryRuntime"] = copy.deepcopy(cfg["deliveryRuntime"])
         for step in cfg["steps"]:
             if any(binding["from"] == "step" for binding in step["arguments"].values()):
                 continue  # Dynamic output mapping is checked at its Step boundary.
@@ -777,7 +810,26 @@ class FinalService:
     def get_run(self, run_id, *, actor):
         self._permit(actor, "job", "read")
         with self.transaction(readonly=True) as db:
-            return copy.deepcopy(self._find_run(db, run_id)[1])
+            job, run = self._find_run(db, run_id)
+            return self._run_notification_projection(job, run)
+
+    def _run_notification_projection(self, job, run):
+        fields = ("outboxId", "transitionSeq", "recipientId", "status", "targetRef", "targetRevision",
+                  "payloadDigest", "summary", "receipt", "notificationRuntime", "runtimeOperationId")
+        rows = [{key: copy.deepcopy(row[key]) for key in fields if key in row}
+                for row in aggregate(job, self.root)["outbox"].values()
+                if row["runId"] == run["runId"] and row["channel"] == "session"]
+        plan = aggregate(job, self.root)["plans"].get(run["runId"], {})
+        delivery = {}
+        if plan.get("frozen", {}).get("deliveryRuntime"):
+            delivery = {"declaration": copy.deepcopy(plan["frozen"]["deliveryRuntime"]), "steps": {}}
+            for step_id, reserved in plan.get("runtimeDelivery", {}).items():
+                projected = {key: copy.deepcopy(value) for key, value in reserved.items() if key not in {"arguments", "children"}}
+                projected["children"] = [{key: copy.deepcopy(value) for key, value in child.items() if key != "arguments"}
+                                         for child in reserved.get("children", [])]
+                delivery["steps"][step_id] = projected
+        return {**copy.deepcopy(run), **({"notifications": rows} if rows else {}),
+                **({"deliveryRuntime": delivery} if delivery else {})}
 
     def _process_log_records(self, run_id):
         """One trusted live/archive locator for both authorized log queries."""
@@ -869,7 +921,13 @@ class FinalService:
 
     def runs(self, job_id, *, actor, cursor=None, limit=100):
         self._permit(actor, "job", "read")
-        return self._page(self.final.runs(job_id), "runs:" + job_id, cursor, limit, actor)
+        with self.transaction(readonly=True) as db:
+            job = next((item for kind in ("job", "runtime_archive") for item in self._all(db, kind)
+                        if item["jobId"] == job_id), None)
+            if job is None:
+                raise KeyError(job_id)
+            rows = [self._run_notification_projection(job, row) for row in self.final.runs(job_id)]
+        return self._page(rows, "runs:" + job_id, cursor, limit, actor)
 
     @staticmethod
     def _qq_manual_retry_proven(state, frozen, step, prior):
@@ -1240,6 +1298,17 @@ class FinalService:
                 "defaultCompletion": "durable-queue-accepted", "cancel": {"supported": False}, "reconcile": {"supported": False},
                 "retry": {"idempotent": False, "sameKeySupported": True, "requiresProof": True}, "system": True})
 
+        # New opt-in releases only. Never alter source-aware v2 publications
+        # or Actions already embedded in a frozen Run.
+        for op in ("assign", "session-message", "session-broadcast"):
+            with self.transaction(readonly=True) as db:
+                runtime_action = definition("action", self._get(db, "action", "product_" + op.replace("-", "_") + "_v2"))
+            runtime_action["runtimeBeforeAcceptance"] = {
+                "owner": "delivery-manager", "fields": ["sessionIds" if op == "session-broadcast" else "sessionId", "text"],
+                "phase": "before-queue-acceptance", "fence": "per-target-attempt-effect", "unknownPolicy": "query-original"}
+            runtime_action["providerRef"] = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.session-runtime.v1"), "generation": 3}
+            self.publish_action("product_" + op.replace("-", "_") + "_runtime_v1", runtime_action)
+
         self.publish_action("product_resume_legal_running_v1", {
             "name": "Resume Illegal / pending recovery Sessions",
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
@@ -1329,6 +1398,8 @@ class FinalService:
         executable = {**copy.deepcopy(action["execution"]["config"]), "operation": action["execution"]["operation"],
                       "effect": action["effectClass"], "arguments": resolve_bindings(
                           step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))}
+        if step["completion"].get("contract") == "monitoring":
+            executable["completion"] = copy.deepcopy(step["completion"])
         if (action["execution"]["operation"] != "process" or action["effectClass"] == "high_risk"
                 or target["jobId"] != job["jobId"] or doc.get("jobId") != job["jobId"]
                 or fence(current) != fence(expected) or fence(doc.get("attempt", {})) != fence(expected)
@@ -1347,10 +1418,66 @@ class FinalService:
             return None
         if receipt.get("code") == "timeout":
             return "timeout"
+        if receipt.get("code") == "monitoring_completion_invalid":
+            return "failed"
         if ("code" not in receipt and type(receipt.get("exitCode")) is int
                 and receipt["exitCode"] != 0):
             return "failed"
         return None
+
+    @staticmethod
+    def _stable_execution_seconds(doc):
+        """Elapsed original execution, never coordinator observation time."""
+        timing = (doc.get("result") or {}).get("receipt", {}).get("executionTiming")
+        if not isinstance(timing, dict) or set(timing) != {
+                "startedAt", "endedAt", "startedMonotonicNs", "endedMonotonicNs"}:
+            return None
+        try:
+            for key in ("startedAt", "endedAt"):
+                fc.check_timestamp(timing[key], key)
+            start, end = (timing[key] for key in ("startedMonotonicNs", "endedMonotonicNs"))
+            if type(start) is not int or type(end) is not int or start < 0 or end < start:
+                return None
+            # Both ticks belong to one original executor invocation. Using its
+            # clock interval also prevents UTC adjustments or offline query lag
+            # from minting a stable recovery window.
+            with localcontext() as context:
+                context.prec = len(str(end)) + 10
+                return Decimal(end - start) / 1000000000
+        except (fc.ContractError, TypeError, ValueError, OverflowError):
+            return None
+
+    def _automatic_budget(self, job, rid, step_id):
+        """Derive consecutive-window usage from monotonic canonical generation.
+
+        Only a stable rejected Attempt installs a baseline. The small per-Step
+        plan marker is a fenced window boundary, never an independent counter.
+        """
+        state = aggregate(job, self.root)
+        plan = state["plans"][rid]
+        count = state["steps"][rid][step_id]["attemptCount"]
+        windows = plan.get("recoveryWindows", {})
+        if not isinstance(windows, dict):
+            error("reconciliation_required", "Invalid recovery windows")
+        window = windows.get(step_id)
+        if window is None:
+            return count
+        if (not isinstance(window, dict) or set(window) != {"afterAttemptId", "baseGeneration"}
+                or not isinstance(window["afterAttemptId"], str)):
+            error("reconciliation_required", "Invalid recovery window")
+        base = window["baseGeneration"]
+        attempt = state["attempts"].get(window["afterAttemptId"])
+        if (type(base) is not int or base < 0 or base >= count or attempt is None
+                or attempt["runId"] != rid or attempt["stepId"] != step_id
+                or attempt["generation"] != base + 1 or attempt["state"] != "failed"):
+            error("reconciliation_required", "Recovery window does not match original failed Attempt")
+        rows = [e for e in state["effects"] if e["attemptId"] == window["afterAttemptId"]]
+        threshold = Decimal(plan["frozen"].get("recovery", {}).get("stableResetSeconds", "0"))
+        elapsed = self._stable_execution_seconds({"result": rows[0]["receipt"]}) if len(rows) == 1 else None
+        if (threshold <= 0 or elapsed is None or elapsed < threshold
+                or rows[0]["outcome"] != "rejected"):
+            error("reconciliation_required", "Recovery window lacks original stable execution evidence")
+        return count - base
 
     def _schedule_automatic(self, db, job, rid, doc):
         state = aggregate(job, self.root)
@@ -1360,10 +1487,15 @@ class FinalService:
             return False
         step, _, prior = self._retry_boundary(job, rid)
         count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        used = self._automatic_budget(job, rid, step["stepId"])
         reason = self._process_retry_reason(doc)
-        if (count >= policy["maxAttempts"] or reason not in policy["retryIf"] or not self._cleanup_complete(doc)
+        if (reason not in policy["retryIf"] or not self._cleanup_complete(doc)
                 or not prior or prior[-1]["attemptId"] != doc["attempt"]["attemptId"]):
             return False
+        reset = Decimal(policy["stableResetSeconds"])
+        elapsed = self._stable_execution_seconds(doc) if reset > 0 else None
+        if reset > 0 and elapsed is None:
+            return False  # Old/malformed receipts cannot assert a stable interval.
         action = plan["frozen"]["actions"][step["actionRef"]["id"]]
         if job["canonical"]["state"] not in {"enabled", "paused"}:
             return False
@@ -1371,7 +1503,13 @@ class FinalService:
             self._guard_effect(db, job, rid, plan["frozen"], action)
         except fc.ContractError:
             return False
-        delay = Decimal(policy["backoffSeconds"][min(count - 1, len(policy["backoffSeconds"]) - 1)])
+        if reset > 0 and elapsed >= reset:
+            plan.setdefault("recoveryWindows", {})[step["stepId"]] = {
+                "afterAttemptId": prior[-1]["attemptId"], "baseGeneration": count - 1}
+            used = 1  # The just-ended stable failure is first in its new window.
+        if used >= policy["maxAttempts"]:
+            return False
+        delay = Decimal(policy["backoffSeconds"][min(used - 1, len(policy["backoffSeconds"]) - 1)])
         ended = state["attempts"][prior[-1]["attemptId"]]["endedAt"]
         base = self._recovery_time(ended)
         with localcontext() as context:
@@ -1414,14 +1552,14 @@ class FinalService:
         self._validate_process_document(job, target, doc)
         step, _, prior = self._retry_boundary(job, rid, marker["stepId"])
         policy = self._automatic_policy(plan)
-        count = state["steps"][rid][step["stepId"]]["attemptCount"]
+        used = self._automatic_budget(job, rid, step["stepId"])
         if (not policy or not prior or prior[-1]["attemptId"] != marker["afterAttemptId"]
                 or not self._cleanup_complete(doc) or doc["result"] != prior[-1]["receipt"]
                 or self._process_retry_reason(doc) != marker["reason"] or marker["reason"] not in policy["retryIf"]):
             return False
         action = plan["frozen"]["actions"][step["actionRef"]["id"]]
         try:
-            if job["canonical"]["state"] != "enabled" or count >= policy["maxAttempts"]:
+            if job["canonical"]["state"] != "enabled" or used >= policy["maxAttempts"]:
                 error("authorization_denied", "Automatic retry unavailable")
             self._guard_effect(db, job, rid, plan["frozen"], action)
         except fc.ContractError:
@@ -1474,6 +1612,27 @@ class FinalService:
                 return
             if job["canonical"]["state"] == "paused":
                 return
+            # Runtime delivery can wait without starting an Attempt or changing
+            # the frozen input. Reuse queued/paused state across a cold reopen.
+            frozen = plan["frozen"]
+            pending_step = next((s for s in frozen["steps"] if state["steps"][run_id][s["stepId"]]["state"] != "completed"), None)
+            if pending_step and frozen.get("deliveryRuntime", {}).get("phase") == "before-reservation":
+                from packages.jobs.session_delivery_runtime import effective
+                try:
+                    action = frozen["actions"][pending_step["actionRef"]["id"]]
+                    self._guard_effect(db, job, run_id, frozen, action)
+                    runtime = effective(job, state, run_id, pending_step, action)
+                except (fc.ContractError, ValueError):
+                    from packages.jobs.session_delivery_runtime import bound_attempt
+                    if bound_attempt(state, run_id):
+                        plan["runtimeHold"] = "authorization_or_reference_unavailable"
+                        self._save(db, "job", job_id, job)
+                        return
+                    runtime = None  # Existing failed-boundary handling below.
+                if runtime and (runtime["phase"] == "pending" or job["canonical"]["state"] != "enabled"):
+                    plan.setdefault("runtimeDelivery", {})[pending_step["stepId"]] = runtime
+                    self._save(db, "job", job_id, job)
+                    return
             if not plan.get("autoRecovery"):
                 self.final.ledger.start(job, self.root, run_id)
                 self._save(db, "job", job_id, job)
@@ -1505,6 +1664,15 @@ class FinalService:
                 try:
                     self._guard_effect(db, job, run_id, frozen, action)
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
+                    from packages.jobs.session_delivery_runtime import effective
+                    runtime = effective(job, state, run_id, step, action)
+                    if runtime:
+                        plan.setdefault("runtimeDelivery", {})[step["stepId"]] = runtime
+                        if runtime["phase"] == "pending" or job["canonical"]["state"] != "enabled":
+                            self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
+                            self._save(db, "job", job_id, job)
+                            return
+                        args = copy.deepcopy(runtime["arguments"])
                     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):
                         error("invalid_schema", "Action input schema rejected mapping")
                     if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
@@ -1516,12 +1684,20 @@ class FinalService:
                             selections[step["stepId"]] = select()
                         args = {"sessionIds": copy.deepcopy(selections[step["stepId"]])}
                 except (fc.ContractError, ValueError) as exc:
+                    from packages.jobs.session_delivery_runtime import bound_attempt
+                    if bound_attempt(state, run_id):
+                        plan["runtimeHold"] = getattr(exc, "code", "invalid_schema")
+                        self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
+                        self._save(db, "job", job_id, job)
+                        return
                     self.final.ledger.fail_step_without_attempt(job, self.root, run_id, step["stepId"])
                     self.final.ledger.transition_run(job, self.root, run_id, "failed")
                     self._settle(db, job, run_id, failure=getattr(exc, "code", "invalid_schema"))
                     return
                 self.final.ledger.start(job, self.root, run_id)
-                attempt = self.final.ledger.begin_attempt(
+                from packages.jobs.session_delivery_runtime import bound_attempt
+                continuation = bound_attempt(state, run_id) if runtime else None
+                attempt = continuation or self.final.ledger.begin_attempt(
                     job, self.root, run_id, step["stepId"],
                     owner_epoch=self.owner.token[0] if self.owner.token else 1,
                 )
@@ -1530,13 +1706,24 @@ class FinalService:
                     if op["operation"] == "retry" and op["response"].get("runId") == run_id and op["response"]["status"] == "accepted":
                         op["response"]["result"]["attemptId"] = attempt["attemptId"]
                         db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(op), row[0]))
-                effect_key = self.final.ledger.admit_effect(job, self.root, attempt["attemptId"], action["id"])
+                effect_key = runtime["effectKey"] if continuation else self.final.ledger.admit_effect(job, self.root, attempt["attemptId"], action["id"])
+                if runtime:
+                    runtime.update(effectKey=copy.deepcopy(effect_key), attemptId=attempt["attemptId"],
+                        ownerEpoch=attempt["ownerEpoch"], generation=attempt["generation"], leaseId=attempt["leaseId"])
                 plan.pop("autoRecovery", None)
                 executable = {**copy.deepcopy(action["execution"]["config"]),
-                              "operation": action["execution"]["operation"], "effect": action["effectClass"], "arguments": args}
+                              "operation": action["execution"]["operation"], "effect": action["effectClass"],
+                              "arguments": args}
+                if step["completion"].get("contract") == "monitoring":
+                    executable["completion"] = copy.deepcopy(step["completion"])
                 if executable["operation"] == "channel":
                     executable["action"] = {"api": "send_qq", "args": {key: args[key] for key in ("targetType", "targetId", "botUin") if key in args}}
                 self._save(db, "job", job_id, job)
+            delivery = None
+            if runtime:
+                from packages.jobs.session_delivery_runtime import SessionDelivery
+                delivery = SessionDelivery(self, job_id, run_id, attempt, effect_key)
+                executable["_runtimeDelivery"] = delivery
             try:
                 executor = self._external_adapter(job_id) if executable["operation"] == "process" and self.executor is self._product_executor else self.executor
                 receipt = await executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
@@ -1546,6 +1733,26 @@ class FinalService:
                     raise
                 receipt = {"outcome": "unknown", "receipt": {"code": "executor_interrupted"}}
             outcome = receipt.get("outcome", "unknown")
+            if (step["completion"].get("contract") == "monitoring" and outcome == "succeeded"
+                    and not self._monitoring_proof_valid(receipt, attempt, step["completion"])):
+                receipt = copy.deepcopy(receipt)
+                receipt["outcome"] = outcome = "unknown"
+                receipt.setdefault("receipt", {})["code"] = "monitoring_completion_unproven"
+            if delivery:
+                with self.transaction() as db:
+                    job = self._get(db, "job", job_id)
+                    state = aggregate(job, self.root)
+                    runtime = state["plans"][run_id]["runtimeDelivery"][step["stepId"]]
+                    if delivery.pending:
+                        if state["runs"][run_id]["state"] != "cancelling":
+                            self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
+                        self._save(db, "job", job_id, job)
+                        return  # Same live Attempt, no retry or terminal effect.
+                    state["plans"][run_id].pop("pendingSessionAttempt", None)
+                    self._save(db, "job", job_id, job)
+            if runtime:
+                from packages.jobs.session_delivery_runtime import receipt_projection
+                receipt["deliveryRuntime"] = receipt_projection(runtime, receipt)
             mapped = {"succeeded": "completed", "rejected": "failed", "unknown": "uncertain", "partial": "uncertain"}.get(outcome, "uncertain")
             with self.transaction() as db:
                 job = self._get(db, "job", job_id)
@@ -1555,9 +1762,10 @@ class FinalService:
                 if state["attempts"][attempt["attemptId"]]["state"] != "running":
                     return
                 if (self.executor is self._product_executor and executable["operation"] == "process"
-                        and self._automatic_policy(state["plans"][run_id])
+                        and (self._automatic_policy(state["plans"][run_id])
+                             or step["completion"].get("contract") == "monitoring")
                         and receipt.get("effectKey") == effect_key
-                        and (outcome == "rejected" or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
+                        and (outcome in {"succeeded", "rejected"} or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
                     # Known default-host pending is a query reference, not a lost
                     # effect. Keep its original running admission until lookup.
                     state["plans"][run_id]["pendingProcessAttempt"] = attempt["attemptId"]
@@ -1590,8 +1798,44 @@ class FinalService:
 
     def _settle(self, db, job, run_id, *, failure=None):
         run = aggregate(job, self.root)["runs"][run_id]
-        self.final.ledger.ensure_outbox(job, self.root, run_id, "canonical:" + run_id,
-                                      {"runId": run_id, "status": run["state"]})
+        summary = {"runId": run_id, "status": run["state"]}
+        state = aggregate(job, self.root)
+        frozen = state["plans"][run_id]["frozen"]
+        runtime = frozen.get("deliveryRuntime")
+        if isinstance(runtime, dict):
+            summary["deliveryRuntime"] = copy.deepcopy(runtime)
+        summary["creator"] = copy.deepcopy(frozen["authority"])
+        if frozen["authority"].get("type") == "agent":
+            summary["creatorSessionId"] = frozen["authority"]["id"]
+        # Notification summaries are projections of already recorded receipts.
+        # They never alter the frozen effect identity or authorize a resend.
+        effects = [effect for effect in aggregate(job, self.root)["effects"]
+                   if effect.get("attemptId") and
+                   aggregate(job, self.root)["attempts"].get(effect["attemptId"], {}).get("runId") == run_id]
+        if effects:
+            latest = effects[-1].get("receipt") or {}
+            receipt = latest.get("receipt") if isinstance(latest, dict) else None
+            if isinstance(receipt, dict):
+                for field in ("exitCode", "logRef", "logPath"):
+                    if field in receipt:
+                        summary[field] = copy.deepcopy(receipt[field])
+                targets = receipt.get("targets")
+                if isinstance(targets, list):
+                    summary["targetResults"] = copy.deepcopy(targets)
+                    summary["failedTargets"] = [copy.deepcopy(item.get("effectKey", {}).get("targetId"))
+                                                 for item in targets
+                                                 if item.get("outcome") in {"rejected", "failed", "error"}]
+                    summary["failedTargets"] = [item for item in summary["failedTargets"] if item]
+        created = self.final.ledger.ensure_outbox(job, self.root, run_id, "canonical:" + run_id, summary)
+        from packages.jobs.notification_delivery import NOTIFICATION_RUNTIME
+        policy = state["plans"][run_id].get("notification", {})
+        for row in created:
+            if row["channel"] == "session":
+                row["summary"]["targetSessionId"] = row.get("targetRef")
+                row["payloadDigest"] = fc.digest(row["summary"])
+                row["targetRevision"] = frozen["configRevision"]
+                if policy.get("runtime") == NOTIFICATION_RUNTIME:
+                    row["notificationRuntime"] = copy.deepcopy(NOTIFICATION_RUNTIME)
         self._save(db, "job", job["jobId"], job)
         for row in db.execute("SELECT id,document FROM final_operations").fetchall():
             op = json.loads(row[1])
@@ -1630,6 +1874,14 @@ class FinalService:
                         row.update(status="uncertain", receipt={"code": "notification_host_restarted"})
                 self._save(db, "job", job["jobId"], job)
                 for run in state["runs"].values():
+                    from packages.jobs.session_delivery_runtime import bound_attempt
+                    if bound_attempt(state, run["runId"]):
+                        # Only explicit child facts retain the same unfinished
+                        # Attempt. Sending facts are queried, never replayed.
+                        if run["state"] == "running":
+                            self.final.ledger.transition_run(job, self.root, run["runId"], "paused_at_boundary", operation="pause")
+                        self._save(db, "job", job["jobId"], job)
+                        continue
                     active_attempts = [attempt for attempt in state["attempts"].values()
                                        if attempt["runId"] == run["runId"] and attempt["state"] == "running"]
                     pending = state["plans"][run["runId"]].get("pendingProcessAttempt")
@@ -1659,6 +1911,12 @@ class FinalService:
         return (tree.get("confirmed") is True and tree.get("remaining") == []
                 and proof.get("identityVerified") is True and proof.get("treeTerminated") is True
                 and doc.get("supervisorExitProof", {}).get("confirmed") is True)
+
+    @staticmethod
+    def _monitoring_proof_valid(receipt, attempt, completion):
+        """Validate the runner's bounded proof against the frozen Attempt."""
+        from packages.jobs.independent_executor import monitoring_proof_valid
+        return monitoring_proof_valid(receipt or {}, attempt, completion)
 
     def _apply_original_receipt(self, job, target, receipt):
         from packages.jobs.independent_executor import fence
@@ -1756,6 +2014,10 @@ class FinalService:
                 else:
                     receipt = documents[0].get("result")
                     plan = state["plans"][rid]
+                    if rid in state.get("cancellations", {}):
+                        continue  # The cancellation owner alone settles its cleanup.
+                    original_step = next(s for s in plan["frozen"]["steps"]
+                                         if s["stepId"] == targets[0]["attempt"]["stepId"])
                     pending_aid = plan.get("pendingProcessAttempt")
                     is_pending = pending_aid == targets[0]["attempt"]["attemptId"]
                     # A lookup can race a newer Attempt/cancellation or another
@@ -1778,6 +2040,34 @@ class FinalService:
                         continue
                     if not receipt or receipt.get("outcome") not in {"succeeded", "rejected"}:
                         continue
+                    if original_step["completion"]["contract"] == "monitoring":
+                        if state["attempts"][targets[0]["attempt"]["attemptId"]]["state"] not in {"running", "uncertain"}:
+                            continue
+                        self._validate_process_document(job, targets[0], documents[0])
+                        if not self._cleanup_complete(documents[0]):
+                            continue
+                        if receipt.get("outcome") == "succeeded" and not self._monitoring_proof_valid(
+                                receipt, targets[0]["attempt"], original_step["completion"]):
+                            # A successful external effect without the declared
+                            # proof is not safe to reinterpret as failed or to
+                            # replay. Preserve the original identity as unknown.
+                            unknown = copy.deepcopy(receipt)
+                            unknown["outcome"] = "unknown"
+                            unknown["receipt"] = {
+                                "code": "monitoring_completion_invalid",
+                                "originalReceipt": copy.deepcopy(receipt.get("receipt", {})),
+                            }
+                            aid = targets[0]["attempt"]["attemptId"]
+                            if state["attempts"][aid]["state"] == "running":
+                                self.final.ledger.finish_attempt(job, self.root, aid, "uncertain")
+                                self.final.ledger.record_effect(job, self.root, aid, "unknown", unknown)
+                            else:
+                                continue  # Repeated lookup cannot create another effect row.
+                            if is_pending:
+                                plan.pop("pendingProcessAttempt", None)
+                            self.final.ledger.transition_run(job, self.root, rid, "uncertain")
+                            self._settle(db, job, rid)
+                            continue
                     # A control may have arrived while lookup was in flight.
                     if rid in state.get("cancellations", {}):
                         continue
@@ -1829,6 +2119,11 @@ class FinalService:
                             continue  # Missing selection is not an empty successful scan.
                         args = {"sessionIds": copy.deepcopy(ids)}
                     prior = next(e["receipt"] for e in state["effects"] if e["attemptId"] == attempt["attemptId"])
+                    from packages.jobs.session_delivery_runtime import original_arguments
+                    try:
+                        args = original_arguments(plan, target, args)
+                    except fc.ContractError:
+                        continue  # Wrong original identity never falls back to a new target.
                     pending.append((target, op, args, copy.deepcopy(prior)))
         for target, op, args, prior in pending:
             key = target["effectKey"]
@@ -1836,7 +2131,15 @@ class FinalService:
             resume = op == "resume-legal-running.v1"
             ids = list(dict.fromkeys(args["sessionIds"])) if fanout else [args["sessionId"]]
             rows = []
-            for sid in ids:
+            runtime_children = args.get("_runtimeChildren")
+            if runtime_children:
+                from packages.jobs.session_delivery_runtime import query_original_child
+                rows = [copy.deepcopy(c['receipt']) if c['status'] == 'accepted' else query_original_child(c)
+                        for c in runtime_children if c.get('arguments')]
+                if len(rows) != len(runtime_children):
+                    continue  # A missing child fact never proves no send.
+                ids = [c['targetId'] for c in runtime_children]
+            for sid in ([] if runtime_children else ids):
                 child = {**key, "targetId": sid} if fanout else key
                 previous = next((r for r in prior.get("receipt", {}).get("results" if resume else "targets", []) if r.get("effectKey") == child), None) if fanout else prior
                 if previous and previous.get("outcome") in {"succeeded", "rejected"}:
@@ -1884,6 +2187,13 @@ class FinalService:
                 aid, rid = target["attempt"]["attemptId"], target["attempt"]["runId"]
                 if state["attempts"][aid]["state"] != "uncertain" or rid in state.get("cancellations", {}):
                     continue
+                reservation = state["plans"][rid].get("runtimeDelivery", {}).get(target["attempt"]["stepId"])
+                if reservation:
+                    from packages.jobs.session_delivery_runtime import receipt_projection
+                    if runtime_children:
+                        for child, observed in zip(reservation['children'], rows):
+                            child.update(status='accepted', receipt=copy.deepcopy(observed))
+                    receipt["deliveryRuntime"] = receipt_projection(reservation, receipt)
                 resolved = self._apply_original_receipt(job, target, receipt)
                 result = ("completed" if all(s["state"] == "completed" for s in state["steps"][rid].values()) else "retry_wait") if resolved == "completed" else "failed"
                 self.final.ledger.transition_run(job, self.root, rid, result, operation="reconcile")
@@ -1917,7 +2227,7 @@ class FinalService:
                 return result
             trigger = self._get(db, "trigger", target["id"])
             if trigger["revision"] != target["revision"]:
-                return {"status": "skipped"}
+                return {"status": "deferred", "reason": "trigger_revision_changed"}
             key = "event:" + fc.digest({"eventId": eid, "triggerId": trigger["id"]})
             basis = db.execute("SELECT document FROM final_authorities WHERE kind='trigger' AND id=?", (trigger["id"],)).fetchone()
             if basis is None:
@@ -1936,6 +2246,8 @@ class FinalService:
                     provider_type = event["source"].get("type")
                 if provider_type != selector["providerType"]:
                     return {"status": "skipped"}
+            if trigger["state"] in {"paused", "disabled"}:
+                return {"status": "deferred", "reason": "trigger_temporarily_inactive"}
             if trigger["state"] != "enabled":
                 return {"status": "skipped"}
             # Reuse the existing condition/filter evaluator, never an effect host.
@@ -1987,9 +2299,16 @@ class FinalService:
                     if db.execute("SELECT 1 FROM final_event_receipts WHERE eventId=? AND triggerId=?", (event["eventId"], target["id"])).fetchone():
                         continue
                 try:
-                    result = await self.admit_event_async(event, target)
+                    # Preserve the published target IDs; re-read only that
+                    # Trigger so pause/resume revisions and State evaluation
+                    # use its current policy. A concurrent edit defers below.
+                    with self.transaction(readonly=True) as db:
+                        current_target = self._get(db, "trigger", target["id"])
+                    result = await self.admit_event_async(event, current_target)
                 except (fc.ContractError, KeyError):
                     self.diagnostics.append({"at": now(), "code": "event_admission_blocked"})
+                    continue
+                if result["status"] == "deferred":
                     continue
                 with self.transaction() as db:
                     db.execute("INSERT OR IGNORE INTO final_event_receipts VALUES(?,?,?)", (event["eventId"], target["id"], result["status"]))
@@ -1997,6 +2316,7 @@ class FinalService:
         await self.deliver_outbox()
 
     async def deliver_outbox(self):
+        from packages.jobs.notification_delivery import NOTIFICATION_RUNTIME, is_local_no_attempt
         if self.outbox_sender is None:
             return
         async with self._outbox_lock:
@@ -2017,7 +2337,23 @@ class FinalService:
                             current["status"] = "suppressed"
                             self._save(db, "job", job_id, job)
                             continue
+                    # Only opted-in, not-yet-accepted notification rows may
+                    # select current config at this existing reservation fence.
+                    if current.get("notificationRuntime") == NOTIFICATION_RUNTIME:
+                        policy = job["canonical"].get("notification", {})
+                        recipient = next((r for r in policy.get("recipients", [])
+                            if r["recipientId"] == current["recipientId"] and r["channelId"] == current["channel"]), None)
+                        if recipient is None:
+                            current.update(status="suppressed", receipt={"outcome": "suppressed", "reason": "recipient_removed"})
+                            self._save(db, "job", job_id, job)
+                            continue
+                        current["targetRef"] = recipient["targetRef"]
+                        current["targetRevision"] = job["configRevision"]
+                        current["runtimeOperationId"] = job.get("runtimeOperationId")
+                        current["summary"]["targetSessionId"] = current["targetRef"]
+                        current["payloadDigest"] = fc.digest(current["summary"])
                     current["status"] = "sending"
+                    row = copy.deepcopy(current)
                     self._save(db, "job", job_id, job)
                 try:
                     receipt = await self.outbox_sender({**row, "jobId": job_id})
@@ -2030,8 +2366,11 @@ class FinalService:
                 with self.transaction() as db:
                     job = self._get(db, "job", job_id)
                     current = aggregate(job, self.root)["outbox"][row["outboxId"]]
-                    current.update(status="acked" if receipt.get("outcome") == "succeeded" else "uncertain",
-                                   receipt=receipt)
+                    outcome = receipt.get("outcome")
+                    trusted_no_attempt = is_local_no_attempt(receipt, row)
+                    current.update(status=("acked" if outcome == "succeeded" else
+                                           "pending" if trusted_no_attempt else "uncertain"),
+                                   receipt=dict(receipt))
                     self._save(db, "job", job_id, job)
 
     def _guard_creator(self, item):

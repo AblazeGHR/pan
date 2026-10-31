@@ -23,6 +23,41 @@ class ExecutionConflict(ValueError):
     """Identity, lease, or irreversible-phase conflict; no effect admitted."""
 
 
+MAX_MONITORING_OUTPUT_BYTES = 512 * 1024
+
+
+def validate_monitoring_completion(completion):
+    if not isinstance(completion, Mapping) or completion.get("contract") != "monitoring":
+        return
+    parameters = completion.get("parameters")
+    signal_type = parameters.get("signalType") if isinstance(parameters, Mapping) else None
+    if (not isinstance(signal_type, str) or not 1 <= len(signal_type) <= 128
+            or set(parameters) != {"signalType"}):
+        raise ValueError("Monitoring completion requires frozen signalType (1..128 characters)")
+
+
+def monitoring_proof_valid(result, attempt, completion):
+    """Only the original runner's bounded, fenced stdout proof completes a Step."""
+    try:
+        validate_monitoring_completion(completion)
+        proof = result.get("receipt", {}).get("completionProof")
+        signal = proof.get("signal") if isinstance(proof, Mapping) else None
+        return (isinstance(proof, Mapping) and proof.get("contract") == "monitoring"
+                and proof.get("source") == "stdout" and proof.get("encoding") == "utf-8"
+                and type(proof.get("bytes")) is int and 0 < proof["bytes"] <= MAX_MONITORING_OUTPUT_BYTES
+                and proof.get("effectKey") == result.get("effectKey")
+                and fence(proof.get("attempt")) == fence(attempt)
+                and isinstance(signal, Mapping) and set(signal) == {"type", "completed"}
+                and signal["completed"] is True and signal["type"] == completion["parameters"]["signalType"]
+                and result.get("cleanupProof", {}).get("confirmed") is True
+                and result["cleanupProof"].get("treeTerminated") is True
+                and result["cleanupProof"].get("identityVerified") is True
+                and result["cleanupProof"].get("ownedTree", {}).get("remaining") == []
+                and result["cleanupProof"].get("ownedTree", {}).get("confirmed") is True)
+    except (ValueError, KeyError, TypeError):
+        return False
+
+
 def effect_id(key: Mapping[str, Any]) -> str:
     from packages.actions.typed_executor import _effect_key
     return "effect_" + contracts.digest(_effect_key(key))
@@ -95,6 +130,7 @@ class ExecutionStore:
         if (attempt["runId"], attempt["stepId"]) != (effect_key["runId"], effect_key["stepId"]):
             raise ExecutionConflict("Attempt and effect identities differ")
         plan_digest = contracts.digest(dict(frozen_plan))
+        validate_monitoring_completion(frozen_plan.get("completion"))
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             try:
@@ -196,6 +232,12 @@ class ExecutionStore:
             db.execute("BEGIN IMMEDIATE")
             doc = self._load(db, identity)
             self._check(doc, attempt, claim, require_claim=True)
+            completion = doc["frozenPlan"].get("completion") or {}
+            if (completion.get("contract") == "monitoring" and result.get("outcome") == "succeeded"
+                    and not monitoring_proof_valid(result, attempt, completion)):
+                result = copy.deepcopy(result)
+                result["outcome"] = "unknown"
+                result.setdefault("receipt", {})["code"] = "monitoring_completion_unproven"
             if doc["result"] is not None:
                 if doc["result"] != result:
                     raise ExecutionConflict("receipt already settled")

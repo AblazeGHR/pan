@@ -1,0 +1,187 @@
+{
+  "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+  "sourceAndTestsUnchangedSinceTestedSha": true,
+  "checks": [
+    {
+      "name": "focused-final",
+      "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+      "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_session_runtime.py",
+        "tests/test_retirement_notification_runtime.py",
+        "tests/test_retirement_trigger_backlog.py",
+        "tests/test_retirement_rev16_behavior.py",
+        "tests/test_retirement_rev17_backlog.py",
+        "tests/test_retirement_rev17_process_notice.py",
+        "-q",
+        "--tb=short",
+        "-o",
+        "junit_logging=all",
+        "--junitxml=evidence/job-retirement-runtime-20261031/focused-final.xml"
+      ],
+      "counts": {
+        "tests": 57,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 57
+      },
+      "exit": 0,
+      "seconds": 137.95,
+      "junit": "focused-final.xml",
+      "junitSha256": "caa7c0592f9c354189a790684e66f68624c1bd5e2ab9707e4c9d67a07332286d",
+      "log": "focused-final.log",
+      "logSha256": "3472b241cea1eca5883ec6c9b8a1d0c77a49104dc72812e9b220935df4a7d837"
+    },
+    {
+      "name": "affected",
+      "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+      "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_final_contracts.py",
+        "tests/test_job_final_http_service.py",
+        "tests/test_session_product_closure.py",
+        "tests/test_job_automatic_recovery.py",
+        "tests/test_retirement_rev16_mcp_stdio.py",
+        "-q",
+        "--tb=short",
+        "-o",
+        "junit_logging=all",
+        "--junitxml=evidence/job-retirement-runtime-20261031/affected.xml"
+      ],
+      "counts": {
+        "tests": 232,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 232
+      },
+      "exit": 0,
+      "seconds": 86.036,
+      "junit": "affected.xml",
+      "junitSha256": "3063a2b6fe0a4dcab13eea6b08aedde16cf01c36f8eaa5f4b0de66edda54c508",
+      "log": "affected.log",
+      "logSha256": "a839f7b8d58da9dbb55a6355fc146a9323ab28c6ee45dc0fbfa41c6e7a18a93f"
+    },
+    {
+      "name": "retained-delta",
+      "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+      "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev6_resume_native.py",
+        "tests/test_retirement_rev6_session_validation.py",
+        "tests/test_retirement_rev7_write_validation.py",
+        "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin",
+        "tests/test_quota_native_admission.py",
+        "-q",
+        "--tb=short",
+        "-o",
+        "junit_logging=all",
+        "--junitxml=evidence/job-retirement-runtime-20261031/retained-delta.xml"
+      ],
+      "counts": {
+        "tests": 67,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 67
+      },
+      "exit": 0,
+      "seconds": 192.31,
+      "junit": "retained-delta.xml",
+      "junitSha256": "591d1225e6784c0beaa3a5ece416dbdd6b76dac4f9675b3b0410ccf1afe9f383",
+      "log": "retained-delta.log",
+      "logSha256": "f50cf00d141186ef9a5f1b4de7101bb8510ae2553e5154e368b8f1df18dd6a03"
+    },
+    {
+      "name": "react",
+      "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+      "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web",
+      "argv": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/components/automation/RetirementRuntimeFields.test.tsx",
+        "src/components/jobs/JobDetailDrawer.test.tsx",
+        "src/components/automation/CanonicalForms.test.tsx"
+      ],
+      "exit": 0,
+      "counts": {
+        "passed": 16,
+        "tests": 16,
+        "skipped": 0
+      },
+      "log": "react.log",
+      "logSha256": "12af50938b63752c6e2f730dbd5142b02c28d33dd06a826a8009a1cb8605e8d4"
+    },
+    {
+      "name": "build",
+      "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+      "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web",
+      "argv": [
+        "pnpm",
+        "build"
+      ],
+      "exit": 0,
+      "counts": null,
+      "log": "build.log",
+      "logSha256": "3fbb26e6d55c3119af023ff99427cca084cf747094172f9e4371d1ebbf4b6ebe"
+    }
+  ],
+  "sourceBinding": "All product and test files equal immutable source SHA; later commits are owned evidence/report only.",
+  "oldSourceFocused": {
+    "sourceSha": "98cf34e93b976b95cb0583ec2763643f4586f974",
+    "junit": "focused.xml",
+    "tests": 53,
+    "exit": 0,
+    "meaning": "Preserved earlier source check, excluded from current total."
+  },
+  "preContextRegression": {
+    "sourceSha": "6ea00524b0e6dec54c80a9cc33c8cc7063280221",
+    "focused": {
+      "junit": "focused-pre-context.xml",
+      "passed": 57,
+      "exit": 0
+    },
+    "affected": {
+      "junit": "affected-pre-context.xml",
+      "passed": 231,
+      "failed": 1,
+      "exit": 1
+    },
+    "node": "tests/test_session_product_closure.py::test_product_fanout_partial_unknown_cold_reopen_never_resends",
+    "fix": "Native pre-call checks now require validated runtime reservation ContextVar; ordinary Worker call order unchanged.",
+    "meaning": "Preserved actual product regression and unchanged assertions, excluded from final total."
+  },
+  "developmentArtifacts": "Preserved separately; counts not added to current acceptance.",
+  "layers": {
+    "source": true,
+    "localWindowsNativeQueueAndProcess": true,
+    "ownedHttp": true,
+    "actualMcpStdio": true,
+    "freshProductionBrowser": true,
+    "remoteCI": false,
+    "otherPlatforms": false,
+    "realDataMigration": false,
+    "deployment": false
+  }
+}

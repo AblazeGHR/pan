@@ -1,0 +1,65 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+.......F
+================================== FAILURES ===================================
+_ test_fresh_production_browser_runtime_edit_and_original_notification_receipt _
+tests\test_retirement_notification_runtime.py:215: in test_fresh_production_browser_runtime_edit_and_original_notification_receipt
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: node:internal/modules/run_main:107
+E         triggerUncaughtException(
+E         ^
+E     
+E     locator.click: Timeout 30000ms exceeded.
+E     Call log:
+E     [2m  - waiting for getByLabel('Notification Manager contract').locator('summary')[22m
+E     [2m    - locator resolved to <summary>Notification Manager �� pending only</summary>[22m
+E     [2m  - attempting click action[22m
+E     [2m    2 �� waiting for element to be visible, enabled and stable[22m
+E     [2m      - element is not visible[22m
+E     [2m    - retrying click action[22m
+E     [2m    - waiting 20ms[22m
+E     [2m    2 �� waiting for element to be visible, enabled and stable[22m
+E     [2m      - element is not visible[22m
+E     [2m    - retrying click action[22m
+E     [2m      - waiting 100ms[22m
+E     [2m    58 �� waiting for element to be visible, enabled and stable[22m
+E     [2m       - element is not visible[22m
+E     [2m     - retrying click action[22m
+E     [2m       - waiting 500ms[22m
+E     
+E         at D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\e2e\retirement-notification-runtime.mjs:25:81 {
+E       log: [
+E         "  - waiting for getByLabel('Notification Manager contract').locator('summary')",
+E         '    - locator resolved to <summary>Notification Manager �� pending only</summary>',
+E         '  - attempting click action',
+E         '    2 �� waiting for element to be visible, enabled and stable',
+E         '      - element is not visible',
+E         '    - retrying click action',
+E         '    - waiting 20ms',
+E         '    2 �� waiting for element to be visible, enabled and stable',
+E         '      - element is not visible',
+E         '    - retrying click action',
+E         '      - waiting 100ms',
+E         '    58 �� waiting for element to be visible, enabled and stable',
+E         '       - element is not visible',
+E         '     - retrying click action',
+E         '       - waiting 500ms'
+E       ],
+E       name: 'TimeoutError'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web\\e2...  - retrying click action\',\n    \'       - waiting 500ms\'\n  ],\n  name: \'TimeoutError\'\n}\n\nNode.js v24.22.1\n').returncode
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_notification_runtime.py::test_fresh_production_browser_runtime_edit_and_original_notification_receipt

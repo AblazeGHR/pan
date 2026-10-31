@@ -1,0 +1,47 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+.F..F.FF                                                                 [100%]
+================================== FAILURES ===================================
+_________ test_pending_event_pause_does_not_consume_original_backlog __________
+tests\test_retirement_rev17_backlog.py:90: in test_pending_event_pause_does_not_consume_original_backlog
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+E   AssertionError: Paused pre-effect backlog must survive resume
+E   assert 0 == 1
+E    +  where 0 = len([])
+_ test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers _
+tests\test_retirement_rev17_backlog.py:169: in test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+    assert row['status'] == 'pending', row
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:51:55.177419Z', 'legacyId': 'canonical:run_fd322d99319c441d93017dc9', 'outboxId': 'outbox_48549142ed7e5131b5cc13e026565315088899aa', ...}
+E   assert 'uncertain' == 'pending'
+E     
+E     - pending
+E     + uncertain
+_______ test_actual_detached_completion_cold_original_notice_exact_once _______
+tests\test_retirement_rev17_process_notice.py:53: in test_actual_detached_completion_cold_original_notice_exact_once
+    assert cold.final.history(jid) == history and len(calls) == 2
+E   AssertionError: assert ({'jobId': 'jo...', ...}], ...} == {'jobId': 'jo...', ...}], ...}
+E     
+E     Omitting 6 identical items, use -vv to show
+E     Use -v to get more diff and 3 == 2)
+E    +  where 3 = len(['outbox_071360bbfe9e9bcae6633ee576b5055e6f051801', 'outbox_937ed4f1ec0c94d2a1a526e88d7a0012b21937e6', 'outbox_f5bcabcd5bc4a0810f051ea5eb2fc37fc1c570a5'])
+__ test_actual_detached_completion_notice_retains_original_exit_log_details ___
+tests\test_retirement_rev17_process_notice.py:64: in test_actual_detached_completion_notice_retains_original_exit_log_details
+    assert summary.get('exitCode') == receipt['exitCode'] == 0, summary
+E   AssertionError: {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}
+E   assert None == 0
+E    +  where None = <built-in method get of dict object at 0x0000029E222F3540>('exitCode')
+E    +    where <built-in method get of dict object at 0x0000029E222F3540> = {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}.get
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev17_backlog.py::test_pending_event_pause_does_not_consume_original_backlog
+FAILED tests/test_retirement_rev17_backlog.py::test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+FAILED tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_cold_original_notice_exact_once
+FAILED tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_notice_retains_original_exit_log_details

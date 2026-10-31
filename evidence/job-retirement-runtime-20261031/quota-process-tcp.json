@@ -1,0 +1,112 @@
+{
+  "port": 54201,
+  "launcher": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\quota-native\\production_http_server.py",
+  "generations": [
+    {
+      "pid": 35976,
+      "birthTime": 1793430078.428377,
+      "listeners": [
+        {
+          "pid": 5460,
+          "birthTime": 1793430078.4465404
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 35976,
+          "birthTime": 1793430078.428377,
+          "retired": true
+        },
+        {
+          "pid": 10388,
+          "birthTime": 1793430078.4331896,
+          "retired": true
+        },
+        {
+          "pid": 5460,
+          "birthTime": 1793430078.4465404,
+          "retired": true
+        }
+      ],
+      "portReleased": true,
+      "rebind": {
+        "bound": true,
+        "reuseAddress": false,
+        "reusePort": false
+      }
+    },
+    {
+      "pid": 4868,
+      "birthTime": 1793430086.5281272,
+      "listeners": [
+        {
+          "pid": 37880,
+          "birthTime": 1793430086.5484102
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 4868,
+          "birthTime": 1793430086.5281272,
+          "retired": true
+        },
+        {
+          "pid": 11836,
+          "birthTime": 1793430086.5327272,
+          "retired": true
+        },
+        {
+          "pid": 37880,
+          "birthTime": 1793430086.5484102,
+          "retired": true
+        }
+      ],
+      "portReleased": true,
+      "rebind": {
+        "bound": true,
+        "reuseAddress": false,
+        "reusePort": false
+      }
+    }
+  ],
+  "realAccountQueries": 0,
+  "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
+  "jobId": "job_94dac3af559fbe069693e104",
+  "runId": "run_f65733097a77443ebc136dc3",
+  "attemptId": "attempt_b078812625a5480b8623edb7",
+  "effectKey": {
+    "operationOrdinal": 0,
+    "runId": "run_f65733097a77443ebc136dc3",
+    "stepId": "query",
+    "targetId": "system_quota_query_v1"
+  },
+  "adapterCalls": [
+    {
+      "method": "query",
+      "pid": 5460,
+      "at": 1793430081.6203613
+    },
+    {
+      "method": "query",
+      "pid": 5460,
+      "at": 1793430082.7876549
+    }
+  ],
+  "queryCalls": 2,
+  "onceExecutionQueries": 1,
+  "monitorBindingQueries": 1,
+  "wakeCalls": 0,
+  "effects": 1,
+  "attempts": 1,
+  "unknownPreserved": true,
+  "noResendAfterProcessRestart": true,
+  "eventId": "evt_81b4187d720f3007a39ea09f2ae0408c7880957d2963b963",
+  "eventFactDigest": "37e0d3f19dbeb93854afd966f20791adb5db74a617ae7276eb9d154ee7efd9cb",
+  "eventUnchanged": true,
+  "unknownRetryRejected": true,
+  "retiredFacadeAuthFirst": true,
+  "manualGatePreserved": true,
+  "allOwnedProcessesStopped": true
+}

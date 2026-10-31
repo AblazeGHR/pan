@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="13.375" timestamp="2026-10-29T23:42:04.620255+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev17_qq_observation" name="test_selected_bot_owned_http_receipt_observation" time="13.074" /></testsuite></testsuites>

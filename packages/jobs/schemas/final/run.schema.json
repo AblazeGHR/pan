@@ -30,6 +30,107 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
+    "deliveryRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "declaration": {
+          "$ref": "common.schema.json#/$defs/DeliveryRuntime"
+        },
+        "steps": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "declaration",
+        "steps"
+      ]
+    },
+    "notifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outboxId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "transitionSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recipientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "sending",
+              "acked",
+              "uncertain",
+              "suppressed",
+              "not_applicable"
+            ]
+          },
+          "targetRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "payloadDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "summary": {
+            "type": "object"
+          },
+          "receipt": {
+            "type": "object"
+          },
+          "notificationRuntime": {
+            "type": "object"
+          },
+          "runtimeOperationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "outboxId",
+          "transitionSeq",
+          "recipientId",
+          "status",
+          "summary"
+        ]
+      }
+    },
     "admissionId": {
       "type": "string",
       "minLength": 1,

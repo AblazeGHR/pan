@@ -1,0 +1,25 @@
+{
+  "transport": "owned HTTP",
+  "executor": "default detached",
+  "pulse": "FinalService.start",
+  "coldReopen": true,
+  "invocations": 3,
+  "attemptGenerations": [
+    1,
+    2,
+    3
+  ],
+  "runCount": 1,
+  "maxAttempts": 2,
+  "stableWindowBaseGeneration": 1,
+  "distinctEffectKeys": 1,
+  "firstOutcome": "rejected",
+  "finalOutcome": "succeeded",
+  "completion": {
+    "contract": "monitoring",
+    "parameters": {
+      "signalType": "owned.done"
+    }
+  },
+  "proofSource": "stdout"
+}

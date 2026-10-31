@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.280" timestamp="2026-10-29T23:40:03.168589+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="14.971"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000025724585A90&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:53127')
+bot = '222222', target_type = 'group', expected_bot = '222222'
+operation = 'send_group_msg'
+
+    @pytest.mark.parametrize('bot,target_type,expected_bot,operation', [
+        (None, 'user', '111111', 'send_private_msg'),
+        ('222222', 'group', '222222', 'send_group_msg')])
+    def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
+            qq_http, bot, target_type, expected_bot, operation):
+        q = qq_http
+        _, item, run = admitted(q, bot, target_type=target_type)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+_          = {'name': 'owned QQ', 'steps': [{'stepId': 'send', 'actionRef': {'id': 'product_channel', 'revision': 1, 'digest': 'be5... 'literal', 'value': '222222'}}, 'completion': {'contract': 'provider-receipt'}}], 'retention': {'policyRef': 'owned'}}
+bot        = '222222'
+expected_bot = '222222'
+item       = {'arguments': {}, 'configRevision': 1, 'createdAt': '2026-10-29T15:40:04.727848Z', 'createdBy': {'id': 'local', 'type': 'user'}, ...}
+operation  = 'send_group_msg'
+q          = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000025724585A90&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:53127')
+qq_http    = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000025724585A90&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:53127')
+run        = {'operationId': 'op_200d78338bf94d87affad5dc', 'requestKey': 'run', 'status': 'accepted', 'objectRefs': [{'id': 'job_f...85d194c748a20b5c8', 'revision': 1, 'digest': 'f8ae84a450136aaad8f39ee8d23d775cbc5075bf2a3bc35a9d8334105d7c52ae'}], ...}
+state      = {'admissions': {'adm_b6d66df9640b4e0789192247': {'admissionId': 'adm_b6d66df9640b4e0789192247', 'authority': {'id': 'l...e4680a8d01b', 'stepId': 'send', 'targetId': 'product_channel'}, 'outcome': 'unknown', ...}], 'operationIndex': {}, ...}
+target_type = 'group'
+
+tests\test_retirement_rev9_qq_http.py:104: AssertionError</failure></testcase></testsuite></testsuites>

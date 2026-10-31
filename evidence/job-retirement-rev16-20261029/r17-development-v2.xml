@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="9" time="18.965" timestamp="2026-10-29T23:53:31.733547+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_cold_retarget_preserves_original_identity_exactly_once" time="1.743" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_pause_does_not_consume_original_backlog" time="2.132"><failure message="AssertionError: Paused pre-effect backlog must survive resume&#10;assert 0 == 1&#10; +  where 0 = len([])">tests\test_retirement_rev17_backlog.py:107: in test_pending_event_pause_does_not_consume_original_backlog
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+E   AssertionError: Paused pre-effect backlog must survive resume
+E   assert 0 == 1
+E    +  where 0 = len([])</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_job_disabled_pending_event_remains_then_resume_delivers" time="2.561" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_retarget_after_event_admission_never_changes_frozen_effect" time="2.435" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_backlog_authority_revoked_no_admission_or_send" time="2.613"><failure message="assert 1 == 0">tests\test_retirement_rev17_backlog.py:153: in test_pending_backlog_authority_revoked_no_admission_or_send
+    job, trigger, original = deferred(h, agent=True)
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_retirement_rev17_backlog.py:65: in deferred
+    assert db.execute('SELECT count(*) FROM final_event_receipts').fetchone()[0] == 0
+E   assert 1 == 0</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers" time="2.450"><failure message="AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:53:46.205468Z', 'legacyId': 'canonical:run_c07856c13d8d4134aad5733f', 'outboxId': 'outbox_9f512fd3be54e974ca15faa69936999760a82988', ...}&#10;assert 'uncertain' == 'pending'&#10;  &#10;  - pending&#10;  + uncertain">tests\test_retirement_rev17_backlog.py:201: in test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+    assert row['status'] == 'pending', row
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:53:46.205468Z', 'legacyId': 'canonical:run_c07856c13d8d4134aad5733f', 'outboxId': 'outbox_9f512fd3be54e974ca15faa69936999760a82988', ...}
+E   assert 'uncertain' == 'pending'
+E     
+E     - pending
+E     + uncertain</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_notice_enqueued_response_lost_is_unknown_cold_never_resends" time="2.339" /><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_cold_original_notice_exact_once" time="1.125" /><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_notice_retains_original_exit_log_details" time="0.784"><failure message="AssertionError: {'runId': 'run_f397be1968f04fda806533b5', 'status': 'completed'}&#10;assert None == 0&#10; +  where None = &lt;built-in method get of dict object at 0x0000022B55CF0F40&gt;('exitCode')&#10; +    where &lt;built-in method get of dict object at 0x0000022B55CF0F40&gt; = {'runId': 'run_f397be1968f04fda806533b5', 'status': 'completed'}.get">tests\test_retirement_rev17_process_notice.py:68: in test_actual_detached_completion_notice_retains_original_exit_log_details
+    assert summary.get('exitCode') == receipt['exitCode'] == 0, summary
+E   AssertionError: {'runId': 'run_f397be1968f04fda806533b5', 'status': 'completed'}
+E   assert None == 0
+E    +  where None = &lt;built-in method get of dict object at 0x0000022B55CF0F40&gt;('exitCode')
+E    +    where &lt;built-in method get of dict object at 0x0000022B55CF0F40&gt; = {'runId': 'run_f397be1968f04fda806533b5', 'status': 'completed'}.get</failure></testcase></testsuite></testsuites>

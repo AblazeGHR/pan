@@ -1,0 +1,6 @@
+
+> pan-web@ build D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web
+> tsc -b && vite build && node e2e/verify-precompressed-assets.mjs
+
+src/components/automation/CanonicalDefinitionFields.tsx(768,7): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+ ELIFECYCLE  Command failed with exit code 2.

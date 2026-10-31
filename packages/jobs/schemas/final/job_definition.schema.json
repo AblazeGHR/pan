@@ -156,10 +156,17 @@
           "pattern": "^\\S(?:.*\\S)?$"
         },
         "targetRef": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^\\S(?:.*\\S)?$"
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -194,6 +201,23 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/Recipient"
+          }
+        },
+        "runtime": {
+          "const": {
+            "owner": "notification-manager",
+            "fields": [
+              "targetRef",
+              "payload"
+            ],
+            "allowedStates": [
+              "pending"
+            ],
+            "effectiveStage": "before-enqueue",
+            "concurrency": "outbox-reservation+job-config-cas",
+            "audit": "final_operations+outbox-receipt",
+            "unknownPolicy": "query-original",
+            "acceptedPolicy": "frozen"
           }
         }
       }
@@ -285,6 +309,9 @@
     },
     "templateProvenance": {
       "$ref": "common.schema.json#/$defs/Ref"
+    },
+    "deliveryRuntime": {
+      "$ref": "common.schema.json#/$defs/DeliveryRuntime"
     }
   },
   "required": [

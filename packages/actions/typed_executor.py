@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from contextvars import ContextVar
 import inspect
 import os
 import subprocess
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, MutableMapping, Protocol, Sequence
@@ -33,6 +35,7 @@ OUTCOMES = frozenset({"succeeded", "rejected", "unknown", "partial"})
 _SUCCESS_STATUSES = frozenset({"queued", "accepted", "sent", "succeeded", "completed", "ok"})
 _REJECTED_STATUSES = frozenset({"error", "failed", "rejected", "cancelled", "forbidden", "not_found"})
 _UNKNOWN_STATUSES = frozenset({"unknown", "uncertain", "unconfirmed", "timeout", "timed_out"})
+_runtime_session_delivery = ContextVar('runtime_session_delivery', default=False)
 
 
 class SessionProvider(Protocol):
@@ -134,6 +137,14 @@ class WorkerSessionProvider:
         source_session_id: str | None = None,
     ) -> Mapping[str, Any]:
         from packages.core import worker
+        from packages.core import session
+
+        if _runtime_session_delivery.get() and worker._shutdown_started:
+            return _LocalSessionNoAttempt(status="error", sessionId=session_id,
+                result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
+        if _runtime_session_delivery.get() and await asyncio.to_thread(session.get, session_id, load_history=False) is None:
+            return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
+                phase="before-enqueue", attempted=False)
 
         client_id = "effect_" + contracts.digest(dict(effect_key))[:40]
         result = await worker.send_session(
@@ -160,6 +171,14 @@ class WorkerAssignProvider:
         source_session_id: str | None = None,
     ) -> Mapping[str, Any]:
         from packages.core import worker
+        from packages.core import session
+
+        if _runtime_session_delivery.get() and worker._shutdown_started:
+            return _LocalSessionNoAttempt(status="error", sessionId=session_id,
+                result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
+        if _runtime_session_delivery.get() and await asyncio.to_thread(session.get, session_id, load_history=False) is None:
+            return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
+                phase="before-enqueue", attempted=False)
 
         result = await worker.assign(
             session_id,
@@ -169,6 +188,10 @@ class WorkerAssignProvider:
             source_session_id=source_session_id,
         )
         return await _original_queue_receipt(worker, session_id, result, task_id=task_id)
+
+
+class _LocalSessionNoAttempt(dict):
+    """Only a local observation before entering the original Worker call."""
 
 
 async def _original_queue_receipt(worker, session_id, result, **identity):
@@ -349,6 +372,16 @@ class TypedExecutor:
         if attempt_map.get("state") not in {None, "running"}:
             raise contracts.ContractError("revision_conflict", "Effect admission requires a running Attempt")
 
+        from packages.jobs.session_delivery_runtime import SessionDelivery
+        runtime = frozen_plan.get("_runtimeDelivery")
+        if isinstance(runtime, SessionDelivery):
+            # The canonical host owns durable child facts. Never cache a
+            # pending child set as a terminal unknown parent receipt here.
+            runtime.check_identity(attempt_map, key)
+            operation = frozen_plan["operation"]
+            return await {"assign": self._assign, "session-message": self._session_message,
+                          "session-broadcast": self._session_broadcast}[operation](key, frozen_plan)
+
         existing = self._stored(key)
         if existing is not None:
             prior = str(existing.get("outcome", existing.get("status", "unknown")))
@@ -445,6 +478,8 @@ class TypedExecutor:
         identity: Mapping[str, Any] | None = None
         cleanup: dict[str, Any] = {"confirmed": False, "remaining": []}
         result: Mapping[str, Any] | None = None
+        started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        started_tick = time.monotonic_ns()
         try:
             handle = await _invoke(self.process_owner.spawn, list(argv), cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, hide_window=hide_window)
             identity = self.process_owner.recoverable_identity(handle)
@@ -503,9 +538,23 @@ class TypedExecutor:
                     cleanup["confirmed"] = False
                     cleanup["closeError"] = True
                     result = EffectReceipt(dict(key), "unknown", {"code": "cleanup_unconfirmed", "processIdentity": copy.deepcopy(identity) if identity else None}, cleanup).as_dict()
+        if result is not None:
+            # Execution-local facts, persisted by the original detached host.
+            # Host downtime, receipt lookup and retry waits cannot extend this
+            # interval. A missing/reversed interval never authorizes reset.
+            result["receipt"]["executionTiming"] = {
+                "startedAt": started_at,
+                "endedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "startedMonotonicNs": started_tick,
+                "endedMonotonicNs": time.monotonic_ns(),
+            }
         return result or EffectReceipt(dict(key), "unknown", {"code": "no_receipt"}, cleanup).as_dict()
 
     async def _session_message(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        runtime = plan.get("_runtimeDelivery")
+        if runtime is not None:
+            return await runtime.deliver(plan.get("_runtimeSlot", 0), plan,
+                lambda child, selected: self._session_message(child, selected))
         session_id, text = self._session_args(plan)
         if self.session_provider is None:
             return EffectReceipt(dict(key), "rejected", {"code": "provider_unavailable", "sessionId": session_id}).as_dict()
@@ -519,13 +568,19 @@ class TypedExecutor:
             result = await _invoke_provider(method, session_id, text, effect_key=key,
                                              source=source, source_session_id=source_session_id)
             outcome = _status(result)
-            return EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"sessionIds": [session_id]}).as_dict()
+            receipt = EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"sessionIds": [session_id]}).as_dict()
+            if isinstance(result, _LocalSessionNoAttempt):
+                receipt["localNoAttempt"] = True
+            return receipt
         except BaseException as exc:
             outcome, detail = _provider_error(exc)
             detail["sessionId"] = session_id
             return EffectReceipt(dict(key), outcome, detail, target_selection={"sessionIds": [session_id]}).as_dict()
 
     async def _assign(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
+        runtime = plan.get("_runtimeDelivery")
+        if runtime is not None:
+            return await runtime.deliver(0, plan, lambda child, selected: self._assign(child, selected))
         arguments = plan.get("arguments") if isinstance(plan.get("arguments"), Mapping) else plan
         session_id = _non_empty_string(arguments.get("sessionId", arguments.get("session_id")), "sessionId")
         text = _non_empty_string(arguments.get("text"), "text")
@@ -545,9 +600,12 @@ class TypedExecutor:
                                             effect_key=key, source=source,
                                             source_session_id=source_session_id)
             outcome = _status(result)
-            return EffectReceipt(dict(key), outcome,
+            receipt = EffectReceipt(dict(key), outcome,
                                  dict(result) if isinstance(result, Mapping) else {"value": result},
                                  target_selection={"sessionIds": [session_id], "taskId": task_id}).as_dict()
+            if isinstance(result, _LocalSessionNoAttempt):
+                receipt["localNoAttempt"] = True
+            return receipt
         except BaseException as exc:
             outcome, detail = _provider_error(exc)
             detail.update(sessionId=session_id, taskId=task_id)
@@ -571,13 +629,19 @@ class TypedExecutor:
             field: arguments[field] for field in ("source", "sourceSessionId", "source_session_id")
             if field in arguments
         }
-        for target in ids:
+        runtime = plan.get("_runtimeDelivery")
+        if runtime is not None:
+            ids = runtime.slots(ids)
+        for index, target in enumerate(ids):
             child_key = dict(key)
             child_key["targetId"] = target
             row = await self._session_message(child_key, {
-                "sessionId": target, "text": text, **source_fields
+                "sessionId": target, "text": text, **source_fields,
+                **({"_runtimeDelivery": runtime, "_runtimeSlot": index} if runtime is not None else {})
             })
             rows.append(row)
+            if runtime is not None:
+                runtime.extend_slots(ids)
         outcomes = [str(row.get("outcome", "unknown")) for row in rows]
         if all(item == "succeeded" for item in outcomes):
             overall = "succeeded"
