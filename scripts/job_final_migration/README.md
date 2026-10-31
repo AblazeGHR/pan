@@ -268,6 +268,15 @@ not be blindly converted to frozen literal steps. This version reports
 original manager; no replacement Job/target IDs are generated for them.
 Explicit partial packages can still import unrelated supported records.
 
+`runtime_binding_unavailable` is a temporary implementation blocker. The
+existing `incompatible-preserved` container does not classify these records as
+D6 permanent incompatibility, authorize deletion, or permit retiring/fencing
+the original manager. Keeping bytes is not preservation of its full lifecycle.
+The guard is a stage candidate; its 17 fresh original-assertion reds remain
+open. See [runtime mapping handoff](RUNTIME_MAPPING_HANDOFF_20261031.md) for the
+product evidence needed to resume mapping. Do not repeat the unchanged guard
+matrix while waiting for that evidence.
+
 `runtimeBindingGap` in inventory/partial bundle/review packet contains owner,
 pending/reserved phase, freeze-after-acceptance rule, revision/fence/receipt
 requirements and proposed existing `input` paths. Those paths already work

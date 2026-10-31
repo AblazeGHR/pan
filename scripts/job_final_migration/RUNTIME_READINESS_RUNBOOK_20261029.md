@@ -7,6 +7,12 @@ owner/phase/receipt 接线要求；不是新用户决策，也不代表功能已
 Event backlog 不列为缺失。本页原 revision2 的 2+5 BG runtime 演练边界保持；涉及旧
 literal message/scheduled 的历史测试断言原样保留，后继红项需在 R3 报告单列。
 
+阶段候选 `ff255ccb3f1ddd036e129d111d5ac5377d251d4a` 已由 MA 收到，但迁移完整性未验收。
+`runtime_binding_unavailable` 是临时实现阻塞；即使处于现有 `incompatible-preserved`
+容器，也不等于 D6 永久不兼容、不授予删除或旧 manager 退休/接管权限。17 条新红不豁免。
+等待产品所有者交付可消费契约及精确 SHA 后再恢复实际映射；不重复运行相同保护矩阵。
+对照与恢复条件见 [runtime mapping handoff](RUNTIME_MAPPING_HANDOFF_20261031.md)。
+
 基线 `b288613e8a1862ea82d16a27d27992b715d3e0ba` 包含已被 MA 独立验收的 revision1 离线候选及 r15 serializer。MA 报告组合 migration19+serializer22+原 quoted1 为 42pass。本批不把该历史计数当新运行数，不重新声称 r14 整体 accepted；原红和历史报告保留。
 
 本轮明确授权替代 revision1 的本批 offline-only/P9D 禁用限制：允许全合成 snapshot/source-copy、新建自有 profile 的真实 FinalService.start import、owner fence、事务失败与进程崩溃恢复。实际用户升级、真实 profile、旧 51/60 集合、运行中源 owner、模型/provider/HTTP/端口、部署和删除均未获授权。既有 P9D 与 canonical importer 被复用，没有第二个导入器，也没有修改产品或信任检查。
