@@ -244,7 +244,15 @@ class SessionDelivery:
                 reservationOwnerDigest=digest(self.service.owner.token),
                 effectKey=key, phase='before-queue-acceptance', textDigest=digest(args['text']))
             self.service._save(db, 'job', self.job_id, job)  # intent BEFORE invoke
-        row = await invoke(key, {'arguments': args})
+        # Only this validated runtime reservation enables native pre-call
+        # evidence. Ordinary v2/custom/non-runtime providers keep their old
+        # Worker invocation and receipt semantics, including call order.
+        from packages.actions.typed_executor import _runtime_session_delivery
+        context = _runtime_session_delivery.set(True)
+        try:
+            row = await invoke(key, {'arguments': args})
+        finally:
+            _runtime_session_delivery.reset(context)
         with self.service.transaction() as db:
             job = self.service._get(db, 'job', self.job_id)
             state = aggregate(job, self.service.root)

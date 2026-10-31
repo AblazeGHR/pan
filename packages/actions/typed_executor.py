@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from contextvars import ContextVar
 import inspect
 import os
 import subprocess
@@ -33,6 +34,7 @@ OUTCOMES = frozenset({"succeeded", "rejected", "unknown", "partial"})
 _SUCCESS_STATUSES = frozenset({"queued", "accepted", "sent", "succeeded", "completed", "ok"})
 _REJECTED_STATUSES = frozenset({"error", "failed", "rejected", "cancelled", "forbidden", "not_found"})
 _UNKNOWN_STATUSES = frozenset({"unknown", "uncertain", "unconfirmed", "timeout", "timed_out"})
+_runtime_session_delivery = ContextVar('runtime_session_delivery', default=False)
 
 
 class SessionProvider(Protocol):
@@ -136,10 +138,10 @@ class WorkerSessionProvider:
         from packages.core import worker
         from packages.core import session
 
-        if worker._shutdown_started:
+        if _runtime_session_delivery.get() and worker._shutdown_started:
             return _LocalSessionNoAttempt(status="error", sessionId=session_id,
                 result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
-        if await asyncio.to_thread(session.get, session_id, load_history=False) is None:
+        if _runtime_session_delivery.get() and await asyncio.to_thread(session.get, session_id, load_history=False) is None:
             return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
                 phase="before-enqueue", attempted=False)
 
@@ -170,10 +172,10 @@ class WorkerAssignProvider:
         from packages.core import worker
         from packages.core import session
 
-        if worker._shutdown_started:
+        if _runtime_session_delivery.get() and worker._shutdown_started:
             return _LocalSessionNoAttempt(status="error", sessionId=session_id,
                 result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
-        if await asyncio.to_thread(session.get, session_id, load_history=False) is None:
+        if _runtime_session_delivery.get() and await asyncio.to_thread(session.get, session_id, load_history=False) is None:
             return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
                 phase="before-enqueue", attempted=False)
 
