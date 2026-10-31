@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from packages.jobs.final_service import FinalService, definition
+from packages.jobs.final_service import FinalService, definition, object_ref
 import copy
 from packages.jobs import final_contracts as fc
 from packages.jobs.final_runtime.ledger import aggregate
@@ -141,6 +141,21 @@ def test_production_form_assign_queue_source_frozen_identity_cold_no_duplicate(h
         assert cold.final.history(jid)['effects'] == history['effects']
     finally:
         asyncio.run(cold.close())
+
+
+def test_production_form_explicit_runtime_assign_publishes_declaration_and_input_bindings(h):
+    body = form_body(h.client, fields={'sessionId': 'ses_a', 'text': 'runtime body', 'runtime': True})
+    runtime = next(item for item in h.service.actions(actor=USER)['items'] if item['id'] == 'product_assign_runtime_v1')
+    body['definition']['jobDefinition']['steps'][0]['actionRef'] = object_ref('action', runtime)
+    response = h.client.post('/api/job-templates', json=body)
+    assert response.status_code == 201, response.text
+    item = response.json()['result']['object']
+    job = item['jobDefinition']
+    assert job['deliveryRuntime']['owner'] == 'delivery-manager'
+    assert job['deliveryRuntime']['phase'] == 'before-reservation'
+    assert job['inputSchema']['properties']['delivery']['required'] == ['target', 'text']
+    assert job['steps'][0]['arguments']['sessionId'] == {'from': 'input', 'path': 'delivery.target'}
+    assert job['steps'][0]['arguments']['text'] == {'from': 'input', 'path': 'delivery.text'}
 
 
 @pytest.mark.parametrize('case', ['missing-session', 'stale-ref', 'conflict', 'unknown', 'dynamic', 'custom', 'missing-key'])

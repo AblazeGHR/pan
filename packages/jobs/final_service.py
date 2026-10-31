@@ -581,7 +581,12 @@ class FinalService:
         if len(job["steps"]) != 1 or value["composition"] != {"creators": [], "triggers": []}:
             error("invalid_schema", "Simple form requires one product step and no schedule")
         step = job["steps"][0]
-        expected = "product_assign_v2" if form["kind"] == "assign" else "product_process_logs_v1"
+        raw_fields = copy.deepcopy(form["fields"])
+        runtime_opt_in = bool(raw_fields.pop("runtime", False))
+        if runtime_opt_in and form["kind"] != "assign":
+            error("capability_unsupported", "Runtime Template opt-in is available for assign only")
+        expected = ("product_assign_runtime_v1" if runtime_opt_in else "product_assign_v2") \
+            if form["kind"] == "assign" else "product_process_logs_v1"
         action = fc._check_action_ref(step["actionRef"], path="definition.jobDefinition.steps.0.actionRef",
             completion=step["completion"], completion_path="definition.jobDefinition.steps.0.completion",
             resolver=self._resolver(db), require_enabled=False)
@@ -589,13 +594,35 @@ class FinalService:
         if (action["id"] != expected or config.get("system") is not True
                 or config["execution"]["operation"] != ("assign" if form["kind"] == "assign" else "process")):
             error("reference_conflict", "Form requires the fixed product Action publication")
-        if any(binding["from"] != "literal" for binding in step["arguments"].values()):
+        if runtime_opt_in:
+            if any(binding["from"] != "literal" for binding in step["arguments"].values()):
+                error("invalid_schema", "Runtime form canonical fields must start literal")
+        elif any(binding["from"] != "literal" for binding in step["arguments"].values()):
             error("invalid_schema", "Simple form arguments must be literal")
         explicit = {key: binding["value"] for key, binding in step["arguments"].items()}
-        arguments = normalize_legacy_form_fields(form["fields"], kind=form["kind"], canonical=explicit)
+        arguments = normalize_legacy_form_fields(raw_fields, kind=form["kind"], canonical=explicit)
         if form["kind"] == "assign":
             arguments = self._session_source(arguments, actor)
-        step["arguments"] = {key: {"from": "literal", "value": val} for key, val in arguments.items()}
+        if runtime_opt_in:
+            step["arguments"] = {
+                "sessionId": {"from": "input", "path": "delivery.target"},
+                "text": {"from": "input", "path": "delivery.text"},
+                "source": {"from": "literal", "value": arguments["source"]},
+                **({"sourceSessionId": {"from": "literal", "value": arguments["sourceSessionId"]}}
+                   if arguments.get("sourceSessionId") else {}),
+            }
+            job["inputSchema"] = {"type": "object", "properties": {"delivery": {
+                "type": "object", "properties": {"target": {"type": "string", "minLength": 1},
+                                                     "text": {"type": "string", "minLength": 1}},
+                "required": ["target", "text"], "additionalProperties": False}},
+                "required": ["delivery"], "additionalProperties": False}
+            job["arguments"] = {"delivery": {"target": arguments["sessionId"], "text": arguments["text"]}}
+            job["deliveryRuntime"] = {"owner": "delivery-manager", "targetMode": "runtime",
+                "inputFields": ["delivery.target", "delivery.text"], "allowedStates": ["pending", "reserved"],
+                "concurrency": "job-config-cas+event-receipt", "audit": "final_operations",
+                "phase": "before-reservation", "unknownPolicy": "query-original"}
+        else:
+            step["arguments"] = {key: {"from": "literal", "value": val} for key, val in arguments.items()}
         self._references(db, "job", job)
         return {**{key: val for key, val in body.items() if key != "form"}, "definition": value}
 
