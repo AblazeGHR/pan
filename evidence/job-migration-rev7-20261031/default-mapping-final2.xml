@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="5" time="1.040" timestamp="2026-10-31T19:53:58.970906+08:00" hostname="ablaze"><testcase classname="tests.test_job_final_migration" name="test_six_simple_instances_are_classified_and_planned" time="0.021"><failure message="AssertionError: assert 'retain-sourc...time-contract' == 'plan-only'&#10;  &#10;  - plan-only&#10;  + retain-source-manager-await-runtime-contract">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6483/test_six_simple_instances_are_0')
+
+    def test_six_simple_instances_are_classified_and_planned(tmp_path: Path) -&gt; None:
+        root = _make_root(tmp_path)
+        report = build_inventory(root)
+    
+        assert report["readOnly"] is True
+        assert report["migrationExecuted"] is False
+        assert report["targetWrites"] == 0
+        assert report["summary"]["total"] == 6
+        assert report["summary"]["simple"] == 6
+        assert report["summary"]["complex"] == 0
+        assert report["summary"]["unknown"] == 0
+        assert report["summary"]["scanErrors"] == 0
+        assert report["summary"]["bySourceType"] == {
+            "MIG-ACTION-JOB": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-BG": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-MSG": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-SCHED": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-TEMPLATE": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-TRIGGER": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+        }
+        assert len(report["plan"]["items"]) == 6
+        assert report["plan"]["preserved"] == []
+        assert report["plan"]["executable"] is False
+        assert report["plan"]["executionAttempted"] is False
+    
+        for item in report["instances"]:
+            assert item["classification"] == SIMPLE
+            assert item["classificationDetail"] == "simple"
+            assert item["mappingVersion"] == MAPPING_VERSION
+            assert item["fieldMap"]
+&gt;           assert item["suggestedAction"] == "plan-only"
+E           AssertionError: assert 'retain-sourc...time-contract' == 'plan-only'
+E             
+E             - plan-only
+E             + retain-source-manager-await-runtime-contract
+
+tests\test_job_final_migration.py:372: AssertionError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[assign-None]" time="0.208" /><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_session-None]" time="0.206" /><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[shell-args2]" time="0.205" /><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_qq-args3]" time="0.199" /></testsuite></testsuites>

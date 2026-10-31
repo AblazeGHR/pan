@@ -380,6 +380,7 @@ class Finding:
     expected_diff: list[str] = field(default_factory=list)
     references_verified: bool = False
     runtime_binding_gap: dict | None = None
+    runtime_delivery_opt_in: bool = False
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -2009,9 +2010,12 @@ def _make_instance(finding: Finding, loaded: Loaded, record_digest: str,
         "reasonCodes": reason_codes,
         "reasons": finding.reasons,
         "rejectionReasons": rejection,
-        "suggestedAction": ("retain-source-manager-await-runtime-contract" if finding.runtime_binding_gap
-                            else "plan-only" if simple else "preserve-and-manual-recreate"),
-        **({"runtimeBindingGap": finding.runtime_binding_gap} if finding.runtime_binding_gap else {}),
+        "suggestedAction": ("plan-runtime-delivery-with-pinned-release" if simple and finding.runtime_delivery_opt_in else
+                            "plan-only" if simple else
+                            "retain-source-manager-await-runtime-contract" if finding.runtime_binding_gap
+                            else "preserve-and-manual-recreate"),
+        **({"runtimeMappingRequirements": finding.runtime_binding_gap}
+           if simple and finding.runtime_delivery_opt_in else {}),
         "targetIds": [],
         "fieldMap": finding.field_map if simple else None,
         "cursor": finding.cursor,
@@ -2036,7 +2040,7 @@ def _real_profile_markers(root: Path) -> list[str]:
             if (root / relative).is_file()]
 
 
-def build_inventory(root: str | Path, *, allow_real_profile: bool = False) -> dict:
+def build_inventory(root: str | Path, *, allow_real_profile: bool = False, runtime_delivery: bool = False) -> dict:
     """Scan a data root and return an inventory/plan document.
 
     The function is pure with respect to the root: it only reads known files.
@@ -2180,6 +2184,33 @@ def build_inventory(root: str | Path, *, allow_real_profile: bool = False) -> di
                 finding.original_id = key if isinstance(key, str) and key else None
             findings.append((finding, object_loaded, record_digest))
 
+    if runtime_delivery:
+        for finding, loaded, _ in findings:
+            action = loaded.data.get("action") if isinstance(loaded.data, dict) else None
+            if finding.source_type == MIG_SCHED and isinstance(action, dict) and action.get("api") == "send_qq":
+                _reason(finding, "runtime_binding_unavailable",
+                        "QQ runtime bot/target/text has no immutable runtimeBeforeAcceptance release; preserve original fields")
+            if finding.runtime_binding_gap is not None:
+                finding.reasons = [r for r in finding.reasons if r["code"] != "runtime_binding_unavailable"]
+                target_field = finding.runtime_binding_gap["fields"][0]["sourceField"]
+                target = loaded.data.get(target_field)
+                if target is None or target == []:
+                    finding.reasons = [r for r in finding.reasons if r["code"] != "target_missing"]
+                finding.runtime_delivery_opt_in = True
+                if not finding.reasons and not finding.fatal:
+                    finding.field_map = (_message_field_map(loaded.data) if finding.source_type == MIG_MSG else
+                        _scheduled_field_map(loaded.data, legacy=finding.source_kind == "legacy-scheduled-task"))
+    else:
+        # Runtime migration is an explicit reviewed opt-in. Preserve the
+        # pre-rev7 default inventory and literal mapping for ordinary callers.
+        for finding, loaded, _ in findings:
+            if finding.runtime_binding_gap is None:
+                continue
+            finding.reasons = [r for r in finding.reasons
+                               if r["code"] != "runtime_binding_unavailable"]
+            if not finding.reasons and not finding.fatal:
+                finding.field_map = (_message_field_map(loaded.data) if finding.source_type == MIG_MSG else
+                    _scheduled_field_map(loaded.data, legacy=finding.source_kind == "legacy-scheduled-task"))
     instances = [_make_instance(finding, loaded, digest)
                  for finding, loaded, digest in findings]
     instances.sort(key=lambda item: (
@@ -2211,6 +2242,8 @@ def build_inventory(root: str | Path, *, allow_real_profile: bool = False) -> di
             "targetIdAllocation": "deferred-until-apply",
             "targetIds": [],
             "fieldMap": item["fieldMap"],
+            **({"runtimeMappingRequirements": item["runtimeMappingRequirements"]}
+               if "runtimeMappingRequirements" in item else {}),
             "prerequisites": [
                 "re-verify source digest immediately before apply",
                 "prove the old owner is fenced and no active effect remains",
@@ -2233,6 +2266,7 @@ def build_inventory(root: str | Path, *, allow_real_profile: bool = False) -> di
         "tool": "job-final-migration",
         "toolSchema": TOOL_SCHEMA,
         "mappingVersion": MAPPING_VERSION,
+        **({"runtimeDeliveryOptIn": {"version": 1, "mode": "before-reservation"}} if runtime_delivery else {}),
         "schemaWhitelist": SCHEMA_WHITELIST,
         "readOnly": True,
         "migrationExecuted": False,

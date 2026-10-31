@@ -17,6 +17,7 @@ from packages.jobs import final_contracts as fc
 
 from .inventory import SIMPLE, build_inventory, is_within_root
 from .mapping import ApplyError, Mapper, require
+from .runtime_fields import opted_in
 
 BUNDLE_SCHEMA = "pan.job-final-migration.bundle/v1"
 REVIEW_DRAFT_SCHEMA = "pan.job-final-migration.review-draft/v1"
@@ -172,7 +173,8 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     if audit:
         require(str(root) == audit["profileRoot"], "user_authorization: apply root mismatch")
     target = outside_root(root, target)
-    inventory = build_inventory(root, allow_real_profile=allow_real_profile)
+    runtime_delivery = opted_in(context)
+    inventory = build_inventory(root, allow_real_profile=allow_real_profile, runtime_delivery=runtime_delivery)
     inventory_digest = fc.digest(inventory)
     reviewed_digest = plan_digest(inventory, context)
     require(not apply or expected_digest == reviewed_digest, "plan_stale: --expected-digest required/mismatched")
@@ -197,7 +199,7 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     unclassified = [name for name in sources if name.startswith(("background_jobs/jobs/", "scheduler/tasks/"))
                     and name not in classified_files]
     require(preserve_incompatible or not unclassified, "unknown unclassified source file")
-    require(fc.digest(build_inventory(root, allow_real_profile=allow_real_profile)) == inventory_digest,
+    require(fc.digest(build_inventory(root, allow_real_profile=allow_real_profile, runtime_delivery=runtime_delivery)) == inventory_digest,
             "plan_stale: inventory changed during snapshot")
     mapper = Mapper(context)
     entries = []
@@ -220,7 +222,7 @@ def migrate(root: str | Path, target: str | Path, context: dict, *,
     operation_id = "mop1_" + fc.digest({"root": str(root), "mappingVersion": "1"})[:24]
     def recheck():
         require(_inputs(root) == sources and fc.digest(build_inventory(
-            root, allow_real_profile=allow_real_profile)) == inventory_digest,
+            root, allow_real_profile=allow_real_profile, runtime_delivery=runtime_delivery)) == inventory_digest,
             "plan_stale: source changed before commit")
     report = copy.deepcopy(inventory)
     if preserve_incompatible:

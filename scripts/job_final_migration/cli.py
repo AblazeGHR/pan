@@ -46,6 +46,8 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--target", type=Path, help="offline canonical bundle JSON, outside root")
+    parser.add_argument("--runtime-delivery", action="store_true",
+                        help="explicit runtime delivery inventory; context opt-in must match for apply")
     parser.add_argument("--context", type=Path, help="explicit pinned references and operator attestations JSON")
     parser.add_argument("--user-authorization", type=Path, help="independently supplied user instruction receipt JSON")
     parser.add_argument("--expected-user-authorization-digest", help="externally pinned user receipt digest; not read from context")
@@ -151,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         report = build_inventory(
-            root, allow_real_profile=args.allow_real_profile)
+            root, allow_real_profile=args.allow_real_profile, runtime_delivery=args.runtime_delivery)
         if target:
             from scripts.job_final_migration.apply import migrate, rollback
             from packages.jobs.final_contracts import loads
@@ -160,6 +162,9 @@ def main(argv: list[str] | None = None) -> int:
                                   allow_real_profile=args.allow_real_profile)
             else:
                 context = loads(args.context.read_text(encoding="utf-8-sig"))
+                from scripts.job_final_migration.runtime_fields import opted_in
+                if opted_in(context) != args.runtime_delivery:
+                    raise ValueError("--runtime-delivery must match reviewed context opt-in")
                 report = migrate(root, target, context, apply=args.apply,
                                  mark_read_only=args.mark_read_only,
                                  expected_digest=args.expected_digest,
@@ -181,7 +186,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"error: inventory failed: {exc}", file=sys.stderr)
-        return 1
+        return 2 if ("--runtime-delivery must match reviewed context opt-in" in str(exc)
+                     or args.runtime_delivery and "plan_stale" in str(exc)) else 1
     if args.rollback:
         if args.format != "json":
             print("rollback: offline publication rolled back", file=sys.stderr)

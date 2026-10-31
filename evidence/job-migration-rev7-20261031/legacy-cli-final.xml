@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="9.608" timestamp="2026-10-31T19:57:41.022504+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_readiness" name="test_complete_public_cli_synthetic_offline_chain" time="9.483" /></testsuite></testsuites>
