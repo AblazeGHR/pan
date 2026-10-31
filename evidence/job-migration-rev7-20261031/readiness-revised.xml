@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="37" time="18.457" timestamp="2026-10-31T20:09:26.121252+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_coverage_lists_lite_omissions_without_sqlite_open" time="0.088" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_p9d_cli_exposes_explicit_synthetic_counts" time="0.419" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_existing_p9d_real_import_small_synthetic_set" time="1.674" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_complete_runtime_chain_cold_process_and_epoch_controls" time="3.937" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[receipt-pin-receipt]" time="0.948" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[missing-pin-externally pinned]" time="0.974" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[bundle-hash-hash mismatch]" time="1.000" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[plan-digest-planDigest]" time="1.072" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[release-revision-revision]" time="1.064" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[release-digest-digest]" time="0.927" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[schema-schema]" time="0.976" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[active-ids-does not authorize execution]" time="0.955" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_real_runtime_rejects_tampered_pins_releases_and_scope_atomically[rolled-back-Unsupported canonical bundle]" time="1.041" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_p9d_refuses_missing_path_coverage_or_copied_owner_before_target_creation[unlisted-cursor]" time="0.155" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_p9d_refuses_missing_path_coverage_or_copied_owner_before_target_creation[copied-authority]" time="0.145" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_coverage_refuses_real_profile_marker_before_arbitrary_reads" time="0.008" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_synthetic_manual_packet_does_not_claim_historical_user_decisions" time="0.149" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_authority_classification_cannot_be_overridden_by_lite_directory" time="0.137" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-assign]" time="0.018" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-send_session]" time="0.014" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-legacy-assign]" time="0.017" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-message]" time="0.021" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-broadcast]" time="0.016" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-assign]" time="0.010" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-send_session]" time="0.013" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-legacy-assign]" time="0.015" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-message]" time="0.014" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-broadcast]" time="0.014" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard" time="0.533"><failure message="KeyError: 'deliveryRuntime'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_stale_si0')
+
+    def test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard(tmp_path):
+        from scripts.job_final_migration.inventory import build_inventory, SIMPLE
+        from scripts.job_final_migration.mapping import Mapper
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+        item, = build_inventory(root, runtime_delivery=True)["instances"]
+        item["classification"] = SIMPLE
+        mapper = Mapper(runtime_context(root))
+        mapped = mapper.map(item, source)
+        assert mapped["runtimeMapping"]["acceptanceAdopted"] is False
+&gt;       assert mapper.objects and mapper.objects[0]["object"]["deliveryRuntime"]["phase"] == "before-reservation"
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'deliveryRuntime'
+
+tests\test_job_migration_runtime_readiness.py:211: KeyError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids" time="0.665" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[missing-target]" time="0.015" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[pending-backlog]" time="0.015" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[unknown]" time="0.012" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[partial]" time="0.016" /><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution" time="0.033"><failure message="AssertionError: assert 'Creator/Delivery Manager' in '# Job final migration inventory\n\nRead-only inventory: no migration was executed, no target store was written, and n.../job_runtime.json` | `a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7` |\n\n## Scan errors\n\nNone.\n'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_proposed0')
+
+    def test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution(tmp_path):
+        import jsonschema
+        from packages.jobs.chains import resolve
+        from scripts.job_final_migration.inventory import build_inventory
+        from scripts.job_final_migration.render import render_markdown
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "send_session")
+        report = build_inventory(root, runtime_delivery=True)
+        item, = report["instances"]
+        bindings = {field["argument"]: field["proposedBinding"] for field in item["runtimeMappingRequirements"]["fields"]}
+        for binding in bindings.values():
+            jsonschema.validate(binding, fc.schema_artifacts()["common.schema.json"]["$defs"]["Binding"])
+        assert resolve(bindings, {"delivery": {"sessionId": "old-target", "text": "old-body"}}, {}, {}) == {
+            "sessionId": "old-target", "text": "old-body"}
+        assert resolve(bindings, {"delivery": {"sessionId": "new-target", "text": "updated-before-admission"}}, {}, {}) == {
+            "sessionId": "new-target", "text": "updated-before-admission"}
+        rendered = render_markdown(report)
+&gt;       assert "Creator/Delivery Manager" in rendered
+E       AssertionError: assert 'Creator/Delivery Manager' in '# Job final migration inventory\n\nRead-only inventory: no migration was executed, no target store was written, and n.../job_runtime.json` | `a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7` |\n\n## Scan errors\n\nNone.\n'
+
+tests\test_job_migration_runtime_readiness.py:282: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication" time="0.629"><failure message="AssertionError: assert ['creator_bcf...c10bebe35cd8'] == []&#10;  &#10;  Left contains 3 more items, first extra item: 'creator_bcfc53327ffbc10bebe35cd8'&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_only_sou0')
+capsys = &lt;_pytest.capture.CaptureFixture object at 0x00000223C3303770&gt;
+
+    def test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication(tmp_path, capsys):
+        from scripts.job_final_migration.cli import main
+        from scripts.job_final_migration.inventory import build_inventory
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _runtime_delivery_source(root, "assign")
+        before = hashes(root)
+        assert main(["--root", str(root), "--out", "-"]) == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["summary"]["simple"] == 1 and report["summary"]["complex"] == 0
+        runtime_report = migration.migrate(root, tmp_path / "runtime-bundle.json", runtime_context(root))
+&gt;       assert runtime_report["plan"]["items"][0]["targetIds"] == []
+E       AssertionError: assert ['creator_bcf...c10bebe35cd8'] == []
+E         
+E         Left contains 3 more items, first extra item: 'creator_bcfc53327ffbc10bebe35cd8'
+E         Use -v to get more diff
+
+tests\test_job_migration_runtime_readiness.py:296: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order" time="0.006" /></testsuite></testsuites>

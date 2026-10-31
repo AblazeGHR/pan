@@ -1,0 +1,113 @@
+{
+  "maSourceSha": "bde866a35f205ef090d7db19ddc1167b6148bffb",
+  "maJob": "job_895b9d1d9e61da9d8fbf7118",
+  "originalLogSha256": "4d56c91fb3cbd527f7c80136072fd308d6e791bd56c6612a4177080574edc193",
+  "originalFailedNodes": 14,
+  "testSourceSha": "7c0be3feaaa28258b9b8b82163ca9c974ef1b93e",
+  "nodes": [
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[assign]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-assign]",
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-assign]"
+      ],
+      "assertions": "Default retains literal graph; explicit opt-in advertises runtime requirements; no blanket preserved classification."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[send_session]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-send_session]",
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-send_session]"
+      ],
+      "assertions": "Default retains literal graph; explicit opt-in advertises runtime requirements; no blanket preserved classification."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[legacy-assign]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-legacy-assign]",
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-legacy-assign]"
+      ],
+      "assertions": "Default retains literal graph; explicit opt-in advertises runtime requirements; no blanket preserved classification."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[message]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-message]",
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-message]"
+      ],
+      "assertions": "Default retains literal graph; explicit opt-in advertises runtime requirements; no blanket preserved classification."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[broadcast]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[False-broadcast]",
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_inventory_default_frozen_or_explicit_runtime[True-broadcast]"
+      ],
+      "assertions": "Default retains literal graph; explicit opt-in advertises runtime requirements; no blanket preserved classification."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_explicit_release_maps_and_stale_release_is_rejected"
+      ],
+      "assertions": "Actual pinned runtime release maps; stale ordinary release is rejected before target directory creation."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_partial_bundle_maps_eligible_and_preserves_uncertain_identity"
+      ],
+      "assertions": "Eligible process and runtime graph map; unknown original receipt is non-executable, has no target IDs and is byte-preserved."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[missing-target]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[missing-target]"
+      ],
+      "assertions": "Missing target eligible only under runtime opt-in; pending known-no-attempt, unknown and partial preserve original identity/state without runtime_binding_unavailable."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[pending-backlog]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[pending-backlog]"
+      ],
+      "assertions": "Missing target eligible only under runtime opt-in; pending known-no-attempt, unknown and partial preserve original identity/state without runtime_binding_unavailable."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[unknown]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[unknown]"
+      ],
+      "assertions": "Missing target eligible only under runtime opt-in; pending known-no-attempt, unknown and partial preserve original identity/state without runtime_binding_unavailable."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[partial]",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_guard_keeps_original_state_evidence[partial]"
+      ],
+      "assertions": "Missing target eligible only under runtime opt-in; pending known-no-attempt, unknown and partial preserve original identity/state without runtime_binding_unavailable."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution"
+      ],
+      "assertions": "Existing Binding schema resolves target/text changes; real mapper emits input bindings, manager owner, phase, unknown policy and non-adopted receipt."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_cli_default_and_opt_in_plan_without_publication"
+      ],
+      "assertions": "CLI default and explicit flag each classify one eligible record; dry-run maps but does not publish or activate."
+    },
+    {
+      "originalNode": "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order",
+      "successors": [
+        "tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order"
+      ],
+      "assertions": "CSV retains real opted-in runtime requirements plus historical D3 fields in either row order; supported record has no runtimeBindingGap."
+    }
+  ],
+  "additionalRuntimeContractCoverage": "tests/test_job_migration_runtime_contract.py: 20 unchanged nodes, including three exact runtime releases, QQ missing declaration, invalid release, missing targets, real owned import/backlog/CAS/same-Event/cold-reopen accepted and unknown guards"
+}

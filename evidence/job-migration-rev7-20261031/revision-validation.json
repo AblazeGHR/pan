@@ -1,0 +1,47 @@
+{
+  "baseline": "423aa59c1f734621b87923f4d468686b084a7280",
+  "testSource": "7c0be3feaaa28258b9b8b82163ca9c974ef1b93e",
+  "acceptedProductInput": "cc3fc708f03f474c5a983258456b767e436b38cf",
+  "productDiffBytes": 0,
+  "all14SuccessorsPresent": true,
+  "newParameterizedDefaultPaths": 5,
+  "focused": {
+    "exit": 0,
+    "junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "57",
+      "time": "43.516",
+      "timestamp": "2026-10-31T20:20:30.139345+08:00",
+      "hostname": "ablaze"
+    }
+  },
+  "originalRegression": {
+    "exit": 0,
+    "junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "107",
+      "time": "56.714",
+      "timestamp": "2026-10-31T20:10:44.173181+08:00",
+      "hostname": "ablaze"
+    },
+    "executionBase": "423aa59c1f734621b87923f4d468686b084a7280",
+    "note": "Readiness file was dirty but not selected; all six selected test file Git blobs are identical at final test source. Original platform link skip and all_51 deselection retained."
+  },
+  "commands": {
+    "focused": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_migration_runtime_readiness.py tests/test_job_migration_runtime_contract.py -q -o addopts= --junitxml=evidence/job-migration-rev7-20261031/readiness-contract-final.xml",
+    "originalRegression": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_final_migration.py tests/test_job_final_migration_apply.py tests/test_job_final_migration_partial.py tests/test_job_migration_readiness.py tests/test_job_final_migration_user_authorization.py tests/test_job_final_migration_review_packet.py -q -o addopts= -k \"not all_51\" --junitxml=evidence/job-migration-rev7-20261031/original-regression-revised.xml"
+  },
+  "artifactSha256": {
+    "ma-combination-original-red.log": "4d56c91fb3cbd527f7c80136072fd308d6e791bd56c6612a4177080574edc193",
+    "readiness-contract-final.xml": "fe44986de8edbf6ef303aad8fc2f47df1e3609b9a118823ed77d4a55ad3ce550",
+    "readiness-contract-final.log": "e2da8897ce425cc8f9ba1a727d1b70632ccdcc0fda78fbc6dde4f38ac8b86b6d",
+    "original-regression-revised.xml": "4c2cd7791d328f350a708cad154823cd0d77238d44c4a6d8ce16caa96de1dbb6",
+    "revision-assertion-map.json": "831e16dc1d79a897581f70bc5f6996213ef89d2f6db971998cc93a34cc2dafdf"
+  }
+}

@@ -1,0 +1,77 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+............................F.....FF.                                    [100%]
+================================== FAILURES ===================================
+_____ test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard ______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_stale_si0')
+
+    def test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard(tmp_path):
+        from scripts.job_final_migration.inventory import build_inventory, SIMPLE
+        from scripts.job_final_migration.mapping import Mapper
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+        item, = build_inventory(root, runtime_delivery=True)["instances"]
+        item["classification"] = SIMPLE
+        mapper = Mapper(runtime_context(root))
+        mapped = mapper.map(item, source)
+        assert mapped["runtimeMapping"]["acceptanceAdopted"] is False
+>       assert mapper.objects and mapper.objects[0]["object"]["deliveryRuntime"]["phase"] == "before-reservation"
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'deliveryRuntime'
+
+tests\test_job_migration_runtime_readiness.py:211: KeyError
+_ test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_proposed0')
+
+    def test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution(tmp_path):
+        import jsonschema
+        from packages.jobs.chains import resolve
+        from scripts.job_final_migration.inventory import build_inventory
+        from scripts.job_final_migration.render import render_markdown
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "send_session")
+        report = build_inventory(root, runtime_delivery=True)
+        item, = report["instances"]
+        bindings = {field["argument"]: field["proposedBinding"] for field in item["runtimeMappingRequirements"]["fields"]}
+        for binding in bindings.values():
+            jsonschema.validate(binding, fc.schema_artifacts()["common.schema.json"]["$defs"]["Binding"])
+        assert resolve(bindings, {"delivery": {"sessionId": "old-target", "text": "old-body"}}, {}, {}) == {
+            "sessionId": "old-target", "text": "old-body"}
+        assert resolve(bindings, {"delivery": {"sessionId": "new-target", "text": "updated-before-admission"}}, {}, {}) == {
+            "sessionId": "new-target", "text": "updated-before-admission"}
+        rendered = render_markdown(report)
+>       assert "Creator/Delivery Manager" in rendered
+E       AssertionError: assert 'Creator/Delivery Manager' in '# Job final migration inventory\n\nRead-only inventory: no migration was executed, no target store was written, and n.../job_runtime.json` | `a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7` |\n\n## Scan errors\n\nNone.\n'
+
+tests\test_job_migration_runtime_readiness.py:282: AssertionError
+_ test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6505/test_runtime_delivery_only_sou0')
+capsys = <_pytest.capture.CaptureFixture object at 0x00000223C3303770>
+
+    def test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication(tmp_path, capsys):
+        from scripts.job_final_migration.cli import main
+        from scripts.job_final_migration.inventory import build_inventory
+        from tests.test_job_migration_runtime_contract import runtime_context
+        root = tmp_path / "synthetic-source"
+        _runtime_delivery_source(root, "assign")
+        before = hashes(root)
+        assert main(["--root", str(root), "--out", "-"]) == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["summary"]["simple"] == 1 and report["summary"]["complex"] == 0
+        runtime_report = migration.migrate(root, tmp_path / "runtime-bundle.json", runtime_context(root))
+>       assert runtime_report["plan"]["items"][0]["targetIds"] == []
+E       AssertionError: assert ['creator_bcf...c10bebe35cd8'] == []
+E         
+E         Left contains 3 more items, first extra item: 'creator_bcfc53327ffbc10bebe35cd8'
+E         Use -v to get more diff
+
+tests\test_job_migration_runtime_readiness.py:296: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard
+FAILED tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolution
+FAILED tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication
+3 failed, 34 passed in 18.53s
