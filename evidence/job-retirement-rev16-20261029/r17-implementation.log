@@ -1,0 +1,45 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+F.......F.                                                               [100%]
+================================== FAILURES ===================================
+____ test_partial_failure_terminal_notice_identifies_actual_failed_target _____
+tests\test_retirement_rev16_behavior.py:263: in test_partial_failure_terminal_notice_identifies_actual_failed_target
+    targets, emitted = partial(h)
+                       ^^^^^^^^^^
+tests\test_retirement_rev16_behavior.py:244: in partial
+    assert json.loads(notices[0]['result']) == {'runId': admitted['runId'], 'status': 'uncertain'}
+E   AssertionError: assert {'failedTarge...rror'}, ...}]} == {'runId': 'ru...: 'uncertain'}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Left contains 2 more items:
+E     {'failedTargets': ['ses_b'],
+E      'targetResults': [{'effectKey': {'operationOrdinal': 0,
+E                                       'runId': 'run_ebb3eac9d4e9461aab6679e3',
+E                                       'stepId': 'send',...
+E     
+E     ...Full output truncated (23 lines hidden), use '-vv' to show
+_______ test_actual_detached_completion_cold_original_notice_exact_once _______
+tests\test_retirement_rev17_process_notice.py:53: in test_actual_detached_completion_cold_original_notice_exact_once
+    assert json.loads(notices[0]['result']) == {'runId': rid, 'status': 'completed'}
+E   AssertionError: assert {'exitCode': ...: 'completed'} == {'runId': 'ru...: 'completed'}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Left contains 2 more items:
+E     {'exitCode': 0,
+E      'logRef': {'attempt': {'attemptId': 'attempt_9759496f87514209b361836c',
+E                             'generation': 1,
+E                             'leaseId': 'lease_2d4ab64acbe24023a54140d1',...
+E     
+E     ...Full output truncated (15 lines hidden), use '-vv' to show
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev16_behavior.py::test_partial_failure_terminal_notice_identifies_actual_failed_target
+FAILED tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_cold_original_notice_exact_once

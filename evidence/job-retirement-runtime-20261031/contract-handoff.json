@@ -1,0 +1,311 @@
+{
+  "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+  "layer": "synthetic publication/schema inventory only; no Run/effect/provider invocation",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "dependencies": {
+    "mcp": "1.28.1",
+    "tzlocal": "5.4.5",
+    "pytest": "9.1.1"
+  },
+  "newImmutableReleases": [
+    {
+      "reference": {
+        "id": "product_assign_runtime_v1",
+        "revision": 1,
+        "digest": "f31f94f1c5a6be938790ab7d0a9a924bdad7853bbd83258be55aa557f3552ee5"
+      },
+      "definition": {
+        "cancel": {
+          "supported": false
+        },
+        "completionContracts": [
+          {
+            "id": "durable-queue-accepted",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "durable-queue-accepted",
+        "description": "",
+        "effectClass": "write_local",
+        "execution": {
+          "config": {},
+          "operation": "assign"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "sessionId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "agent",
+                "automation",
+                "meta-agent",
+                "plugin",
+                "report",
+                "system",
+                "system_prompt",
+                "user"
+              ]
+            },
+            "sourceSessionId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "taskId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionId",
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "assign",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 3,
+          "id": "pan.typed",
+          "releaseDigest": "899b57b78e864b2c63aa95097fc18000f67805e34c17c5516ce33be469dcaf3f"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "runtimeBeforeAcceptance": {
+          "fence": "per-target-attempt-effect",
+          "fields": [
+            "sessionId",
+            "text"
+          ],
+          "owner": "delivery-manager",
+          "phase": "before-queue-acceptance",
+          "unknownPolicy": "query-original"
+        },
+        "system": true
+      }
+    },
+    {
+      "reference": {
+        "id": "product_session_broadcast_runtime_v1",
+        "revision": 1,
+        "digest": "93d82495bf14ea4950a7b39e42e5de51fde5fe09cc1d94d142c6c7b2b75bec89"
+      },
+      "definition": {
+        "cancel": {
+          "supported": false
+        },
+        "completionContracts": [
+          {
+            "id": "durable-queue-accepted",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "durable-queue-accepted",
+        "description": "",
+        "effectClass": "write_local",
+        "execution": {
+          "config": {},
+          "operation": "session-broadcast"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "sessionIds": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "source": {
+              "enum": [
+                "agent",
+                "automation",
+                "meta-agent",
+                "plugin",
+                "report",
+                "system",
+                "system_prompt",
+                "user"
+              ]
+            },
+            "sourceSessionId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionIds",
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "session-broadcast",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 3,
+          "id": "pan.typed",
+          "releaseDigest": "899b57b78e864b2c63aa95097fc18000f67805e34c17c5516ce33be469dcaf3f"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "runtimeBeforeAcceptance": {
+          "fence": "per-target-attempt-effect",
+          "fields": [
+            "sessionIds",
+            "text"
+          ],
+          "owner": "delivery-manager",
+          "phase": "before-queue-acceptance",
+          "unknownPolicy": "query-original"
+        },
+        "system": true
+      }
+    },
+    {
+      "reference": {
+        "id": "product_session_message_runtime_v1",
+        "revision": 1,
+        "digest": "5bc438608c21b57b455ab157e7ddb271dc6328557ff0e4b6eb6ba9286a12261e"
+      },
+      "definition": {
+        "cancel": {
+          "supported": false
+        },
+        "completionContracts": [
+          {
+            "id": "durable-queue-accepted",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "durable-queue-accepted",
+        "description": "",
+        "effectClass": "write_local",
+        "execution": {
+          "config": {},
+          "operation": "session-message"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "sessionId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "source": {
+              "enum": [
+                "agent",
+                "automation",
+                "meta-agent",
+                "plugin",
+                "report",
+                "system",
+                "system_prompt",
+                "user"
+              ]
+            },
+            "sourceSessionId": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "sessionId",
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "session-message",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 3,
+          "id": "pan.typed",
+          "releaseDigest": "899b57b78e864b2c63aa95097fc18000f67805e34c17c5516ce33be469dcaf3f"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "runtimeBeforeAcceptance": {
+          "fence": "per-target-attempt-effect",
+          "fields": [
+            "sessionId",
+            "text"
+          ],
+          "owner": "delivery-manager",
+          "phase": "before-queue-acceptance",
+          "unknownPolicy": "query-original"
+        },
+        "system": true
+      }
+    }
+  ],
+  "temporaryRootCleaned": true,
+  "schemaArtifacts": [
+    "common.schema.json",
+    "action.schema.json",
+    "action_definition.schema.json",
+    "job.schema.json",
+    "job_definition.schema.json",
+    "run.schema.json"
+  ],
+  "oldV2Mutation": false,
+  "realMigrationOrActivation": false
+}

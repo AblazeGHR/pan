@@ -1,0 +1,4 @@
+# Preserve captured bytes so the hashes in commands/provenance stay portable.
+*.xml -text
+*.log -text
+quota-*.json -text

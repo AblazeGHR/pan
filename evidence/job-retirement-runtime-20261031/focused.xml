@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="53" time="132.278" timestamp="2026-10-31T14:42:56.881260+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[assign]" time="1.689"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[session-message]" time="2.150"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[session-broadcast]" time="2.629"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[pause]" time="2.309"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[revoke]" time="2.577"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[cancel]" time="2.306"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_lost_native_assign_ack_queries_effective_reservation_not_later_target" time="2.299"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_and_proven_unsent_cold_retarget_same_live_attempt" time="2.402"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]" time="2.970"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]" time="2.947"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]" time="2.933"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]" time="2.846"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[missing-children]" time="2.841"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[wrong-lease]" time="2.855"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[reserved-is-not-unsent]" time="2.922"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_unknown_and_unsent_only_unsent_retargets[True]" time="2.656"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_unknown_and_unsent_only_unsent_retargets[False]" time="2.443"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_additive_runtime_release_does_not_change_v2_and_api_marks_frozen_vs_runtime" time="2.322"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_old_release_cannot_gain_runtime_from_job_declaration_and_rejection_has_no_write" time="2.190"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_equal_no_attempt_dictionary_after_actual_enqueue_never_authorizes_resend" time="2.335"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_real_http_concurrent_cas_during_first_acceptance_selects_only_winning_unsent_values" time="4.067"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_null_target_real_no_attempt_cold_explicit_retarget_same_outbox_receipt" time="2.400"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_concurrent_cas_then_two_service_reservations_send_one_notice" time="2.356"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_runtime_notice_authority_revoked_before_reservation_stays_suppressed" time="2.162"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_accepted_notice_lost_response_retarget_remains_unknown_no_resend" time="2.422"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[dictionary-spoof]" time="2.314"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[wrong-binding]" time="2.196"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[partial]" time="2.296"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_fresh_production_browser_runtime_edit_and_original_notification_receipt" time="6.722"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+NOTIFICATION_RUNTIME_BROWSER=[{"phase": "edit", "chromium": "153.0.8010.12", "pageErrors": [], "writes": ["/api/jobs/job_477f4a03a3f047a6aaab5eb9"], "layer": "fresh production CanonicalJobsView + real owned HTTP; no intercepted responses"}, {"phase": "receipt", "chromium": "153.0.8010.12", "pageErrors": [], "writes": [], "layer": "fresh production CanonicalJobsView + real owned HTTP; no intercepted responses"}]
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_trigger_backlog" name="test_published_event_multitick_cold_resume_same_target_id_once[pause-resume]" time="2.543"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_trigger_backlog" name="test_published_event_multitick_cold_resume_same_target_id_once[disable-enable]" time="2.673"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_trigger_backlog" name="test_true_nonmatch_or_retire_stays_terminal_skip_without_unrelated_target[selector]" time="2.421"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_trigger_backlog" name="test_true_nonmatch_or_retire_stays_terminal_skip_without_unrelated_target[filter]" time="2.343"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_trigger_backlog" name="test_true_nonmatch_or_retire_stays_terminal_skip_without_unrelated_target[retire]" time="2.485"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_schedule_replacement_removes_old_rule_and_fires_only_new_real_event" time="2.388"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules0]" time="2.281"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules1]" time="2.075"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[disable]" time="2.217"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[retire]" time="2.394"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_creator_disable_stops_future_events_and_effects" time="2.121"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_literal_empty_schedule_create_rejected_without_operation_creator_or_effect" time="1.946"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_actual_missing_notification_target_unknown_receipt_cold_no_resend" time="2.320"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_partial_fanout_real_results_notice_receipt_once_and_cold_no_replay" time="2.316"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev16_behavior" name="test_partial_failure_terminal_notice_identifies_actual_failed_target" time="2.412"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_cold_retarget_preserves_original_identity_exactly_once" time="2.679"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_job_disabled_pending_event_remains_then_resume_delivers" time="2.544"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_retarget_after_event_admission_never_changes_frozen_effect" time="2.300"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_backlog_authority_revoked_no_admission_or_send" time="2.520"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers" time="2.404"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_notice_enqueued_response_lost_is_unknown_cold_never_resends" time="2.410"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_pause_does_not_consume_original_backlog" time="2.411"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_cold_original_notice_exact_once" time="1.031"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_notice_retains_original_exit_log_details" time="0.890"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

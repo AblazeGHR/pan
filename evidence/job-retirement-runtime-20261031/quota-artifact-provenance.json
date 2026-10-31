@@ -1,0 +1,17 @@
+{
+  "sourceSha": "4ba377cae65a6327219340092f68bbc4eb6265ae",
+  "generated": [
+    {
+      "path": "evidence/quota-native/process-tcp.json",
+      "sha256": "862414fe123f2f6f01963b946e47490e3601cf36e4aba5dcbc5d49b9eaeb04fb",
+      "archivedAs": "quota-process-tcp.json"
+    },
+    {
+      "path": "evidence/quota-native/tcp.json",
+      "sha256": "7fc10f05e4bd16c56c0405a95efe8f2734897135854284272d23331324d4f69a",
+      "archivedAs": "quota-tcp.json"
+    }
+  ],
+  "historicalTrackedBytesRestored": true,
+  "restoration": "Original Git blob content with configured CRLF checkout; no historical content change"
+}
