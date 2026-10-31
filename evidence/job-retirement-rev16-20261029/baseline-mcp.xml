@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.112" timestamp="2026-10-29T23:35:10.426712+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev16_mcp_stdio" name="test_retired_names_actual_stdio_boundary_and_authorized_canonical_path" time="1.340"><failure message="AssertionError: {'jsonrpc': '2.0', 'id': 5, 'result': {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}}&#10;assert None&#10; +  where None = &lt;built-in method get of dict object at 0x00000175E4846F40&gt;('structuredContent')&#10; +    where &lt;built-in method get of dict object at 0x00000175E4846F40&gt; = {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}.get">tests\test_retirement_rev16_mcp_stdio.py:15: in test_retired_names_actual_stdio_boundary_and_authorized_canonical_path
+    asyncio.run(exercise(tmp_path))
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev16_mcp_stdio.py:83: in exercise
+    assert response['result'].get('structuredContent'), response
+E   AssertionError: {'jsonrpc': '2.0', 'id': 5, 'result': {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}}
+E   assert None
+E    +  where None = &lt;built-in method get of dict object at 0x00000175E4846F40&gt;('structuredContent')
+E    +    where &lt;built-in method get of dict object at 0x00000175E4846F40&gt; = {'content': [{'type': 'text', 'text': 'Unknown tool: agent_background_start'}], 'isError': True}.get</failure></testcase></testsuite></testsuites>

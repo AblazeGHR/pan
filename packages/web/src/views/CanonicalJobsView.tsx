@@ -653,6 +653,16 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
           <p className="break-all">
             {run.runId} · {run.state} · 状态版本 {run.stateRevision}
           </p>
+          {!!run.deliveryRuntime && <details aria-label={`Delivery receipts ${run.runId}`}>
+              <summary>Delivery Manager · runtime reservation receipts</summary>
+              <pre>{JSON.stringify(run.deliveryRuntime, null, 2)}</pre>
+            </details>}
+          {Array.isArray(run.notifications) && run.notifications.length > 0 &&
+            <details aria-label={`Notification receipts ${run.runId}`}>
+              <summary>Notification Manager · original delivery receipts</summary>
+              <p>Only proven unsent pending notices may select a current target. Accepted and unknown notices keep the original identity.</p>
+              <pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(run.notifications, null, 2)}</pre>
+            </details>}
           <div className="flex flex-wrap gap-2">
             {runOperations.map((operation) => (
               <Button

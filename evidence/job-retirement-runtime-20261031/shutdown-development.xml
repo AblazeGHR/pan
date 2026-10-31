@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="7.934" timestamp="2026-10-31T14:48:38.567828+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[assign]" time="1.431"><failure message="KeyError: 'plans'">tests\test_retirement_session_runtime.py:38: in test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns
+    children = pending['plans'][rid]['runtimeDelivery']['send']['children']
+               ^^^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[session-message]" time="1.510"><failure message="KeyError: 'plans'">tests\test_retirement_session_runtime.py:38: in test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns
+    children = pending['plans'][rid]['runtimeDelivery']['send']['children']
+               ^^^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[session-broadcast]" time="2.329"><failure message="KeyError: 'plans'">tests\test_retirement_session_runtime.py:38: in test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns
+    children = pending['plans'][rid]['runtimeDelivery']['send']['children']
+               ^^^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_retirement_notification_runtime" name="test_actual_local_shutdown_notice_remains_pending_then_same_outbox_enqueues_once" time="2.129" /></testsuite></testsuites>

@@ -1,0 +1,25 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-entry-notification-closure-20261029/packages/web/src
+
+ ✓ components/automation/RetirementRuntimeFields.test.tsx > displays concrete runtime inputs and declares pending-only Notification Manager ownership
+ ✓ components/automation/CanonicalForms.test.tsx > defaults calendar rules to the current host and clears an override without requiring DST fields
+ ✓ components/jobs/JobDetailDrawer.test.tsx > JobDetailDrawer width > fills mobile width and caps the desktop panel at 28rem
+ ✓ components/jobs/JobDetailDrawer.test.tsx > JobDetailDrawer width > shows dynamic targeting and permits run-now for a targetless resume action
+ ✓ components/jobs/JobDetailDrawer.test.tsx > JobDetailDrawer width > shows the QQ contact and bot identity and permits run-now without a Session target
+ ✓ components/automation/CanonicalForms.test.tsx > builds a passive time Template using the native rule form and existing composition keys
+ ✓ components/automation/CanonicalForms.test.tsx > edits one rule without converting or truncating other rule IDs, precision, offsets, timezone, policies or counts
+ ✓ components/automation/CanonicalForms.test.tsx > adds and removes multiple rules and changes type with stable IDs, including the surviving row
+ ✓ components/automation/CanonicalForms.test.tsx > edits decimal grace/interval strings, grid, misfire and driveLimit without floating point conversion
+ ✓ components/automation/CanonicalForms.test.tsx > keeps extension fields and unknown existing policy tokens while changing a supported field
+ ✓ components/automation/CanonicalForms.test.tsx > selects server-issued Action revision/digest and completion and edits ordinary string/number/boolean parameters without definition JSON
+ ✓ components/automation/CanonicalForms.test.tsx > moves stable steps, preserves bindings, flags forward output references and keeps the surviving row on removal
+ ✓ components/automation/CanonicalForms.test.tsx > defines Job input fields and uses input or Event paths without flattening typed bindings
+ ✓ components/automation/CanonicalForms.test.tsx > edits policies without dropping exact recovery values, notification recipient identity or existing retention metadata
+ ✓ components/automation/CanonicalForms.test.tsx > retains a previously fixed Action revision and all bindings when a newer catalog revision arrives
+ ✓ components/automation/CanonicalForms.test.tsx > edits OR event types and nested AND/OR/NOT conditions with structured controls while keeping existing filters
+
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Start at  13:56:13
+   Duration  6.88s (transform 457ms, setup 44ms, collect 4.23s, tests 1.12s, environment 10.23s, prepare 696ms)
+

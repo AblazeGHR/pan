@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="8" time="16.580" timestamp="2026-10-29T23:51:43.326686+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_cold_retarget_preserves_original_identity_exactly_once" time="1.773" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_pause_does_not_consume_original_backlog" time="2.119"><failure message="AssertionError: Paused pre-effect backlog must survive resume&#10;assert 0 == 1&#10; +  where 0 = len([])">tests\test_retirement_rev17_backlog.py:90: in test_pending_event_pause_does_not_consume_original_backlog
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+E   AssertionError: Paused pre-effect backlog must survive resume
+E   assert 0 == 1
+E    +  where 0 = len([])</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_job_disabled_pending_event_remains_then_resume_delivers" time="2.459" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_retarget_after_event_admission_never_changes_frozen_effect" time="2.587" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers" time="2.384"><failure message="AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:51:55.177419Z', 'legacyId': 'canonical:run_fd322d99319c441d93017dc9', 'outboxId': 'outbox_48549142ed7e5131b5cc13e026565315088899aa', ...}&#10;assert 'uncertain' == 'pending'&#10;  &#10;  - pending&#10;  + uncertain">tests\test_retirement_rev17_backlog.py:169: in test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers
+    assert row['status'] == 'pending', row
+E   AssertionError: {'channel': 'session', 'createdAt': '2026-10-29T15:51:55.177419Z', 'legacyId': 'canonical:run_fd322d99319c441d93017dc9', 'outboxId': 'outbox_48549142ed7e5131b5cc13e026565315088899aa', ...}
+E   assert 'uncertain' == 'pending'
+E     
+E     - pending
+E     + uncertain</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_notice_enqueued_response_lost_is_unknown_cold_never_resends" time="2.359" /><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_cold_original_notice_exact_once" time="1.124"><failure message="AssertionError: assert ({'jobId': 'jo...', ...}], ...} == {'jobId': 'jo...', ...}], ...}&#10;  &#10;  Omitting 6 identical items, use -vv to show&#10;  Use -v to get more diff and 3 == 2)&#10; +  where 3 = len(['outbox_071360bbfe9e9bcae6633ee576b5055e6f051801', 'outbox_937ed4f1ec0c94d2a1a526e88d7a0012b21937e6', 'outbox_f5bcabcd5bc4a0810f051ea5eb2fc37fc1c570a5'])">tests\test_retirement_rev17_process_notice.py:53: in test_actual_detached_completion_cold_original_notice_exact_once
+    assert cold.final.history(jid) == history and len(calls) == 2
+E   AssertionError: assert ({'jobId': 'jo...', ...}], ...} == {'jobId': 'jo...', ...}], ...}
+E     
+E     Omitting 6 identical items, use -vv to show
+E     Use -v to get more diff and 3 == 2)
+E    +  where 3 = len(['outbox_071360bbfe9e9bcae6633ee576b5055e6f051801', 'outbox_937ed4f1ec0c94d2a1a526e88d7a0012b21937e6', 'outbox_f5bcabcd5bc4a0810f051ea5eb2fc37fc1c570a5'])</failure></testcase><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_notice_retains_original_exit_log_details" time="0.989"><failure message="AssertionError: {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}&#10;assert None == 0&#10; +  where None = &lt;built-in method get of dict object at 0x0000029E222F3540&gt;('exitCode')&#10; +    where &lt;built-in method get of dict object at 0x0000029E222F3540&gt; = {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}.get">tests\test_retirement_rev17_process_notice.py:64: in test_actual_detached_completion_notice_retains_original_exit_log_details
+    assert summary.get('exitCode') == receipt['exitCode'] == 0, summary
+E   AssertionError: {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}
+E   assert None == 0
+E    +  where None = &lt;built-in method get of dict object at 0x0000029E222F3540&gt;('exitCode')
+E    +    where &lt;built-in method get of dict object at 0x0000029E222F3540&gt; = {'runId': 'run_6f93c4c90bac476494df257c', 'status': 'completed'}.get</failure></testcase></testsuite></testsuites>

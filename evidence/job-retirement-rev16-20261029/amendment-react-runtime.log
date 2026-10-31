@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-entry-notification-closure-20261029/packages/web/src
+
+ ✓ components/automation/RetirementRuntimeFields.test.tsx (1 test) 50ms
+ ✓ components/jobs/JobDetailDrawer.test.tsx (3 tests) 78ms
+ ✓ components/automation/CanonicalForms.test.tsx (12 tests) 424ms
+
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Start at  14:33:20
+   Duration  2.04s (transform 256ms, setup 13ms, collect 860ms, tests 553ms, environment 1.43s, prepare 361ms)
+
