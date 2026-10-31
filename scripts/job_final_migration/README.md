@@ -1,5 +1,9 @@
 # WP08 离线迁移 apply
 
+2026-10-29 revision2 在 MA 明确授权下新增**合成 source-copy → 新自有 profile** 的 runtime-import readiness 验证，
+及逐路径 source coverage guard。入口见 [R2 runbook](RUNTIME_READINESS_RUNBOOK_20261029.md)。这扩展了 revision1
+本批不得调用 P9D 的范围；不追溯改变 revision1 证据，也不授权真实数据迁移。默认 inventory/apply CLI 的离线边界仍如下。
+
 此包在 lite inventory/plan 上扩展，只处理 `simple-script-migratable`。**root 始终只读**；
 `--target` 是 root 外的私有 JSON 迁移包，包含 WP01 `schemaVersion=2` canonical objects、稳定 ID
 分配表、来源/hash、逐条迁移证据、源文件原始 bytes 备份及只读/owner 切换意图。
@@ -255,3 +259,30 @@ python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_mi
 部分 write/fsync/replace 失败、源变更、引用/摘要冲突、只读/rollback、提交边界真实子进程退出，以及独立进程无 server import。
 远端三平台 CI、真实 provider/授权/目标、100 个发生点/DST/pause/misfire 语义对照、真实复制数据和生产迁移、
 运行时 fencing/lease/activation、真实断电、部署与人工验收均未验证。
+## Runtime target/text amendment (2026-10-31)
+
+The approved Creator/Delivery Manager matrix applies to legacy message,
+broadcast and scheduled assign/send_session records. Their target(s)/text must
+not be blindly converted to frozen literal steps. This version reports
+`runtime_binding_unavailable` and keeps those records and bytes under the
+original manager; no replacement Job/target IDs are generated for them.
+Explicit partial packages can still import unrelated supported records.
+
+`runtime_binding_unavailable` is a temporary implementation blocker. The
+existing `incompatible-preserved` container does not classify these records as
+D6 permanent incompatibility, authorize deletion, or permit retiring/fencing
+the original manager. Keeping bytes is not preservation of its full lifecycle.
+The guard is a stage candidate; its 17 fresh original-assertion reds remain
+open. See [runtime mapping handoff](RUNTIME_MAPPING_HANDOFF_20261031.md) for the
+product evidence needed to resume mapping. Do not repeat the unchanged guard
+matrix while waiting for that evidence.
+
+`runtimeBindingGap` in inventory/partial bundle/review packet contains owner,
+pending/reserved phase, freeze-after-acceptance rule, revision/fence/receipt
+requirements and proposed existing `input` paths. Those paths already work
+before admission; the remaining manager annotation and acceptance wiring is
+an approved product implementation task, not a new user decision. This tool
+does not invent a Binding type, claim whole-profile migration, or retire the
+original manager. Existing uncertain/partial receipts stay original-key evidence;
+known-no-attempt is not reclassified as success or unknown. QQ runtime fields
+require a pinned Action declaration; the mapper does not infer it from names.

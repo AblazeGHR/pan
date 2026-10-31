@@ -1,0 +1,440 @@
+{
+  "tool": "job-final-migration",
+  "toolSchema": "pan.job-final-migration.inventory/v1",
+  "mappingVersion": "1",
+  "schemaWhitelist": "v1-known-20261025",
+  "readOnly": false,
+  "migrationExecuted": true,
+  "targetWrites": 1,
+  "root": {
+    "path": "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-bindings-20261031\\source-f0a9b8dd\\synthetic-source",
+    "realProfile": false,
+    "realProfileMarkers": [],
+    "allowRealProfile": false
+  },
+  "summary": {
+    "total": 2,
+    "simple": 1,
+    "complex": 1,
+    "unknown": 0,
+    "scanErrors": 0,
+    "bySourceType": {
+      "MIG-BG": {
+        "total": 1,
+        "simple": 1,
+        "complex": 0,
+        "unknown": 0
+      },
+      "MIG-SCHED": {
+        "total": 1,
+        "simple": 0,
+        "complex": 1,
+        "unknown": 0
+      }
+    },
+    "invariant": {
+      "sourceTotal": 2,
+      "simplePlusPreserved": 2,
+      "classificationPending": 0
+    }
+  },
+  "instances": [
+    {
+      "migrationId": "mig1_c45460a93ac8927e0e883dd8",
+      "id": "job_bbbbbbbbbbbbbbbbbbbbbbbb",
+      "type": "MIG-BG",
+      "sourceKind": "background-process",
+      "owner": {
+        "kind": "session",
+        "id": "sess_creator"
+      },
+      "target": {
+        "kind": "session",
+        "sessionId": "sess_target"
+      },
+      "authEvidence": "creatorSessionId",
+      "sourceFile": "background_jobs/jobs/job_process.json",
+      "originalPath": "background_jobs/jobs/job_process.json",
+      "originalDigest": "sha256:40ac29601f549fe6bfe181efb16a8da63f92ceb953b29f4d9ccb02de10023974",
+      "sha256": "40ac29601f549fe6bfe181efb16a8da63f92ceb953b29f4d9ccb02de10023974",
+      "recordDigest": "{\"argv\":[\"cmd.exe\",\"/c\",\"echo\",\"fixture\"],\"commandSummary\":\"cmd.exe /c echo …\",\"createdAt\":1761300000.0,\"creatorSessionId\":\"sess_creator\",\"cwd\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-runtime-bindings-20261031\\\\source-f0a9b8dd\\\\synthetic-source\\\\work\",\"description\":\"\",\"exitCode\":0,\"hideWindow\":true,\"jobId\":\"job_bbbbbbbbbbbbbbbbbbbbbbbb\",\"kind\":\"background-process\",\"label\":null,\"logPath\":\"D:\\\\project\\\\pan-worktrees\\\\job-migration-readiness-20261029\\\\.validation\\\\job-migration-runtime-bindings-20261031\\\\source-f0a9b8dd\\\\synthetic-source\\\\logs\\\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log\",\"name\":\"Fixture background\",\"notificationState\":\"not_applicable\",\"operation\":\"run\",\"pid\":1234,\"processCreatedAt\":1761300001.0,\"processTreeEnded\":true,\"sourceStruct\":{\"sessionId\":\"sess_creator\",\"type\":\"agent\"},\"status\":\"completed\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"terminalEventId\":\"evt_fixture\",\"updatedAt\":1761300100.0}",
+      "schemaFingerprint": "sha256:4cffd4e9e836bdbb65fd4c8198fe2e1c7ea4afd47aeb891b5c26b8f8f9144854",
+      "classification": "simple-script-migratable",
+      "classificationDetail": "simple",
+      "status": "verified-offline",
+      "mappingVersion": "1",
+      "reasonCodes": [],
+      "reasons": [],
+      "rejectionReasons": [],
+      "suggestedAction": "review-disabled-canonical-bundle",
+      "targetIds": [
+        "job_c45460a93ac8927e0e883dd8"
+      ],
+      "fieldMap": {
+        "jobId": "provenance.originalJobId",
+        "argv": "process.exec.arguments.argv",
+        "cwd": "process.exec.arguments.cwd",
+        "hideWindow": "process.exec.arguments.hideWindow",
+        "name": "job.metadata.name",
+        "description": "job.metadata.description",
+        "createdAt": "provenance.createdAt",
+        "updatedAt": "provenance.updatedAt",
+        "exitCode": "historicalEvidence.exitCode",
+        "logPath": "historicalEvidence.logPath",
+        "terminalEventId": "historicalEvidence.terminalEventId"
+      },
+      "cursor": {
+        "nextFireAt": null,
+        "lastFireAt": null,
+        "runCount": null,
+        "maxRuns": null
+      },
+      "activeEffectHandles": [],
+      "noticeReceipts": [],
+      "referenceEdges": [],
+      "expectedSemanticDiff": [
+        "old exit/log/resource receipts are historical evidence only",
+        "no new Run is fabricated from the old runCount/status"
+      ],
+      "proofs": {
+        "sourceHashVerified": true,
+        "schemaWhitelist": "v1-known-20261025",
+        "authorityVerified": false,
+        "referencesVerified": false,
+        "readOnly": true
+      },
+      "desiredState": "manual-only",
+      "sourceRevision": null,
+      "sourceAudit": {
+        "creatorSessionId": "sess_creator",
+        "sourceStruct": {
+          "type": "agent",
+          "sessionId": "sess_creator"
+        },
+        "targetStruct": {
+          "sessionId": "sess_target"
+        },
+        "createdAt": 1761300000.0,
+        "updatedAt": 1761300100.0
+      },
+      "historicalEvidenceOnly": {
+        "exitCode": 0,
+        "logPath": "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-bindings-20261031\\source-f0a9b8dd\\synthetic-source\\logs\\job_bbbbbbbbbbbbbbbbbbbbbbbb.log",
+        "terminalEventId": "evt_fixture",
+        "status": "completed",
+        "pid": 1234,
+        "processCreatedAt": 1761300001.0,
+        "processTreeEnded": true
+      },
+      "attestation": {
+        "originalDigest": "sha256:40ac29601f549fe6bfe181efb16a8da63f92ceb953b29f4d9ccb02de10023974",
+        "principal": {
+          "type": "user",
+          "id": "fixture_user"
+        },
+        "owner": {
+          "type": "user",
+          "id": "fixture_user"
+        },
+        "oldOwnerStopped": true,
+        "oldOwnerEpoch": 1,
+        "fenceEvidence": "synthetic fixture: no owner has ever run",
+        "authorizationEvidence": "synthetic fixture: explicit fixture grant",
+        "importedAt": "2026-10-25T00:00:00+00:00",
+        "policies": {
+          "overlap": {
+            "mode": "forbid",
+            "maxActive": 1,
+            "maxPending": 0
+          },
+          "recovery": {
+            "automatic": false,
+            "maxAttempts": 3,
+            "backoffSeconds": [
+              "5",
+              "15",
+              "60"
+            ],
+            "stableResetSeconds": "300"
+          },
+          "notification": {
+            "on": [],
+            "recipients": []
+          },
+          "retention": {
+            "policyRef": "fixture_policy",
+            "pinned": false
+          }
+        },
+        "creatorSelector": {
+          "mode": "registeredType",
+          "providerType": "fixture"
+        },
+        "scheduler": {
+          "advanceMode": "grid",
+          "dstPolicy": "fixture-policy",
+          "graceSeconds": "60",
+          "pausePolicy": "fixture-policy",
+          "requiredCapabilities": [],
+          "providerRef": {
+            "type": "time",
+            "id": "scheduler",
+            "releaseDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "generation": 1
+          },
+          "configSchemaRef": {
+            "id": "scheduler_config",
+            "revision": 1,
+            "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          }
+        },
+        "name": "Fixture background"
+      },
+      "runtimeFenceVerified": false,
+      "oldRecordReadOnly": false,
+      "ownerSwitch": {
+        "scope": "offline-bundle-only",
+        "oldOwner": "stopped-attested",
+        "newOwner": "canonical-disabled",
+        "ownerEpoch": 2,
+        "runtimeEnforced": false
+      }
+    },
+    {
+      "migrationId": "mig1_bcfc53327ffbc10bebe35cd8",
+      "id": "sch_fixture0000000001",
+      "type": "MIG-SCHED",
+      "sourceKind": "scheduled-task",
+      "owner": {
+        "kind": "system",
+        "id": "system"
+      },
+      "target": {
+        "kind": "session",
+        "sessionId": "sess_target"
+      },
+      "authEvidence": "system_owned",
+      "sourceFile": "background_jobs/jobs/job_runtime.json",
+      "originalPath": "background_jobs/jobs/job_runtime.json",
+      "originalDigest": "sha256:a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7",
+      "sha256": "a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7",
+      "recordDigest": "{\"action\":{\"api\":\"send_session\"},\"createdAt\":1761300000.0,\"creatorSessionId\":null,\"description\":\"\",\"enabled\":true,\"jobId\":\"job_ssssssssssssssssssssssss\",\"kind\":\"scheduled-task\",\"lastError\":null,\"lastFireAt\":null,\"lastStatus\":null,\"maxRuns\":null,\"misfirePolicy\":\"fire_now\",\"name\":\"Fixture scheduled job\",\"nextFireAt\":\"2030-01-01T00:00:00\",\"paused\":false,\"runCount\":0,\"runStartedAt\":null,\"schedule\":[{\"at\":\"2030-01-01T00:00:00\",\"enabled\":true,\"id\":\"sce_fixture0001\",\"kind\":\"once\",\"lastFireAt\":null,\"misfirePolicy\":\"fire_now\",\"nextFireAt\":\"2030-01-01T00:00:00\",\"timezone\":\"Asia/Shanghai\"}],\"source\":\"automation\",\"sourceStruct\":{\"type\":\"system\"},\"status\":\"scheduled\",\"targetSessionId\":\"sess_target\",\"targetStruct\":{\"sessionId\":\"sess_target\"},\"taskId\":\"sch_fixture0000000001\",\"text\":\"hello schedule\",\"undeliveredFires\":[],\"updatedAt\":1761300000.0}",
+      "schemaFingerprint": "sha256:ecfec4a8045091326709a25fc1628853d278945b777b7c2fe2fa8ab36cca776b",
+      "classification": "incompatible-preserved",
+      "classificationDetail": "complex",
+      "status": "preserved_and_reported",
+      "mappingVersion": null,
+      "reasonCodes": [
+        "runtime_binding_unavailable"
+      ],
+      "reasons": [
+        {
+          "code": "runtime_binding_unavailable",
+          "detail": "input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper; retain source target/text and manager lifecycle, do not freeze as literal"
+        }
+      ],
+      "rejectionReasons": [
+        "runtime_binding_unavailable: input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper; retain source target/text and manager lifecycle, do not freeze as literal"
+      ],
+      "suggestedAction": "retain-source-manager-await-runtime-contract",
+      "runtimeBindingGap": {
+        "policy": "target-runtime-fields-approved-20261031",
+        "owner": "Creator/Delivery Manager",
+        "allowedStates": [
+          "pending",
+          "reserved"
+        ],
+        "effectiveStage": "event-published-before-queue-or-external-acceptance",
+        "freezePerTargetAt": [
+          "accepted",
+          "success",
+          "unknown",
+          "partial"
+        ],
+        "fields": [
+          {
+            "sourceField": "targetSessionId",
+            "argument": "sessionId",
+            "proposedBinding": {
+              "from": "input",
+              "path": "delivery.sessionId"
+            }
+          },
+          {
+            "sourceField": "text",
+            "argument": "text",
+            "requiresActionDeclaration": "runtimeBeforeAcceptance",
+            "proposedBinding": {
+              "from": "input",
+              "path": "delivery.text"
+            }
+          }
+        ],
+        "requiredEvidence": [
+          "Event/dispatch identity",
+          "runtimeRevision",
+          "reservation fence",
+          "per-target receipt",
+          "text revision",
+          "receipt effective stage"
+        ],
+        "audit": "original operation/requestKey and CAS; record selected revision/target/text digest in receipt",
+        "unknownHandling": "query original accepted/unknown/partial identity; never blind retarget/resend",
+        "knownNoAttemptHandling": "distinct from unknown; retain durable backlog under the original manager",
+        "acceptanceState": "unverified",
+        "bindingGenerated": false,
+        "gap": "input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper",
+        "followUp": "product owner wires approved manager contract; migration then re-reviews original source hashes"
+      },
+      "targetIds": [],
+      "fieldMap": null,
+      "cursor": {
+        "nextFireAt": "2030-01-01T00:00:00",
+        "lastFireAt": null,
+        "runCount": 0,
+        "maxRuns": null
+      },
+      "activeEffectHandles": [],
+      "noticeReceipts": [],
+      "referenceEdges": [],
+      "expectedSemanticDiff": [
+        "none; original record is preserved byte-for-byte"
+      ],
+      "proofs": {
+        "sourceHashVerified": true,
+        "schemaWhitelist": "v1-known-20261025",
+        "authorityVerified": false,
+        "referencesVerified": false,
+        "readOnly": true
+      }
+    }
+  ],
+  "plan": {
+    "executable": true,
+    "executionAttempted": true,
+    "mappingVersion": "1",
+    "targetIdAllocation": "stable-offline-bundle",
+    "items": [
+      {
+        "migrationId": "mig1_c45460a93ac8927e0e883dd8",
+        "originalId": "job_bbbbbbbbbbbbbbbbbbbbbbbb",
+        "type": "MIG-BG",
+        "sourceFile": "background_jobs/jobs/job_process.json",
+        "originalDigest": "sha256:40ac29601f549fe6bfe181efb16a8da63f92ceb953b29f4d9ccb02de10023974",
+        "mappingVersion": "1",
+        "targetIdAllocation": "stable-offline-bundle",
+        "targetIds": [
+          "job_c45460a93ac8927e0e883dd8"
+        ],
+        "fieldMap": {
+          "jobId": "provenance.originalJobId",
+          "argv": "process.exec.arguments.argv",
+          "cwd": "process.exec.arguments.cwd",
+          "hideWindow": "process.exec.arguments.hideWindow",
+          "name": "job.metadata.name",
+          "description": "job.metadata.description",
+          "createdAt": "provenance.createdAt",
+          "updatedAt": "provenance.updatedAt",
+          "exitCode": "historicalEvidence.exitCode",
+          "logPath": "historicalEvidence.logPath",
+          "terminalEventId": "historicalEvidence.terminalEventId"
+        },
+        "prerequisites": [
+          "re-verify source digest immediately before apply",
+          "prove the old owner is fenced and no active effect remains",
+          "allocate target IDs from the persistent mapping table"
+        ]
+      }
+    ],
+    "preserved": [
+      {
+        "migrationId": "mig1_bcfc53327ffbc10bebe35cd8",
+        "originalId": "sch_fixture0000000001",
+        "type": "MIG-SCHED",
+        "sourceFile": "background_jobs/jobs/job_runtime.json",
+        "originalDigest": "sha256:a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7",
+        "reasonCodes": [
+          "runtime_binding_unavailable"
+        ],
+        "rejectionReasons": [
+          "runtime_binding_unavailable: input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper; retain source target/text and manager lifecycle, do not freeze as literal"
+        ],
+        "suggestedAction": "retain-source-manager-await-runtime-contract",
+        "runtimeBindingGap": {
+          "policy": "target-runtime-fields-approved-20261031",
+          "owner": "Creator/Delivery Manager",
+          "allowedStates": [
+            "pending",
+            "reserved"
+          ],
+          "effectiveStage": "event-published-before-queue-or-external-acceptance",
+          "freezePerTargetAt": [
+            "accepted",
+            "success",
+            "unknown",
+            "partial"
+          ],
+          "fields": [
+            {
+              "sourceField": "targetSessionId",
+              "argument": "sessionId",
+              "proposedBinding": {
+                "from": "input",
+                "path": "delivery.sessionId"
+              }
+            },
+            {
+              "sourceField": "text",
+              "argument": "text",
+              "requiresActionDeclaration": "runtimeBeforeAcceptance",
+              "proposedBinding": {
+                "from": "input",
+                "path": "delivery.text"
+              }
+            }
+          ],
+          "requiredEvidence": [
+            "Event/dispatch identity",
+            "runtimeRevision",
+            "reservation fence",
+            "per-target receipt",
+            "text revision",
+            "receipt effective stage"
+          ],
+          "audit": "original operation/requestKey and CAS; record selected revision/target/text digest in receipt",
+          "unknownHandling": "query original accepted/unknown/partial identity; never blind retarget/resend",
+          "knownNoAttemptHandling": "distinct from unknown; retain durable backlog under the original manager",
+          "acceptanceState": "unverified",
+          "bindingGenerated": false,
+          "gap": "input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper",
+          "followUp": "product owner wires approved manager contract; migration then re-reviews original source hashes"
+        },
+        "targetIds": [],
+        "historicalOnly": true,
+        "executable": false
+      }
+    ],
+    "invariant": {
+      "sourceTotal": 2,
+      "planned": 1,
+      "preserved": 1,
+      "classificationPending": 0
+    }
+  },
+  "scanErrors": [],
+  "partialApply": {
+    "selected": 1,
+    "preservedInstances": 1,
+    "preservedMetadataFiles": 0,
+    "allLegacyCleared": false
+  },
+  "inventoryDigest": "eafd7e6511da5d7693924b462ddba571cf4925a0def8f08f39e2674ea94076a4",
+  "planDigest": "067809b8833ad6f94995a6de6e162896cbf4dccfc25ad3d34964f3a7ae90b00f",
+  "contextDigest": "87a479b03f1be72e26fc32a21e52318eb3cedfbfe6754a8219717c69a7b8a55a",
+  "operationId": "mop1_9570dbe8c67bae6b4bd98fde",
+  "target": "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-bindings-20261031\\source-f0a9b8dd\\offline-bundle.json",
+  "runtimeActivated": false,
+  "runtimeFenceVerified": false,
+  "idempotentReplay": false,
+  "bundleDigest": "3b9bd9e0816b8d69a17d208637c08feeef2e1b5a4d21b8a74d3ea383fc443f89"
+}

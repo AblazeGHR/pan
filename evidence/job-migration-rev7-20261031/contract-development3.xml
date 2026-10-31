@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="10" time="5.378" timestamp="2026-10-31T15:12:15.888327+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[assign]" time="0.477" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[send_session]" time="0.464" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[legacy-assign]" time="0.460" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[message]" time="0.452" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[broadcast]" time="0.462" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_old_release_does_not_gain_runtime_from_opt_in" time="0.456" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[assign]" time="0.515" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[send_session]" time="0.515" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[message]" time="0.455" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[broadcast]" time="0.462"><failure message="TypeError: 'NoneType' object is not iterable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6469/test_rev7_null_target_is_backl3')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize('kind',['assign','send_session','message','broadcast'])
+    def test_rev7_null_target_is_backlog_input_not_missing_function(tmp_path,kind):
+        root=tmp_path/'source'
+        path,source=_runtime_delivery_source(root,kind)
+        source['targetSessionIds' if kind=='broadcast' else 'targetSessionId']=None
+        path.write_text(json.dumps(source),encoding='utf-8')
+        inv=build_inventory(root,runtime_delivery=True)
+        assert inv['summary']['simple']==1
+        context=runtime_context(root)
+&gt;       report=migration.migrate(root,tmp_path/'bundle.json',context)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:99: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;scripts.job_final_migration.mapping.Mapper object at 0x000001612022C6D0&gt;
+item = {'migrationId': 'mig1_64c205ce85bf69377bfc7eba', 'id': 'job_mmmmmmmmmmmmmmmmmmmmmmmm', 'type': 'MIG-MSG', 'sourceKind': 'session-broadcast', ...}
+source = {'jobId': 'job_mmmmmmmmmmmmmmmmmmmmmmmm', 'kind': 'session-broadcast', 'operation': 'send', 'targetSessionId': None, ...}
+
+    def map(self, item: dict, source: dict) -&gt; dict:
+        require(item["classification"] == SIMPLE, "refusing non-simple record")
+        runtime = opted_in(self.context) and delivery_binding_gap(item["type"], item.get("sourceKind"), source) is not None
+        require(runtime or delivery_binding_gap(item["type"], item.get("sourceKind"), source) is None,
+                "runtime_binding_unavailable: retain original delivery manager; input binding alone "
+                "does not prove revision/reservation/per-target receipt semantics")
+        mid = item["migrationId"]
+        proof_source = self.context.get("records", {}).get(mid)
+        require(proof_source is not None,
+                f"unverified_authority: missing reviewed record {mid}")
+        proof = copy.deepcopy(proof_source)
+        require(proof["originalDigest"] == item["originalDigest"], "plan_stale: context source changed")
+        require(proof["oldOwnerStopped"] is True and type(proof["oldOwnerEpoch"]) is int
+                and proof["oldOwnerEpoch"] &gt;= 1 and bool(proof["fenceEvidence"])
+                and bool(proof["authorizationEvidence"]), "missing authority/fence attestation")
+        fc.check_timestamp(proof["importedAt"], "importedAt")
+        authorization = source.get("authorization")
+        if authorization:
+            principal_id = authorization.get("userId") or authorization.get("agentId") or authorization.get("id")
+            require(proof["principal"]["type"] == authorization["type"] and
+                    (not principal_id or proof["principal"]["id"] == principal_id),
+                    "unverified_authority: source principal changed")
+        require(set(proof["policies"]) == {"overlap", "recovery", "notification", "retention"},
+                "all four source policies must be explicit")
+        proof["name"] = source.get("name", mid)
+        def allocated(kind):
+            return f"{kind}_{mid.removeprefix('mig1_')}"
+        job_id = allocated("job")
+        before = len(self.objects)
+        typ = item["type"]
+        entry = None
+        zone = None
+        desired = "enabled" if source.get("enabled", True) else "disabled"
+        if source.get("paused"):
+            desired = "paused"
+        if typ in {"MIG-ACTION-JOB", "MIG-TEMPLATE"}:
+            config = source["config"]
+            job = self.config_job(config, proof)
+            desired = "enabled" if config["enabled"] else "disabled"
+            if source.get("paused"):
+                desired = "paused"
+            if config["schedule"]:
+                entry = config["schedule"][0]
+        elif typ == "MIG-TRIGGER":
+            steps = source.get("steps") or [{"stepId": "execute", "actionId": source["actionId"],
+                                             "arguments": source["arguments"]}]
+            # Event bindings belong on Trigger -&gt; Job admission, never in a Job Step.
+            arguments = {}
+            mapped = []
+            for index, step in enumerate(steps):
+                bindings = {}
+                for key, value in step["arguments"].items():
+                    if value["from"] == "event":
+                        name = f"event_{index}_{key}"
+                        arguments[name] = value
+                        bindings[key] = {"from": "input", "path": name}
+                    else:
+                        bindings[key] = value
+                mapped.append(self.step(step["actionId"], bindings, step["stepId"]))
+            job = {"name": source["name"], "description": source.get("description", ""),
+                   "steps": mapped, **proof["policies"]}
+            require(job["recovery"]["automatic"] == source["retry"]["enabled"] and
+                    job["recovery"]["maxAttempts"] == source["retry"]["maxAttempts"],
+                    "Trigger retry policy changed")
+            mode = source.get("executionMode", "serial")
+            require(job["overlap"]["maxActive"] == (source.get("maxConcurrency", 1) if mode == "parallel" else 1),
+                    "Trigger concurrency changed")
+            trigger_id = allocated("trigger")
+            trigger = {"name": source["name"], "description": source.get("description", ""),
+                       "eventTypes": source["eventTypes"], "eventFilter": source.get("eventFilter", {}),
+                       "condition": source.get("condition"), "arguments": arguments,
+                       "creatorSelector": proof["creatorSelector"], "targetJobId": job_id}
+            self.object("trigger", trigger_id, trigger, proof, source, revision=source["revision"])
+            job["triggerLinks"] = [{"triggerId": trigger_id}]
+        else:
+            if typ == "MIG-BG":
+                key = "process.exec"
+                args = {k: source[k] for k in ("argv", "cwd", "hideWindow")}
+                desired = "manual-only"
+            elif typ == "MIG-MSG":
+                key = "session.send-many" if source["kind"] == "session-broadcast" else "session.send"
+                args = {"text": source["text"], "source": source["source"]}
+                if source.get("sourceSessionId") is not None:
+                    args["sourceSessionId"] = source["sourceSessionId"]
+                if source["kind"] == "session-broadcast":
+&gt;                   args["sessionIds"] = list(dict.fromkeys(source["targetSessionIds"]))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: 'NoneType' object is not iterable
+
+scripts\job_final_migration\mapping.py:266: TypeError</failure></testcase></testsuite></testsuites>

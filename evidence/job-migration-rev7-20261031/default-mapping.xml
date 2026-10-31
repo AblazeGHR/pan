@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="1.241" timestamp="2026-10-31T19:52:42.083490+08:00" hostname="ablaze"><testcase classname="tests.test_job_final_migration" name="test_six_simple_instances_are_classified_and_planned" time="0.033"><failure message="assert 4 == 6">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6480/test_six_simple_instances_are_0')
+
+    def test_six_simple_instances_are_classified_and_planned(tmp_path: Path) -&gt; None:
+        root = _make_root(tmp_path)
+        report = build_inventory(root)
+    
+        assert report["readOnly"] is True
+        assert report["migrationExecuted"] is False
+        assert report["targetWrites"] == 0
+        assert report["summary"]["total"] == 6
+&gt;       assert report["summary"]["simple"] == 6
+E       assert 4 == 6
+
+tests\test_job_final_migration.py:350: AssertionError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[assign-None]" time="0.200"><failure message="scripts.job_final_migration.mapping.ApplyError: no simple records to migrate">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6480/test_fm01_scheduler_business_a0')
+api = 'assign', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+&gt;       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:218: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -&gt; None:
+        if not condition:
+&gt;           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_session-None]" time="0.169"><failure message="scripts.job_final_migration.mapping.ApplyError: no simple records to migrate">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6480/test_fm01_scheduler_business_a1')
+api = 'send_session', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+&gt;       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:218: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -&gt; None:
+        if not condition:
+&gt;           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[shell-args2]" time="0.250" /><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_qq-args3]" time="0.245" /></testsuite></testsuites>

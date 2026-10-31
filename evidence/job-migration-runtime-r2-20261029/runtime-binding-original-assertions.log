@@ -1,0 +1,445 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+F..............FFF...F........FF..F......FFF...FF....F......s...F...F... [ 90%]
+........                                                                 [100%]
+================================== FAILURES ===================================
+____________ test_six_simple_instances_are_classified_and_planned _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_six_simple_instances_are_0')
+
+    def test_six_simple_instances_are_classified_and_planned(tmp_path: Path) -> None:
+        root = _make_root(tmp_path)
+        report = build_inventory(root)
+    
+        assert report["readOnly"] is True
+        assert report["migrationExecuted"] is False
+        assert report["targetWrites"] == 0
+        assert report["summary"]["total"] == 6
+>       assert report["summary"]["simple"] == 6
+E       assert 4 == 6
+
+tests\test_job_final_migration.py:350: AssertionError
+_________________________ test_cli_module_entry_point _________________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_cli_module_entry_point0')
+
+    def test_cli_module_entry_point(tmp_path: Path) -> None:
+        root = _make_root(tmp_path)
+        output = tmp_path / "module-report.json"
+        repo = Path(__file__).resolve().parents[1]
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.upper().startswith("PAN_")}
+        environment["PYTHONPATH"] = str(repo)
+        completed = subprocess.run(
+            [sys.executable, "-m", "scripts.job_final_migration",
+             "--root", str(root), "--out", str(output)],
+            cwd=repo, env=environment, capture_output=True,
+        )
+        assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")
+        report = json.loads(output.read_text(encoding="utf-8"))
+>       assert report["summary"]["simple"] == 6
+E       assert 4 == 6
+
+tests\test_job_final_migration.py:675: AssertionError
+______ test_fm01_all_six_types_schema_hashes_provenance_and_idempotency _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_all_six_types_schema0')
+
+    def test_fm01_all_six_types_schema_hashes_provenance_and_idempotency(tmp_path):
+        root = _make_root(tmp_path)
+        target = tmp_path / "canonical.json"
+        before = _snapshot(root)
+        first = commit(root, target)
+        bundle = migration.read_bundle(target)
+>       assert len(bundle["entries"]) == 6
+E       AssertionError: assert 4 == 6
+E        +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])
+
+tests\test_job_final_migration_apply.py:78: AssertionError
+_____________ test_fm02_default_dry_run_and_complex_are_untouched _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm02_default_dry_run_and_0')
+
+    def test_fm02_default_dry_run_and_complex_are_untouched(tmp_path):
+        root = _make_root(tmp_path)
+        complex_path = root / "background_jobs/jobs/job_complex.json"
+        data = _background_job(root)
+        data.update(jobId="job_complex", status="running", processTreeEnded=False)
+        _write_json(complex_path, data)
+        before = _snapshot(root)
+        target = tmp_path / "not-created" / "canonical.json"
+        report = migration.migrate(root, target, context_for(root))
+        assert not target.parent.exists()
+        assert report["plan"]["executable"] is False and not report["migrationExecuted"]
+        report = commit(root, target)
+>       assert report["summary"]["complex"] == 1
+E       assert 3 == 1
+
+tests\test_job_final_migration_apply.py:113: AssertionError
+_________________ test_fm03_stale_source_and_context_refused __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm03_stale_source_and_con0')
+
+    def test_fm03_stale_source_and_context_refused(tmp_path):
+        root = _make_root(tmp_path)
+        context = context_for(root)
+        old_digest = fc.digest(build_inventory(root))
+        path = root / f"background_jobs/jobs/{MSG_ID}.json"
+        value = _message_job()
+        value["text"] = "new edit"
+        _write_json(path, value)
+        target = tmp_path / "canonical.json"
+        with pytest.raises(migration.ApplyError, match="plan_stale"):
+            migration.migrate(root, target, context, apply=True, expected_digest=old_digest)
+>       with pytest.raises(migration.ApplyError, match="context source changed"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ApplyError
+
+tests\test_job_final_migration_apply.py:142: Failed
+______________ test_fm01_scheduler_business_actions[assign-None] ______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_scheduler_business_a0')
+api = 'assign', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+>       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+___________ test_fm01_scheduler_business_actions[send_session-None] ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_scheduler_business_a1')
+api = 'send_session', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+>       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+__________________ test_fm01_broadcast_dedup_delay_and_chain __________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_broadcast_dedup_dela0')
+
+    def test_fm01_broadcast_dedup_delay_and_chain(tmp_path):
+        root = _make_root(tmp_path)
+        value = _message_job()
+        value.update(kind="session-broadcast", targetSessionId=None, targetSessionIds=["s1", "s2", "s1"],
+                     targetStruct={"sessionIds": ["s1", "s2", "s1"]}, schedule={"type": "once", "delaySeconds": 60})
+        _write_json(root / f"background_jobs/jobs/{MSG_ID}.json", value)
+        job = _action_job()
+        job["referenceGeneration"] = {ACTION_ID: 1}
+        job["config"]["steps"] = [{"stepId": "one", "actionId": ACTION_ID, "arguments": {
+            "text": {"from": "literal", "value": "one"}}},
+            {"stepId": "two", "actionId": ACTION_ID, "arguments": {"text": {"from": "step", "stepId": "one", "path": "text"}}}]
+        _write_json(root / "background_jobs/jobs/job_chain.json", job)
+        commit(root, tmp_path / "canonical.json")
+        bundle = migration.read_bundle(tmp_path / "canonical.json")
+        jobs = [v["object"] for v in bundle["canonical"] if v["kind"] == "job"]
+>       broadcast = next(v for v in jobs if v["name"] == "Fixture message")
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests\test_job_final_migration_apply.py:303: StopIteration
+____________ test_fm01_schedule_rule_pause_cursor_and_limit[once] _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_schedule_rule_pause_0')
+kind = 'once'
+
+    @pytest.mark.parametrize("kind", ["once", "interval", "cron"])
+    def test_fm01_schedule_rule_pause_cursor_and_limit(tmp_path, kind):
+        root = tmp_path / "data"
+        root.mkdir()
+        entry = {"id": "rule_fixture", "kind": kind, "timezone": "Asia/Shanghai",
+                 "misfirePolicy": "skip", "enabled": True,
+                 "nextFireAt": "2030-01-01T00:00:00", "lastFireAt": None}
+        if kind == "once":
+            entry["at"] = "2030-01-01T00:00:00"
+        elif kind == "interval":
+            entry.update(intervalSec=3600, anchor="2026-10-01T00:00:00")
+        else:
+            entry["cron"] = "0 * * * *"
+        value = _scheduled_job([entry])
+        value.update(paused=True, maxRuns=5, misfirePolicy="skip")
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+        target = tmp_path / "canonical.json"
+>       commit(root, target)
+
+tests\test_job_final_migration_apply.py:385: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+__________ test_fm01_schedule_rule_pause_cursor_and_limit[interval] ___________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_schedule_rule_pause_1')
+kind = 'interval'
+
+    @pytest.mark.parametrize("kind", ["once", "interval", "cron"])
+    def test_fm01_schedule_rule_pause_cursor_and_limit(tmp_path, kind):
+        root = tmp_path / "data"
+        root.mkdir()
+        entry = {"id": "rule_fixture", "kind": kind, "timezone": "Asia/Shanghai",
+                 "misfirePolicy": "skip", "enabled": True,
+                 "nextFireAt": "2030-01-01T00:00:00", "lastFireAt": None}
+        if kind == "once":
+            entry["at"] = "2030-01-01T00:00:00"
+        elif kind == "interval":
+            entry.update(intervalSec=3600, anchor="2026-10-01T00:00:00")
+        else:
+            entry["cron"] = "0 * * * *"
+        value = _scheduled_job([entry])
+        value.update(paused=True, maxRuns=5, misfirePolicy="skip")
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+        target = tmp_path / "canonical.json"
+>       commit(root, target)
+
+tests\test_job_final_migration_apply.py:385: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+____________ test_fm01_schedule_rule_pause_cursor_and_limit[cron] _____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_fm01_schedule_rule_pause_2')
+kind = 'cron'
+
+    @pytest.mark.parametrize("kind", ["once", "interval", "cron"])
+    def test_fm01_schedule_rule_pause_cursor_and_limit(tmp_path, kind):
+        root = tmp_path / "data"
+        root.mkdir()
+        entry = {"id": "rule_fixture", "kind": kind, "timezone": "Asia/Shanghai",
+                 "misfirePolicy": "skip", "enabled": True,
+                 "nextFireAt": "2030-01-01T00:00:00", "lastFireAt": None}
+        if kind == "once":
+            entry["at"] = "2030-01-01T00:00:00"
+        elif kind == "interval":
+            entry.update(intervalSec=3600, anchor="2026-10-01T00:00:00")
+        else:
+            entry["cron"] = "0 * * * *"
+        value = _scheduled_job([entry])
+        value.update(paused=True, maxRuns=5, misfirePolicy="skip")
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+        target = tmp_path / "canonical.json"
+>       commit(root, target)
+
+tests\test_job_final_migration_apply.py:385: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+_ test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{broken-json] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_partial_preserves_complex0')
+raw = b'{broken-json'
+
+    @pytest.mark.parametrize("raw", [b'{broken-json', b'{"kind":"future","status":"unknown"}'])
+    def test_partial_preserves_complex_unknown_raw_bytes_and_replays_once(tmp_path, raw):
+        root = _make_root(tmp_path)
+        complex_record = _background_job(root)
+        complex_record.update(jobId="job_live", status="running", processTreeEnded=False)
+        _write_json(root / "background_jobs/jobs/job_live.json", complex_record)
+        unknown = root / "background_jobs/jobs/job_future.json"
+        unknown.write_bytes(raw)
+        before = _snapshot(root)
+        context = {**context_for(root), "partialPolicy": POLICY}
+        target = tmp_path / "partial.json"
+        report = partial(root, target, context, mark_read_only=True)
+        bundle = migration.read_bundle(target)
+>       assert len(bundle["entries"]) == 6 and len(bundle["preserved"]) == 2
+E       AssertionError: assert (4 == 6)
+E        +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])
+
+tests\test_job_final_migration_partial.py:42: AssertionError
+_ test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{"kind":"future","status":"unknown"}] _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_partial_preserves_complex1')
+raw = b'{"kind":"future","status":"unknown"}'
+
+    @pytest.mark.parametrize("raw", [b'{broken-json', b'{"kind":"future","status":"unknown"}'])
+    def test_partial_preserves_complex_unknown_raw_bytes_and_replays_once(tmp_path, raw):
+        root = _make_root(tmp_path)
+        complex_record = _background_job(root)
+        complex_record.update(jobId="job_live", status="running", processTreeEnded=False)
+        _write_json(root / "background_jobs/jobs/job_live.json", complex_record)
+        unknown = root / "background_jobs/jobs/job_future.json"
+        unknown.write_bytes(raw)
+        before = _snapshot(root)
+        context = {**context_for(root), "partialPolicy": POLICY}
+        target = tmp_path / "partial.json"
+        report = partial(root, target, context, mark_read_only=True)
+        bundle = migration.read_bundle(target)
+>       assert len(bundle["entries"]) == 6 and len(bundle["preserved"]) == 2
+E       AssertionError: assert (4 == 6)
+E        +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])
+
+tests\test_job_final_migration_partial.py:42: AssertionError
+____ test_partial_runtime_import_never_loads_unknown_or_replays_its_effect ____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_partial_runtime_import_ne0')
+
+    def test_partial_runtime_import_never_loads_unknown_or_replays_its_effect(tmp_path):
+>       service, spec, old = migration_fixture(tmp_path)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_partial.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_runtime_owner.py:138: in migration_fixture
+    commit(profile, path, context, mark_read_only=True)
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+>           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:28: ApplyError
+_________ test_message_mapping_keeps_explicit_source_session_identity _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_message_mapping_keeps_exp0')
+
+    def test_message_mapping_keeps_explicit_source_session_identity(tmp_path):
+        root = _make_root(tmp_path)
+        value = _message_job()
+        _write_json(root / f"background_jobs/jobs/{MSG_ID}.json", value)
+        context = context_for(root)
+        target = tmp_path / "bundle.json"
+        migration.migrate(root, target, context, apply=True,
+                          expected_digest=migration.plan_digest(build_inventory(root), context))
+        bundle = migration.read_bundle(target)
+>       entry = next(e for e in bundle["entries"] if e["id"] == MSG_ID)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests\test_job_migration_readiness.py:51: StopIteration
+______________ test_complete_public_cli_synthetic_offline_chain _______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6411/test_complete_public_cli_synth0')
+
+    def test_complete_public_cli_synthetic_offline_chain(tmp_path):
+        from tests.support.job_migration_readiness_rehearsal import run
+        summary = run(tmp_path / "drill")
+        assert summary["inventory"]["total"] == 20
+>       assert summary["migratedOffline"] == 8 and summary["preserved"] == 12
+E       assert (4 == 8)
+
+tests\test_job_migration_readiness.py:81: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_final_migration.py::test_six_simple_instances_are_classified_and_planned
+FAILED tests/test_job_final_migration.py::test_cli_module_entry_point - asser...
+FAILED tests/test_job_final_migration_apply.py::test_fm01_all_six_types_schema_hashes_provenance_and_idempotency
+FAILED tests/test_job_final_migration_apply.py::test_fm02_default_dry_run_and_complex_are_untouched
+FAILED tests/test_job_final_migration_apply.py::test_fm03_stale_source_and_context_refused
+FAILED tests/test_job_final_migration_apply.py::test_fm01_scheduler_business_actions[assign-None]
+FAILED tests/test_job_final_migration_apply.py::test_fm01_scheduler_business_actions[send_session-None]
+FAILED tests/test_job_final_migration_apply.py::test_fm01_broadcast_dedup_delay_and_chain
+FAILED tests/test_job_final_migration_apply.py::test_fm01_schedule_rule_pause_cursor_and_limit[once]
+FAILED tests/test_job_final_migration_apply.py::test_fm01_schedule_rule_pause_cursor_and_limit[interval]
+FAILED tests/test_job_final_migration_apply.py::test_fm01_schedule_rule_pause_cursor_and_limit[cron]
+FAILED tests/test_job_final_migration_partial.py::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{broken-json]
+FAILED tests/test_job_final_migration_partial.py::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{"kind":"future","status":"unknown"}]
+FAILED tests/test_job_final_migration_partial.py::test_partial_runtime_import_never_loads_unknown_or_replays_its_effect
+FAILED tests/test_job_migration_readiness.py::test_message_mapping_keeps_explicit_source_session_identity
+FAILED tests/test_job_migration_readiness.py::test_complete_public_cli_synthetic_offline_chain
+16 failed, 63 passed, 1 skipped, 2 warnings in 36.46s

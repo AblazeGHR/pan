@@ -94,6 +94,13 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append("- Field map:")
             lines.extend(f"  - `{_cell(source)}` → `{_cell(target)}`"
                          for source, target in item["fieldMap"].items())
+        if "runtimeBindingGap" in item:
+            gap = item["runtimeBindingGap"]
+            lines.append(f"- Runtime owner: {_cell(gap['owner'])}; stage: {_cell(gap['effectiveStage'])}")
+            lines.append("- Runtime mapping: preserved; approved manager implementation required, no new user decision.")
+            for field in gap["fields"]:
+                lines.append(f"  - `{_cell(field['sourceField'])}` → proposed existing input binding "
+                             f"`{_cell(field['proposedBinding']['path'])}`; no executable binding generated")
         if item["expectedSemanticDiff"]:
             lines.append("- Expected semantic diff:")
             lines.extend(f"  - {_cell(value)}" for value in item["expectedSemanticDiff"])

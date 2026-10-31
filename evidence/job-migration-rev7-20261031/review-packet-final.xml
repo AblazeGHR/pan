@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="13" time="1.164" timestamp="2026-10-31T19:52:42.090442+08:00" hostname="ablaze"><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_packet_is_stable_complete_and_source_readonly" time="0.185"><failure message="assert (4 == 6)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6479/test_review_packet_is_stable_c0')
+
+    def test_review_packet_is_stable_complete_and_source_readonly(tmp_path):
+        evidence, root, digest = evidence_for(tmp_path)
+        before = _snapshot(evidence)
+        first, second = tmp_path / "review-a", tmp_path / "review-b"
+        manifest = build_packet(evidence, first, expected_manifest_sha256=digest)
+        repeated = build_packet(evidence, second, expected_manifest_sha256=digest)
+        assert repeated == manifest
+        assert _snapshot(first) == _snapshot(second)
+        assert _snapshot(evidence) == before
+&gt;       assert manifest["counts"]["simple"] == 6 and manifest["counts"]["complex"] == 1
+E       assert (4 == 6)
+
+tests\test_job_final_migration_review_packet.py:49: AssertionError</failure></testcase><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_manifest_cannot_authorize_even_otherwise_valid_context[review0]" time="0.039" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_manifest_cannot_authorize_even_otherwise_valid_context[review1]" time="0.036" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_manifest_cannot_authorize_even_otherwise_valid_context[review2]" time="0.040" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_manifest_cannot_authorize_even_otherwise_valid_context[review3]" time="0.037" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_review_manifest_cannot_authorize_even_otherwise_valid_context[review4]" time="0.038" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_generated_draft_and_nested_context_are_rejected_before_target_creation[False]" time="0.093" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_generated_draft_and_nested_context_are_rejected_before_target_creation[True]" time="0.092" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_unsigned_packet_manifest_cannot_be_applied_even_if_status_is_edited" time="0.092" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_draft_cannot_gain_authority_by_removing_review_marker" time="0.012"><failure message="PermissionError: [WinError 5] 拒绝访问。: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6479\\test_draft_cannot_gain_authori0\\p9b-private\\data' -&gt; 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6479\\test_draft_cannot_gain_authori0\\p9b-private\\source-copy'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6479/test_draft_cannot_gain_authori0')
+
+    def test_draft_cannot_gain_authority_by_removing_review_marker(tmp_path):
+&gt;       evidence, root, digest = evidence_for(tmp_path)
+                                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_review_packet.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_review_packet.py:24: in evidence_for
+    root.rename(evidence / "source-copy")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6479/test_draft_cannot_gain_authori0/p9b-private/data')
+target = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6479/test_draft_cannot_gain_authori0/p9b-private/source-copy')
+
+    def rename(self, target):
+        """
+        Rename this path to the target path.
+    
+        The target path may be absolute or relative. Relative paths are
+        interpreted relative to the current working directory, *not* the
+        directory of the Path object.
+    
+        Returns the new Path instance pointing to the target path.
+        """
+&gt;       os.rename(self, target)
+E       PermissionError: [WinError 5] 拒绝访问。: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6479\\test_draft_cannot_gain_authori0\\p9b-private\\data' -&gt; 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6479\\test_draft_cannot_gain_authori0\\p9b-private\\source-copy'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:1076: PermissionError</failure></testcase><testcase classname="tests.test_job_final_migration_review_packet" name="test_draft_plan_digest_binds_selection_and_per_id_hashes" time="0.108" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_packet_generation_rejects_tampered_source_before_any_output" time="0.050" /><testcase classname="tests.test_job_final_migration_review_packet" name="test_packet_generation_rejects_wrong_manifest_and_writing_into_evidence" time="0.042" /></testsuite></testsuites>

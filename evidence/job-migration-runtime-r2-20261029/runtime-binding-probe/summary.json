@@ -1,0 +1,67 @@
+{
+  "source": "f0a9b8dd6876bd2a21c873d0e1317f19f868f2ef",
+  "syntheticOnly": true,
+  "sourceUnchanged": true,
+  "canonicalEntries": 1,
+  "preservedEntries": 1,
+  "runtimeDeliveryTargetIds": [],
+  "runtimeBindingGap": {
+    "acceptanceState": "unverified",
+    "allowedStates": [
+      "pending",
+      "reserved"
+    ],
+    "audit": "original operation/requestKey and CAS; record selected revision/target/text digest in receipt",
+    "bindingGenerated": false,
+    "effectiveStage": "event-published-before-queue-or-external-acceptance",
+    "fields": [
+      {
+        "argument": "sessionId",
+        "proposedBinding": {
+          "from": "input",
+          "path": "delivery.sessionId"
+        },
+        "sourceField": "targetSessionId"
+      },
+      {
+        "argument": "text",
+        "proposedBinding": {
+          "from": "input",
+          "path": "delivery.text"
+        },
+        "requiresActionDeclaration": "runtimeBeforeAcceptance",
+        "sourceField": "text"
+      }
+    ],
+    "followUp": "product owner wires approved manager contract; migration then re-reviews original source hashes",
+    "freezePerTargetAt": [
+      "accepted",
+      "success",
+      "unknown",
+      "partial"
+    ],
+    "gap": "input binding exists; manager revision/reservation/receipt and Action declaration are not wired by this mapper",
+    "knownNoAttemptHandling": "distinct from unknown; retain durable backlog under the original manager",
+    "owner": "Creator/Delivery Manager",
+    "policy": "target-runtime-fields-approved-20261031",
+    "requiredEvidence": [
+      "Event/dispatch identity",
+      "runtimeRevision",
+      "reservation fence",
+      "per-target receipt",
+      "text revision",
+      "receipt effective stage"
+    ],
+    "unknownHandling": "query original accepted/unknown/partial identity; never blind retarget/resend"
+  },
+  "originalFileSha256": "a5c0cafa9ab966365b8bcc68ac34122be8c634b2d4a62eb280324cd8b2ab95a7",
+  "bundleDigestBeforeRollback": "3b9bd9e0816b8d69a17d208637c08feeef2e1b5a4d21b8a74d3ea383fc443f89",
+  "idempotentReplayWrites": 0,
+  "rollbackRuntimeFenceVerified": false,
+  "productRuntimeExercised": false,
+  "eventBacklogRetired": false,
+  "requiresNewUserDecision": false,
+  "wholeProfileMigrationComplete": false,
+  "temporaryFiles": [],
+  "portsOpened": []
+}

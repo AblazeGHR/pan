@@ -1,0 +1,108 @@
+{
+  "failureCount": 17,
+  "assertionsChanged": false,
+  "failures": [
+    {
+      "report": "runtime-binding-final-source.xml",
+      "source": "9ea32689b2667c1f83b4e4e095db1048385f126d",
+      "node": "tests.test_job_final_migration_review_packet::test_review_packet_is_stable_complete_and_source_readonly",
+      "message": "assert (4 == 6)"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration::test_six_simple_instances_are_classified_and_planned",
+      "message": "assert 4 == 6"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration::test_cli_module_entry_point",
+      "message": "assert 4 == 6"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_all_six_types_schema_hashes_provenance_and_idempotency",
+      "message": "AssertionError: assert 4 == 6\n +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm02_default_dry_run_and_complex_are_untouched",
+      "message": "assert 3 == 1"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm03_stale_source_and_context_refused",
+      "message": "Failed: DID NOT RAISE ApplyError"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_scheduler_business_actions[assign-None]",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_scheduler_business_actions[send_session-None]",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_broadcast_dedup_delay_and_chain",
+      "message": "StopIteration"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_schedule_rule_pause_cursor_and_limit[once]",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_schedule_rule_pause_cursor_and_limit[interval]",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_apply::test_fm01_schedule_rule_pause_cursor_and_limit[cron]",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_partial::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{broken-json]",
+      "message": "AssertionError: assert (4 == 6)\n +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_partial::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{\"kind\":\"future\",\"status\":\"unknown\"}]",
+      "message": "AssertionError: assert (4 == 6)\n +  where 4 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr...'2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'authorization', 'classification': 'simple-script-migratable', ...}])"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_final_migration_partial::test_partial_runtime_import_never_loads_unknown_or_replays_its_effect",
+      "message": "scripts.job_final_migration.mapping.ApplyError: no simple records to migrate"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_migration_readiness::test_message_mapping_keeps_explicit_source_session_identity",
+      "message": "StopIteration"
+    },
+    {
+      "report": "runtime-binding-original-assertions.xml",
+      "source": "6ad2e33ed3ea08c42aac7e0eb842f2d790cb77d1",
+      "node": "tests.test_job_migration_readiness::test_complete_public_cli_synthetic_offline_chain",
+      "message": "assert (4 == 8)"
+    }
+  ]
+}

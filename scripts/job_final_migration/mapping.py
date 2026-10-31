@@ -16,6 +16,7 @@ import jsonschema
 from packages.jobs import final_contracts as fc
 
 from .inventory import SIMPLE
+from .runtime_fields import delivery_binding_gap, opted_in, runtime_definition
 
 
 class ApplyError(ValueError):
@@ -179,6 +180,10 @@ class Mapper:
 
     def map(self, item: dict, source: dict) -> dict:
         require(item["classification"] == SIMPLE, "refusing non-simple record")
+        runtime = opted_in(self.context) and delivery_binding_gap(item["type"], item.get("sourceKind"), source) is not None
+        require(runtime or not opted_in(self.context) or delivery_binding_gap(item["type"], item.get("sourceKind"), source) is None,
+                "runtime_binding_unavailable: retain original delivery manager; input binding alone "
+                "does not prove revision/reservation/per-target receipt semantics")
         mid = item["migrationId"]
         proof_source = self.context.get("records", {}).get(mid)
         require(proof_source is not None,
@@ -258,7 +263,8 @@ class Mapper:
                 if source.get("sourceSessionId") is not None:
                     args["sourceSessionId"] = source["sourceSessionId"]
                 if source["kind"] == "session-broadcast":
-                    args["sessionIds"] = list(dict.fromkeys(source["targetSessionIds"]))
+                    args["sessionIds"] = (None if runtime and source["targetSessionIds"] is None else
+                                          list(dict.fromkeys(source["targetSessionIds"])))
                 else:
                     args["sessionId"] = source["targetSessionId"]
                 entry = {"kind": "once", "at": source["nextRunAt"], "misfirePolicy": "fire_now"}
@@ -278,15 +284,22 @@ class Mapper:
                     args["text"] = source["text"]
             else:
                 raise ApplyError(f"unsupported mapping type: {typ}")
+            bindings, extra = _literal(args), {}
+            if runtime:
+                binding = self.context["actions"].get(key)
+                require(binding is not None, "runtime_binding_unavailable: pinned Action missing")
+                bindings, extra = runtime_definition(key, args, binding)
             job = {"name": source["name"], "description": source["description"],
-                   "steps": [self.step(key, _literal(args))], **proof["policies"]}
+                   "steps": [self.step(key, bindings)], **proof["policies"], **extra}
         composition = {"creators": [], "triggers": []}
         if entry:
             zone = entry.get("timezone")
             maximum = source.get("maxRuns", source.get("max_runs")) if typ == "MIG-SCHED" else None
             creator = self.schedule(entry, proof, max_events=maximum)
+            if runtime:
+                creator["eventTypes"] = ["scheduler.time.v2"]
             creator_id, trigger_id = allocated("creator"), allocated("trigger")
-            trigger = {"name": source["name"] + " tick", "eventTypes": ["scheduler.tick"],
+            trigger = {"name": source["name"] + " tick", "eventTypes": ["scheduler.time.v2" if runtime else "scheduler.tick"],
                        "creatorSelector": {"mode": "ids", "ids": [creator_id]}, "targetJobId": job_id}
             if typ == "MIG-TEMPLATE":
                 composition["creators"] = [{"mode": "create", "key": "clock", "definition": creator}]
@@ -306,6 +319,10 @@ class Mapper:
             self.object("job", job_id, job, proof, source, zone=zone,
                         revision=source.get("configRevision", 1))
         return {"migrationId": mid, "targetIds": [v["object"]["id"] for v in self.objects[before:]],
+                **({"runtimeMapping": {"declaration": copy.deepcopy(job["deliveryRuntime"]),
+                    "actionRef": copy.deepcopy(job["steps"][0]["actionRef"]),
+                    "receiptOwner": "delivery-manager", "acceptanceAdopted": False,
+                    "sourceEffectReplayed": False}} if runtime else {}),
                 "desiredState": desired, "cursor": item["cursor"], "sourceRevision": source.get("revision"),
                 "sourceAudit": {k: source[k] for k in ("authorization", "createdBy", "source", "creatorSessionId",
                     "sourceStruct", "targetStruct", "createdAt", "updatedAt", "created_at", "updated_at") if k in source},

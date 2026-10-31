@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="6" time="2.219" timestamp="2026-10-31T15:11:16.869458+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[assign]" time="0.266"><failure message="packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6467/test_rev7_opt_in_maps_real_run0')
+kind = 'assign'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+        context = runtime_context(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        assert inventory['summary']['simple'] == 1
+        target = tmp_path/'bundle.json'
+&gt;       report = migration.migrate(root,target,context,apply=True,expected_digest=migration.plan_digest(inventory,context))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:316: in map
+    self.object("job", job_id, job, proof, source, zone=zone,
+scripts\job_final_migration\mapping.py:112: in object
+    definition = fc.validate_definition(kind, definition)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2431: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'name': 'Fixture scheduled job', 'description': '', 'steps': [{'stepId': 'execute', 'actionRef': {'id': 'product_assi...letion': {'contract': 'durable-queue-accepted'}}], 'overlap': {'mode': 'forbid', 'maxActive': 1, 'maxPending': 0}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty
+
+packages\jobs\final_contracts.py:1896: ContractError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[send_session]" time="0.251"><failure message="packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6467/test_rev7_opt_in_maps_real_run1')
+kind = 'send_session'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+        context = runtime_context(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        assert inventory['summary']['simple'] == 1
+        target = tmp_path/'bundle.json'
+&gt;       report = migration.migrate(root,target,context,apply=True,expected_digest=migration.plan_digest(inventory,context))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:316: in map
+    self.object("job", job_id, job, proof, source, zone=zone,
+scripts\job_final_migration\mapping.py:112: in object
+    definition = fc.validate_definition(kind, definition)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2431: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'name': 'Fixture scheduled job', 'description': '', 'steps': [{'stepId': 'execute', 'actionRef': {'id': 'product_sess...letion': {'contract': 'durable-queue-accepted'}}], 'overlap': {'mode': 'forbid', 'maxActive': 1, 'maxPending': 0}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty
+
+packages\jobs\final_contracts.py:1896: ContractError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[legacy-assign]" time="0.247"><failure message="packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6467/test_rev7_opt_in_maps_real_run2')
+kind = 'legacy-assign'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+        context = runtime_context(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        assert inventory['summary']['simple'] == 1
+        target = tmp_path/'bundle.json'
+&gt;       report = migration.migrate(root,target,context,apply=True,expected_digest=migration.plan_digest(inventory,context))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:316: in map
+    self.object("job", job_id, job, proof, source, zone=zone,
+scripts\job_final_migration\mapping.py:112: in object
+    definition = fc.validate_definition(kind, definition)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2431: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'name': 'Fixture legacy scheduled task', 'description': '', 'steps': [{'stepId': 'execute', 'actionRef': {'id': 'prod...letion': {'contract': 'durable-queue-accepted'}}], 'overlap': {'mode': 'forbid', 'maxActive': 1, 'maxPending': 0}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty
+
+packages\jobs\final_contracts.py:1896: ContractError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[message]" time="0.253"><failure message="packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6467/test_rev7_opt_in_maps_real_run3')
+kind = 'message'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+        context = runtime_context(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        assert inventory['summary']['simple'] == 1
+        target = tmp_path/'bundle.json'
+&gt;       report = migration.migrate(root,target,context,apply=True,expected_digest=migration.plan_digest(inventory,context))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:316: in map
+    self.object("job", job_id, job, proof, source, zone=zone,
+scripts\job_final_migration\mapping.py:112: in object
+    definition = fc.validate_definition(kind, definition)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2431: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'name': 'Fixture message', 'description': '', 'steps': [{'stepId': 'execute', 'actionRef': {'id': 'product_session_me...letion': {'contract': 'durable-queue-accepted'}}], 'overlap': {'mode': 'forbid', 'maxActive': 1, 'maxPending': 0}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty
+
+packages\jobs\final_contracts.py:1896: ContractError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[broadcast]" time="0.251"><failure message="packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6467/test_rev7_opt_in_maps_real_run4')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+        context = runtime_context(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        assert inventory['summary']['simple'] == 1
+        target = tmp_path/'bundle.json'
+&gt;       report = migration.migrate(root,target,context,apply=True,expected_digest=migration.plan_digest(inventory,context))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:316: in map
+    self.object("job", job_id, job, proof, source, zone=zone,
+scripts\job_final_migration\mapping.py:112: in object
+    definition = fc.validate_definition(kind, definition)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2431: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'name': 'Fixture message', 'description': '', 'steps': [{'stepId': 'execute', 'actionRef': {'id': 'product_session_br...letion': {'contract': 'durable-queue-accepted'}}], 'overlap': {'mode': 'forbid', 'maxActive': 1, 'maxPending': 0}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: [] should be non-empty
+
+packages\jobs\final_contracts.py:1896: ContractError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_old_release_does_not_gain_runtime_from_opt_in" time="0.276" /></testsuite></testsuites>

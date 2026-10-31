@@ -1,0 +1,20 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+____ test_authority_classification_cannot_be_overridden_by_lite_directory _____
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6320/test_authority_classification_0')
+
+    def test_authority_classification_cannot_be_overridden_by_lite_directory(tmp_path):
+        from scripts.job_final_migration.source_coverage import inventory_coverage
+        _, root, _, _ = evidence_for(tmp_path, n_simple=2, n_complex=2)
+        relative = "background_jobs/jobs/job-runtime-owner.json"
+        (root / relative).write_text('{}', encoding="utf-8")
+        result = inventory_coverage(root)
+>       assert relative in result["blockingAuthorityPaths"]
+E       AssertionError: assert 'background_jobs/jobs/job-runtime-owner.json' in []
+
+tests\test_job_migration_runtime_readiness.py:152: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_runtime_readiness.py::test_authority_classification_cannot_be_overridden_by_lite_directory
+1 failed, 17 deselected in 0.54s

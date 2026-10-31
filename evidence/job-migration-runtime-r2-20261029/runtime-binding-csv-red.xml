@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.439" timestamp="2026-10-31T13:56:54.173147+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order" time="0.012"><failure message="KeyError: 'sourceFile'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6419/test_runtime_delivery_review_c0')
+
+    def test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order(tmp_path):
+        import csv
+        import io
+        from scripts.job_final_migration.inventory import build_inventory
+        from scripts.job_final_migration.review_packet import _csv, _disposition
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+        item, = build_inventory(root)["instances"]
+        runtime = {"id": "runtime-source", "runtimeBindingGap": item["runtimeBindingGap"], **_disposition(item, source)}
+&gt;       historical = {"id": "unresolved-original", **_disposition(
+            {"reasonCodes": ["uncertain_effect"], "classificationDetail": "complex", "referenceEdges": [],
+             "type": "MIG-MSG", "sourceKind": "session-message"}, {})}
+
+tests\test_job_migration_runtime_readiness.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\review_packet.py:128: in _disposition
+    "oldReadDependencies": _read_dependencies(item, source),
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+item = {'reasonCodes': ['uncertain_effect'], 'classificationDetail': 'complex', 'referenceEdges': [], 'type': 'MIG-MSG', ...}
+source = {}
+
+    def _read_dependencies(item, source):
+&gt;       paths = [{"sourcePath": item["sourceFile"],
+                                ^^^^^^^^^^^^^^^^^^
+                  "reader": "packages/core/background_jobs.py:get/list_jobs (static dependency; _root creates directories)",
+                  "replacement": "independent raw JSON historical reader; never call legacy reader on source"}]
+E       KeyError: 'sourceFile'
+
+scripts\job_final_migration\review_packet.py:83: KeyError</failure></testcase></testsuite></testsuites>

@@ -45,7 +45,8 @@ def _csv(rows):
     if not rows:
         return b""
     stream = io.StringIO(newline="")
-    writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
+    fields = list(dict.fromkeys(key for row in rows for key in row))
+    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
     writer.writeheader()
     for row in rows:
         cells = {k: json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -103,6 +104,15 @@ def _read_dependencies(item, source):
 def _disposition(item, source):
     reasons = set(item["reasonCodes"])
     unresolved = bool(reasons & {"active_resource", "uncertain_effect", "pending_notice", "unverified_authority"})
+    if "runtime_binding_unavailable" in reasons:
+        return {"historicalPreserve": "raw bytes only; retain original source manager lifecycle",
+                "historicalExecutionAllowed": False,
+                "suggestion": "已批准模型的实现后继",
+                "suggestionDetail": "Reuse input bindings; wire declared manager revision/reservation/receipt contract. "
+                                    "Preserve original identities and reconcile any existing uncertain effects; no blind resend.",
+                "oldReadDependencies": _read_dependencies(item, source),
+                "r6Blocker": "runtime target/text manager parity not yet wired; source manager cannot retire",
+                "implementationFollowUp": True, "decisionIds": []}
     if item["classificationDetail"] == "unknown" or unresolved:
         suggestion = "需业务决策"
         detail = "Retain original bytes in quarantine; assign original-key reconciliation. Never infer success, retry or resend."
@@ -122,7 +132,7 @@ def _disposition(item, source):
             "decisionIds": ["D2", "D3"] if unresolved or item["classificationDetail"] == "unknown" else ["D2"]}
 
 
-def build_packet(evidence, output, *, expected_manifest_sha256):
+def build_packet(evidence, output, *, expected_manifest_sha256, runtime_delivery=False):
     evidence = Path(evidence).resolve(strict=True)
     root = (evidence / "source-copy").resolve(strict=True)
     output = outside_root(root, output)
@@ -142,9 +152,16 @@ def build_packet(evidence, output, *, expected_manifest_sha256):
                             for p in (path, *path.parents)), "snapshot path escapes root or contains a link")
         require(digest_file(path) == row["sha256"], f"snapshot file hash mismatch: {row['path']}")
         checked[row["path"]] = row["sha256"]
-    inventory = build_inventory(root, allow_real_profile=True)
+    inventory = build_inventory(root, allow_real_profile=True, runtime_delivery=runtime_delivery)
     cached = json.loads((evidence / "wp08-inventory.json").read_text(encoding="utf-8"))
-    require(fc.digest(inventory) == fc.digest(cached), "inventory drift since P9B")
+    if runtime_delivery and not cached.get("runtimeDeliveryOptIn"):
+        # P9B cache was intentionally created before the approved runtime
+        # contract. Verify its source scan, then classify the same bytes again
+        # under the explicit rev7 opt-in.
+        require(fc.digest(build_inventory(root, allow_real_profile=True)) == fc.digest(cached),
+                "inventory drift since P9B")
+    else:
+        require(fc.digest(inventory) == fc.digest(cached), "inventory drift since P9B")
     sources = _inputs(root)
     require(all(name in checked and hashlib.sha256(raw).hexdigest() == checked[name]
                 for name, raw in sources.items()), "unmanifested or changed WP08 input")
@@ -178,6 +195,10 @@ def build_packet(evidence, output, *, expected_manifest_sha256):
                   "observedStatus": source.get("status", "unparsed/unknown"), "targetIds": [],
                   "references": {"inventoryEdges": item["referenceEdges"], "observedOriginalKeys": refs,
                                  "verification": "not runtime-authorized; external paths not followed"}}
+        if "runtimeBindingGap" in item:
+            common["runtimeBindingGap"] = item["runtimeBindingGap"]
+        if "runtimeMappingRequirements" in item:
+            common["runtimeMappingRequirements"] = item["runtimeMappingRequirements"]
         if item["classificationDetail"] == "simple":
             row = {**common, "proposedCanonicalMapping": _proposal(item, source),
                    "risksAndUnknowns": ["shape-only; no authorization", "old owner/resource fence unverified",
@@ -202,6 +223,9 @@ def build_packet(evidence, output, *, expected_manifest_sha256):
                    "oldOwnerStopped": None, "oldOwnerEpoch": None, "fenceEvidence": None, "importedAt": None,
                    "policies": {key: None for key in ("overlap", "recovery", "notification", "retention")}}
                    for r in simple}}
+    if runtime_delivery:
+        from .runtime_fields import RUNTIME_OPT_IN
+        context["runtimeDelivery"] = dict(RUNTIME_OPT_IN)
     draft = {"schema": REVIEW_DRAFT_SCHEMA, "status": "draft_unapproved", "reviewManifest": review,
              "planDigest": plan_digest(inventory, context), "planDigestScope": "exact nested context; includes draft review metadata; never an approval",
              "context": context, "approvedSelection": [], "active_ids": [], "executable": False}
@@ -252,6 +276,8 @@ if __name__ == "__main__":
     parser.add_argument("--evidence", type=Path, required=True, help="existing P9B private evidence directory")
     parser.add_argument("--out", type=Path, required=True, help="new private review packet directory")
     parser.add_argument("--expected-manifest-sha256", required=True)
+    parser.add_argument("--runtime-delivery", action="store_true")
     args = parser.parse_args()
-    manifest = build_packet(args.evidence, args.out, expected_manifest_sha256=args.expected_manifest_sha256)
+    manifest = build_packet(args.evidence, args.out, expected_manifest_sha256=args.expected_manifest_sha256,
+                            runtime_delivery=args.runtime_delivery)
     print(json.dumps({"packetId": manifest["packetId"], "packetDigest": manifest["packetDigest"], "counts": manifest["counts"]}))

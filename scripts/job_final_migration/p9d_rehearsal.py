@@ -27,6 +27,7 @@ from . import apply as migration
 from .inventory import build_inventory
 from .mapping import require
 from .p9d_support import prepare, manual_deletion_packet
+from .source_coverage import inventory_coverage
 
 
 class NoEffects:
@@ -66,6 +67,7 @@ def crash_import(profile, spec, stop_at=17):
         if kind == "job":
             seen += 1
             if seen == stop_at:
+                require(service.executor.calls == [], "Effects called before import crash boundary")
                 os._exit(77)
     service._save = crashing
     asyncio.run(service.start(activation=spec))
@@ -76,6 +78,9 @@ async def run(evidence, packet, private, *, instruction, reference, recorded_at,
               expected_manifest_sha256, expected_simple=51, expected_preserved=60, crash=True):
     evidence, packet, private = Path(evidence).resolve(), Path(packet).resolve(), Path(private).absolute()
     source = evidence / "source-copy"
+    coverage = inventory_coverage(source, allow_real_profile=True)
+    require(coverage["discoveryComplete"] and not coverage["blockingAuthorityPaths"],
+            "Source coverage blocked: links/errors/existing runtime authority; never adopt or reset")
     private = migration.outside_root(source, private)
     require(not private.is_relative_to(evidence) and not evidence.is_relative_to(private)
             and not private.is_relative_to(packet) and not packet.is_relative_to(private), "Separate P9D output required")
@@ -86,7 +91,11 @@ async def run(evidence, packet, private, *, instruction, reference, recorded_at,
     require(not any(r["state"].startswith("blocked") for r in manifest), "Snapshot has blocked captures")
     require(not any(r["path"] == "job-runtime-owner.sqlite3" and r["kind"] == "file" for r in manifest),
             "Never adopt or reset a copied real owner authority")
+    discovered = {r["path"]: r["sha256"] for r in coverage["paths"] if r["nodeType"] == "file"}
+    captured = {r["path"]: r["sha256"] for r in manifest if r["kind"] == "file" and r["state"].startswith("stable")}
+    require(discovered == captured, "Source coverage/manifest mismatch; unscanned paths cannot disappear")
     private.mkdir(parents=True)
+    dump(private / "source-coverage.json", coverage)
     profile = private / "profile"
     profile.mkdir()
     copied = []
@@ -156,8 +165,10 @@ async def run(evidence, packet, private, *, instruction, reference, recorded_at,
     except OSError as exc:
         require("P9D injected" in str(exc), "Unexpected import failure")
     require(all(value == 0 for value in counts(service).values()), "Import failure left partial graph/history")
+    require(service.executor.calls == [], "Failed import executed effects")
     failure = {"bundlePublishFailureTargetAbsent": True, "historyWriteFailure": str(service.owner.status()["state"]),
-               "afterWriteFailure": counts(service), "legacyStillFenced": assert_fenced(profile)}
+               "afterWriteFailure": counts(service), "legacyStillFenced": assert_fenced(profile),
+               "effectCallsAfterWriteFailure": len(service.executor.calls)}
     if crash:
         child = subprocess.run([sys.executable, "-m", "scripts.job_final_migration.p9d_rehearsal", "crash-import",
             "--profile", str(profile), "--spec", str(private / "activation-spec.json"), "--stop-at", str(fault_rows)],
@@ -224,7 +235,9 @@ async def run(evidence, packet, private, *, instruction, reference, recorded_at,
         "offlineReplayWrites": 0, "restartCountsUnchanged": True, "ownerEpochBeforeRestart": epoch, "ownerEpochAfterRestart": restart_epoch,
         "authorizationReceiptDigest": receipt["receiptDigest"], "packetDigest": receipt["packetDigest"],
         "bundleDigest": bundle["bundleDigest"], "planDigest": bundle["planDigest"], "runtimeImported": True,
-        "productionMigrated": False, "manualDeletionExecuted": False, "realSourceOpened": False}
+        "productionMigrated": False, "manualDeletionExecuted": False, "realSourceOpened": False,
+        "sourceCoverageDigest": coverage["coverageDigest"], "wholeProfileMigrationComplete": False,
+        "unmappedSourcePaths": coverage["unmappedPaths"]}
     dump(private / "result.json", result)
     return result
 
@@ -237,6 +250,8 @@ if __name__ == "__main__":
     crash_parser.add_argument("--spec", type=Path, required=True)
     crash_parser.add_argument("--stop-at", type=int, default=17)
     run_parser = sub.add_parser("run")
+    run_parser.add_argument("--expected-simple", type=int, default=51)
+    run_parser.add_argument("--expected-preserved", type=int, default=60)
     for field in ("evidence", "packet", "private", "instruction"):
         run_parser.add_argument("--" + field, type=Path, required=True)
     for field in ("reference", "recorded-at", "original-root", "expected-manifest-sha256"):
@@ -247,5 +262,6 @@ if __name__ == "__main__":
     else:
         result = asyncio.run(run(args.evidence, args.packet, args.private, instruction=args.instruction.read_text(encoding="utf-8"),
             reference=args.reference, recorded_at=args.recorded_at, original_root=args.original_root,
-            expected_manifest_sha256=args.expected_manifest_sha256))
+            expected_manifest_sha256=args.expected_manifest_sha256,
+            expected_simple=args.expected_simple, expected_preserved=args.expected_preserved))
         print(json.dumps(result))

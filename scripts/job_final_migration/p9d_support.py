@@ -104,7 +104,8 @@ def manual_deletion_packet(packet_directory, output, *, original_root):
     (output / "manual-delete-commands.txt").write_text("\n".join(commands), encoding="utf-8")
     guide = """# unrecognized 手动删除清单（未执行删除）
 
-用户已决定全部 complex/unknown 保留并标记 unrecognized，包含此前 21 项和 4 条消息计划；不再等待逐项业务选择。
+本清单列出当前输入中原状保留、未迁移的 complex/unknown 条目；逐条数量与身份以同目录 JSON/CSV 为准。
+生成清单不证明任何历史用户决定适用于当前输入，也不证明当前效果已结算。
 本清单仅提供未来人工删除入口，不授予本任务删除、结算、kill、重投或服务操作权限。
 
 1. 先打开 manual-delete.csv/JSON，按单个 ID 审阅类型、原因、SHA 和 dependenciesBeforeDelete。
