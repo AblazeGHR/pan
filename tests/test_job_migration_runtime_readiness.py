@@ -287,3 +287,23 @@ def test_runtime_delivery_proposed_input_reuses_schema_and_pre_admission_resolut
     assert disposition["historicalExecutionAllowed"] is False
     rendered = render_markdown(report)
     assert "Creator/Delivery Manager" in rendered and "no executable binding generated" in rendered
+
+
+def test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_publication(tmp_path, capsys):
+    from scripts.job_final_migration.cli import main
+    from scripts.job_final_migration.inventory import build_inventory
+    from scripts.job_final_migration.mapping import ApplyError
+    from tests.test_job_final_migration_apply import context_for
+    root = tmp_path / "synthetic-source"
+    _runtime_delivery_source(root, "assign")
+    before = hashes(root)
+    assert main(["--root", str(root), "--out", "-"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["summary"]["simple"] == 0 and report["summary"]["complex"] == 1
+    assert "runtime_binding_unavailable" in report["instances"][0]["reasonCodes"]
+    context = {**context_for(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
+    target = tmp_path / "must-not-exist/bundle.json"
+    with pytest.raises(ApplyError, match="no simple records"):
+        migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
+            expected_digest=migration.plan_digest(build_inventory(root), context))
+    assert not target.parent.exists() and hashes(root) == before
