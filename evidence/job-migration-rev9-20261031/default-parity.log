@@ -1,0 +1,214 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+{
+  "base": "dc8b1ff805956a2290b91ee65d0d48f0949470ec",
+  "source": "b4b16d6b0701d8cd684b2c83d1f06e6eb91d4ccf",
+  "defaultInventoryCasesEqual": 20,
+  "ownedRootRemoved": true,
+  "cases": [
+    {
+      "bot": "654321",
+      "state": "unstarted",
+      "inventoryEqual": true,
+      "sourceSha256": "a0e49fefd5c72cbf2105dd36160e7106314311ac27575042830381fd4e284040",
+      "classification": "simple-script-migratable",
+      "reasonCodes": []
+    },
+    {
+      "bot": "654321",
+      "state": "pending",
+      "inventoryEqual": true,
+      "sourceSha256": "3c273a39a270470d4615c315cbe225d139255c588a449e02b8ab3772ccf3b1ad",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "pending_notice"
+      ]
+    },
+    {
+      "bot": "654321",
+      "state": "unknown",
+      "inventoryEqual": true,
+      "sourceSha256": "63b53a9267eaebe29247b64198b45be940f14d8ecb310fb725ed85afa04ce833",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect"
+      ]
+    },
+    {
+      "bot": "654321",
+      "state": "partial",
+      "inventoryEqual": true,
+      "sourceSha256": "78e4d2530c25e8645345dfe051ad21784f553df0b6969ca29633974f7c70211f",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect"
+      ]
+    },
+    {
+      "bot": null,
+      "state": "unstarted",
+      "inventoryEqual": true,
+      "sourceSha256": "31e7663e8dc903bdd24da1c95c5b120f0836686b341c0344d132e4d1fd7be3c5",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": null,
+      "state": "pending",
+      "inventoryEqual": true,
+      "sourceSha256": "b4ffdded6e70a9202bca04a09cfc5809961bfee8fe3daeb47efbc56d06e0d417",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "pending_notice",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": null,
+      "state": "unknown",
+      "inventoryEqual": true,
+      "sourceSha256": "ca582a079eabc0d3e0f4862a8f6c621faf26fff067fdcf5c533f86f3fefa266d",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": null,
+      "state": "partial",
+      "inventoryEqual": true,
+      "sourceSha256": "8ef4b25130b3eb2dded5add9dcd9990fd41312de1e34caca5e6c9adf78b1e31a",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "omitted",
+      "state": "unstarted",
+      "inventoryEqual": true,
+      "sourceSha256": "7422c66d52b114dfb9ec5dd54d39cbfaa4517ff4ca9d01c18c945c51fcac81cb",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "omitted",
+      "state": "pending",
+      "inventoryEqual": true,
+      "sourceSha256": "0bec82bf5825024936c4e1681cc88f1b5acbc95ca1bb41a01353cd528877ca98",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "pending_notice",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "omitted",
+      "state": "unknown",
+      "inventoryEqual": true,
+      "sourceSha256": "27f2cb17f4260cc7980a64e170fb5018c888f2f06793b7559d4d3b80f8a3e02d",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "omitted",
+      "state": "partial",
+      "inventoryEqual": true,
+      "sourceSha256": "a70d8b516232157cc1e94abacb22549ee8a275dc0a9c6caaaf4463fdeb672733",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "",
+      "state": "unstarted",
+      "inventoryEqual": true,
+      "sourceSha256": "51077f1eb195fb0fd7b2bb7b28a296b77ce8fb54f4f074a5020c49ef66f163b5",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "",
+      "state": "pending",
+      "inventoryEqual": true,
+      "sourceSha256": "b07cf5b25cf69d31dd998f51864e28be6b454aeae18227799c449e038f23681a",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "pending_notice",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "",
+      "state": "unknown",
+      "inventoryEqual": true,
+      "sourceSha256": "79c715bfcce014381a68b5c9c4b9731fbbd18c845866905429c38d17cd5686e4",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "",
+      "state": "partial",
+      "inventoryEqual": true,
+      "sourceSha256": "fe2868cf1cd453cd482838e9d805b4b02d5ce2972d6e6ad511720725e28bf8db",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect",
+        "provider_unavailable"
+      ]
+    },
+    {
+      "bot": "bad-bot",
+      "state": "unstarted",
+      "inventoryEqual": true,
+      "sourceSha256": "2847a0cb4db242890102572ad0543941e4c21948d55423f04044994f33f8edaf",
+      "classification": "simple-script-migratable",
+      "reasonCodes": []
+    },
+    {
+      "bot": "bad-bot",
+      "state": "pending",
+      "inventoryEqual": true,
+      "sourceSha256": "aedd26deffefbeb3568eeb62f485167e3c7e4e8f62866514a48b0ced4e5d4190",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "pending_notice"
+      ]
+    },
+    {
+      "bot": "bad-bot",
+      "state": "unknown",
+      "inventoryEqual": true,
+      "sourceSha256": "85b5ccdc74c231480d8f32849e9547160455bb824cee5c97a1a9e144d63d84fc",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect"
+      ]
+    },
+    {
+      "bot": "bad-bot",
+      "state": "partial",
+      "inventoryEqual": true,
+      "sourceSha256": "0bae4f3f2cbac837f50ca7875e27e4002680a37db5de2ef4d57e882d55924668",
+      "classification": "incompatible-preserved",
+      "reasonCodes": [
+        "uncertain_effect"
+      ]
+    }
+  ]
+}

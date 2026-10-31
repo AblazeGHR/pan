@@ -316,7 +316,10 @@ a partial bundle, with no target IDs; dispatchKey/fireAt/text/error are retained
 This limitation prevents declaring whole-profile migration or retiring the
 original manager. A newly imported eligible Job has new identity, not adoption
 of an old effect. Unknown Action names remain preserved; no assign fallback is
-implemented while that separate user decision is pending.
+implemented. User decision `job-unknown-api-reject-approved-20261031` explicitly
+requires rejection of unknown `action.api`, preserving source bytes and reporting
+the original field/value. This does not remove known assign/send_session/send_qq
+or shell/command capabilities.
 
 Replay the owned synthetic proof (including public CLI apply/replay, pinned
 release negatives, original bytes, actual new-profile import, pre-admission
