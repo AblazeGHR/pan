@@ -1033,8 +1033,9 @@ def _action_definition() -> dict[str, Any]:
                 "system": {"type": "boolean"},
                 "runtimeBeforeAcceptance": _obj({
                     "owner": {"const": "delivery-manager"},
-                    "fields": {"enum": [["sessionId", "text"], ["sessionIds", "text"]]},
-                    "phase": {"const": "before-queue-acceptance"},
+                      "fields": {"enum": [["sessionId", "text"], ["sessionIds", "text"],
+                                              ["targetType", "targetId", "botUin", "text"]]},
+                      "phase": {"enum": ["before-queue-acceptance", "before-provider-acceptance"]},
                     "fence": {"const": "per-target-attempt-effect"},
                     "unknownPolicy": {"const": "query-original"},
                 }, ("owner", "fields", "phase", "fence", "unknownPolicy")),
@@ -1494,7 +1495,16 @@ def _run_record() -> dict[str, Any]:
                 "jobId": _ID,
                 "configRevision": {"type": "integer", "minimum": 1},
                 "planDigest": _DIGEST,
-                "deliveryRuntime": _obj({"declaration": _ref("DeliveryRuntime"), "steps": {"type": "object"}}, ("declaration", "steps")),
+                "deliveryRuntime": _obj({"declaration": _ref("DeliveryRuntime"), "steps": {
+                    "type": "object", "additionalProperties": {"type": "object", "properties": {
+                        "pendingFires": _arr(_obj({
+                            "dispatchKey": _ID, "fireAt": {"type": ["string", "null"]},
+                            "text": {"type": "string"}, "error": {"type": ["object", "null"]},
+                            "status": {"enum": ["known-no-attempt", "sending", "unknown", "rejected"]},
+                            "automaticDelivery": {"type": "boolean"},
+                        }, ("dispatchKey", "fireAt", "text", "error", "status", "automaticDelivery"))),
+                    }},
+                }}, ("declaration", "steps")),
                 "notifications": _arr(_obj({
                     "outboxId": _ID, "transitionSeq": {"type": "integer", "minimum": 0},
                     "recipientId": _ID, "status": {"enum": ["pending", "sending", "acked", "uncertain", "suppressed", "not_applicable"]},

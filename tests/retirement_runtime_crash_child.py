@@ -61,6 +61,20 @@ class LostAfterEnqueue(WorkerAssignProvider):
 
 
 service = CrashService(Path(cfg['root']), CanonicalUserAuth(Path(cfg['auth'])))
+if cfg.get('qqUrl'):
+    from packages.web import server
+    import httpx
+    os.environ['PAN_QQ_API_URL'] = cfg['qqUrl']
+    server._qq_plugin_client = httpx.AsyncClient(timeout=30, trust_env=False)
+    server._bind_qq_channel_provider(service)
+    if cfg['phase'] == 'after-qq':
+        from packages.actions.qq_channel_provider import QQChannelProvider
+        class LostAfterQQ(QQChannelProvider):
+            async def send(self, *args, **kwargs):
+                result = await super().send(*args, **kwargs)
+                assert result.get('ok') is True, result
+                crash()  # original OneBot accepted; callback never reaches the plan
+        service.executor.channel_provider = LostAfterQQ(server._send_scheduled_qq)
 status = service.owner.status()
 service.owner.claim(status['epoch'] if status else 0)
 if cfg['phase'] == 'after-enqueue':

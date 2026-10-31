@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.605" timestamp="2026-10-31T20:25:09.425150+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]" time="15.207"><failure message="AssertionError: [{'attemptId': 'attempt_ddddd20b535d430b834f86a7', 'createdAt': '2026-10-31T12:25:20.537974Z', 'effectKey': {'operatio...run_200288167dba46b8b721bc74', 'stepId': 'send', 'targetId': 'product_channel_runtime_v1'}, 'outcome': 'unknown', ...}]&#10;assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000022F3EF99A90&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:61525')
+bot = '222222'
+run = &lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x0000022F3FF74E10&gt;&gt;
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text(qq_http, bot, run):
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        connected = channel._bot
+        channel._bot = None
+        item, rid = admit(q, bot)
+        frozen = copy.deepcopy(q.h.service.final.store.get(item['id'])['finalRuntime']['plans'][rid]['frozen'])
+        run(q.h.service.dispatch_once())
+        first = q.h.service.final.get(item['id'])
+        assert first['runs'][rid]['state'] == 'paused_at_boundary'
+        assert len(first['attempts']) == 1 and not first['effects'] and not q.rows
+        plan = q.h.service.final.store.get(item['id'])['finalRuntime']['plans'][rid]
+        child = plan['runtimeDelivery']['send']['children'][0]
+        assert child['status'] == 'known-no-attempt' and child['attempted'] is False
+        assert child['backlog']['dispatchKey'] == rid
+        assert child['backlog']['text'] == '  original\nQQ  '
+        assert child['backlog']['error']['code'] == 'bot_not_connected'
+        before = copy.deepcopy(first['attempts'])
+        cold = FinalService(q.h.root, q.h.automation.auth)
+        from packages.web import server
+        server._bind_qq_channel_provider(cold)
+        try:
+            cold.recover()
+            cfg = definition('job', item)
+            cfg['arguments'].update(targetType='group', targetId='654321', text='  changed\nraw  ')
+            response = q.h.client.put('/api/jobs/' + item['id'], json={'definition': cfg,
+                'expectedRevision': item['configRevision'], 'requestKey': 'runtime-edit'})
+            assert response.status_code == 200, response.text
+            channel._bot = connected
+            run(cold.dispatch_once())  # existing pulse; no manual retry operation
+            after = cold.final.get(item['id'])
+&gt;           assert after['runs'][rid]['state'] == 'completed', after['effects']
+E           AssertionError: [{'attemptId': 'attempt_ddddd20b535d430b834f86a7', 'createdAt': '2026-10-31T12:25:20.537974Z', 'effectKey': {'operatio...run_200288167dba46b8b721bc74', 'stepId': 'send', 'targetId': 'product_channel_runtime_v1'}, 'outcome': 'unknown', ...}]
+E           assert 'uncertain' == 'completed'
+E             
+E             - completed
+E             + uncertain
+
+tests\test_retirement_rev25_qq_runtime.py:166: AssertionError</failure></testcase></testsuite></testsuites>

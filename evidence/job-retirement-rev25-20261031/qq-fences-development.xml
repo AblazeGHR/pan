@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="6" time="41.155" timestamp="2026-10-31T20:30:42.959948+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[pause]" time="6.419" /><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[disable]" time="6.808" /><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[revoke]" time="6.691" /><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[missing-proof]" time="6.949"><failure message="packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed">tests\test_retirement_rev25_qq_runtime.py:264: in test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay
+    cold.recover()
+packages\jobs\final_service.py:1946: in recover
+    self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
+packages\jobs\final_runtime\ledger.py:174: in transition_run
+    contracts.check_transition("run", run["state"], target, operation=operation)
+packages\jobs\final_contracts.py:727: in check_transition
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed</failure></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-attempt]" time="6.576"><failure message="packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed">tests\test_retirement_rev25_qq_runtime.py:264: in test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay
+    cold.recover()
+packages\jobs\final_service.py:1946: in recover
+    self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
+packages\jobs\final_runtime\ledger.py:174: in transition_run
+    contracts.check_transition("run", run["state"], target, operation=operation)
+packages\jobs\final_contracts.py:727: in check_transition
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed</failure></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-arguments]" time="6.997"><failure message="packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed">tests\test_retirement_rev25_qq_runtime.py:264: in test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay
+    cold.recover()
+packages\jobs\final_service.py:1946: in recover
+    self.final.ledger.transition_run(job, self.root, run["runId"], "uncertain")
+packages\jobs\final_runtime\ledger.py:174: in transition_run
+    contracts.check_transition("run", run["state"], target, operation=operation)
+packages\jobs\final_contracts.py:727: in check_transition
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: run transition paused_at_boundary -&gt; uncertain is not allowed</failure></testcase></testsuite></testsuites>

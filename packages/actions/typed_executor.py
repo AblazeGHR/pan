@@ -379,6 +379,8 @@ class TypedExecutor:
             # pending child set as a terminal unknown parent receipt here.
             runtime.check_identity(attempt_map, key)
             operation = frozen_plan["operation"]
+            if operation == 'channel':
+                return await self._channel(key, frozen_plan, attempt=attempt_map)
             return await {"assign": self._assign, "session-message": self._session_message,
                           "session-broadcast": self._session_broadcast}[operation](key, frozen_plan)
 
@@ -679,6 +681,10 @@ class TypedExecutor:
                              target_selection={"sessionIds": ids}).as_dict()
 
     async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any], *, attempt=None) -> Mapping[str, Any]:
+        runtime = plan.get('_runtimeDelivery')
+        if runtime is not None:
+            return await runtime.deliver(0, plan,
+                lambda child, selected: self._channel(child, selected, attempt=attempt))
         action = plan.get("action") if isinstance(plan.get("action"), Mapping) else plan
         if action.get("api") != "send_qq":
             raise contracts.ContractError("invalid_schema", "Only typed send_qq channel effects are supported", path="action.api")

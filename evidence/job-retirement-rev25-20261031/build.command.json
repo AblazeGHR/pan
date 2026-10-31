@@ -1,0 +1,16 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "build",
+  "argv": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "pnpm",
+    "build"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web",
+  "exit": 0,
+  "elapsedSeconds": 24.230472087860107,
+  "log": "build.log",
+  "logSha256": "86dcb23d05a03a4827ff057483b891bde5b8059b8e440f63901020207b7cae78"
+}

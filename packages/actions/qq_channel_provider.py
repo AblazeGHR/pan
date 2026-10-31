@@ -27,6 +27,27 @@ class QQChannelReceipt(dict):
     no_send = None
 
 
+def reconnectable_no_send(receipt, attempt, key, arguments):
+    """Consume only the original identity-bound host proof, never error codes."""
+    if (not isinstance(receipt, dict) or not isinstance(arguments, dict)
+            or not {'targetType', 'targetId', 'text'} <= set(arguments)):
+        return False
+    proof = receipt.get('qqNoSend', {})
+    if not isinstance(proof, dict) or not isinstance(receipt.get('receipt'), dict):
+        return False
+    wire = {'target_type': 'private' if arguments['targetType'] == 'user' else 'group',
+            'target_id': arguments['targetId'], 'text': arguments['text']}
+    if 'botUin' in arguments:
+        wire['bot_uin'] = arguments['botUin']
+    return (receipt.get('outcome') == 'rejected' and receipt.get('effectKey') == key
+        and proof.get('effectKey') == key and proof.get('arguments') == arguments
+        and proof.get('attempt') == {k: attempt[k] for k in (
+            'attemptId', 'runId', 'stepId', 'ownerEpoch', 'generation', 'leaseId')}
+        and proof.get('phase') == receipt.get('receipt', {}).get('qqSendPhase')
+        and is_pre_send_phase(proof.get('phase'), wire)
+        and proof['phase']['reason'] in {'resolve-not-connected', 'unknown-selected-bot'})
+
+
 def is_pre_send_phase(phase, wire):
     """Validate producer phase shape; provenance comes from the original POST."""
     return (isinstance(phase, dict) and set(phase) == {"producer", "stage", "reason", "arguments"}

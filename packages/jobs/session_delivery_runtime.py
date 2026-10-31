@@ -11,7 +11,15 @@ import copy
 PRODUCTS = {
     "product_assign_runtime_v1": "assign", "product_session_message_runtime_v1": "session-message",
     "product_session_broadcast_runtime_v1": "session-broadcast",
+    "product_channel_runtime_v1": "channel",
 }
+
+
+def provider_ref(action):
+    from packages.jobs.final_contracts import digest
+    channel = action['id'] == 'product_channel_runtime_v1'
+    return {'id': 'pan.typed', 'releaseDigest': digest('pan.typed.qq-runtime.v1' if channel
+        else 'pan.typed.session-runtime.v1'), 'generation': 2 if channel else 3}
 
 
 def validate_references(job, actions):
@@ -29,6 +37,27 @@ def validate_references(job, actions):
         if (definition.get('system') is not True or PRODUCTS.get(action['id']) != definition['execution']['operation']
                 or not fields <= set(allowed)):
             raise ContractError('reference_conflict', 'Job runtime fields require the explicit immutable runtime Action release')
+        if action['id'] == 'product_channel_runtime_v1':
+            # Validate current fixed defaults with the original QQ validator.
+            # Event/output bindings remain execution-time inputs; they are
+            # never guessed or mistaken for literal configuration.
+            from packages.jobs.chains import resolve
+            from packages.jobs.actions import normalize_scheduled_qq_action
+            known = {k: b for k, b in step['arguments'].items() if b.get('from') in {'literal', 'input'}}
+            try:
+                defaults = resolve(known, job.get('arguments', {}), {}, {})
+            except ValueError as exc:
+                raise ContractError('invalid_schema', 'Runtime QQ defaults must supply their declared input paths') from exc
+            if defaults.get('botUin', '') is None:
+                defaults.pop('botUin')
+            target = {k: defaults[k] for k in ('targetType', 'targetId', 'botUin') if k in defaults}
+            if target:
+                _, invalid = normalize_scheduled_qq_action({'api': 'send_qq', 'args': {
+                    'targetType': 'user', 'targetId': '10000', **target}})
+                if invalid:
+                    raise ContractError('invalid_schema', invalid)
+            if 'text' in defaults and (not isinstance(defaults['text'], str) or not defaults['text'].strip()):
+                raise ContractError('invalid_schema', 'QQ text must contain a non-whitespace character')
 
 
 def original_arguments(plan, target, fallback):
@@ -57,6 +86,10 @@ def receipt_projection(reserved, receipt):
     projected["acceptance"] = ([{"targetId": row["effectKey"]["targetId"], "outcome": row["outcome"]} for row in targets]
         if isinstance(targets, list) else [{"targetId": target, "outcome": receipt.get("outcome", "unknown")}
                                           for target in reserved["effectiveTargets"]])
+    if reserved.get('children'):
+        projected['acceptance'] = [{'targetId': child.get('targetId'),
+            'outcome': child.get('receipt', {}).get('outcome', 'unknown')} for child in reserved['children']]
+        projected['effectiveTargets'] = [child.get('targetId') for child in reserved['children']]
     return projected
 
 
@@ -72,7 +105,7 @@ def effective(job, state, run_id, step, action, *, current=False):
     if not any(b.get('from') == 'input' and b.get('path') in declaration['inputFields'] for b in step['arguments'].values()):
         return None
     if (action.get("system") is not True or PRODUCTS.get(action["id"]) != action["execution"]["operation"]
-            or action["providerRef"] != {"id": "pan.typed", "releaseDigest": digest("pan.typed.session-runtime.v1"), "generation": 3}
+            or action["providerRef"] != provider_ref(action)
             or not action.get("runtimeBeforeAcceptance")):
         raise ContractError("reference_conflict", "Runtime delivery requires a trusted immutable product Session Action")
     previous = plan.get("runtimeDelivery", {}).get(step["stepId"])
@@ -92,8 +125,12 @@ def effective(job, state, run_id, step, action, *, current=False):
         if binding.get("from") == "input" and binding.get("path") in paths and name not in action["runtimeBeforeAcceptance"]["fields"]:
             raise ContractError("invalid_schema", "Only target/text are Session runtime delivery fields")
     arguments = resolve(step["arguments"], value, frozen["event"], plan.get("outputs", {}))
-    targets = list(dict.fromkeys(arguments.get("sessionIds") or [])) if "sessionIds" in arguments else [arguments.get("sessionId")]
-    missing = not targets or all(not target or session.get(target, load_history=False) is None for target in targets)
+    channel = action['execution']['operation'] == 'channel'
+    if channel and arguments.get('botUin', '') is None:
+        arguments.pop('botUin')  # original sender's omitted/default bot contract
+    targets = ([arguments.get('targetId')] if channel else
+        list(dict.fromkeys(arguments.get("sessionIds") or [])) if "sessionIds" in arguments else [arguments.get("sessionId")])
+    missing = not targets or (not channel and all(not target or session.get(target, load_history=False) is None for target in targets))
     return {"owner": "delivery-manager", "runtimeRevision": job["configRevision"],
         "runtimeOperationId": job.get("runtimeOperationId"), "phase": "pending" if missing else "reserved",
         "reservationScope": "per-target", "eventCause": copy.deepcopy(state["runs"][run_id]["cause"]),
@@ -113,7 +150,7 @@ def bound_attempt(state, run_id):
     action = plan['frozen']['actions'].get(reserved.get('effectKey', {}).get('targetId')) if reserved else None
     if (not action or action.get('system') is not True or PRODUCTS.get(action['id']) != action['execution']['operation']
             or not action.get('runtimeBeforeAcceptance')
-            or action.get('providerRef') != {'id': 'pan.typed', 'releaseDigest': digest('pan.typed.session-runtime.v1'), 'generation': 3}
+            or action.get('providerRef') != provider_ref(action)
             or digest(plan['frozen']) != state['runs'][run_id]['planDigest']
             or plan['frozen'].get('deliveryRuntime', {}).get('phase') != 'before-reservation'
             or reserved.get('argumentsDigest') != digest(reserved.get('arguments'))
@@ -129,13 +166,39 @@ def bound_attempt(state, run_id):
             return None
         if child['status'] == 'known-no-attempt' and (child.get('phase') != 'before-enqueue' or child.get('attempted') is not False):
             return None
+        if child['status'] == 'known-no-attempt' and action['execution']['operation'] == 'channel' and child.get('arguments'):
+            from packages.actions.qq_channel_provider import reconnectable_no_send
+            if not reconnectable_no_send(child.get('receipt', {}), attempt, reserved['effectKey'], child.get('arguments', {})):
+                return None
         if child['status'] in {'sending', 'accepted', 'unknown', 'rejected'}:
             expected_key = {**reserved['effectKey'], 'targetId': child.get('targetId')} if action['execution']['operation'] == 'session-broadcast' else reserved['effectKey']
             if (child.get('operation') != action['execution']['operation'] or child.get('effectKey') != expected_key
                     or child.get('argumentsDigest') != digest(child.get('arguments'))
-                    or child.get('arguments', {}).get('sessionId') != child.get('targetId')):
+                    or child.get('arguments', {}).get('targetId' if action['execution']['operation'] == 'channel' else 'sessionId') != child.get('targetId')):
                 return None
     return attempt
+
+
+def unproven_channel_attempt(state, run_id):
+    """Quarantine a live paused channel boundary; this never authorizes a call.
+
+    The ordinary Run graph has no paused->uncertain transition. A damaged
+    receipt cannot justify either replay or inventing such a transition.
+    """
+    from packages.jobs.final_contracts import digest
+    plan = state['plans'][run_id]
+    aid = plan.get('pendingSessionAttempt')
+    attempt = state['attempts'].get(aid)
+    if (not attempt or attempt['runId'] != run_id or attempt['state'] != 'running'
+            or state['runs'][run_id]['state'] != 'paused_at_boundary'
+            or digest(plan['frozen']) != state['runs'][run_id]['planDigest']
+            or plan['frozen'].get('deliveryRuntime', {}).get('phase') != 'before-reservation'):
+        return False
+    step = next((s for s in plan['frozen']['steps'] if s['stepId'] == attempt['stepId']), None)
+    action = plan['frozen']['actions'].get(step['actionRef']['id']) if step else None
+    return bool(action and action.get('id') == 'product_channel_runtime_v1'
+        and action.get('system') is True and action.get('providerRef') == provider_ref(action)
+        and not bound_attempt(state, run_id))
 
 
 class SessionDelivery:
@@ -228,21 +291,33 @@ class SessionDelivery:
             used = {c.get('targetId') for c in reserved['children'] if c['status'] in {'accepted', 'unknown', 'sending'}}
             candidates = [sid for sid in dict.fromkeys(selected['effectiveTargets']) if sid and sid not in used]
             sid = candidates[0] if candidates else None
-            if blocked or sid is None or session.get(sid, load_history=False) is None:
+            channel = action['execution']['operation'] == 'channel'
+            if blocked or sid is None or (not channel and session.get(sid, load_history=False) is None):
                 self.pending = True
                 child.update(status='known-no-attempt', phase='before-enqueue', attempted=False)
                 self.service._save(db, 'job', self.job_id, job)
                 return EffectReceipt(self.key, 'unknown', {'code': 'runtime_delivery_pending', 'slot': slot}).as_dict()
             args = copy.deepcopy(selected['arguments'])
-            args.pop('sessionIds', None)
-            args['sessionId'] = sid
-            args = self.service._session_source(args, plan['frozen']['authority'])
+            if channel:
+                from packages.jobs.actions import normalize_scheduled_qq_action
+                from packages.jobs.final_contracts import _validate_instance
+                _validate_instance(action['inputSchema'], args, path='runtime.arguments')
+                _, invalid = normalize_scheduled_qq_action({'api': 'send_qq', 'args': {
+                    k: args[k] for k in ('targetType', 'targetId', 'botUin') if k in args}})
+                if invalid or not args['text'].strip():
+                    raise ContractError('invalid_schema', invalid or 'QQ text cannot be blank')
+            else:
+                args.pop('sessionIds', None)
+                args['sessionId'] = sid
+                args = self.service._session_source(args, plan['frozen']['authority'])
             key = {**self.key, 'targetId': sid} if action['execution']['operation'] == 'session-broadcast' else self.key
             child.update(status='sending', operation=action['execution']['operation'], targetId=sid, arguments=args, argumentsDigest=digest(args),
                 runtimeRevision=job['configRevision'], runtimeOperationId=job.get('runtimeOperationId'),
                 reservationOwnerEpoch=self.service.owner.token[0] if self.service.owner.token else None,
                 reservationOwnerDigest=digest(self.service.owner.token),
-                effectKey=key, phase='before-queue-acceptance', textDigest=digest(args['text']))
+                effectKey=key, phase='before-provider-acceptance' if channel else 'before-queue-acceptance',
+                textDigest=digest(args['text']))
+            child.pop('attempted', None)  # old no-attempt fact cannot label a new possible invocation
             self.service._save(db, 'job', self.job_id, job)  # intent BEFORE invoke
         # Only this validated runtime reservation enables native pre-call
         # evidence. Ordinary v2/custom/non-runtime providers keep their old
@@ -250,7 +325,11 @@ class SessionDelivery:
         from packages.actions.typed_executor import _runtime_session_delivery
         context = _runtime_session_delivery.set(True)
         try:
-            row = await invoke(key, {'arguments': args})
+            selected_plan = {'arguments': args}
+            if channel:
+                selected_plan['action'] = {'api': 'send_qq', 'args': {k: args[k]
+                    for k in ('targetType', 'targetId', 'botUin') if k in args}}
+            row = await invoke(key, selected_plan)
         finally:
             _runtime_session_delivery.reset(context)
         with self.service.transaction() as db:
@@ -262,12 +341,27 @@ class SessionDelivery:
             if current != child:
                 raise ContractError('revision_conflict', 'Runtime child reservation changed during invoke')
             known_unsent = row.get('localNoAttempt') is True
+            if channel:
+                from packages.actions.qq_channel_provider import reconnectable_no_send
+                known_unsent = reconnectable_no_send(row, self.attempt, key, args)
             if row.get('outcome') == 'rejected' and not known_unsent:
                 row = {**row, 'outcome': 'unknown', 'status': 'unknown', 'ok': False}
             current.update(status='known-no-attempt' if known_unsent else
                 'accepted' if row.get('outcome') == 'succeeded' else 'unknown', receipt=copy.deepcopy(row))
+            current['attempted'] = not known_unsent
             if known_unsent:
                 current.update(phase='before-enqueue', attempted=False)
+                if channel:
+                    # A per-fire pending fact in the original Run plan, not a
+                    # second queue/ledger. Retain original source identity and
+                    # original text/error even after later runtime edits.
+                    current.setdefault('backlog', {
+                        'dispatchKey': plan['frozen']['event'].get('payload', {}).get('dispatchKey')
+                            or plan['frozen']['event'].get('eventId') or self.key['runId'],
+                        'fireAt': plan['frozen']['event'].get('payload', {}).get('scheduledAt')
+                            or plan['frozen']['event'].get('occurredAt'),
+                        'text': args['text'], 'error': copy.deepcopy(row.get('receipt', {}).get('error'))})
+                    current['lastError'] = copy.deepcopy(row.get('receipt', {}).get('error'))
             self.pending = self.pending or known_unsent
             self.service._save(db, 'job', self.job_id, job)
         return row
@@ -279,6 +373,10 @@ def query_original_child(child):
     from packages.actions.typed_executor import EffectReceipt
     from packages.jobs.final_contracts import digest
     args, key = child['arguments'], child['effectKey']
+    if child.get('operation') == 'channel':
+        # QQ has no original remote lookup contract. Never turn a missing
+        # local receipt into permission to invoke the external channel again.
+        return EffectReceipt(key, 'unknown', {'code': 'original_remote_receipt_unavailable'}).as_dict()
     if child.get('argumentsDigest') != digest(args):
         return EffectReceipt(key, 'unknown', {'code': 'runtime_binding_mismatch'}).as_dict()
     target = worker._get_session_shallow(child['targetId'])

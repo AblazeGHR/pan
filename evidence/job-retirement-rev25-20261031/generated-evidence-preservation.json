@@ -1,0 +1,9 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "testProducer": "tests/test_job_recovery_stable_reset.py:422",
+  "originalPath": "evidence/job-recovery-r4/default-detached.json",
+  "onlyChangedField": "originalStableElapsed",
+  "historicalEvidenceRestoredAfterPreservingNewBytes": true,
+  "originalSha256": "4a2ce5dc029b1dfce55f44c18cf5be1d7fcc80d73e64227163edb35740abb4b6",
+  "generatedSha256": "1146d88a627364ef8becd56634db6d2c57bc514f1224f12e14d100a3616b0e30"
+}

@@ -1,0 +1,231 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "layer": "synthetic publication/schema inventory, not execution or migration proof",
+  "releases": [
+    {
+      "ref": {
+        "id": "product_channel",
+        "revision": 1,
+        "digest": "be51df6f78393b334a5a43992c2a9d15218cba9ae1d09f5b01a78c77dd8274de"
+      },
+      "definition": {
+        "cancel": {
+          "supported": false
+        },
+        "completionContracts": [
+          {
+            "id": "provider-receipt",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "provider-receipt",
+        "description": "",
+        "effectClass": "write_external",
+        "execution": {
+          "config": {},
+          "operation": "channel"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "botUin": {
+              "pattern": "^[0-9]+$",
+              "type": "string"
+            },
+            "targetId": {
+              "pattern": "^[0-9]+$",
+              "type": "string"
+            },
+            "targetType": {
+              "enum": [
+                "user",
+                "group"
+              ]
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "targetType",
+            "targetId",
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "channel",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 1,
+          "id": "pan.typed",
+          "releaseDigest": "3a59c29359083ddebe395d0d23f69af0305ebdd3a0360990452b55d4c2d86ed6"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "system": true
+      }
+    },
+    {
+      "ref": {
+        "id": "product_channel_runtime_v1",
+        "revision": 1,
+        "digest": "82674431dfd366b74e7278c682a51d0ad966239ed98c683ddffe6173a703a255"
+      },
+      "definition": {
+        "cancel": {
+          "supported": false
+        },
+        "completionContracts": [
+          {
+            "id": "provider-receipt",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "provider-receipt",
+        "description": "",
+        "effectClass": "write_external",
+        "execution": {
+          "config": {},
+          "operation": "channel"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {
+            "botUin": {
+              "pattern": "^[0-9]+$",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "targetId": {
+              "pattern": "^[0-9]+$",
+              "type": "string"
+            },
+            "targetType": {
+              "enum": [
+                "user",
+                "group"
+              ]
+            },
+            "text": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "targetType",
+            "targetId",
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "channel",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 2,
+          "id": "pan.typed",
+          "releaseDigest": "cdc48b9b44597860aafe643d7fa0a05bfd2062f541f77462fc57d5d311fdd77e"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "runtimeBeforeAcceptance": {
+          "fence": "per-target-attempt-effect",
+          "fields": [
+            "targetType",
+            "targetId",
+            "botUin",
+            "text"
+          ],
+          "owner": "delivery-manager",
+          "phase": "before-provider-acceptance",
+          "unknownPolicy": "query-original"
+        },
+        "system": true
+      }
+    }
+  ],
+  "oldPublicationUnchanged": true,
+  "tempRootRemoved": true,
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "dependencies": {
+    "mcp": "1.28.1",
+    "pytest": "9.1.1",
+    "nonebot2": "2.5.0",
+    "nonebot-adapter-onebot": "2.4.6",
+    "httpx": "0.28.1"
+  },
+  "contract": {
+    "owner": "delivery-manager",
+    "actionPhase": "before-provider-acceptance",
+    "jobPhase": "before-reservation",
+    "binding": "existing input paths only",
+    "currentFields": [
+      "targetType",
+      "targetId",
+      "botUin",
+      "text"
+    ],
+    "nullBotUin": "original omitted/default bot",
+    "jobRuntime": {
+      "owner": "delivery-manager",
+      "targetMode": "runtime",
+      "inputFields": [
+        "targetType",
+        "targetId",
+        "botUin",
+        "text"
+      ],
+      "allowedStates": [
+        "pending",
+        "reserved"
+      ],
+      "phase": "before-reservation",
+      "concurrency": "job-config-cas+event-receipt",
+      "audit": "final_operations",
+      "unknownPolicy": "query-original"
+    },
+    "pendingFact": "existing plan.runtimeDelivery[step].children[slot].backlog",
+    "fields": [
+      "dispatchKey",
+      "fireAt",
+      "text",
+      "error"
+    ],
+    "api": "GET /api/job-runs/{runId}: deliveryRuntime.steps[step].pendingFires plus original receipt",
+    "identity": "same original Run/Step/Attempt/effectKey; no automatic retry budget",
+    "knownNoAttempt": "original trusted phase and exact Attempt/effect/arguments; ordinary pulse only",
+    "unknown": "no remote query protocol; retain original identity, do not resend",
+    "migration": "new release opt-in must be mapped by migration owner; no real collection read or activation"
+  }
+}

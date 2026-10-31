@@ -1,0 +1,9 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "observedAt": "2026-10-31T20:56:44.8821928+08:00",
+  "scope": "owned crash/browser/pytest process command lines restricted to this worktree",
+  "remainingOwnedProcessCount": 0,
+  "remainingOwnedProcessIds": [],
+  "noProcessKilled": true,
+  "fixtures": "HTTP/WS close and browser close in finalizers; subprocess crash children waited; temporary data fixture owned"
+}

@@ -1,0 +1,60 @@
+{
+  "sourceSha": "d4850c96419e67ee0bdb5942df243ab5a928ce5f",
+  "checks": [
+    {
+      "name": "backend",
+      "junit": "backend.xml",
+      "counts": {
+        "tests": 4,
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0
+      },
+      "exit": 0
+    },
+    {
+      "name": "monitoring",
+      "junit": "monitoring-v2.xml",
+      "counts": {
+        "tests": 2,
+        "passed": 2,
+        "failed": 0,
+        "skipped": 0
+      },
+      "exit": 0
+    },
+    {
+      "name": "react-pure",
+      "command": "pnpm exec vitest run src/hooks/useWebSocket.partial-r24.test.ts",
+      "counts": {
+        "tests": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "exit": 0
+    },
+    {
+      "name": "build",
+      "command": "pnpm build",
+      "assets": 88,
+      "exit": 0
+    },
+    {
+      "name": "qq-baseline",
+      "junit": "qq-baseline.xml",
+      "counts": {
+        "tests": 13,
+        "passed": 10,
+        "failed": 3,
+        "skipped": 0
+      },
+      "exit": 1
+    }
+  ],
+  "unverified": [
+    "jsdom integration: missing @asamuzakjp/css-color",
+    "canonical automatic QQ backlog",
+    "remote CI/other platforms/real migration/deployment"
+  ]
+}

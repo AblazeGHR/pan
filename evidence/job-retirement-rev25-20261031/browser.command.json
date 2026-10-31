@@ -1,0 +1,32 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "browser",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev25_browser.py",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\browser.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 13.653610944747925,
+  "log": "browser.log",
+  "logSha256": "5c4bc3267813be16a57118ecaa7a661672047e8823d888be25766e660ba7cb05",
+  "counts": {
+    "tests": 1,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 1
+  },
+  "junit": "browser.xml",
+  "junitSha256": "a6d7094ba5a8f945eaf60740c226786a921b3fdd4b7308d2c78e2e2ac935505a"
+}

@@ -1,0 +1,34 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "recovery",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_automatic_recovery.py",
+    "tests/test_job_monitoring_completion.py",
+    "tests/test_job_recovery_stable_reset.py",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\recovery.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 96.09323191642761,
+  "log": "recovery.log",
+  "logSha256": "540ce413b39434ef053230a5f8742caa2939ca6e14e10672d879acb516fc8fb4",
+  "counts": {
+    "tests": 115,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 115
+  },
+  "junit": "recovery.xml",
+  "junitSha256": "84a989e994ae37c5a797e160f71cd91f2033a1f4ce0c6cd905300fce7baab99b"
+}

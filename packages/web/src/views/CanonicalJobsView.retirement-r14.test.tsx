@@ -20,7 +20,7 @@ beforeEach(() => {
       if (lost) throw new TypeError('owned lost response');
       return response({ operationId: 'op', status: 'completed', objectRefs: [], links: {} });
     }
-    if (url === '/api/jobs/actions') return response({ items: ['product_assign_v2', 'product_process_logs_v1'].map((id) => ({ id, system: true, state: 'published', enabled: available, defaultCompletion: id.includes('assign') ? 'durable-queue-accepted' : 'process-exit' })), references: Object.fromEntries(['product_assign_v2', 'product_process_logs_v1'].map((id) => [id, ref(id)])) });
+    if (url === '/api/jobs/actions') return response({ items: ['product_assign_v2', 'product_assign_runtime_v1', 'product_process_logs_v1'].map((id) => ({ id, system: true, state: 'published', enabled: available, defaultCompletion: id.includes('assign') ? 'durable-queue-accepted' : 'process-exit' })), references: Object.fromEntries(['product_assign_v2', 'product_assign_runtime_v1', 'product_process_logs_v1'].map((id) => [id, ref(id)])) });
     if (url.includes('operations')) return response({ operationId: 'op', status: 'completed', objectRefs: [], links: {} });
     return response({ items: [], nextCursor: null });
   }));
@@ -53,6 +53,14 @@ it('shell caller passes raw command/cwd to host normalization, never guesses bro
   click('Save passive Template'); await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.body.form).toEqual({ kind: 'shell', fields: { command: 'echo "raw text" > result', cwd: '  owned directory  ', hideWindow: true } });
   expect(writes[0]!.url).toBe('/api/job-templates');
+});
+
+it('explicitly opts the assign Template into the immutable runtime release and declaration', async () => {
+  host('assign'); change('Session ID', 'ses_owned'); change('Text', 'runtime text');
+  fireEvent.click(screen.getByLabelText('Use Delivery Manager runtime target/text before queue acceptance'));
+  await ready(); click('Save passive Template'); await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0]!.body.form).toEqual({ kind: 'assign', fields: { sessionId: 'ses_owned', text: 'runtime text', runtime: true } });
+  expect(writes[0]!.body).toMatchObject({ definition: { jobDefinition: { steps: [{ actionRef: ref('product_assign_runtime_v1') }] } } });
 });
 
 it('unknown creation queries the original operation and disables duplicate form submission', async () => {

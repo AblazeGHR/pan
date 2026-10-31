@@ -1,0 +1,27 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222] _
+tests\test_retirement_rev25_qq_runtime.py:167: in test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text
+    assert after['runs'][rid]['state'] == 'completed', json.dumps(after['effects'])
+E   AssertionError: [{"attemptId": "attempt_6e50f2a66e1542fbadbb2b58", "createdAt": "2026-10-31T12:26:01.743774Z", "effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "outcome": "unknown", "receipt": {"deliveryRuntime": {"acceptance": [{"outcome": "unknown", "targetId": "123456"}], "argumentsDigest": "f10c4a2d9453297080d558aae539ded9e83e64b4a8964d757edc459ff5f5d592", "attemptId": "attempt_6e50f2a66e1542fbadbb2b58", "children": [{"arguments": {"botUin": "222222", "targetId": "654321", "targetType": "group", "text": "  changed\nraw  "}, "argumentsDigest": "51655f6ae2bb1de8d656a3d75c830e80e45d491a8930eeb285b9c23c6628c412", "attempted": false, "backlog": {"dispatchKey": "run_a8fd1b9569c64bb7aae07fe0", "error": {"code": "bot_not_connected", "message": "QQ bot \u672a\u8fde\u63a5\uff08\u7f51\u5173\u5c1a\u672a\u5efa\u7acb\u8fde\u63a5\uff09"}, "fireAt": null, "text": "  original\nQQ  "}, "effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "lastError": {"code": "bot_not_connected", "message": "QQ bot \u672a\u8fde\u63a5\uff08\u7f51\u5173\u5c1a\u672a\u5efa\u7acb\u8fde\u63a5\uff09"}, "operation": "channel", "parentFence": {"attemptId": "attempt_6e50f2a66e1542fbadbb2b58", "effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "generation": 1, "leaseId": "lease_75ebc587482f42bfacfbbf3a", "ownerEpoch": 1}, "phase": "before-queue-acceptance", "receipt": {"effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "ok": false, "outcome": "unknown", "receipt": {"error": {"code": "connection_error", "message": "ReadTimeout: "}, "ok": false}, "status": "unknown", "targetSelection": {"targetId": "654321", "targetType": "group"}}, "reservationOwnerDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b", "reservationOwnerEpoch": null, "runtimeOperationId": "op_2a3dbc5c44d344c29a5443d3", "runtimeRevision": 2, "slot": 0, "status": "unknown", "targetId": "654321", "textDigest": "baaf966907473898adfe3d77eaaac42e65ec7d3407865af3a477346c02cf76ca"}], "effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "effectiveTargets": ["123456"], "eventCause": {"type": "manual"}, "generation": 1, "leaseId": "lease_75ebc587482f42bfacfbbf3a", "owner": "delivery-manager", "ownerEpoch": 1, "phase": "reserved", "reservationScope": "per-target", "runtimeOperationId": "op_18bf121076fb49c08769f8b9", "runtimeRevision": 1, "textDigest": "7cf39c816d7ca7396a4ddfdc4a7e21c9dc80db270f8aa05724d504d489e55723", "unknownPolicy": "query-original"}, "effectKey": {"operationOrdinal": 0, "runId": "run_a8fd1b9569c64bb7aae07fe0", "stepId": "send", "targetId": "product_channel_runtime_v1"}, "ok": false, "outcome": "unknown", "receipt": {"error": {"code": "connection_error", "message": "ReadTimeout: "}, "ok": false}, "status": "unknown", "targetSelection": {"targetId": "654321", "targetType": "group"}}, "updatedAt": "2026-10-31T12:26:01.743780Z"}]
+E   assert 'uncertain' == 'completed'
+E     
+E     - completed
+E     + uncertain
+---------------------------- Captured stdout setup ----------------------------
+10-31 20:25:50 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:25:50 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev25_qq_runtime.py::test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]

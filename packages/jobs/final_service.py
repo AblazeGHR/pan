@@ -346,13 +346,17 @@ class FinalService:
         provider = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1}
         for index, (step, action) in enumerate(zip(value["steps"], checked)):
             config = action.get("definition") or {}
-            if (action["id"] != "product_channel" or config.get("system") is not True
-                    or config.get("providerRef") != provider
+            expected = ({"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.qq-runtime.v1"), "generation": 2}
+                if action["id"] == "product_channel_runtime_v1" else provider)
+            if (action["id"] not in {"product_channel", "product_channel_runtime_v1"} or config.get("system") is not True
+                    or config.get("providerRef") != expected
                     or config.get("execution", {}).get("operation") != "channel"):
                 continue
             arguments = step["arguments"]
             fixed = {key: arguments[key]["value"] for key in ("targetType", "targetId", "botUin")
                      if arguments.get(key, {}).get("from") == "literal"}
+            if action['id'] == 'product_channel_runtime_v1' and fixed.get('botUin', '') is None:
+                fixed.pop('botUin')  # explicit new-release null means original default bot
             if fixed:
                 # Supply valid validation-only values for unresolved fields;
                 # never persist them or turn a dynamic binding into a target.
@@ -581,7 +585,14 @@ class FinalService:
         if len(job["steps"]) != 1 or value["composition"] != {"creators": [], "triggers": []}:
             error("invalid_schema", "Simple form requires one product step and no schedule")
         step = job["steps"][0]
-        expected = "product_assign_v2" if form["kind"] == "assign" else "product_process_logs_v1"
+        raw_fields = copy.deepcopy(form["fields"])
+        if not isinstance(raw_fields, dict) or not isinstance(raw_fields.get('runtime', False), bool):
+            error('invalid_schema', 'Form fields must be an object and runtime must be boolean')
+        runtime_opt_in = raw_fields.pop("runtime", False)
+        if runtime_opt_in and form["kind"] != "assign":
+            error("capability_unsupported", "Runtime Template opt-in is available for assign only")
+        expected = ("product_assign_runtime_v1" if runtime_opt_in else "product_assign_v2") \
+            if form["kind"] == "assign" else "product_process_logs_v1"
         action = fc._check_action_ref(step["actionRef"], path="definition.jobDefinition.steps.0.actionRef",
             completion=step["completion"], completion_path="definition.jobDefinition.steps.0.completion",
             resolver=self._resolver(db), require_enabled=False)
@@ -589,13 +600,38 @@ class FinalService:
         if (action["id"] != expected or config.get("system") is not True
                 or config["execution"]["operation"] != ("assign" if form["kind"] == "assign" else "process")):
             error("reference_conflict", "Form requires the fixed product Action publication")
-        if any(binding["from"] != "literal" for binding in step["arguments"].values()):
+        if runtime_opt_in:
+            if any(binding["from"] != "literal" for binding in step["arguments"].values()):
+                error("invalid_schema", "Runtime form canonical fields must start literal")
+        elif any(binding["from"] != "literal" for binding in step["arguments"].values()):
             error("invalid_schema", "Simple form arguments must be literal")
         explicit = {key: binding["value"] for key, binding in step["arguments"].items()}
-        arguments = normalize_legacy_form_fields(form["fields"], kind=form["kind"], canonical=explicit)
+        arguments = normalize_legacy_form_fields(raw_fields, kind=form["kind"], canonical=explicit)
         if form["kind"] == "assign":
             arguments = self._session_source(arguments, actor)
-        step["arguments"] = {key: {"from": "literal", "value": val} for key, val in arguments.items()}
+        if runtime_opt_in:
+            self._check_literal_product_sessions({'steps': [{'arguments': {
+                key: {'from': 'literal', 'value': val} for key, val in arguments.items()}}]}, [action])
+            step["arguments"] = {
+                "sessionId": {"from": "input", "path": "delivery.target"},
+                "text": {"from": "input", "path": "delivery.text"},
+                "source": {"from": "literal", "value": arguments["source"]},
+                **({"sourceSessionId": {"from": "literal", "value": arguments["sourceSessionId"]}}
+                   if arguments.get("sourceSessionId") else {}),
+                **({"taskId": {"from": "literal", "value": arguments["taskId"]}} if 'taskId' in arguments else {}),
+            }
+            job["inputSchema"] = {"type": "object", "properties": {"delivery": {
+                "type": "object", "properties": {"target": {"type": ["string", "null"], "minLength": 1},
+                                                     "text": {"type": "string", "minLength": 1}},
+                "required": ["target", "text"], "additionalProperties": False}},
+                "required": ["delivery"], "additionalProperties": False}
+            job["arguments"] = {"delivery": {"target": arguments["sessionId"], "text": arguments["text"]}}
+            job["deliveryRuntime"] = {"owner": "delivery-manager", "targetMode": "runtime",
+                "inputFields": ["delivery.target", "delivery.text"], "allowedStates": ["pending", "reserved"],
+                "concurrency": "job-config-cas+event-receipt", "audit": "final_operations",
+                "phase": "before-reservation", "unknownPolicy": "query-original"}
+        else:
+            step["arguments"] = {key: {"from": "literal", "value": val} for key, val in arguments.items()}
         self._references(db, "job", job)
         return {**{key: val for key, val in body.items() if key != "form"}, "definition": value}
 
@@ -827,6 +863,13 @@ class FinalService:
                 projected = {key: copy.deepcopy(value) for key, value in reserved.items() if key not in {"arguments", "children"}}
                 projected["children"] = [{key: copy.deepcopy(value) for key, value in child.items() if key != "arguments"}
                                          for child in reserved.get("children", [])]
+                from packages.jobs.session_delivery_runtime import bound_attempt
+                eligible = bool(bound_attempt(aggregate(job, self.root), run['runId'])) and not plan.get('runtimeHold')
+                projected['pendingFires'] = [{**copy.deepcopy(child['backlog']), 'status': child['status'],
+                    'automaticDelivery': child['status'] == 'known-no-attempt' and eligible} for child in reserved.get('children', [])
+                    if child.get('operation') == 'channel' and child.get('status') != 'accepted' and child.get('backlog')]
+                if plan.get('runtimeHold'):
+                    projected['holdReason'] = plan['runtimeHold']
                 delivery["steps"][step_id] = projected
         return {**copy.deepcopy(run), **({"notifications": rows} if rows else {}),
                 **({"deliveryRuntime": delivery} if delivery else {})}
@@ -1309,6 +1352,20 @@ class FinalService:
             runtime_action["providerRef"] = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.session-runtime.v1"), "generation": 3}
             self.publish_action("product_" + op.replace("-", "_") + "_runtime_v1", runtime_action)
 
+        # QQ runtime is additive and opt-in. The old product_channel release
+        # remains frozen; this release only permits the existing trusted QQ
+        # producer proof to hold one unfinished Attempt before acceptance.
+        if getattr(self.executor, "channel_provider", None) is not None:
+            with self.transaction(readonly=True) as db:
+                channel_runtime = definition("action", self._get(db, "action", "product_channel"))
+            channel_runtime["runtimeBeforeAcceptance"] = {
+                "owner": "delivery-manager", "fields": ["targetType", "targetId", "botUin", "text"],
+                "phase": "before-provider-acceptance", "fence": "per-target-attempt-effect",
+                "unknownPolicy": "query-original"}
+            channel_runtime['inputSchema']['properties']['botUin']['type'] = ['string', 'null']
+            channel_runtime["providerRef"] = {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.qq-runtime.v1"), "generation": 2}
+            self.publish_action("product_channel_runtime_v1", channel_runtime)
+
         self.publish_action("product_resume_legal_running_v1", {
             "name": "Resume Illegal / pending recovery Sessions",
             "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
@@ -1600,6 +1657,11 @@ class FinalService:
             plan = state["plans"][run_id]
             if run["state"] not in {"queued", "retry_wait", "paused_at_boundary", "cancelling"}:
                 return
+            from packages.jobs.session_delivery_runtime import unproven_channel_attempt
+            if unproven_channel_attempt(state, run_id):
+                plan['runtimeHold'] = 'runtime_reservation_unproven'
+                self._save(db, 'job', job_id, job)
+                return
             if run["state"] == "cancelling":
                 self._cancel_boundary(db, job, run_id)
                 return
@@ -1874,6 +1936,11 @@ class FinalService:
                         row.update(status="uncertain", receipt={"code": "notification_host_restarted"})
                 self._save(db, "job", job["jobId"], job)
                 for run in state["runs"].values():
+                    from packages.jobs.session_delivery_runtime import unproven_channel_attempt
+                    if unproven_channel_attempt(state, run['runId']):
+                        state['plans'][run['runId']]['runtimeHold'] = 'runtime_reservation_unproven'
+                        self._save(db, 'job', job['jobId'], job)
+                        continue
                     from packages.jobs.session_delivery_runtime import bound_attempt
                     if bound_attempt(state, run["runId"]):
                         # Only explicit child facts retain the same unfinished

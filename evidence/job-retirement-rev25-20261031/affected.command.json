@@ -1,0 +1,37 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "affected",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_final_contracts.py",
+    "tests/test_job_final_http_service.py",
+    "tests/test_session_product_closure.py",
+    "tests/test_retirement_session_runtime.py",
+    "tests/test_retirement_rev25_form.py",
+    "tests/test_retirement_rev25_monitoring.py",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\affected.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 119.8101007938385,
+  "log": "affected.log",
+  "logSha256": "f3eff508d576aab9ac93946d3dc74ab0fb0eb4e7caa9c04e4acc2b163858431e",
+  "counts": {
+    "tests": 204,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 204
+  },
+  "junit": "affected.xml",
+  "junitSha256": "c9289aa1daefe92314c212dc25620e11d0ec3d2f2fabf8ffc8fa31ea65782ef8"
+}

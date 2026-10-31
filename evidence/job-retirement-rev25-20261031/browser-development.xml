@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.308" timestamp="2026-10-31T20:24:35.279884+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_browser" name="test_fresh_browser_original_partial_outbox_ws_duplicate_and_runtime_form_http" time="14.272"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:&#10;  &#10;    assert.ok(terminal.length &gt;= 2)&#10;  &#10;      at file:///D:/project/pan-worktrees/job-entry-notification-closure-20261029/packages/web/e2e/retirement-r25-ws.mjs:50:12 {&#10;    generatedMessage: true,&#10;    code: 'ERR_ASSERTION',&#10;    actual: false,&#10;    expected: true,&#10;    operator: '==',&#10;    diff: 'simple'&#10;  }&#10;  &#10;  Node.js v24.22.1&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web\\e2...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.22.1\n&quot;).returncode">tests\test_retirement_rev25_browser.py:72: in test_fresh_browser_original_partial_outbox_ws_duplicate_and_runtime_form_http
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: node:internal/modules/run_main:107
+E         triggerUncaughtException(
+E         ^
+E     
+E     AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E     
+E       assert.ok(terminal.length &gt;= 2)
+E     
+E         at file:///D:/project/pan-worktrees/job-entry-notification-closure-20261029/packages/web/e2e/retirement-r25-ws.mjs:50:12 {
+E       generatedMessage: true,
+E       code: 'ERR_ASSERTION',
+E       actual: false,
+E       expected: true,
+E       operator: '==',
+E       diff: 'simple'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web\\e2...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.22.1\n").returncode</failure></testcase></testsuite></testsuites>

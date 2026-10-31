@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="13" time="168.951" timestamp="2026-10-31T15:15:54.266800+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="13.192"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 15:15:55 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 15:15:55 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="14.285"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[None]" time="15.214"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[222222]" time="13.862"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_edit_after_admission_keeps_actual_original_bot_target_text" time="14.379"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]" time="14.214"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]" time="14.075"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[None]" time="14.033"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]" time="14.402"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]" time="14.466"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[None-bot_not_connected]" time="8.763"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_be9466adb9894015a992d56f&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_9d3d7aefbf0c4d1182c24e4a&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;c9dc1020cfab0c887df43aff4d18ab8555d7f7151a42ce8ff23acd928691906c&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_22d154a1560a4309ae067e3d&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_be9466adb9894015a992d56f&quot;},&quot;runId&quot;:&quot;run_22d154a1560a4309ae067e3d&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">tests\test_retirement_rev6_parity.py:125: in test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay
+    assert denied.status_code == 409, denied.text
+E   AssertionError: {"operationId":"op_be9466adb9894015a992d56f","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_9d3d7aefbf0c4d1182c24e4a","revision":1,"digest":"c9dc1020cfab0c887df43aff4d18ab8555d7f7151a42ce8ff23acd928691906c"}],"result":{"runId":"run_22d154a1560a4309ae067e3d","attemptId":null},"links":{"self":"/api/operations/op_be9466adb9894015a992d56f"},"runId":"run_22d154a1560a4309ae067e3d"}
+E   assert 202 == 409
+E    +  where 202 = &lt;Response [202 Accepted]&gt;.status_code</failure><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[222222-bot_not_connected]" time="8.769"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_60a10fea2dce41a6872764c6&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_a0a3478737264a59ba9c250b&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;fe3a92495153e8d5fd9ec4ee9287a78f0a732bc26f8e372d1b14ae973cfd40b8&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_5625ed9f990f49508564b393&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_60a10fea2dce41a6872764c6&quot;},&quot;runId&quot;:&quot;run_5625ed9f990f49508564b393&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">tests\test_retirement_rev6_parity.py:125: in test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay
+    assert denied.status_code == 409, denied.text
+E   AssertionError: {"operationId":"op_60a10fea2dce41a6872764c6","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_a0a3478737264a59ba9c250b","revision":1,"digest":"fe3a92495153e8d5fd9ec4ee9287a78f0a732bc26f8e372d1b14ae973cfd40b8"}],"result":{"runId":"run_5625ed9f990f49508564b393","attemptId":null},"links":{"self":"/api/operations/op_60a10fea2dce41a6872764c6"},"runId":"run_5625ed9f990f49508564b393"}
+E   assert 202 == 409
+E    +  where 202 = &lt;Response [202 Accepted]&gt;.status_code</failure><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[333333-unknown_bot_uin]" time="8.862"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_b03c5ce0301449c3afaf30f5&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_3d7f1c71ed6b44a2ac7366d7&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;23d5dc65d4deb027c7d78148c7783a736d3cc2bf22a6681846cf311c1dac85f0&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_4c31097ebaf24259a590ad2d&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_b03c5ce0301449c3afaf30f5&quot;},&quot;runId&quot;:&quot;run_4c31097ebaf24259a590ad2d&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">tests\test_retirement_rev6_parity.py:125: in test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay
+    assert denied.status_code == 409, denied.text
+E   AssertionError: {"operationId":"op_b03c5ce0301449c3afaf30f5","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_3d7f1c71ed6b44a2ac7366d7","revision":1,"digest":"23d5dc65d4deb027c7d78148c7783a736d3cc2bf22a6681846cf311c1dac85f0"}],"result":{"runId":"run_4c31097ebaf24259a590ad2d","attemptId":null},"links":{"self":"/api/operations/op_b03c5ce0301449c3afaf30f5"},"runId":"run_4c31097ebaf24259a590ad2d"}
+E   assert 202 == 409
+E    +  where 202 = &lt;Response [202 Accepted]&gt;.status_code</failure><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

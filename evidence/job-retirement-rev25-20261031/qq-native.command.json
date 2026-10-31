@@ -1,0 +1,34 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "qq-native",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev25_qq_runtime.py",
+    "-k",
+    "not current_gate and not cold_corrupt and not invalid_runtime and not hard_crash",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\qq-native.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 110.24031925201416,
+  "log": "qq-native.log",
+  "logSha256": "3287ed184d8708ab81d5d0fde41c6d441163a31108fc19399e1e1786376076b5",
+  "counts": {
+    "tests": 10,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 10
+  },
+  "junit": "qq-native.xml",
+  "junitSha256": "df64c0d5bf95ab28410239aca6904b4fbe583e5da95c00fdd0b92cb4318e052e"
+}
