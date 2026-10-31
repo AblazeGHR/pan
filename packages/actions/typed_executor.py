@@ -136,6 +136,9 @@ class WorkerSessionProvider:
         from packages.core import worker
         from packages.core import session
 
+        if worker._shutdown_started:
+            return _LocalSessionNoAttempt(status="error", sessionId=session_id,
+                result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
         if await asyncio.to_thread(session.get, session_id, load_history=False) is None:
             return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
                 phase="before-enqueue", attempted=False)
@@ -167,6 +170,9 @@ class WorkerAssignProvider:
         from packages.core import worker
         from packages.core import session
 
+        if worker._shutdown_started:
+            return _LocalSessionNoAttempt(status="error", sessionId=session_id,
+                result="Pan main service is shutting down", phase="before-enqueue", attempted=False)
         if await asyncio.to_thread(session.get, session_id, load_history=False) is None:
             return _LocalSessionNoAttempt(status="rejected", sessionId=session_id,
                 phase="before-enqueue", attempted=False)

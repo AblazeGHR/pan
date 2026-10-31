@@ -45,6 +45,32 @@ def notice(service, jid):
     return next(row for row in service.final.history(jid)['outbox'] if row['channel'] == 'session')
 
 
+def test_actual_local_shutdown_notice_remains_pending_then_same_outbox_enqueues_once(h):
+    job = completed(h, 'ses_b')
+    original = notice(h.service, job['id'])
+    before = worker._shutdown_started
+    h.service.outbox_sender = sender
+    try:
+        worker._shutdown_started = True
+        asyncio.run(h.service.deliver_outbox())
+        pending = notice(h.service, job['id'])
+        assert pending['status'] == 'pending'
+        assert pending['receipt']['error']['code'] == 'pan_shutting_down'
+        assert pending['receipt']['binding'] == binding(pending)
+        assert pending['receipt']['attempted'] is False
+        assert not session.get('ses_b').queue_pending
+        worker._shutdown_started = False
+        asyncio.run(h.service.deliver_outbox())
+        accepted = notice(h.service, job['id'])
+        assert accepted['outboxId'] == original['outboxId'] and accepted['status'] == 'acked'
+        assert len(session.get('ses_b').queue_pending) == 1
+        asyncio.run(h.service.deliver_outbox())
+        assert notice(h.service, job['id']) == accepted
+        assert len(session.get('ses_b').queue_pending) == 1
+    finally:
+        worker._shutdown_started = before
+
+
 def edit(h, job, target, key='retarget'):
     value = definition('job', job)
     value['notification']['recipients'][0]['targetRef'] = target

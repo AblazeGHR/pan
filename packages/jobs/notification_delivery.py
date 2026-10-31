@@ -42,6 +42,10 @@ async def enqueue_session_notice(row):
     bound = binding(row)
     base = {"binding": bound, "producer": "session.enqueue_notice"}
     target = row.get("targetRef")
+    if worker._shutdown_started:
+        return _LocalNoticeReceipt(**base, outcome="pending", attempted=False,
+            phase="before-enqueue", error={"code": "pan_shutting_down",
+                "message": "Pan main service is shutting down"})
     # Both facts are observed before invoking the effectful original enqueue.
     # An exception/negative result after entering that call remains unknown.
     if not target or await asyncio.to_thread(session.get, target, load_history=False) is None:

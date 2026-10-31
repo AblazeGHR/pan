@@ -20,6 +20,41 @@ from tests.test_job_final_http_service import enabled, control
 from tests.test_session_product_closure import config
 
 
+@pytest.mark.parametrize('op', ['assign', 'session-message', 'session-broadcast'])
+def test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns(h, op):
+    from packages.core import worker
+    job, rid, frozen = admitted(h, op)
+    before = worker._shutdown_started
+    workers = set(worker.workers)
+    try:
+        worker._shutdown_started = True
+        asyncio.run(h.service.dispatch_once())
+        pending = h.service.final.get(job['id'])
+        attempt = next(iter(pending['attempts'].values()))
+        assert attempt['state'] == 'running' and len(pending['attempts']) == 1
+        assert not pending['effects']
+        assert pending['runs'][rid]['state'] == 'paused_at_boundary'
+        assert not session.get('ses_a').queue_pending and not session.get('ses_b').queue_pending
+        plan = h.service.final.store.get(job['id'])['finalRuntime']['plans'][rid]
+        children = plan['runtimeDelivery']['send']['children']
+        assert all(c['status'] == 'known-no-attempt' and c['attempted'] is False for c in children)
+        assert all('shutting down' in str(c['receipt']) for c in children)
+        worker._shutdown_started = False
+        asyncio.run(h.service.dispatch_once())
+        done = h.service.final.get(job['id'])
+        assert done['runs'][rid]['state'] == 'completed'
+        assert list(done['attempts']) == list(pending['attempts'])
+        assert len(session.get('ses_a').queue_pending) == 1
+        if op == 'session-broadcast':
+            assert len(session.get('ses_b').queue_pending) == 1
+        assert h.service.final.store.get(job['id'])['finalRuntime']['plans'][rid]['frozen'] == frozen
+        asyncio.run(h.service.dispatch_once())
+        assert h.service.final.get(job['id'])['effects'] == done['effects']
+        assert set(worker.workers) == workers
+    finally:
+        worker._shutdown_started = before
+
+
 def admitted(h, op='assign', *, actor=None):
     targets = ['ses_a', 'ses_b'] if op == 'session-broadcast' else 'ses_a'
     target_key = 'sessionIds' if op == 'session-broadcast' else 'sessionId'
