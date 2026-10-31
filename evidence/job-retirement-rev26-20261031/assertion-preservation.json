@@ -1,0 +1,8 @@
+{
+  "sourceSha": "9ccf4f2184851a7a67f60823b0c733d47d1386e6",
+  "baseline": "f905ff36726aa395f5edb176781f3db467a03a0d",
+  "originalAssertionsPreserved": 42,
+  "comparison": "UTF-8 AST multiset per original function, including duplicates",
+  "productDiffEmpty": true,
+  "additionalAssertions": "fixture client closes before loop; loop closes before outer fixture teardown"
+}

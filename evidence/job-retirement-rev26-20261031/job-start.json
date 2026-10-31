@@ -1,0 +1,12 @@
+{
+  "revision": 26,
+  "sourceSha": "9ccf4f2184851a7a67f60823b0c733d47d1386e6",
+  "jobId": "job_c0d1f1b3b9b152b369291947",
+  "targetSessionId": "ses_ba610984fdb94787",
+  "originalMaRed": "D:/project/Pan/.workflow/job-unification-review-20261028/ma-rev25-combined.xml",
+  "originalMaRedSha256": "ac897bea853884b325f9d368d57dfe97479bd444edda81e51741cb05a4ca07d6",
+  "statusAtStart": "running",
+  "terminalResult": "await owned background_job_terminal notice; do not poll",
+  "scope": "manual8 then same-process runtime23 followed by manual8",
+  "productChanges": false
+}

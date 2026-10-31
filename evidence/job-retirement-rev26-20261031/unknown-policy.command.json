@@ -1,0 +1,53 @@
+{
+  "sourceSha": "38b60e270c060a086705cbd5eb0b149f3d75441f",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev26_unknown_api.py",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev26-20261031\\unknown-policy.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "seconds": 2.4478875000022526,
+  "counts": {
+    "passed": 5,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "executionOrder": [
+    {
+      "node": "tests/test_retirement_rev26_unknown_api.py::test_unknown_legacy_api_explicit_rejection_is_not_default_assign[create_session]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev26_unknown_api.py::test_unknown_legacy_api_explicit_rejection_is_not_default_assign[owned_unknown_api]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev26_unknown_api.py::test_unknown_api_or_reference_post_put_rejects_before_write_or_effect[legacy-api]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev26_unknown_api.py::test_unknown_api_or_reference_post_put_rejects_before_write_or_effect[unknown-action-reference]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev26_unknown_api.py::test_unknown_legacy_source_bytes_preserved_inventory_and_cold_start_zero_assign",
+      "status": "passed"
+    }
+  ],
+  "qqProductAndTestSourceIdenticalTo": "9ccf4f2184851a7a67f60823b0c733d47d1386e6",
+  "log": "unknown-policy.log",
+  "junit": "unknown-policy.xml",
+  "logSha256": "a376d0917a3a0e45d4c3ed9c0a923a04e54c7a0b586933f748554998e49391e4",
+  "junitSha256": "7ba1b3e9cbeee57d487afdcca80c987533ade5c236d0297ade648f12f85d5b4e"
+}

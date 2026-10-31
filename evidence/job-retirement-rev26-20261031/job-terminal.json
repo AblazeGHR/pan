@@ -1,0 +1,10 @@
+{
+  "noticeKind": "background_job_terminal",
+  "jobId": "job_c0d1f1b3b9b152b369291947",
+  "targetSessionId": "ses_ba610984fdb94787",
+  "eventId": "job_c0d1f1b3b9b152b369291947:terminal",
+  "status": "completed",
+  "exitCode": 0,
+  "provenance": "Pan system terminal notice received in this Session",
+  "sourceSha": "9ccf4f2184851a7a67f60823b0c733d47d1386e6"
+}

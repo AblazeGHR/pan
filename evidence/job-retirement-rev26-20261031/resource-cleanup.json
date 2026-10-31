@@ -1,0 +1,9 @@
+{
+  "observedAt": "2026-10-31T21:19:47.7628089+08:00",
+  "scope": "this worktree owned QQ test/crash/browser/validation processes only",
+  "remainingOwnedProcessCount": 0,
+  "remainingOwnedPids": [],
+  "noProcessesKilled": true,
+  "qqFixture": "run_qq finalizer asserts client closed on original live loop and loop closed before qq_http teardown",
+  "pytestTeardownErrors": 0
+}
