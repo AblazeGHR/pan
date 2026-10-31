@@ -16,6 +16,7 @@ import jsonschema
 from packages.jobs import final_contracts as fc
 
 from .inventory import SIMPLE
+from .runtime_fields import delivery_binding_gap
 
 
 class ApplyError(ValueError):
@@ -179,6 +180,9 @@ class Mapper:
 
     def map(self, item: dict, source: dict) -> dict:
         require(item["classification"] == SIMPLE, "refusing non-simple record")
+        require(delivery_binding_gap(item["type"], item.get("sourceKind"), source) is None,
+                "runtime_binding_unavailable: retain original delivery manager; input binding alone "
+                "does not prove revision/reservation/per-target receipt semantics")
         mid = item["migrationId"]
         proof_source = self.context.get("records", {}).get(mid)
         require(proof_source is not None,

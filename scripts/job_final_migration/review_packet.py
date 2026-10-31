@@ -103,6 +103,15 @@ def _read_dependencies(item, source):
 def _disposition(item, source):
     reasons = set(item["reasonCodes"])
     unresolved = bool(reasons & {"active_resource", "uncertain_effect", "pending_notice", "unverified_authority"})
+    if "runtime_binding_unavailable" in reasons:
+        return {"historicalPreserve": "raw bytes only; retain original source manager lifecycle",
+                "historicalExecutionAllowed": False,
+                "suggestion": "已批准模型的实现后继",
+                "suggestionDetail": "Reuse input bindings; wire declared manager revision/reservation/receipt contract. "
+                                    "Preserve original identities and reconcile any existing uncertain effects; no blind resend.",
+                "oldReadDependencies": _read_dependencies(item, source),
+                "r6Blocker": "runtime target/text manager parity not yet wired; source manager cannot retire",
+                "implementationFollowUp": True, "decisionIds": []}
     if item["classificationDetail"] == "unknown" or unresolved:
         suggestion = "需业务决策"
         detail = "Retain original bytes in quarantine; assign original-key reconciliation. Never infer success, retry or resend."
@@ -178,6 +187,8 @@ def build_packet(evidence, output, *, expected_manifest_sha256):
                   "observedStatus": source.get("status", "unparsed/unknown"), "targetIds": [],
                   "references": {"inventoryEdges": item["referenceEdges"], "observedOriginalKeys": refs,
                                  "verification": "not runtime-authorized; external paths not followed"}}
+        if "runtimeBindingGap" in item:
+            common["runtimeBindingGap"] = item["runtimeBindingGap"]
         if item["classificationDetail"] == "simple":
             row = {**common, "proposedCanonicalMapping": _proposal(item, source),
                    "risksAndUnknowns": ["shape-only; no authorization", "old owner/resource fence unverified",

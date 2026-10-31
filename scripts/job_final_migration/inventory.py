@@ -23,6 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from .runtime_fields import delivery_binding_gap
+
 TOOL_SCHEMA = "pan.job-final-migration.inventory/v1"
 MAPPING_VERSION = "1"
 SCHEMA_WHITELIST = "v1-known-20261025"
@@ -58,6 +60,7 @@ REASON_CODES = frozenset({
     "counter_coupling",
     "missing_reference",
     "unsupported_complex_instance",
+    "runtime_binding_unavailable",
 })
 
 ACTIVE_JOB_STATUS = frozenset({"running", "cleaning", "restarting", "uncertain"})
@@ -376,6 +379,7 @@ class Finding:
     field_map: dict | None = None
     expected_diff: list[str] = field(default_factory=list)
     references_verified: bool = False
+    runtime_binding_gap: dict | None = None
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -469,6 +473,14 @@ def _valid_cron(value: Any) -> bool:
 def _reason(finding: Finding, code: str, detail: str) -> None:
     assert code in REASON_CODES, code
     finding.reasons.append({"code": code, "detail": detail})
+
+
+def _preserve_runtime_delivery(finding: Finding, source: dict) -> None:
+    gap = delivery_binding_gap(finding.source_type, finding.source_kind, source)
+    if gap is not None:
+        finding.runtime_binding_gap = gap
+        _reason(finding, "runtime_binding_unavailable", gap["gap"] +
+                "; retain source target/text and manager lifecycle, do not freeze as literal")
 
 
 def _unknown_fields(finding: Finding, value: dict, allowed: set[str],
@@ -1201,6 +1213,7 @@ def _classify_message(loaded: Loaded, data: dict) -> Finding:
     if not isinstance(target_struct, dict) or not (
             target_struct.get("sessionId") or target_struct.get("sessionIds")):
         _reason(finding, "target_missing", "targetStruct has no Session target")
+    _preserve_runtime_delivery(finding, data)
     if not finding.reasons:
         finding.field_map = _message_field_map(data)
     return finding
@@ -1375,6 +1388,7 @@ def _classify_scheduled(loaded: Loaded, data: dict, ctx: Context, *,
         target=(data.get("target_session_id") if legacy
                 else data.get("targetSessionId")))
     _runs_for_task(finding, task_id if isinstance(task_id, str) else None, ctx)
+    _preserve_runtime_delivery(finding, data)
     if not finding.reasons:
         finding.field_map = _scheduled_field_map(data, legacy=legacy)
     return finding
@@ -1995,7 +2009,9 @@ def _make_instance(finding: Finding, loaded: Loaded, record_digest: str,
         "reasonCodes": reason_codes,
         "reasons": finding.reasons,
         "rejectionReasons": rejection,
-        "suggestedAction": "plan-only" if simple else "preserve-and-manual-recreate",
+        "suggestedAction": ("retain-source-manager-await-runtime-contract" if finding.runtime_binding_gap
+                            else "plan-only" if simple else "preserve-and-manual-recreate"),
+        **({"runtimeBindingGap": finding.runtime_binding_gap} if finding.runtime_binding_gap else {}),
         "targetIds": [],
         "fieldMap": finding.field_map if simple else None,
         "cursor": finding.cursor,
@@ -2210,6 +2226,7 @@ def build_inventory(root: str | Path, *, allow_real_profile: bool = False) -> di
         "reasonCodes": item["reasonCodes"],
         "rejectionReasons": item["rejectionReasons"],
         "suggestedAction": item["suggestedAction"],
+        **({"runtimeBindingGap": item["runtimeBindingGap"]} if "runtimeBindingGap" in item else {}),
     } for item in instances if item["classification"] == PRESERVED]
 
     return {

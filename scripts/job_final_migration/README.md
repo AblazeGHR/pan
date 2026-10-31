@@ -259,3 +259,21 @@ python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_mi
 部分 write/fsync/replace 失败、源变更、引用/摘要冲突、只读/rollback、提交边界真实子进程退出，以及独立进程无 server import。
 远端三平台 CI、真实 provider/授权/目标、100 个发生点/DST/pause/misfire 语义对照、真实复制数据和生产迁移、
 运行时 fencing/lease/activation、真实断电、部署与人工验收均未验证。
+## Runtime target/text amendment (2026-10-31)
+
+The approved Creator/Delivery Manager matrix applies to legacy message,
+broadcast and scheduled assign/send_session records. Their target(s)/text must
+not be blindly converted to frozen literal steps. This version reports
+`runtime_binding_unavailable` and keeps those records and bytes under the
+original manager; no replacement Job/target IDs are generated for them.
+Explicit partial packages can still import unrelated supported records.
+
+`runtimeBindingGap` in inventory/partial bundle/review packet contains owner,
+pending/reserved phase, freeze-after-acceptance rule, revision/fence/receipt
+requirements and proposed existing `input` paths. Those paths already work
+before admission; the remaining manager annotation and acceptance wiring is
+an approved product implementation task, not a new user decision. This tool
+does not invent a Binding type, claim whole-profile migration, or retire the
+original manager. Existing uncertain/partial receipts stay original-key evidence;
+known-no-attempt is not reclassified as success or unknown. QQ runtime fields
+require a pinned Action declaration; the mapper does not infer it from names.
