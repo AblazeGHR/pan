@@ -109,9 +109,15 @@ def test_rev7_opt_in_qq_without_runtime_release_is_preserved(tmp_path):
     _write_json(root/'background_jobs/jobs/job_qq.json',value)
     inv=build_inventory(root,runtime_delivery=True)
     item,=inv['instances']
-    assert item['classification']=='incompatible-preserved' and item['targetIds']==[]
-    assert 'runtime_binding_unavailable' in item['reasonCodes']
-    assert 'QQ runtime bot/target/text' in item['rejectionReasons'][0]
+    assert item['classification']=='simple-script-migratable' and item['targetIds']==[]
+    assert item['runtimeMappingRequirements']['owner']=='Creator/Delivery Manager'
+    context=runtime_context(root)
+    context['actions']['qq.send']=current_actions()['qq.send']
+    original=(root/'background_jobs/jobs/job_qq.json').read_bytes()
+    with pytest.raises(ValueError,match='runtime_binding_unavailable'):
+        migration.migrate(root,tmp_path/'absent/bundle.json',context)
+    assert not (tmp_path/'absent').exists()
+    assert (root/'background_jobs/jobs/job_qq.json').read_bytes()==original
 
 
 def test_rev7_opt_in_does_not_mutate_plain_process_or_shell_mapping(tmp_path):

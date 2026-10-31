@@ -286,3 +286,46 @@ does not invent a Binding type, claim whole-profile migration, or retire the
 original manager. Existing uncertain/partial receipts stay original-key evidence;
 known-no-attempt is not reclassified as success or unknown. QQ runtime fields
 require a pinned Action declaration; the mapper does not infer it from names.
+
+### Rev9 QQ opt-in successor (2026-10-31)
+
+The older runtime-gap paragraphs above record the R3 stage. With product input
+`dc8b1ff805956a2290b91ee65d0d48f0949470ec`, explicit `--runtime-delivery`
+and matching context `runtimeDelivery={"version":1,"mode":"before-reservation"}`
+can map an unstarted, otherwise eligible `send_qq` scheduled record. Inventory
+describes requirements; it does not attest that a usable Action is available.
+The mapper requires the published `product_channel_runtime_v1` revision 1,
+digest `82674431dfd366b74e7278c682a51d0ad966239ed98c683ddffe6173a703a255`,
+provider `pan.typed` generation 2 / `digest("pan.typed.qq-runtime.v1")`, and the
+exact `runtimeBeforeAcceptance` declaration for targetType/targetId/botUin/text,
+owner delivery-manager, phase before-provider-acceptance, per-target-attempt-effect
+fence and query-original unknown policy. Incorrect declarations/pins are rejected
+before target publication; an old channel Action cannot gain runtime semantics.
+
+These four arguments use existing `input` bindings at `delivery.<field>`.
+The Job phase remains before-reservation. Missing/null botUin becomes explicit
+null input, preserving the original sender's default-bot selection; empty or
+invalid bot identity is not silently converted to a default. Without opt-in,
+the original literal channel mapping and persisted-bot guard remain unchanged.
+
+Existing undelivered fires, lastDelivery, accepted/unknown/partial observations
+and errors retain the original classification guards and bytes. The current
+importer does not resume a legacy pending note under the same dispatch/Attempt/
+effect identity. Such records stay non-executable in the preserved portion of
+a partial bundle, with no target IDs; dispatchKey/fireAt/text/error are retained.
+This limitation prevents declaring whole-profile migration or retiring the
+original manager. A newly imported eligible Job has new identity, not adoption
+of an old effect. Unknown Action names remain preserved; no assign fallback is
+implemented while that separate user decision is pending.
+
+Replay the owned synthetic proof (including public CLI apply/replay, pinned
+release negatives, original bytes, actual new-profile import, pre-admission
+target/text update and cold accepted/unknown non-resend):
+
+```powershell
+& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_migration_qq_runtime.py tests/test_job_migration_runtime_contract.py tests/test_job_migration_runtime_readiness.py -q -o addopts=
+```
+
+These tests use an owned in-process sender, not a QQ service or real account.
+Offline `--apply` does not activate runtime. No real-profile or provider-delivery
+acceptance is implied.
