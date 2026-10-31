@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="9" time="55.204" timestamp="2026-10-31T20:43:46.961403+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[pause]" time="6.424"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 20:43:47 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:43:47 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[disable]" time="6.631"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_proven_unsent_qq_current_gate_blocks_same_attempt_without_budget[revoke]" time="6.640"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[missing-proof]" time="6.842"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-attempt]" time="6.594"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_cold_corrupt_qq_no_send_proof_never_authorizes_automatic_replay[wrong-arguments]" time="6.727"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[targetId-123]" time="4.981"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[botUin-bad]" time="4.960"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_invalid_runtime_qq_current_defaults_reject_before_operation_revision_or_effect[text-  ]" time="5.078"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

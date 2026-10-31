@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="8" time="100.183" timestamp="2026-10-31T20:53:48.238585+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[None]" time="13.745"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 20:53:48 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:53:48 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]" time="14.929"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]" time="14.777"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_receipt_binding_corruption_and_unknown_partial_never_retry" time="10.176"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_current_authorization_revoked_before_manual_retry_no_write_or_send" time="10.094"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_custom_product_like_action_cannot_use_trusted_retry_exception" time="9.885"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_call_api_entered_channel_not_connected_is_ambiguous_no_proof" time="14.533"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance" time="11.725"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

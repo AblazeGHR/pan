@@ -1,0 +1,20 @@
+{
+  "transport": "owned HTTP",
+  "executor": "default detached",
+  "pulse": "FinalService.start",
+  "maxAttempts": 2,
+  "actualInvocations": 3,
+  "runCount": 1,
+  "generations": [
+    1,
+    2,
+    3
+  ],
+  "distinctEffectKeys": 1,
+  "stableWindowBaseGeneration": 1,
+  "coldReopen": true,
+  "frozenPolicyPreserved": true,
+  "historyRows": 2,
+  "originalStableElapsed": "2.3086001",
+  "ownedPortReleased": true
+}

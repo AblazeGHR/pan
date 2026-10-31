@@ -1,0 +1,34 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "qq-crash",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev25_qq_runtime.py",
+    "-k",
+    "hard_crash",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\qq-crash.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 47.57319402694702,
+  "log": "qq-crash.log",
+  "logSha256": "fd4072b9330299e00eecb400ebb16dd51d4264e212f5033005ad2c65f833e174",
+  "counts": {
+    "tests": 4,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 4
+  },
+  "junit": "qq-crash.xml",
+  "junitSha256": "d417e29d49c4ba85ddf159ca8c033f478b14f55b130a0babb9ea942f30307b68"
+}
