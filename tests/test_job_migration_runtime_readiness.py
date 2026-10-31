@@ -307,3 +307,21 @@ def test_runtime_delivery_only_source_reports_and_refuses_empty_canonical_public
         migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
             expected_digest=migration.plan_digest(build_inventory(root), context))
     assert not target.parent.exists() and hashes(root) == before
+
+
+def test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order(tmp_path):
+    import csv
+    import io
+    from scripts.job_final_migration.inventory import build_inventory
+    from scripts.job_final_migration.review_packet import _csv, _disposition
+    root = tmp_path / "synthetic-source"
+    _, source = _runtime_delivery_source(root, "assign")
+    item, = build_inventory(root)["instances"]
+    runtime = {"id": "runtime-source", "runtimeBindingGap": item["runtimeBindingGap"], **_disposition(item, source)}
+    historical = {"id": "unresolved-original", **_disposition(
+        {**item, "reasonCodes": ["uncertain_effect"]}, {})}
+    for rows in ([historical, runtime], [runtime, historical]):
+        parsed = list(csv.DictReader(io.StringIO(_csv(rows).decode("utf-8"))))
+        row = next(r for r in parsed if r["id"] == "runtime-source")
+        assert json.loads(row["runtimeBindingGap"])["owner"] == "Creator/Delivery Manager"
+        assert json.loads(row["decisionIds"]) == [] and row["implementationFollowUp"] == "True"

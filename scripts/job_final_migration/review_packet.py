@@ -45,7 +45,8 @@ def _csv(rows):
     if not rows:
         return b""
     stream = io.StringIO(newline="")
-    writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
+    fields = list(dict.fromkeys(key for row in rows for key in row))
+    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
     writer.writeheader()
     for row in rows:
         cells = {k: json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
