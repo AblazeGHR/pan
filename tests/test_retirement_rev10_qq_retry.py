@@ -20,11 +20,36 @@ from tests.test_retirement_rev6_parity import tcp, qq_job
 from tests.test_retirement_rev9_qq_http import qq_http, admitted  # noqa: F401
 
 
-def disconnected(q):
+@pytest.fixture
+def run_qq(qq_http):
+    """One loop owns the host client for the entire test and its teardown.
+
+    Depending on qq_http makes this finalizer run before its HTTP listeners
+    close. The fixture-only timeout avoids owned NoneBot/client startup cost;
+    the product sender's five-second timeout and unknown handling are unchanged.
+    """
+    from packages.web import server
+    original = server._qq_plugin_client
+    with asyncio.Runner() as runner:
+        loop = runner.get_loop()
+        client = httpx.AsyncClient(timeout=30, trust_env=False)
+        server._qq_plugin_client = client
+        try:
+            yield runner.run
+        finally:
+            try:
+                runner.run(client.aclose())
+                assert client.is_closed and not loop.is_closed()
+            finally:
+                server._qq_plugin_client = original
+    assert loop.is_closed() and server._qq_plugin_client is original
+
+
+def disconnected(q, run_qq):
     bot = q.default._bot
     q.default._bot = None
     _, item, run = admitted(q)
-    asyncio.run(q.h.service.dispatch_once())
+    run_qq(q.h.service.dispatch_once())
     q.default._bot = bot
     state = q.h.service.final.get(item['id'])
     assert state['runs'][run['runId']]['state'] == 'failed'
@@ -40,14 +65,14 @@ def retry_body(state, rid, key='retry'):
 
 
 @pytest.mark.parametrize('bot', [None, '222222', '333333'])
-def test_original_http_cold_retry_duplicate_control_cas_same_effect(qq_http, bot, monkeypatch):
+def test_original_http_cold_retry_duplicate_control_cas_same_effect(qq_http, bot, monkeypatch, run_qq):
     q = qq_http
     channel = q.default if bot is None else q.selected
     connected = channel._bot
     if bot != '333333':
         channel._bot = None
     _, item, run = admitted(q, bot)
-    asyncio.run(q.h.service.dispatch_once())
+    run_qq(q.h.service.dispatch_once())
     before = q.h.service.final.get(item['id'])
     rid = run['runId']
     assert before['runs'][rid]['state'] == 'failed' and not q.rows
@@ -67,7 +92,7 @@ def test_original_http_cold_retry_duplicate_control_cas_same_effect(qq_http, bot
     else:
         channel._bot = connected
     for _ in range(2):
-        asyncio.run(q.h.service.dispatch_once())
+        run_qq(q.h.service.dispatch_once())
     assert q.h.service.final.get(item['id']) == before and not q.rows
     cold = FinalService(q.h.root, q.h.automation.auth)
     from packages.web import server
@@ -86,7 +111,7 @@ def test_original_http_cold_retry_duplicate_control_cas_same_effect(qq_http, bot
         queued = cold.final.get(item['id'])
         again = q.h.client.post('/api/job-runs/' + rid + '/operations', json=retry_body(queued, rid, 'queued-again'))
         assert again.status_code == 409
-        asyncio.run(cold.dispatch_once())
+        run_qq(cold.dispatch_once())
         after = cold.final.get(item['id'])
         assert after['runs'][rid]['state'] == 'completed'
         assert len(after['runs']) == 1 and len(after['attempts']) == len(after['effects']) == 2
@@ -101,20 +126,20 @@ def test_original_http_cold_retry_duplicate_control_cas_same_effect(qq_http, bot
         completed_retry = q.h.client.post('/api/job-runs/' + rid + '/operations', json=retry_body(after, rid, 'success-again'))
         assert completed_retry.status_code == 409
     finally:
-        asyncio.run(cold.close())
+        run_qq(cold.close())
     reopened = FinalService(q.h.root, q.h.automation.auth)
     server._bind_qq_channel_provider(reopened)
     try:
         assert reopened.final.get(item['id']) == after
-        asyncio.run(reopened.dispatch_once())
+        run_qq(reopened.dispatch_once())
         assert len(q.rows) == 1
     finally:
-        asyncio.run(reopened.close())
+        run_qq(reopened.close())
 
 
-def test_original_receipt_binding_corruption_and_unknown_partial_never_retry(qq_http):
+def test_original_receipt_binding_corruption_and_unknown_partial_never_retry(qq_http, run_qq):
     q = qq_http
-    item, run, before = disconnected(q)
+    item, run, before = disconnected(q, run_qq)
     rid = run['runId']
     original = q.h.service.final.store.get(item['id'])
     mutations = [
@@ -153,9 +178,9 @@ def test_original_receipt_binding_corruption_and_unknown_partial_never_retry(qq_
     assert q.h.service.final.get(item['id']) == before
 
 
-def test_current_authorization_revoked_before_manual_retry_no_write_or_send(qq_http):
+def test_current_authorization_revoked_before_manual_retry_no_write_or_send(qq_http, run_qq):
     q = qq_http
-    item, run, before = disconnected(q)
+    item, run, before = disconnected(q, run_qq)
     grants = q.h.automation.auth._default_permissions()
     grants['job']['execute'] = False
     q.h.automation.auth.change_permissions(grants, 0)
@@ -163,11 +188,11 @@ def test_current_authorization_revoked_before_manual_retry_no_write_or_send(qq_h
         q.h.service.control_run(run['runId'], retry_body(before, run['runId']),
                                 actor={'type': 'agent', 'id': 'owned', 'revision': 0})
     assert denied.value.code == 'authorization_denied'
-    asyncio.run(q.h.service.dispatch_once())
+    run_qq(q.h.service.dispatch_once())
     assert q.h.service.final.get(item['id']) == before and not q.rows
 
 
-def test_custom_product_like_action_cannot_use_trusted_retry_exception(qq_http):
+def test_custom_product_like_action_cannot_use_trusted_retry_exception(qq_http, run_qq):
     q = qq_http
     from packages.jobs.final_service import definition
     product = next(row for row in q.h.service.actions(actor=USER)['items'] if row['id'] == 'product_channel')
@@ -178,7 +203,7 @@ def test_custom_product_like_action_cannot_use_trusted_retry_exception(qq_http):
     item = create(q.h, value=value)
     item = control(q.h, 'jobs', item, 'enable').json()['result']['object']
     run = launch(q.h, item)
-    asyncio.run(q.h.service.dispatch_once())
+    run_qq(q.h.service.dispatch_once())
     state = q.h.service.final.get(item['id'])
     assert 'qqNoSend' in state['effects'][0]['receipt']  # Same real no-send producer, different Action authority.
     response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json=retry_body(state, run['runId']))
@@ -186,7 +211,7 @@ def test_custom_product_like_action_cannot_use_trusted_retry_exception(qq_http):
     assert q.h.service.final.get(item['id']) == state and not q.rows
 
 
-def test_call_api_entered_channel_not_connected_is_ambiguous_no_proof(qq_http):
+def test_call_api_entered_channel_not_connected_is_ambiguous_no_proof(qq_http, run_qq):
     q = qq_http
     from packages.qq.channels.base import ChannelNotConnected
     from nonebot.adapters.onebot.v11 import Bot
@@ -197,7 +222,7 @@ def test_call_api_entered_channel_not_connected_is_ambiguous_no_proof(qq_http):
             raise ChannelNotConnected('same text after entering call_api')
     q.default._bot = LostAfterAcceptedBot(q.default._bot.adapter, '111111')
     _, item, run = admitted(q)
-    asyncio.run(q.h.service.dispatch_once())
+    run_qq(q.h.service.dispatch_once())
     state = q.h.service.final.get(item['id'])
     receipt = state['effects'][0]['receipt']
     assert len(q.rows) == 1
@@ -208,7 +233,7 @@ def test_call_api_entered_channel_not_connected_is_ambiguous_no_proof(qq_http):
     assert q.h.service.final.get(item['id']) == state and len(q.rows) == 1
 
 
-def test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance(qq_http, monkeypatch):
+def test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance(qq_http, monkeypatch, run_qq):
     q = qq_http
     from packages.web import server
     wire = {'target_type': 'private', 'target_id': '123456', 'text': 'owned'}
@@ -232,11 +257,11 @@ def test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance(qq_http, mo
         provider = QQChannelProvider(server._send_scheduled_qq)
         for index, payload in enumerate(scenarios):
             current.update(payload=payload, status=503 if index == len(scenarios) - 1 else 200)
-            result = asyncio.run(provider.send('user', '123456', 'owned', effect_key={
+            result = run_qq(provider.send('user', '123456', 'owned', effect_key={
                 'runId': 'owned', 'stepId': 'send', 'targetId': 'product_channel', 'operationOrdinal': 0}))
             assert result == payload and result.no_send is None, index
     # An arbitrary sender cannot mint host provenance even with matching data.
     async def arbitrary(**kwargs):
         return {**raw, 'qqSendPhase': phase}
-    result = asyncio.run(QQChannelProvider(arbitrary).send('user', '123456', 'owned', effect_key={}))
+    result = run_qq(QQChannelProvider(arbitrary).send('user', '123456', 'owned', effect_key={}))
     assert result.no_send is None
