@@ -339,14 +339,7 @@ async def _owned_lifespan(app: FastAPI, owner):
                         final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
                         _bind_qq_channel_provider(final_jobs)
                         async def send_final_notice(row):
-                            if row['channel'] == 'ws':
-                                await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
-                                                 'outboxId': row['outboxId'], **row['summary']})
-                                return {'outcome': 'succeeded'}
-                            if row['channel'] == 'session':
-                                from packages.jobs.notification_delivery import enqueue_session_notice
-                                return await enqueue_session_notice(row)
-                            return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
+                            return await _send_final_notice(row)
                         final_jobs.outbox_sender = send_final_notice
                         await final_jobs.start(activation=load_config().get('job_runtime_activation'))
                         await automation.start()
@@ -494,6 +487,18 @@ async def _deliver_due_reminders() -> int:
     return delivered
 
 ws_clients: set[WebSocket] = set()
+
+
+async def _send_final_notice(row):
+    """Existing canonical outbox -> original browser/Session delivery adapter."""
+    if row['channel'] == 'ws':
+        await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                         'outboxId': row['outboxId'], **row['summary']})
+        return {'outcome': 'succeeded'}
+    if row['channel'] == 'session':
+        from packages.jobs.notification_delivery import enqueue_session_notice
+        return await enqueue_session_notice(row)
+    return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
 agent_clients: set[WebSocket] = set()
 
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）

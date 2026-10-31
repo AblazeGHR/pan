@@ -21,6 +21,8 @@ export function SimpleTemplateForm({ kind, busy, onSubmit, onCancel }: {
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
+    setFixed(undefined);
+    setError('');
     const id = kind === 'assign' && runtime ? 'product_assign_runtime_v1' :
       kind === 'assign' ? 'product_assign_v2' : 'product_process_logs_v1';
     void canonicalJobs.actions().then((page) => {

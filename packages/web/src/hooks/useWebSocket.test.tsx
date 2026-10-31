@@ -314,6 +314,21 @@ describe('useWebSocket worker.result wiring', () => {
     expect(selectRunningJobCount(useJobStore.getState())).toBe(1);
   });
 
+  it('shows the original failed target once for an outbox terminal across duplicate frames and remount', () => {
+    const frame = { type: 'job.updated', outboxId: 'owned-r25-partial', jobId: 'job-partial',
+      status: 'uncertain', failedTargets: ['ses_failed'], targetResults: [{ outcome: 'rejected' }] };
+    const first = renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('job.updated', frame));
+    act(() => wsMock.trigger('job.updated', frame));
+    expect(useUIStore.getState().toastQueue.map(t => t.message)).toEqual(['Job delivery incomplete: ses_failed']);
+    first.unmount();
+    renderHook(() => useWebSocket());
+    act(() => wsMock.trigger('job.updated', frame));
+    expect(useUIStore.getState().toastQueue).toHaveLength(1);
+    act(() => wsMock.trigger('job.updated', { ...frame, outboxId: 'owned-r25-next-partial' }));
+    expect(useUIStore.getState().toastQueue).toHaveLength(2);
+  });
+
   it('reconnects a stale socket and lets the open path refresh state', () => {
     vi.useFakeTimers();
     wsMock.isConnectionFresh.mockReturnValue(false);

@@ -932,8 +932,9 @@ export function useWebSocket() {
       const job = (e as unknown as { job?: Job }).job;
       if (job) useJobStore.getState().upsertJob(job, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });
       const event = e as StreamEvent & { outboxId?: string; failedTargets?: string[]; targetResults?: unknown[] };
-      if (event.status === 'uncertain' && Array.isArray(event.failedTargets) && event.failedTargets.length > 0) {
-        const identity = event.outboxId || `${event.jobId || 'job'}:${event.eventSeq || 'terminal'}`;
+      if (event.status === 'uncertain' && typeof event.outboxId === 'string' &&
+          Array.isArray(event.failedTargets) && event.failedTargets.length > 0) {
+        const identity = event.outboxId;
         if (!partialJobNotifications.has(identity)) {
           partialJobNotifications.add(identity);
           useUIStore.getState().showToast(

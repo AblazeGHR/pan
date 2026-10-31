@@ -161,11 +161,20 @@
             [
               "sessionIds",
               "text"
+            ],
+            [
+              "targetType",
+              "targetId",
+              "botUin",
+              "text"
             ]
           ]
         },
         "phase": {
-          "const": "before-queue-acceptance"
+          "enum": [
+            "before-queue-acceptance",
+            "before-provider-acceptance"
+          ]
         },
         "fence": {
           "const": "per-target-attempt-effect"

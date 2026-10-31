@@ -38,7 +38,61 @@
           "$ref": "common.schema.json#/$defs/DeliveryRuntime"
         },
         "steps": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "pendingFires": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "dispatchKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^\\S(?:.*\\S)?$"
+                    },
+                    "fireAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "enum": [
+                        "known-no-attempt",
+                        "sending",
+                        "unknown",
+                        "rejected"
+                      ]
+                    },
+                    "automaticDelivery": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "dispatchKey",
+                    "fireAt",
+                    "text",
+                    "error",
+                    "status",
+                    "automaticDelivery"
+                  ]
+                }
+              }
+            }
+          }
         }
       },
       "required": [
