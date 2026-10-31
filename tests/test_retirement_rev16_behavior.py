@@ -241,7 +241,10 @@ def partial(h):
     assert len(notices) == 1 and notices[0]['noticeKind'] == 'job_terminal'
     assert len(emitted) == len(history['outbox']) == 2
     assert all(row['status'] == 'acked' for row in history['outbox'])
-    assert json.loads(notices[0]['result']) == {'runId': admitted['runId'], 'status': 'uncertain'}
+    summary = json.loads(notices[0]['result'])
+    assert summary['runId'] == admitted['runId'] and summary['status'] == 'uncertain'
+    assert summary['failedTargets'] == ['ses_b']
+    assert summary['targetResults'][1]['outcome'] == 'rejected'
     cold = FinalService(h.root, h.automation.auth)
     cold.outbox_sender = send
     try:

@@ -144,6 +144,43 @@
     },
     "system": {
       "type": "boolean"
+    },
+    "runtimeBeforeAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "const": "delivery-manager"
+        },
+        "fields": {
+          "enum": [
+            [
+              "sessionId",
+              "text"
+            ],
+            [
+              "sessionIds",
+              "text"
+            ]
+          ]
+        },
+        "phase": {
+          "const": "before-queue-acceptance"
+        },
+        "fence": {
+          "const": "per-target-attempt-effect"
+        },
+        "unknownPolicy": {
+          "const": "query-original"
+        }
+      },
+      "required": [
+        "owner",
+        "fields",
+        "phase",
+        "fence",
+        "unknownPolicy"
+      ]
     }
   },
   "required": [

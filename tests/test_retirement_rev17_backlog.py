@@ -32,6 +32,10 @@ def deferred(h, *, agent=False):
     value['inputSchema'] = {'type': 'object', 'properties': {'target': {'type': ['string', 'null']}},
                             'required': ['target'], 'additionalProperties': False}
     value['arguments'] = {'target': None}
+    value['deliveryRuntime'] = {'owner': 'delivery-manager', 'targetMode': 'runtime',
+        'inputFields': ['target'], 'allowedStates': ['pending'],
+        'concurrency': 'job-config-cas+event-receipt', 'audit': 'final_operations',
+        'phase': 'before-admission', 'unknownPolicy': 'query-original'}
     value['steps'][0]['arguments']['sessionId'] = {'from': 'input', 'path': 'target'}
     job = update(h, job, value, 'clear-target')
     if agent:
@@ -69,6 +73,11 @@ def deferred(h, *, agent=False):
 
 def test_pending_event_cold_retarget_preserves_original_identity_exactly_once(h):
     job, trigger, original = deferred(h)
+    runtime = definition('job', job)['deliveryRuntime']
+    assert runtime == {'owner': 'delivery-manager', 'targetMode': 'runtime',
+        'inputFields': ['target'], 'allowedStates': ['pending'],
+        'concurrency': 'job-config-cas+event-receipt', 'audit': 'final_operations',
+        'phase': 'before-admission', 'unknownPolicy': 'query-original'}
     cold = FinalService(h.root, h.automation.auth)
     try:
         asyncio.run(cold.tick())
@@ -83,31 +92,14 @@ def test_pending_event_cold_retarget_preserves_original_identity_exactly_once(h)
                                              'triggerId': trigger['id']}
         assert cold.events.get(original['event']['eventId']) == original
         assert len(session.get('ses_b').queue_pending) == 1
+        notice = next(row for row in history['outbox'] if row['channel'] == 'ws')
+        assert notice['summary']['deliveryRuntime'] == runtime
         assert not session.get('ses_a').queue_pending
         asyncio.run(cold.tick())
         assert cold.final.history(job['id']) == history
         assert len(session.get('ses_b').queue_pending) == 1
     finally:
         asyncio.run(cold.close())
-
-
-def test_pending_event_pause_does_not_consume_original_backlog(h):
-    job, trigger, original = deferred(h)
-    disabled = control(h, 'triggers', trigger, 'disable', 'pause')
-    assert disabled.status_code == 200, disabled.text
-    trigger = disabled.json()['result']['object']
-    asyncio.run(h.service.tick())
-    assert h.service.final.history(job['id'])['runs'] == []
-    value = definition('job', job)
-    value['arguments']['target'] = 'ses_b'
-    update(h, job, value, 'retarget')
-    resumed = control(h, 'triggers', trigger, 'enable', 'resume')
-    assert resumed.status_code == 200, resumed.text
-    asyncio.run(h.service.tick())
-    history = h.service.final.history(job['id'])
-    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
-    assert history['runs'][0]['cause']['eventId'] == original['event']['eventId']
-    assert len(session.get('ses_b').queue_pending) == 1
 
 
 def test_job_disabled_pending_event_remains_then_resume_delivers(h):
@@ -190,12 +182,8 @@ def test_known_missing_notice_target_retains_pending_then_cold_restoration_deliv
     async def sender(row):
         if row['channel'] == 'ws': return {'outcome': 'succeeded'}
         calls.append(row['outboxId'])
-        result = await actual_notice(row)
-        if result.get('ok'): return {'outcome': 'succeeded'}
-        assert result['error']['code'] == 'session_not_found'
-        # Actual local storage rejection proves no enqueue happened. It is not
-        # an unknown external acknowledgement; this is the desired seam contract.
-        return {'outcome': 'rejected', 'error': result['error'], 'attempted': False}
+        from packages.jobs.notification_delivery import enqueue_session_notice
+        return await enqueue_session_notice(row)
     h.service.outbox_sender = sender
     asyncio.run(h.service.deliver_outbox())
     row = next(r for r in h.service.final.history(job['id'])['outbox'] if r['channel'] == 'session')
@@ -236,3 +224,22 @@ def test_notice_enqueued_response_lost_is_unknown_cold_never_resends(h):
         assert len(session.get('ses_notice').queue_pending) == 1
     finally:
         asyncio.run(cold.close())
+
+
+def test_pending_event_pause_does_not_consume_original_backlog(h):
+    job, trigger, original = deferred(h)
+    disabled = control(h, 'triggers', trigger, 'disable', 'pause')
+    assert disabled.status_code == 200, disabled.text
+    trigger = disabled.json()['result']['object']
+    asyncio.run(h.service.tick())
+    assert h.service.final.history(job['id'])['runs'] == []
+    value = definition('job', job)
+    value['arguments']['target'] = 'ses_b'
+    update(h, job, value, 'retarget')
+    resumed = control(h, 'triggers', trigger, 'enable', 'resume')
+    assert resumed.status_code == 200, resumed.text
+    asyncio.run(h.service.tick())
+    history = h.service.final.history(job['id'])
+    assert len(history['runs']) == 1, 'Paused pre-effect backlog must survive resume'
+    assert history['runs'][0]['cause']['eventId'] == original['event']['eventId']
+    assert len(session.get('ses_b').queue_pending) == 1

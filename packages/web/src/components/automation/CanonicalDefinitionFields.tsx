@@ -352,6 +352,11 @@ export function CanonicalDefinitionFields({
             Refresh Actions
           </Button>
           <JobInputs value={value} onChange={onChange} />
+          {!!value.deliveryRuntime && <details aria-label="Runtime Job input declaration">
+            <summary>Delivery Manager · declared runtime inputs</summary>
+            <p>The declared phase selects when current Job defaults take effect. Run input stays frozen; accepted, partial and unknown effects keep their original delivery identity.</p>
+            <pre>{JSON.stringify(value.deliveryRuntime, null, 2)}</pre>
+          </details>}
           <section aria-label="Action chain" className="space-y-3">
             {steps.map((step, index) => {
               const ref = obj(step.actionRef),
@@ -748,6 +753,23 @@ function NotificationFields({
   return (
     <section className="space-y-2">
       <h3>Notifications</h3>
+      <label className="block text-sm">
+        <input type="checkbox" checked={Boolean(value.runtime)} onChange={(event) => {
+          const next = { ...value };
+          if (event.target.checked) next.runtime = { owner: 'notification-manager', fields: ['targetRef', 'payload'],
+            allowedStates: ['pending'], effectiveStage: 'before-enqueue',
+            concurrency: 'outbox-reservation+job-config-cas', audit: 'final_operations+outbox-receipt',
+            unknownPolicy: 'query-original', acceptedPolicy: 'frozen' };
+          else delete next.runtime;
+          onChange(next);
+        }} />
+        Runtime notification target while pending
+      </label>
+      {!!value.runtime && <details aria-label="Notification Manager contract">
+        <summary>Notification Manager · pending only</summary>
+        <p>Missing targets remain pending. Explicit Job edits use CAS; reserved, accepted and unknown notices keep their original target. Acknowledged notices never revive.</p>
+        <pre>{JSON.stringify(value.runtime, null, 2)}</pre>
+      </details>}
       <fieldset>
         <legend>Notify on</legend>
         {['completed', 'failed', 'cancelled', 'uncertain'].map((state) => (
@@ -779,14 +801,14 @@ function NotificationFields({
             <label key={key} className="block text-sm">
               {key}
               <input
-                required
+                required={!value.runtime || key !== 'targetRef'}
                 className={fieldClass}
                 value={String(recipient[key] ?? '')}
                 onChange={(e) =>
                   onChange({
                     ...value,
                     recipients: recipients.map((r, i) =>
-                      i === index ? { ...r, [key]: e.target.value } : r,
+                      i === index ? { ...r, [key]: key === 'targetRef' && value.runtime && !e.target.value ? null : e.target.value } : r,
                     ),
                   })
                 }

@@ -50,7 +50,9 @@ def test_actual_detached_completion_cold_original_notice_exact_once(env):
         assert all(r['status'] == 'acked' for r in history['outbox'])
         notices = session.get('ses_process_notice').queue_pending
         assert len(notices) == 1 and notices[0]['eventId'] == row['outboxId']
-        assert json.loads(notices[0]['result']) == {'runId': rid, 'status': 'completed'}
+        notice = json.loads(notices[0]['result'])
+        assert notice['runId'] == rid and notice['status'] == 'completed'
+        assert notice['exitCode'] == 0 and notice['logRef']
         asyncio.run(cold.dispatch_once())
         asyncio.run(cold.deliver_outbox())
         assert cold.final.history(jid) == history

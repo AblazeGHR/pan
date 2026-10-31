@@ -344,10 +344,8 @@ async def _owned_lifespan(app: FastAPI, owner):
                                                  'outboxId': row['outboxId'], **row['summary']})
                                 return {'outcome': 'succeeded'}
                             if row['channel'] == 'session':
-                                result = await worker.enqueue_notice(row['targetRef'], json.dumps(row['summary']),
-                                    source='automation', event_id=row['outboxId'], notice_kind='job_terminal',
-                                    job_id=row['jobId'], notice_status=row['summary']['status'])
-                                return {'outcome': 'succeeded' if result.get('ok') else 'unknown'}
+                                from packages.jobs.notification_delivery import enqueue_session_notice
+                                return await enqueue_session_notice(row)
                             return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
                         final_jobs.outbox_sender = send_final_notice
                         await final_jobs.start(activation=load_config().get('job_runtime_activation'))

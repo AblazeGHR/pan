@@ -351,6 +351,64 @@
         "schema",
         "terminalProofSchema"
       ]
+    },
+    "DeliveryRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "const": "delivery-manager"
+        },
+        "targetMode": {
+          "const": "runtime"
+        },
+        "inputFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "minItems": 1
+        },
+        "allowedStates": {
+          "enum": [
+            [
+              "pending"
+            ],
+            [
+              "pending",
+              "reserved"
+            ]
+          ]
+        },
+        "concurrency": {
+          "const": "job-config-cas+event-receipt"
+        },
+        "phase": {
+          "enum": [
+            "before-admission",
+            "before-reservation"
+          ]
+        },
+        "audit": {
+          "const": "final_operations"
+        },
+        "unknownPolicy": {
+          "const": "query-original"
+        }
+      },
+      "required": [
+        "owner",
+        "targetMode",
+        "inputFields",
+        "allowedStates",
+        "concurrency",
+        "phase",
+        "audit",
+        "unknownPolicy"
+      ]
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

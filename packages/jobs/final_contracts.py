@@ -977,6 +977,19 @@ def _common_defs() -> dict[str, Any]:
         "Binding": binding,
         "Condition": condition,
         "Contract": contract,
+        "DeliveryRuntime": _obj(
+            {
+                "owner": {"const": "delivery-manager"},
+                "targetMode": {"const": "runtime"},
+                "inputFields": _arr(_ID, min_items=1),
+                "allowedStates": {"enum": [["pending"], ["pending", "reserved"]]},
+                "concurrency": {"const": "job-config-cas+event-receipt"},
+                "phase": {"enum": ["before-admission", "before-reservation"]},
+                "audit": {"const": "final_operations"},
+                "unknownPolicy": {"const": "query-original"},
+            },
+            ("owner", "targetMode", "inputFields", "allowedStates", "concurrency", "phase", "audit", "unknownPolicy"),
+        ),
     }
 
 
@@ -1018,6 +1031,13 @@ def _action_definition() -> dict[str, Any]:
                     ("idempotent", "sameKeySupported", "requiresProof"),
                 ),
                 "system": {"type": "boolean"},
+                "runtimeBeforeAcceptance": _obj({
+                    "owner": {"const": "delivery-manager"},
+                    "fields": {"enum": [["sessionId", "text"], ["sessionIds", "text"]]},
+                    "phase": {"const": "before-queue-acceptance"},
+                    "fence": {"const": "per-target-attempt-effect"},
+                    "unknownPolicy": {"const": "query-original"},
+                }, ("owner", "fields", "phase", "fence", "unknownPolicy")),
             },
             (
                 "name",
@@ -1073,6 +1093,7 @@ def _trigger_definition() -> dict[str, Any]:
 
 
 def _job_step_defs() -> dict[str, Any]:
+    from packages.jobs.notification_delivery import NOTIFICATION_RUNTIME
     return {
         "Step": _obj(
             {
@@ -1104,13 +1125,14 @@ def _job_step_defs() -> dict[str, Any]:
             }
         ),
         "Recipient": _obj(
-            {"recipientId": _ID, "channelId": _ID, "targetRef": _ID},
+            {"recipientId": _ID, "channelId": _ID, "targetRef": {"anyOf": [_ID, {"type": "null"}]}},
             ("recipientId", "channelId", "targetRef"),
         ),
         "Notification": _obj(
             {
                 "on": _arr({"enum": list(RUN_STATES)}, unique=True),
                 "recipients": _arr({"$ref": "#/$defs/Recipient"}),
+                "runtime": {"const": NOTIFICATION_RUNTIME},
             }
         ),
         "Retention": _obj({"policyRef": _ID, "pinned": {"type": "boolean", "default": False}}, ("policyRef",)),
@@ -1140,6 +1162,7 @@ def _job_definition() -> dict[str, Any]:
                 "retention": {"$ref": "#/$defs/Retention"},
                 "runLimit": {"$ref": "#/$defs/RunLimit"},
                 "templateProvenance": _ref("Ref"),
+                "deliveryRuntime": _ref("DeliveryRuntime"),
             },
             ("name", "steps", "retention"),
         ),
@@ -1471,6 +1494,15 @@ def _run_record() -> dict[str, Any]:
                 "jobId": _ID,
                 "configRevision": {"type": "integer", "minimum": 1},
                 "planDigest": _DIGEST,
+                "deliveryRuntime": _obj({"declaration": _ref("DeliveryRuntime"), "steps": {"type": "object"}}, ("declaration", "steps")),
+                "notifications": _arr(_obj({
+                    "outboxId": _ID, "transitionSeq": {"type": "integer", "minimum": 0},
+                    "recipientId": _ID, "status": {"enum": ["pending", "sending", "acked", "uncertain", "suppressed", "not_applicable"]},
+                    "targetRef": {"anyOf": [_ID, {"type": "null"}]},
+                    "targetRevision": {"type": "integer", "minimum": 0},
+                    "payloadDigest": _DIGEST, "summary": {"type": "object"}, "receipt": {"type": "object"},
+                    "notificationRuntime": {"type": "object"}, "runtimeOperationId": {"anyOf": [_ID, {"type": "null"}]},
+                }, ("outboxId", "transitionSeq", "recipientId", "status", "summary"))),
                 "admissionId": _ID,
                 "cause": cause,
                 "rerunOf": _ID,
@@ -2048,6 +2080,22 @@ def _check_step_bindings(
 
 
 def _check_job_definition(job: Mapping[str, Any], *, path: str = "definition", reject_sources: frozenset[str] = frozenset()) -> None:
+    runtime = job.get("deliveryRuntime")
+    if runtime:
+        expected_states = ["pending"] if runtime["phase"] == "before-admission" else ["pending", "reserved"]
+        if runtime["allowedStates"] != expected_states:
+            raise ContractError("invalid_schema", "Runtime allowed states differ from its effective phase", path=f"{path}.deliveryRuntime")
+        declared = set(runtime["inputFields"])
+        used = {binding.get("path") for step in job["steps"] for binding in step["arguments"].values()
+                if binding.get("from") == "input"}
+        for field in declared:
+            _check_binding({"from": "input", "path": field}, path=f"{path}.deliveryRuntime.inputFields",
+                earlier_steps=set(), input_schema=job["inputSchema"], reject_sources=frozenset())
+        if not declared <= used:
+            raise ContractError("invalid_schema", "Runtime fields must name declared, used Job input paths", path=f"{path}.deliveryRuntime")
+    notification = job.get("notification", {})
+    if not notification.get("runtime") and any(r.get("targetRef") is None for r in notification.get("recipients", [])):
+        raise ContractError("invalid_schema", "Missing notification target requires explicit Notification Manager runtime policy", path=f"{path}.notification")
     step_ids = [step["stepId"] for step in job["steps"]]
     if len(step_ids) != len(set(step_ids)):
         raise ContractError(
