@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="15" time="4.406" timestamp="2026-10-31T21:03:05.284196+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[654321]" time="0.149"><failure message="AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'&#10;  &#10;  - simple-script-migratable&#10;  + incompatible-preserved">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_0')
+bot = '654321'
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+&gt;       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[None]" time="0.140"><failure message="AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'&#10;  &#10;  - simple-script-migratable&#10;  + incompatible-preserved">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_1')
+bot = None
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+&gt;       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[omitted]" time="0.141"><failure message="AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'&#10;  &#10;  - simple-script-migratable&#10;  + incompatible-preserved">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_2')
+bot = 'omitted'
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+&gt;       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[old-release]" time="0.323" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[phase]" time="0.149"><failure message="KeyError: 'runtimeBeforeAcceptance'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_bad_contract_r1')
+fault = 'phase'
+
+    @pytest.mark.parametrize("fault", ["old-release", "phase", "fields", "provider", "pin"])
+    def test_qq_runtime_bad_contract_rejected_before_target(tmp_path, fault):
+        root = tmp_path / "source"
+        path, _ = source_for(root)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        binding = context["actions"]["qq.send"]
+        if fault == "old-release":
+            context["actions"]["qq.send"] = current_actions()["qq.send"]
+        else:
+            action = binding["object"]
+            if fault == "phase":
+&gt;               action["runtimeBeforeAcceptance"]["phase"] = "before-queue-acceptance"
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'runtimeBeforeAcceptance'
+
+tests\test_job_migration_qq_runtime.py:77: KeyError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[fields]" time="0.135"><failure message="KeyError: 'runtimeBeforeAcceptance'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_bad_contract_r2')
+fault = 'fields'
+
+    @pytest.mark.parametrize("fault", ["old-release", "phase", "fields", "provider", "pin"])
+    def test_qq_runtime_bad_contract_rejected_before_target(tmp_path, fault):
+        root = tmp_path / "source"
+        path, _ = source_for(root)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        binding = context["actions"]["qq.send"]
+        if fault == "old-release":
+            context["actions"]["qq.send"] = current_actions()["qq.send"]
+        else:
+            action = binding["object"]
+            if fault == "phase":
+                action["runtimeBeforeAcceptance"]["phase"] = "before-queue-acceptance"
+            elif fault == "fields":
+&gt;               action["runtimeBeforeAcceptance"]["fields"] = ["targetId", "text"]
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'runtimeBeforeAcceptance'
+
+tests\test_job_migration_qq_runtime.py:79: KeyError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[provider]" time="0.317" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[pin]" time="0.299" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_default_retains_old_literal_release" time="0.348" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[pending]" time="0.402" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[accepted]" time="0.521" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[unknown]" time="0.491" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[partial]" time="0.489" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_invalid_bot_not_reinterpreted_as_default[]" time="0.009" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_invalid_bot_not_reinterpreted_as_default[bad-bot]" time="0.007"><failure message="AssertionError: assert ('provider_unavailable' in ['runtime_binding_unavailable'])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_invalid_bot_not_reinte1')
+bot = 'bad-bot'
+
+    @pytest.mark.parametrize("bot", ["", "bad-bot"])
+    def test_qq_invalid_bot_not_reinterpreted_as_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, _ = source_for(root, bot)
+        original = path.read_bytes()
+        item, = build_inventory(root, runtime_delivery=True)["instances"]
+        assert item["classification"] == "incompatible-preserved"
+&gt;       assert "provider_unavailable" in item["reasonCodes"] and path.read_bytes() == original
+E       AssertionError: assert ('provider_unavailable' in ['runtime_binding_unavailable'])
+
+tests\test_job_migration_qq_runtime.py:134: AssertionError</failure></testcase></testsuite></testsuites>

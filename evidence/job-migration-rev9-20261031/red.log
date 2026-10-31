@@ -1,0 +1,133 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+FFF.FF........F                                                          [100%]
+================================== FAILURES ===================================
+_______ test_qq_runtime_exact_release_bindings_and_null_default[654321] _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_0')
+bot = '654321'
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+>       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError
+________ test_qq_runtime_exact_release_bindings_and_null_default[None] ________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_1')
+bot = None
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+>       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError
+______ test_qq_runtime_exact_release_bindings_and_null_default[omitted] _______
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_exact_release_2')
+bot = 'omitted'
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        inv = build_inventory(root, runtime_delivery=True)
+        item, = inv["instances"]
+>       assert item["classification"] == "simple-script-migratable"
+E       AssertionError: assert 'incompatible-preserved' == 'simple-script-migratable'
+E         
+E         - simple-script-migratable
+E         + incompatible-preserved
+
+tests\test_job_migration_qq_runtime.py:37: AssertionError
+_________ test_qq_runtime_bad_contract_rejected_before_target[phase] __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_bad_contract_r1')
+fault = 'phase'
+
+    @pytest.mark.parametrize("fault", ["old-release", "phase", "fields", "provider", "pin"])
+    def test_qq_runtime_bad_contract_rejected_before_target(tmp_path, fault):
+        root = tmp_path / "source"
+        path, _ = source_for(root)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        binding = context["actions"]["qq.send"]
+        if fault == "old-release":
+            context["actions"]["qq.send"] = current_actions()["qq.send"]
+        else:
+            action = binding["object"]
+            if fault == "phase":
+>               action["runtimeBeforeAcceptance"]["phase"] = "before-queue-acceptance"
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'runtimeBeforeAcceptance'
+
+tests\test_job_migration_qq_runtime.py:77: KeyError
+_________ test_qq_runtime_bad_contract_rejected_before_target[fields] _________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_runtime_bad_contract_r2')
+fault = 'fields'
+
+    @pytest.mark.parametrize("fault", ["old-release", "phase", "fields", "provider", "pin"])
+    def test_qq_runtime_bad_contract_rejected_before_target(tmp_path, fault):
+        root = tmp_path / "source"
+        path, _ = source_for(root)
+        original = path.read_bytes()
+        context = runtime_context(root)
+        binding = context["actions"]["qq.send"]
+        if fault == "old-release":
+            context["actions"]["qq.send"] = current_actions()["qq.send"]
+        else:
+            action = binding["object"]
+            if fault == "phase":
+                action["runtimeBeforeAcceptance"]["phase"] = "before-queue-acceptance"
+            elif fault == "fields":
+>               action["runtimeBeforeAcceptance"]["fields"] = ["targetId", "text"]
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'runtimeBeforeAcceptance'
+
+tests\test_job_migration_qq_runtime.py:79: KeyError
+__________ test_qq_invalid_bot_not_reinterpreted_as_default[bad-bot] __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6538/test_qq_invalid_bot_not_reinte1')
+bot = 'bad-bot'
+
+    @pytest.mark.parametrize("bot", ["", "bad-bot"])
+    def test_qq_invalid_bot_not_reinterpreted_as_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, _ = source_for(root, bot)
+        original = path.read_bytes()
+        item, = build_inventory(root, runtime_delivery=True)["instances"]
+        assert item["classification"] == "incompatible-preserved"
+>       assert "provider_unavailable" in item["reasonCodes"] and path.read_bytes() == original
+E       AssertionError: assert ('provider_unavailable' in ['runtime_binding_unavailable'])
+
+tests\test_job_migration_qq_runtime.py:134: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_runtime_exact_release_bindings_and_null_default[654321]
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_runtime_exact_release_bindings_and_null_default[None]
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_runtime_exact_release_bindings_and_null_default[omitted]
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_runtime_bad_contract_rejected_before_target[phase]
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_runtime_bad_contract_rejected_before_target[fields]
+FAILED tests/test_job_migration_qq_runtime.py::test_qq_invalid_bot_not_reinterpreted_as_default[bad-bot]
+6 failed, 9 passed in 5.06s

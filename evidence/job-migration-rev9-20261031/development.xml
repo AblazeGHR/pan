@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="15" time="5.604" timestamp="2026-10-31T21:03:32.560998+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[654321]" time="0.590" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[None]" time="0.014"><failure message="KeyError: 'message'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6539/test_qq_runtime_exact_release_1')
+bot = None
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_qq_runtime.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_migration_runtime_contract.py:16: in runtime_context
+    inventory = build_inventory(root, runtime_delivery=True)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6539/test_qq_runtime_exact_release_1/source')
+allow_real_profile = False, runtime_delivery = True
+
+    def build_inventory(root: str | Path, *, allow_real_profile: bool = False, runtime_delivery: bool = False) -&gt; dict:
+        """Scan a data root and return an inventory/plan document.
+    
+        The function is pure with respect to the root: it only reads known files.
+        It raises ``RealProfileError`` when the root looks like a real Pan profile
+        and ``allow_real_profile`` is false.
+        """
+        root_path = Path(root).expanduser().resolve(strict=True)
+        if not root_path.is_dir():
+            raise NotADirectoryError(f"root is not a directory: {root_path}")
+        markers = _real_profile_markers(root_path)
+        if markers and not allow_real_profile:
+            raise RealProfileError(markers)
+    
+        errors: list[dict] = []
+        action_index = _load_actions_registry(root_path, errors)
+        triggers_raw, trigger_runs, trigger_runs_unknown, automation_loaded = \
+            _load_automation_registry(root_path, errors)
+        task_runs, task_runs_unknown = _load_run_ledgers(root_path, errors)
+    
+        job_files: list[tuple[Loaded, str]] = []
+        for path in _iter_job_paths(root_path, errors):
+            loaded = _load_json_file(root_path, path, errors)
+            job_files.append((loaded, "job"))
+    
+        ctx = Context(action_index=action_index, task_runs=task_runs,
+                      task_runs_unknown=task_runs_unknown,
+                      trigger_runs=trigger_runs,
+                      trigger_runs_unknown=trigger_runs_unknown)
+    
+        findings: list[tuple[Finding, Loaded, str]] = []
+    
+        for loaded, origin in job_files:
+            if loaded.data is None:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=None, original_id=None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, loaded.error_code or "corrupt_record",
+                        loaded.error_detail or "record cannot be read")
+                findings.append((finding, loaded, _canonical({"error": "unreadable"})))
+                continue
+            data = loaded.data
+            if not isinstance(data, dict):
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=None, original_id=None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "corrupt_record", "record is not a JSON object")
+                findings.append((finding, loaded, _canonical(data)))
+                continue
+            kind = data.get("kind")
+            if kind == "background-process":
+                finding = _classify_background(loaded, data)
+            elif kind in {"session-message", "session-broadcast"}:
+                finding = _classify_message(loaded, data)
+            elif kind == "scheduled-task":
+                is_action = isinstance(data.get("config"), dict) or (
+                    isinstance(data.get("action"), dict)
+                    and data["action"].get("api") == "action_reference")
+                finding = (_classify_action_job(loaded, data, ctx) if is_action
+                           else _classify_scheduled(loaded, data, ctx, legacy=False))
+            elif kind == "main-lifecycle":
+                finding = Finding(
+                    source_type=MIG_MAIN_LIFECYCLE, source_kind=kind,
+                    original_id=data.get("jobId") if isinstance(data.get("jobId"), str) else None,
+                    owner={"kind": "unknown", "id": None}, target=_target_from_job(data),
+                    auth_evidence="none", cursor=_job_cursor(data),
+                )
+                _reason(finding, "unsupported_complex_instance",
+                        "main-lifecycle instances are outside the v1 whitelist and are preserved")
+            else:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=kind if isinstance(kind, str) else None,
+                    original_id=data.get("jobId") if isinstance(data.get("jobId"), str) else None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "unknown_schema",
+                        f"unknown or missing job kind: {kind!r}")
+            findings.append((finding, loaded, _canonical(data)))
+    
+        for path in _iter_legacy_task_paths(root_path, errors):
+            loaded = _load_json_file(root_path, path, errors)
+            if loaded.data is None:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind="legacy-scheduled-task",
+                    original_id=None, owner={"kind": "unknown", "id": None},
+                    target=None, auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, loaded.error_code or "corrupt_record",
+                        loaded.error_detail or "record cannot be read")
+                findings.append((finding, loaded, _canonical({"error": "unreadable"})))
+            elif not isinstance(loaded.data, dict):
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind="legacy-scheduled-task",
+                    original_id=None, owner={"kind": "unknown", "id": None},
+                    target=None, auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "corrupt_record", "legacy task is not a JSON object")
+                findings.append((finding, loaded, _canonical(loaded.data)))
+            else:
+                finding = _classify_scheduled(loaded, loaded.data, ctx, legacy=True)
+                findings.append((finding, loaded, _canonical(loaded.data)))
+    
+        if automation_loaded is not None and automation_loaded.data is not None:
+            for key, trigger in triggers_raw:
+                record_digest = _sha256_text(_canonical(trigger))
+                object_loaded = Loaded(
+                    automation_loaded.path, automation_loaded.relpath,
+                    automation_loaded.raw, automation_loaded.digest, trigger,
+                    fingerprint=_fingerprint(trigger))
+                finding = _classify_trigger(object_loaded, trigger, ctx)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        if action_index.registry is not None:
+            for key, template in action_index.templates:
+                record_digest = _sha256_text(_canonical(template))
+                object_loaded = Loaded(
+                    action_index.registry.path, action_index.registry.relpath,
+                    action_index.registry.raw, action_index.registry.digest,
+                    template, fingerprint=_fingerprint(template))
+                finding = _classify_template(object_loaded, template, ctx)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        schedule_loaded, schedule_templates = _load_schedule_templates(root_path, errors)
+        if schedule_loaded is not None:
+            for key, template in schedule_templates:
+                record_digest = _sha256_text(_canonical(template))
+                object_loaded = Loaded(
+                    schedule_loaded.path, schedule_loaded.relpath,
+                    schedule_loaded.raw, schedule_loaded.digest, template,
+                    fingerprint=_fingerprint(template))
+                finding = _classify_schedule_template(object_loaded, template)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        if runtime_delivery:
+            for finding, loaded, _ in findings:
+                action = loaded.data.get("action") if isinstance(loaded.data, dict) else None
+                if finding.source_type == MIG_SCHED and isinstance(action, dict) and action.get("api") == "send_qq":
+                    args = action.get("args")
+                    if isinstance(args, dict):
+                        bot = args.get("botUin")
+                        if bot is None:
+                            finding.reasons = [r for r in finding.reasons
+&gt;                               if r["message"] != "send_qq requires a persisted bot identity"]
+                                   ^^^^^^^^^^^^
+E                           KeyError: 'message'
+
+scripts\job_final_migration\inventory.py:2196: KeyError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_exact_release_bindings_and_null_default[omitted]" time="0.013"><failure message="KeyError: 'message'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6539/test_qq_runtime_exact_release_2')
+bot = 'omitted'
+
+    @pytest.mark.parametrize("bot", ["654321", None, "omitted"])
+    def test_qq_runtime_exact_release_bindings_and_null_default(tmp_path, bot):
+        root = tmp_path / "source"
+        path, source = source_for(root, bot)
+        original = path.read_bytes()
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_qq_runtime.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_migration_runtime_contract.py:16: in runtime_context
+    inventory = build_inventory(root, runtime_delivery=True)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6539/test_qq_runtime_exact_release_2/source')
+allow_real_profile = False, runtime_delivery = True
+
+    def build_inventory(root: str | Path, *, allow_real_profile: bool = False, runtime_delivery: bool = False) -&gt; dict:
+        """Scan a data root and return an inventory/plan document.
+    
+        The function is pure with respect to the root: it only reads known files.
+        It raises ``RealProfileError`` when the root looks like a real Pan profile
+        and ``allow_real_profile`` is false.
+        """
+        root_path = Path(root).expanduser().resolve(strict=True)
+        if not root_path.is_dir():
+            raise NotADirectoryError(f"root is not a directory: {root_path}")
+        markers = _real_profile_markers(root_path)
+        if markers and not allow_real_profile:
+            raise RealProfileError(markers)
+    
+        errors: list[dict] = []
+        action_index = _load_actions_registry(root_path, errors)
+        triggers_raw, trigger_runs, trigger_runs_unknown, automation_loaded = \
+            _load_automation_registry(root_path, errors)
+        task_runs, task_runs_unknown = _load_run_ledgers(root_path, errors)
+    
+        job_files: list[tuple[Loaded, str]] = []
+        for path in _iter_job_paths(root_path, errors):
+            loaded = _load_json_file(root_path, path, errors)
+            job_files.append((loaded, "job"))
+    
+        ctx = Context(action_index=action_index, task_runs=task_runs,
+                      task_runs_unknown=task_runs_unknown,
+                      trigger_runs=trigger_runs,
+                      trigger_runs_unknown=trigger_runs_unknown)
+    
+        findings: list[tuple[Finding, Loaded, str]] = []
+    
+        for loaded, origin in job_files:
+            if loaded.data is None:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=None, original_id=None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, loaded.error_code or "corrupt_record",
+                        loaded.error_detail or "record cannot be read")
+                findings.append((finding, loaded, _canonical({"error": "unreadable"})))
+                continue
+            data = loaded.data
+            if not isinstance(data, dict):
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=None, original_id=None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "corrupt_record", "record is not a JSON object")
+                findings.append((finding, loaded, _canonical(data)))
+                continue
+            kind = data.get("kind")
+            if kind == "background-process":
+                finding = _classify_background(loaded, data)
+            elif kind in {"session-message", "session-broadcast"}:
+                finding = _classify_message(loaded, data)
+            elif kind == "scheduled-task":
+                is_action = isinstance(data.get("config"), dict) or (
+                    isinstance(data.get("action"), dict)
+                    and data["action"].get("api") == "action_reference")
+                finding = (_classify_action_job(loaded, data, ctx) if is_action
+                           else _classify_scheduled(loaded, data, ctx, legacy=False))
+            elif kind == "main-lifecycle":
+                finding = Finding(
+                    source_type=MIG_MAIN_LIFECYCLE, source_kind=kind,
+                    original_id=data.get("jobId") if isinstance(data.get("jobId"), str) else None,
+                    owner={"kind": "unknown", "id": None}, target=_target_from_job(data),
+                    auth_evidence="none", cursor=_job_cursor(data),
+                )
+                _reason(finding, "unsupported_complex_instance",
+                        "main-lifecycle instances are outside the v1 whitelist and are preserved")
+            else:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind=kind if isinstance(kind, str) else None,
+                    original_id=data.get("jobId") if isinstance(data.get("jobId"), str) else None,
+                    owner={"kind": "unknown", "id": None}, target=None,
+                    auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "unknown_schema",
+                        f"unknown or missing job kind: {kind!r}")
+            findings.append((finding, loaded, _canonical(data)))
+    
+        for path in _iter_legacy_task_paths(root_path, errors):
+            loaded = _load_json_file(root_path, path, errors)
+            if loaded.data is None:
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind="legacy-scheduled-task",
+                    original_id=None, owner={"kind": "unknown", "id": None},
+                    target=None, auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, loaded.error_code or "corrupt_record",
+                        loaded.error_detail or "record cannot be read")
+                findings.append((finding, loaded, _canonical({"error": "unreadable"})))
+            elif not isinstance(loaded.data, dict):
+                finding = Finding(
+                    source_type=MIG_UNKNOWN, source_kind="legacy-scheduled-task",
+                    original_id=None, owner={"kind": "unknown", "id": None},
+                    target=None, auth_evidence="none", cursor={}, fatal=True,
+                )
+                _reason(finding, "corrupt_record", "legacy task is not a JSON object")
+                findings.append((finding, loaded, _canonical(loaded.data)))
+            else:
+                finding = _classify_scheduled(loaded, loaded.data, ctx, legacy=True)
+                findings.append((finding, loaded, _canonical(loaded.data)))
+    
+        if automation_loaded is not None and automation_loaded.data is not None:
+            for key, trigger in triggers_raw:
+                record_digest = _sha256_text(_canonical(trigger))
+                object_loaded = Loaded(
+                    automation_loaded.path, automation_loaded.relpath,
+                    automation_loaded.raw, automation_loaded.digest, trigger,
+                    fingerprint=_fingerprint(trigger))
+                finding = _classify_trigger(object_loaded, trigger, ctx)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        if action_index.registry is not None:
+            for key, template in action_index.templates:
+                record_digest = _sha256_text(_canonical(template))
+                object_loaded = Loaded(
+                    action_index.registry.path, action_index.registry.relpath,
+                    action_index.registry.raw, action_index.registry.digest,
+                    template, fingerprint=_fingerprint(template))
+                finding = _classify_template(object_loaded, template, ctx)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        schedule_loaded, schedule_templates = _load_schedule_templates(root_path, errors)
+        if schedule_loaded is not None:
+            for key, template in schedule_templates:
+                record_digest = _sha256_text(_canonical(template))
+                object_loaded = Loaded(
+                    schedule_loaded.path, schedule_loaded.relpath,
+                    schedule_loaded.raw, schedule_loaded.digest, template,
+                    fingerprint=_fingerprint(template))
+                finding = _classify_schedule_template(object_loaded, template)
+                if finding.original_id is None:
+                    finding.original_id = key if isinstance(key, str) and key else None
+                findings.append((finding, object_loaded, record_digest))
+    
+        if runtime_delivery:
+            for finding, loaded, _ in findings:
+                action = loaded.data.get("action") if isinstance(loaded.data, dict) else None
+                if finding.source_type == MIG_SCHED and isinstance(action, dict) and action.get("api") == "send_qq":
+                    args = action.get("args")
+                    if isinstance(args, dict):
+                        bot = args.get("botUin")
+                        if bot is None:
+                            finding.reasons = [r for r in finding.reasons
+&gt;                               if r["message"] != "send_qq requires a persisted bot identity"]
+                                   ^^^^^^^^^^^^
+E                           KeyError: 'message'
+
+scripts\job_final_migration\inventory.py:2196: KeyError</failure></testcase><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[old-release]" time="0.335" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[phase]" time="0.327" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[fields]" time="0.309" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[provider]" time="0.326" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_runtime_bad_contract_rejected_before_target[pin]" time="0.397" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_default_retains_old_literal_release" time="0.611" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[pending]" time="0.536" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[accepted]" time="0.513" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[unknown]" time="0.515" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_existing_delivery_identity_preserved_not_imported[partial]" time="0.521" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_invalid_bot_not_reinterpreted_as_default[]" time="0.021" /><testcase classname="tests.test_job_migration_qq_runtime" name="test_qq_invalid_bot_not_reinterpreted_as_default[bad-bot]" time="0.012" /></testsuite></testsuites>

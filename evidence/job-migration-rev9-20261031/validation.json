@@ -1,0 +1,150 @@
+{
+  "implementationSourceSha": "b4b16d6b0701d8cd684b2c83d1f06e6eb91d4ccf",
+  "mergedProductInputSha": "dc8b1ff805956a2290b91ee65d0d48f0949470ec",
+  "previousCleanCandidateSha": "03ed5cbc8db9ebe318b78005ef8074da1752d2bd",
+  "runtimeContractSourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "runtimeContractCandidate": "f905ff36",
+  "productDiffBytes": 0,
+  "implementationAndTestsUnchangedAfterFinalRun": true,
+  "final": {
+    "command": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_migration_qq_runtime.py tests/test_job_migration_runtime_contract.py tests/test_job_migration_runtime_readiness.py tests/test_job_final_migration.py tests/test_job_final_migration_apply.py tests/test_job_final_migration_partial.py tests/test_job_migration_readiness.py tests/test_job_final_migration_user_authorization.py tests/test_job_final_migration_review_packet.py -q -o addopts= -k \"not all_51\" --junitxml=evidence/job-migration-rev9-20261031/final.xml",
+    "exit": 0,
+    "passed": 184,
+    "skipped": 1,
+    "deselected": 1,
+    "failures": 0,
+    "errors": 0,
+    "durationSeconds": 114.39,
+    "junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "185",
+      "time": "113.284",
+      "timestamp": "2026-10-31T21:07:29.974511+08:00",
+      "hostname": "ablaze"
+    },
+    "byFile": {
+      "tests.test_job_migration_qq_runtime": {
+        "passed": 21,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_migration_runtime_contract": {
+        "passed": 20,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_migration_runtime_readiness": {
+        "passed": 37,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_final_migration": {
+        "passed": 16,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_final_migration_apply": {
+        "passed": 31,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_final_migration_partial": {
+        "passed": 13,
+        "skipped": 1,
+        "failed": 0
+      },
+      "tests.test_job_migration_readiness": {
+        "passed": 19,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_final_migration_user_authorization": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_job_final_migration_review_packet": {
+        "passed": 13,
+        "skipped": 0,
+        "failed": 0
+      }
+    },
+    "skipNodes": [
+      {
+        "name": "test_allowlist_never_follows_link",
+        "reason": {
+          "type": "pytest.skip",
+          "message": "link creation unsupported in this Windows test environment: [WinError 1314] 客户端没有所需的特权。: 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-6544\\\\test_allowlist_never_follows_l0\\\\outside' -> 'C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-6544\\\\test_allowlist_never_follows_l0\\\\data\\\\sessions\\\\link'"
+        }
+      }
+    ]
+  },
+  "originalRed": {
+    "productSha": "dc8b1ff805956a2290b91ee65d0d48f0949470ec",
+    "exit": 1,
+    "passed": 9,
+    "failures": 6,
+    "nodes": [
+      "tests.test_job_migration_qq_runtime::test_qq_runtime_exact_release_bindings_and_null_default[654321]",
+      "tests.test_job_migration_qq_runtime::test_qq_runtime_exact_release_bindings_and_null_default[None]",
+      "tests.test_job_migration_qq_runtime::test_qq_runtime_exact_release_bindings_and_null_default[omitted]",
+      "tests.test_job_migration_qq_runtime::test_qq_runtime_bad_contract_rejected_before_target[phase]",
+      "tests.test_job_migration_qq_runtime::test_qq_runtime_bad_contract_rejected_before_target[fields]",
+      "tests.test_job_migration_qq_runtime::test_qq_invalid_bot_not_reinterpreted_as_default[bad-bot]"
+    ]
+  },
+  "defaultParity": {
+    "exit": 0,
+    "fullInventoryDictionariesEqual": 20,
+    "base": "dc8b1ff805956a2290b91ee65d0d48f0949470ec",
+    "command": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 evidence/job-migration-rev9-20261031/probe_default_parity.py"
+  },
+  "unknownApiDecisionProbe": {
+    "exit": 0,
+    "field": "action.api",
+    "value": "unknown-ordinal9-action",
+    "generatedObjects": 0,
+    "originalSourceUnchanged": true,
+    "command": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 evidence/job-migration-rev9-20261031/probe_unknown_api.py"
+  },
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "unverified": [
+    "real QQ transport/account/reconnection",
+    "legacy pending same-identity import",
+    "real profile/active owner migration",
+    "target-platform CI",
+    "deployment/human acceptance"
+  ],
+  "artifactSha256": {
+    ".gitattributes": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da",
+    "default-parity.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "default-parity.log": "a9fb39bde76b5e1dc0487ba8e7960a0fad9f4aa7514729bafb6bfdbfa4f1dd51",
+    "development.log": "cb39b09d9e52e4d5da3892fe6fce7f41f55ceaee4c5616d45f6449d631a9e2b9",
+    "development.xml": "477d51ced641b49522d4858cdfb76448cad22988a29fe041f3ba911e6ee70cc2",
+    "development2.log": "ec2186368d4d19dc1f0ee41fa78e705f29946cc76759d39136d08278c07161f6",
+    "development2.xml": "bf3cfdb2fcab8358c4a966d19bbc373f341485b4f8afcd53a1bbf3894da2d0f8",
+    "final.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "final.log": "9dbccfbacc33dbb7890379938cfd8423a16c5cdf3d0067e170bca9e924ee34fa",
+    "final.xml": "254a1f79fa82d424ed656ce8e01f0b3fab18718804fd5a00bc82f33e7e884cc7",
+    "import-development.log": "a96c93d27b2dcc108baa918fcc0fed7bdc3ac770a6ce01fe6faa0fda5024f374",
+    "import-development.xml": "b8efb35b26f67ea2cec4b7c55b54f48d517a6e2aa4699011758ff1d072a4681e",
+    "probe_default_parity.py": "97128bf7e1efe670634cc2ef7f7f6a932960e01493c14243330662cd389b7e18",
+    "probe_unknown_api.py": "e9186838066a6d8e650c70911dec6835f5aafb31e2ee51af6a7162134204fc9c",
+    "product-diff.diff": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qq-development-final.log": "d855f8cf1abc21e022c6cc1d7b9275212418dabba766d55bbb32475cce0fe87a",
+    "qq-development-final.xml": "8104ab28b4b910191daa73410a733e51984321567bcb55552f20bbf35b30d734",
+    "qq-precommit.log": "6d8b1f11085d63754432369602903a3195c1df115a3ef59d9036eaee44e0e6bc",
+    "qq-precommit.xml": "2d26329dc2f3fce8b768f3018d5e440ef745301a8197d59ccafaccef86603cde",
+    "red.exit": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04",
+    "red.log": "ee6dc8f1751531db9011a7e5ab6fc5d4d5a8de2d60d5d43f6ac3ff736102a829",
+    "red.xml": "e2d1e1c241c4269315ae3b875b222936083500c025d2ded0f8d0d443f0dc2acc",
+    "REPORT.md": "e05b62a82f91a08374ceb2430dd3378dbdee9445e2834f4249a6e568159a341d",
+    "unknown-api.exit": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+    "unknown-api.json": "546d9268973b118d9997a0407773e52f6cca579e70302d1788e5cc90e747a3c9",
+    "unknown-api.log": "2938d97d5b50768d77bd8f84cc7cfd4e9257081701c6b013900ed93c7df900fe"
+  }
+}

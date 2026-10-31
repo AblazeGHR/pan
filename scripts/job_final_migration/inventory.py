@@ -477,6 +477,11 @@ def _reason(finding: Finding, code: str, detail: str) -> None:
 
 
 def _preserve_runtime_delivery(finding: Finding, source: dict) -> None:
+    # QQ requirements are introduced only in the explicit opt-in pass below;
+    # ordinary inventory, including its preserved-record guidance, stays v1.
+    action = source.get("action")
+    if finding.source_type == MIG_SCHED and isinstance(action, dict) and action.get("api") == "send_qq":
+        return
     gap = delivery_binding_gap(finding.source_type, finding.source_kind, source)
     if gap is not None:
         finding.runtime_binding_gap = gap
@@ -2188,8 +2193,15 @@ def build_inventory(root: str | Path, *, allow_real_profile: bool = False, runti
         for finding, loaded, _ in findings:
             action = loaded.data.get("action") if isinstance(loaded.data, dict) else None
             if finding.source_type == MIG_SCHED and isinstance(action, dict) and action.get("api") == "send_qq":
-                _reason(finding, "runtime_binding_unavailable",
-                        "QQ runtime bot/target/text has no immutable runtimeBeforeAcceptance release; preserve original fields")
+                finding.runtime_binding_gap = delivery_binding_gap(finding.source_type, finding.source_kind, loaded.data)
+                args = action.get("args")
+                if isinstance(args, dict):
+                    bot = args.get("botUin")
+                    if bot is None:
+                        finding.reasons = [r for r in finding.reasons
+                            if r["detail"] != "send_qq requires a persisted bot identity"]
+                    elif not isinstance(bot, str) or not re.fullmatch(r"[0-9]+", bot):
+                        _reason(finding, "provider_unavailable", "send_qq runtime botUin must be digits or null/default")
             if finding.runtime_binding_gap is not None:
                 finding.reasons = [r for r in finding.reasons if r["code"] != "runtime_binding_unavailable"]
                 target_field = finding.runtime_binding_gap["fields"][0]["sourceField"]
