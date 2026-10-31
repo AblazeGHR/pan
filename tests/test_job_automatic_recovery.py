@@ -106,6 +106,8 @@ def seed(h, monkeypatch, *, value=None, actor=USER, reason="failed", proof=True,
         action = frozen["actions"]["product_process_cleanup_v1"]
         executable = {"operation": "process", "effect": action["effectClass"], "arguments": {
             k: v["value"] for k, v in frozen["steps"][0]["arguments"].items()}}
+        if frozen["steps"][0]["completion"].get("contract") == "monitoring":
+            executable["completion"] = copy.deepcopy(frozen["steps"][0]["completion"])
         h.service._save(db, "job", jid, job)
     detail = {"exitCode": 7} if reason == "failed" else {"code": reason}
     doc = {"jobId": jid, "attempt": copy.deepcopy(attempt), "effectKey": key,
@@ -138,7 +140,7 @@ def marker(h, row):
 @pytest.mark.parametrize("recovery,code", [
     (policy(retryIf=[]), "capability_unsupported"),
     *[(policy(retryIf=[r]), "capability_unsupported") for r in ["orphaned", "interrupted", "dependency-unavailable", "cancelled"]],
-    (policy(stableResetSeconds="1"), "capability_unsupported"),
+    (policy(stableResetSeconds="-1"), "invalid_schema"),
     (policy(maxAttempts=11), "invalid_schema"), (policy(maxAttempts=True), "invalid_schema"),
     (policy(retryIf=["failed", "failed"]), "invalid_schema"),
     (policy(retryIf=["unknown"]), "invalid_schema"), (policy(retryIf="failed"), "invalid_schema"),

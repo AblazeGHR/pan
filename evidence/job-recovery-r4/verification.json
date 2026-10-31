@@ -1,0 +1,1090 @@
+{
+  "baseline": "4b577633d2d9ffcdc5bf8a44b12836724c18804e",
+  "sourceSHA": "e48926a5e7d6d2bbe1bdcfb405b8a481e94b5abf",
+  "platform": "Windows only",
+  "python": "3.14.5",
+  "commands": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_job_recovery_stable_reset.py tests/test_job_automatic_recovery.py tests/test_job_final_executors.py tests/test_automation_retry_parallel.py -q --tb=short --junitxml=evidence/job-recovery-r4/source-e48926a5-recovery.xml",
+    "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_job_final_independent_execution.py tests/test_job_final_http_service.py tests/test_job_final_contracts.py -q --tb=short --junitxml=evidence/job-recovery-r4/source-e48926a5-contract-host.xml"
+  ],
+  "source": {
+    "packages/actions/typed_executor.py": {
+      "sha256GitBytes": "4bdbf5dfe16a7a0b48651546f02fc582654c2b0f49b20663252611eebc392320",
+      "gitBlob": "103cabb025a82748b7f1309a9a6abd5ef71e326f",
+      "symbols": {
+        "SessionProvider": {
+          "start": 39,
+          "end": 55
+        },
+        "SessionProvider.send_session": {
+          "start": 47,
+          "end": 55
+        },
+        "AssignProvider": {
+          "start": 58,
+          "end": 68
+        },
+        "AssignProvider.assign": {
+          "start": 59,
+          "end": 68
+        },
+        "ChannelProvider": {
+          "start": 71,
+          "end": 82
+        },
+        "ChannelProvider.send": {
+          "start": 74,
+          "end": 82
+        },
+        "ReceiptStore": {
+          "start": 85,
+          "end": 90
+        },
+        "ReceiptStore.get": {
+          "start": 88,
+          "end": 88
+        },
+        "ReceiptStore.put": {
+          "start": 90,
+          "end": 90
+        },
+        "InMemoryReceiptStore": {
+          "start": 93,
+          "end": 109
+        },
+        "InMemoryReceiptStore.__init__": {
+          "start": 101,
+          "end": 102
+        },
+        "InMemoryReceiptStore.get": {
+          "start": 104,
+          "end": 106
+        },
+        "InMemoryReceiptStore.put": {
+          "start": 108,
+          "end": 109
+        },
+        "WorkerSessionProvider": {
+          "start": 112,
+          "end": 147
+        },
+        "WorkerSessionProvider.wake_session": {
+          "start": 121,
+          "end": 126
+        },
+        "WorkerSessionProvider.send_session": {
+          "start": 128,
+          "end": 147
+        },
+        "WorkerAssignProvider": {
+          "start": 150,
+          "end": 172
+        },
+        "WorkerAssignProvider.assign": {
+          "start": 153,
+          "end": 172
+        },
+        "_original_queue_receipt": {
+          "start": 175,
+          "end": 184
+        },
+        "EffectReceipt": {
+          "start": 188,
+          "end": 211
+        },
+        "EffectReceipt.as_dict": {
+          "start": 197,
+          "end": 211
+        },
+        "_mapping": {
+          "start": 214,
+          "end": 217
+        },
+        "_non_empty_string": {
+          "start": 220,
+          "end": 223
+        },
+        "_effect_key": {
+          "start": 226,
+          "end": 237
+        },
+        "_callable_result": {
+          "start": 240,
+          "end": 243
+        },
+        "_invoke": {
+          "start": 246,
+          "end": 252
+        },
+        "_status": {
+          "start": 255,
+          "end": 273
+        },
+        "_provider_error": {
+          "start": 276,
+          "end": 282
+        },
+        "TypedExecutor": {
+          "start": 285,
+          "end": 677
+        },
+        "TypedExecutor.__init__": {
+          "start": 288,
+          "end": 311
+        },
+        "TypedExecutor._stored": {
+          "start": 313,
+          "end": 318
+        },
+        "TypedExecutor._store": {
+          "start": 320,
+          "end": 325
+        },
+        "TypedExecutor.execute": {
+          "start": 327,
+          "end": 420
+        },
+        "TypedExecutor._process": {
+          "start": 422,
+          "end": 519
+        },
+        "TypedExecutor._session_message": {
+          "start": 521,
+          "end": 539
+        },
+        "TypedExecutor._assign": {
+          "start": 541,
+          "end": 568
+        },
+        "TypedExecutor._session_args": {
+          "start": 571,
+          "end": 573
+        },
+        "TypedExecutor._session_broadcast": {
+          "start": 575,
+          "end": 603
+        },
+        "TypedExecutor._session_resume": {
+          "start": 605,
+          "end": 628
+        },
+        "TypedExecutor._channel": {
+          "start": 630,
+          "end": 677
+        },
+        "_invoke_provider": {
+          "start": 680,
+          "end": 688
+        }
+      },
+      "changedMethods": [
+        "TypedExecutor._process"
+      ]
+    },
+    "packages/jobs/final_service.py": {
+      "sha256GitBytes": "5830211b7b717538d0abda3a2d10e3c333780f249851e2cb1e2214a9a35d600a",
+      "gitBlob": "3495711b653f153efc5731ef9d9f8f2254c4d49c",
+      "symbols": {
+        "error": {
+          "start": 37,
+          "end": 38
+        },
+        "definition": {
+          "start": 41,
+          "end": 43
+        },
+        "object_ref": {
+          "start": 46,
+          "end": 48
+        },
+        "normalize_legacy_form_fields": {
+          "start": 51,
+          "end": 135
+        },
+        "normalize_legacy_form_fields.agree": {
+          "start": 74,
+          "end": 76
+        },
+        "AggregateStore": {
+          "start": 138,
+          "end": 152
+        },
+        "AggregateStore.__init__": {
+          "start": 140,
+          "end": 141
+        },
+        "AggregateStore.get": {
+          "start": 143,
+          "end": 145
+        },
+        "AggregateStore.mutate": {
+          "start": 147,
+          "end": 152
+        },
+        "TriggerAdmission": {
+          "start": 155,
+          "end": 161
+        },
+        "TriggerAdmission.__init__": {
+          "start": 157,
+          "end": 158
+        },
+        "TriggerAdmission.admit": {
+          "start": 160,
+          "end": 161
+        },
+        "FinalService": {
+          "start": 164,
+          "end": 2179
+        },
+        "FinalService.__init__": {
+          "start": 165,
+          "end": 199
+        },
+        "FinalService._initialize_schema": {
+          "start": 201,
+          "end": 207
+        },
+        "FinalService.transaction": {
+          "start": 210,
+          "end": 216
+        },
+        "FinalService._get": {
+          "start": 219,
+          "end": 223
+        },
+        "FinalService._save": {
+          "start": 226,
+          "end": 227
+        },
+        "FinalService._all": {
+          "start": 230,
+          "end": 231
+        },
+        "FinalService._permit": {
+          "start": 233,
+          "end": 241
+        },
+        "FinalService._envelope": {
+          "start": 243,
+          "end": 250
+        },
+        "FinalService._public": {
+          "start": 252,
+          "end": 258
+        },
+        "FinalService._object": {
+          "start": 260,
+          "end": 264
+        },
+        "FinalService._resolver": {
+          "start": 266,
+          "end": 275
+        },
+        "FinalService._resolver.resolve": {
+          "start": 267,
+          "end": 274
+        },
+        "FinalService._references": {
+          "start": 277,
+          "end": 298
+        },
+        "FinalService._check_literal_product_sessions": {
+          "start": 301,
+          "end": 331
+        },
+        "FinalService._check_literal_product_qq": {
+          "start": 334,
+          "end": 360
+        },
+        "FinalService._scope": {
+          "start": 362,
+          "end": 363
+        },
+        "FinalService._operation": {
+          "start": 365,
+          "end": 386
+        },
+        "FinalService._page": {
+          "start": 388,
+          "end": 406
+        },
+        "FinalService.list": {
+          "start": 408,
+          "end": 412
+        },
+        "FinalService.get": {
+          "start": 414,
+          "end": 417
+        },
+        "FinalService.creator_providers": {
+          "start": 419,
+          "end": 425
+        },
+        "FinalService.admit_quota": {
+          "start": 427,
+          "end": 454
+        },
+        "FinalService.admit_quota.mutate": {
+          "start": 435,
+          "end": 453
+        },
+        "FinalService.instantiate_time_template": {
+          "start": 456,
+          "end": 458
+        },
+        "FinalService.instantiate_template": {
+          "start": 460,
+          "end": 519
+        },
+        "FinalService.instantiate_template.mutate": {
+          "start": 475,
+          "end": 517
+        },
+        "FinalService.resolve_time_input": {
+          "start": 521,
+          "end": 526
+        },
+        "FinalService._creator_references": {
+          "start": 528,
+          "end": 546
+        },
+        "FinalService.creator_references": {
+          "start": 548,
+          "end": 553
+        },
+        "FinalService._check_creator_references": {
+          "start": 555,
+          "end": 557
+        },
+        "FinalService._normalize_template_form": {
+          "start": 559,
+          "end": 591
+        },
+        "FinalService.write": {
+          "start": 593,
+          "end": 663
+        },
+        "FinalService.write.mutate": {
+          "start": 616,
+          "end": 661
+        },
+        "FinalService.control": {
+          "start": 665,
+          "end": 708
+        },
+        "FinalService.control.mutate": {
+          "start": 669,
+          "end": 707
+        },
+        "FinalService.retire": {
+          "start": 710,
+          "end": 711
+        },
+        "FinalService._admit": {
+          "start": 713,
+          "end": 760
+        },
+        "FinalService.create_run": {
+          "start": 762,
+          "end": 771
+        },
+        "FinalService.create_run.mutate": {
+          "start": 767,
+          "end": 770
+        },
+        "FinalService._find_run": {
+          "start": 773,
+          "end": 777
+        },
+        "FinalService.get_run": {
+          "start": 779,
+          "end": 782
+        },
+        "FinalService._process_log_records": {
+          "start": 784,
+          "end": 799
+        },
+        "FinalService.process_log_references": {
+          "start": 801,
+          "end": 843
+        },
+        "FinalService.read_process_log": {
+          "start": 845,
+          "end": 870
+        },
+        "FinalService.runs": {
+          "start": 872,
+          "end": 874
+        },
+        "FinalService._qq_manual_retry_proven": {
+          "start": 877,
+          "end": 911
+        },
+        "FinalService._retry_boundary": {
+          "start": 913,
+          "end": 934
+        },
+        "FinalService.control_run": {
+          "start": 936,
+          "end": 1020
+        },
+        "FinalService.control_run.mutate": {
+          "start": 942,
+          "end": 1019
+        },
+        "FinalService._external_adapter": {
+          "start": 1022,
+          "end": 1027
+        },
+        "FinalService._external_targets": {
+          "start": 1029,
+          "end": 1035
+        },
+        "FinalService.control_run_postcommit": {
+          "start": 1037,
+          "end": 1075
+        },
+        "FinalService._cancel_status": {
+          "start": 1077,
+          "end": 1092
+        },
+        "FinalService._cancel_boundary": {
+          "start": 1094,
+          "end": 1103
+        },
+        "FinalService.operation": {
+          "start": 1105,
+          "end": 1114
+        },
+        "FinalService.operation_for_key": {
+          "start": 1116,
+          "end": 1121
+        },
+        "FinalService.create_disabled": {
+          "start": 1124,
+          "end": 1135
+        },
+        "FinalService.verify_links": {
+          "start": 1137,
+          "end": 1142
+        },
+        "FinalService.commit_activation": {
+          "start": 1144,
+          "end": 1148
+        },
+        "FinalService.activate": {
+          "start": 1150,
+          "end": 1160
+        },
+        "FinalService.complete": {
+          "start": 1162,
+          "end": 1163
+        },
+        "FinalService.cancel": {
+          "start": 1165,
+          "end": 1166
+        },
+        "FinalService.publish_action": {
+          "start": 1168,
+          "end": 1183
+        },
+        "FinalService._install_product_actions": {
+          "start": 1185,
+          "end": 1254
+        },
+        "FinalService._session_source": {
+          "start": 1257,
+          "end": 1269
+        },
+        "FinalService.actions": {
+          "start": 1271,
+          "end": 1276
+        },
+        "FinalService._guard_effect": {
+          "start": 1278,
+          "end": 1298
+        },
+        "FinalService._recovery_time": {
+          "start": 1301,
+          "end": 1304
+        },
+        "FinalService._automatic_policy": {
+          "start": 1307,
+          "end": 1310
+        },
+        "FinalService._automatic_due": {
+          "start": 1312,
+          "end": 1319
+        },
+        "FinalService._validate_process_document": {
+          "start": 1321,
+          "end": 1342
+        },
+        "FinalService._process_retry_reason": {
+          "start": 1345,
+          "end": 1355
+        },
+        "FinalService._stable_execution_seconds": {
+          "start": 1358,
+          "end": 1377
+        },
+        "FinalService._automatic_budget": {
+          "start": 1379,
+          "end": 1409
+        },
+        "FinalService._schedule_automatic": {
+          "start": 1411,
+          "end": 1451
+        },
+        "FinalService._automatic_original": {
+          "start": 1453,
+          "end": 1473
+        },
+        "FinalService._claim_automatic": {
+          "start": 1475,
+          "end": 1499
+        },
+        "FinalService.dispatch_once": {
+          "start": 1501,
+          "end": 1521
+        },
+        "FinalService._drive_run": {
+          "start": 1523,
+          "end": 1650
+        },
+        "FinalService._complete_boundary_controls": {
+          "start": 1653,
+          "end": 1658
+        },
+        "FinalService._settle": {
+          "start": 1660,
+          "end": 1681
+        },
+        "FinalService.recover": {
+          "start": 1683,
+          "end": 1716
+        },
+        "FinalService._cleanup_complete": {
+          "start": 1719,
+          "end": 1730
+        },
+        "FinalService._apply_original_receipt": {
+          "start": 1732,
+          "end": 1756
+        },
+        "FinalService.recover_external_receipts": {
+          "start": 1758,
+          "end": 1874
+        },
+        "FinalService.recover_session_receipts": {
+          "start": 1876,
+          "end": 1970
+        },
+        "FinalService.recover_session_receipts.lookup": {
+          "start": 1923,
+          "end": 1941
+        },
+        "FinalService.targets": {
+          "start": 1972,
+          "end": 1975
+        },
+        "FinalService.admit_event": {
+          "start": 1977,
+          "end": 1982
+        },
+        "FinalService._admit_event": {
+          "start": 1984,
+          "end": 2039
+        },
+        "FinalService._admit_event.mutate": {
+          "start": 2030,
+          "end": 2034
+        },
+        "FinalService.admit_event_async": {
+          "start": 2041,
+          "end": 2046
+        },
+        "FinalService.refresh_subscriptions": {
+          "start": 2048,
+          "end": 2051
+        },
+        "FinalService.scheduler_migration": {
+          "start": 2053,
+          "end": 2056
+        },
+        "FinalService.tick": {
+          "start": 2058,
+          "end": 2075
+        },
+        "FinalService.deliver_outbox": {
+          "start": 2077,
+          "end": 2113
+        },
+        "FinalService._guard_creator": {
+          "start": 2115,
+          "end": 2122
+        },
+        "FinalService.start": {
+          "start": 2124,
+          "end": 2164
+        },
+        "FinalService.start.loop": {
+          "start": 2154,
+          "end": 2163
+        },
+        "FinalService._has_activation": {
+          "start": 2166,
+          "end": 2168
+        },
+        "FinalService.close": {
+          "start": 2170,
+          "end": 2179
+        },
+        "bind": {
+          "start": 2182,
+          "end": 2198
+        }
+      },
+      "changedMethods": [
+        "FinalService._automatic_budget",
+        "FinalService._claim_automatic",
+        "FinalService._drive_run",
+        "FinalService._references",
+        "FinalService._schedule_automatic",
+        "FinalService._stable_execution_seconds",
+        "FinalService.recover_external_receipts"
+      ]
+    },
+    "tests/test_job_automatic_recovery.py": {
+      "sha256GitBytes": "acd98b10a0654ceae69b8e3cb5099562bb0f86bf355f3ad766c6cab7e7f416f0",
+      "gitBlob": "7042cf90d7fecdd74fc2e4d38de8f9f582a3ac96",
+      "symbols": {
+        "env": {
+          "start": 29,
+          "end": 57
+        },
+        "policy": {
+          "start": 60,
+          "end": 62
+        },
+        "job_definition": {
+          "start": 65,
+          "end": 73
+        },
+        "create": {
+          "start": 76,
+          "end": 87
+        },
+        "state": {
+          "start": 90,
+          "end": 91
+        },
+        "seed": {
+          "start": 94,
+          "end": 127
+        },
+        "seed.Original": {
+          "start": 118,
+          "end": 124
+        },
+        "seed.Original.lookup_execution": {
+          "start": 120,
+          "end": 121
+        },
+        "seed.Original.execute": {
+          "start": 122,
+          "end": 124
+        },
+        "observe": {
+          "start": 130,
+          "end": 131
+        },
+        "marker": {
+          "start": 134,
+          "end": 135
+        },
+        "test_unsupported_or_malformed_before_write": {
+          "start": 146,
+          "end": 151
+        },
+        "test_reason_filter_and_no_generic_failure_fallback": {
+          "start": 156,
+          "end": 161
+        },
+        "test_extra_retry_conversion_and_first_attempt_budget": {
+          "start": 165,
+          "end": 170
+        },
+        "test_timeout_requires_full_original_proof": {
+          "start": 173,
+          "end": 176
+        },
+        "test_missing_cleanup_or_supervisor_proof_holds": {
+          "start": 180,
+          "end": 189
+        },
+        "test_real_unknown_or_partial_loses_pending_eligibility": {
+          "start": 193,
+          "end": 202
+        },
+        "test_wrong_original_fence_never_admits": {
+          "start": 206,
+          "end": 212
+        },
+        "test_decimal_deadline_frozen_policy_and_args": {
+          "start": 215,
+          "end": 245
+        },
+        "test_wait_control_keeps_count_and_deadline": {
+          "start": 249,
+          "end": 267
+        },
+        "test_transaction_rollback_before_marker_and_before_admission": {
+          "start": 270,
+          "end": 293
+        },
+        "test_transaction_rollback_before_marker_and_before_admission.fail_marker": {
+          "start": 273,
+          "end": 276
+        },
+        "test_transaction_rollback_before_marker_and_before_admission.fail_attempt": {
+          "start": 285,
+          "end": 288
+        },
+        "test_concurrent_pulses_claim_once_and_late_original_is_inert": {
+          "start": 296,
+          "end": 304
+        },
+        "test_concurrent_pulses_claim_once_and_late_original_is_inert.both": {
+          "start": 298,
+          "end": 299
+        },
+        "test_last_backoff_manual_attempts_and_per_step_budget": {
+          "start": 307,
+          "end": 348
+        },
+        "test_early_revoke_does_not_schedule_or_consume": {
+          "start": 351,
+          "end": 360
+        },
+        "test_action_disable_and_cancel_during_proof_lookup": {
+          "start": 363,
+          "end": 377
+        },
+        "test_action_disable_and_cancel_during_proof_lookup.cancel_during_lookup": {
+          "start": 368,
+          "end": 372
+        },
+        "test_live_action_or_job_disable_blocks_waiting_attempt": {
+          "start": 381,
+          "end": 396
+        },
+        "test_due_filter_does_not_starve_ready_tail": {
+          "start": 399,
+          "end": 408
+        },
+        "test_cold_pending_lookup_and_actual_host_loss_are_distinct": {
+          "start": 411,
+          "end": 424
+        },
+        "test_malformed_marker_never_becomes_due": {
+          "start": 428,
+          "end": 436
+        },
+        "test_legacy_definition_and_old_frozen_plan_stay_disabled": {
+          "start": 439,
+          "end": 448
+        },
+        "test_missing_original_receipt_is_not_permission": {
+          "start": 451,
+          "end": 458
+        },
+        "test_pause_resume_uses_original_deadline": {
+          "start": 461,
+          "end": 473
+        },
+        "test_complete_step_is_not_repeated_when_later_step_retries": {
+          "start": 476,
+          "end": 489
+        },
+        "test_actual_retained_owner_timeout_adds_verified_facts": {
+          "start": 492,
+          "end": 502
+        },
+        "drive_until": {
+          "start": 505,
+          "end": 513
+        },
+        "test_default_detached_process_budget_exhaustion": {
+          "start": 517,
+          "end": 527
+        },
+        "test_owned_http_default_process_cold_reopen_and_pulse": {
+          "start": 530,
+          "end": 606
+        },
+        "test_owned_http_default_process_cold_reopen_and_pulse.run": {
+          "start": 550,
+          "end": 590
+        }
+      }
+    },
+    "tests/test_job_recovery_stable_reset.py": {
+      "sha256GitBytes": "8e1628e14ffc0c41f7bfc4bad5f13bcae169b194a632368433fbd4b1a92d6961",
+      "gitBlob": "af8eb762ab286a649fb17e25deda34a2b6237949",
+      "symbols": {
+        "timing": {
+          "start": 26,
+          "end": 29
+        },
+        "seed": {
+          "start": 32,
+          "end": 44
+        },
+        "seed.execute": {
+          "start": 37,
+          "end": 42
+        },
+        "plan": {
+          "start": 47,
+          "end": 48
+        },
+        "test_baseline_rejection_and_old_algorithm_characterization": {
+          "start": 51,
+          "end": 66
+        },
+        "test_before_exact_after_threshold_and_monotonic_attempts": {
+          "start": 70,
+          "end": 89
+        },
+        "test_decimal_threshold_uses_execution_ticks_not_late_host_clock": {
+          "start": 92,
+          "end": 101
+        },
+        "test_untrusted_or_missing_timing_cannot_reset_or_schedule": {
+          "start": 105,
+          "end": 123
+        },
+        "test_wait_and_query_lag_never_become_stable_execution": {
+          "start": 126,
+          "end": 133
+        },
+        "test_cold_reopen_concurrent_pulse_and_lost_lookup_ack": {
+          "start": 136,
+          "end": 156
+        },
+        "test_cold_reopen_concurrent_pulse_and_lost_lookup_ack.both": {
+          "start": 150,
+          "end": 151
+        },
+        "test_window_and_deadline_survive_controls_without_attempt": {
+          "start": 160,
+          "end": 179
+        },
+        "test_stable_elapsed_never_overrides_original_safety": {
+          "start": 183,
+          "end": 199
+        },
+        "test_reset_window_rolls_back_with_receipt_commit": {
+          "start": 202,
+          "end": 218
+        },
+        "test_reset_window_rolls_back_with_receipt_commit.fail": {
+          "start": 205,
+          "end": 208
+        },
+        "test_frozen_reset_policy_is_not_promoted_or_changed": {
+          "start": 221,
+          "end": 232
+        },
+        "test_stable_window_supported_reasons_still_need_allowlist": {
+          "start": 236,
+          "end": 243
+        },
+        "test_stable_result_denied_reason_never_resets_budget": {
+          "start": 246,
+          "end": 249
+        },
+        "test_zero_reset_retains_lifetime_budget_even_with_long_execution": {
+          "start": 252,
+          "end": 258
+        },
+        "test_corrupt_window_cannot_buy_another_attempt": {
+          "start": 262,
+          "end": 284
+        },
+        "test_monitoring_frozen_history_never_executes_as_plain_exit_zero": {
+          "start": 287,
+          "end": 298
+        },
+        "test_historical_monitoring_pending_exit_zero_remains_query_only": {
+          "start": 301,
+          "end": 314
+        },
+        "test_monitoring_is_explicitly_unsupported_not_exit_zero_completion": {
+          "start": 317,
+          "end": 328
+        },
+        "test_default_detached_http_stable_reset_exceeds_total_cap_without_identity_reuse": {
+          "start": 331,
+          "end": 411
+        },
+        "test_default_detached_http_stable_reset_exceeds_total_cap_without_identity_reuse.run": {
+          "start": 351,
+          "end": 395
+        }
+      }
+    }
+  },
+  "unchangedBoundaries": [
+    "packages/jobs/final_runtime",
+    "packages/jobs/independent_executor.py",
+    "packages/jobs/independent_execution_runner.py",
+    "packages/core/platform",
+    "packages/core/worker.py",
+    "packages/mcp",
+    "scripts/job_final_migration",
+    "packages/jobs/final_contracts.py",
+    "packages/jobs/schemas/final",
+    "tests/test_background_job_retry_if.py",
+    "tests/test_job_completion_recovery.py",
+    "tests/test_authorization_runtime.py",
+    "tests/automation_retirement.json"
+  ],
+  "originalSource": {
+    "packages/jobs/action_runtime.py": {
+      "sha256": "abe6b5f2b81802560936fb31d2b6fd2f33e7817bfd4f6126080b2768b32f6376",
+      "symbols": {
+        "Runtime.finalize": {
+          "start": 443,
+          "end": 546
+        },
+        "Runtime.execute": {
+          "start": 593,
+          "end": 663
+        }
+      }
+    },
+    "packages/jobs/action_templates.py": {
+      "sha256": "4c9e1bf84f2d1495d8d549698894a633ab9983b5cc83760f8f278567e068a78d",
+      "symbols": {
+        "completion_policy": {
+          "start": 204,
+          "end": 208
+        }
+      }
+    },
+    "packages/actions/provider.py": {
+      "sha256": "bebb9a86911ab52f6984e3ca3eb5391ecfb0833b93c37c06b3d467b86a6aaaea",
+      "symbols": {
+        "execute": {
+          "start": 22,
+          "end": 114
+        }
+      }
+    }
+  },
+  "finalSourceUniquePassed": 381,
+  "newStableResetCases": 35,
+  "results": {
+    "first-focused.xml": {
+      "collected": 25,
+      "passed": 25,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "b7143a8519f0d992c601670561fc8bc2099e10ddf0e723a933acc04ff3c84dd1",
+      "exitCode": 0
+    },
+    "first-regression.xml": {
+      "collected": 184,
+      "passed": 183,
+      "failuresOrErrors": [
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery5-capability_unsupported]",
+          "time": "0.298"
+        }
+      ],
+      "skipped": [],
+      "sha256Redacted": "d43689ceb9a58d7bf10c8563e169069595b3c68a94bf1c97056aa192e756b2e5",
+      "exitCode": 1
+    },
+    "focused-expanded.xml": {
+      "collected": 91,
+      "passed": 91,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "432bd38530568cefad4295c86b978c6c701844ca44e999473076fc4ad1c8b2f5",
+      "exitCode": 0
+    },
+    "source-9c3030f4-contract-host.xml": {
+      "collected": 224,
+      "passed": 224,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "4528baf8431e6abd1ffc473fd69ed365424913c0813b92fa8aa2fce23fed70ca",
+      "exitCode": 0
+    },
+    "source-9c3030f4-recovery.xml": {
+      "collected": 156,
+      "passed": 156,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "6b96c5a190e642e38af29890f2d397150ec8e2c1b3c9284233083c8328e4b57a",
+      "exitCode": 0
+    },
+    "source-e48926a5-contract-host.xml": {
+      "collected": 224,
+      "passed": 224,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "4fc0904bf3f62e35286d34fd1537e3c9d3f5977e8ea1ecac333d33109321e105",
+      "exitCode": 0
+    },
+    "source-e48926a5-recovery.xml": {
+      "collected": 157,
+      "passed": 157,
+      "failuresOrErrors": [],
+      "skipped": [],
+      "sha256Redacted": "3dd6c9b785c9c6117936f6903eae222747d3fb2776cc91a70330bb7e0249b66e",
+      "exitCode": 0
+    }
+  },
+  "defaultDetachedProof": {
+    "transport": "owned HTTP",
+    "executor": "default detached",
+    "pulse": "FinalService.start",
+    "maxAttempts": 2,
+    "actualInvocations": 3,
+    "runCount": 1,
+    "generations": [
+      1,
+      2,
+      3
+    ],
+    "distinctEffectKeys": 1,
+    "stableWindowBaseGeneration": 1,
+    "coldReopen": true,
+    "frozenPolicyPreserved": true,
+    "historyRows": 2,
+    "originalStableElapsed": "2.2715775",
+    "ownedPortReleased": true
+  },
+  "monitoring": "UNIMPLEMENTED: trusted declared completion signal path missing; explicit unsupported",
+  "maCoordination": {
+    "clientMessageId": "recovery-r4-monitoring-symbol-coordination-20261029",
+    "queueItemId": "q_c8f68e445067418998a5cbc56e9d80c2",
+    "receipt": "accepted; consumption unconfirmed, not scope approval"
+  },
+  "unverified": [
+    "monitoring success",
+    "Linux/macOS",
+    "remote CI",
+    "full suite",
+    "browser",
+    "real-data migration",
+    "deployment",
+    "human acceptance"
+  ]
+}
