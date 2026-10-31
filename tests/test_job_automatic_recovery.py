@@ -106,6 +106,8 @@ def seed(h, monkeypatch, *, value=None, actor=USER, reason="failed", proof=True,
         action = frozen["actions"]["product_process_cleanup_v1"]
         executable = {"operation": "process", "effect": action["effectClass"], "arguments": {
             k: v["value"] for k, v in frozen["steps"][0]["arguments"].items()}}
+        if frozen["steps"][0]["completion"].get("contract") == "monitoring":
+            executable["completion"] = copy.deepcopy(frozen["steps"][0]["completion"])
         h.service._save(db, "job", jid, job)
     detail = {"exitCode": 7} if reason == "failed" else {"code": reason}
     doc = {"jobId": jid, "attempt": copy.deepcopy(attempt), "effectKey": key,

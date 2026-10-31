@@ -277,8 +277,12 @@ class FinalService:
     def _references(self, db, kind, value, *, object_id=None, enabled=False):
         checked = fc.validate_references(kind, value, self._resolver(db), object_id=object_id, require_enabled=enabled)
         completion_job = value if kind == "job" else value.get("jobDefinition", {}) if kind == "template" else {}
-        if any(step["completion"]["contract"] == "monitoring" for step in completion_job.get("steps", [])):
-            error("capability_unsupported", "Monitoring requires a trusted Attempt-bound completion signal; process exit alone is insufficient")
+        from packages.jobs.independent_executor import validate_monitoring_completion
+        for step in completion_job.get("steps", []):
+            try:
+                validate_monitoring_completion(step["completion"])
+            except ValueError as exc:
+                error("invalid_schema", str(exc))
         if kind == "job":
             recovery = value.get("recovery", {})
             if recovery.get("automatic"):
@@ -1331,6 +1335,8 @@ class FinalService:
         executable = {**copy.deepcopy(action["execution"]["config"]), "operation": action["execution"]["operation"],
                       "effect": action["effectClass"], "arguments": resolve_bindings(
                           step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))}
+        if step["completion"].get("contract") == "monitoring":
+            executable["completion"] = copy.deepcopy(step["completion"])
         if (action["execution"]["operation"] != "process" or action["effectClass"] == "high_risk"
                 or target["jobId"] != job["jobId"] or doc.get("jobId") != job["jobId"]
                 or fence(current) != fence(expected) or fence(doc.get("attempt", {})) != fence(expected)
@@ -1349,6 +1355,8 @@ class FinalService:
             return None
         if receipt.get("code") == "timeout":
             return "timeout"
+        if receipt.get("code") == "monitoring_completion_invalid":
+            return "failed"
         if ("code" not in receipt and type(receipt.get("exitCode")) is int
                 and receipt["exitCode"] != 0):
             return "failed"
@@ -1570,8 +1578,6 @@ class FinalService:
                     return
                 action = frozen["actions"][step["actionRef"]["id"]]
                 try:
-                    if step["completion"]["contract"] == "monitoring":
-                        error("capability_unsupported", "No trusted Attempt-bound monitoring completion signal")
                     self._guard_effect(db, job, run_id, frozen, action)
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
                     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):
@@ -1602,7 +1608,10 @@ class FinalService:
                 effect_key = self.final.ledger.admit_effect(job, self.root, attempt["attemptId"], action["id"])
                 plan.pop("autoRecovery", None)
                 executable = {**copy.deepcopy(action["execution"]["config"]),
-                              "operation": action["execution"]["operation"], "effect": action["effectClass"], "arguments": args}
+                              "operation": action["execution"]["operation"], "effect": action["effectClass"],
+                              "arguments": args}
+                if step["completion"].get("contract") == "monitoring":
+                    executable["completion"] = copy.deepcopy(step["completion"])
                 if executable["operation"] == "channel":
                     executable["action"] = {"api": "send_qq", "args": {key: args[key] for key in ("targetType", "targetId", "botUin") if key in args}}
                 self._save(db, "job", job_id, job)
@@ -1615,6 +1624,11 @@ class FinalService:
                     raise
                 receipt = {"outcome": "unknown", "receipt": {"code": "executor_interrupted"}}
             outcome = receipt.get("outcome", "unknown")
+            if (step["completion"].get("contract") == "monitoring" and outcome == "succeeded"
+                    and not self._monitoring_proof_valid(receipt, attempt, step["completion"])):
+                receipt = copy.deepcopy(receipt)
+                receipt["outcome"] = outcome = "unknown"
+                receipt.setdefault("receipt", {})["code"] = "monitoring_completion_unproven"
             mapped = {"succeeded": "completed", "rejected": "failed", "unknown": "uncertain", "partial": "uncertain"}.get(outcome, "uncertain")
             with self.transaction() as db:
                 job = self._get(db, "job", job_id)
@@ -1624,9 +1638,10 @@ class FinalService:
                 if state["attempts"][attempt["attemptId"]]["state"] != "running":
                     return
                 if (self.executor is self._product_executor and executable["operation"] == "process"
-                        and self._automatic_policy(state["plans"][run_id])
+                        and (self._automatic_policy(state["plans"][run_id])
+                             or step["completion"].get("contract") == "monitoring")
                         and receipt.get("effectKey") == effect_key
-                        and (outcome == "rejected" or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
+                        and (outcome in {"succeeded", "rejected"} or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
                     # Known default-host pending is a query reference, not a lost
                     # effect. Keep its original running admission until lookup.
                     state["plans"][run_id]["pendingProcessAttempt"] = attempt["attemptId"]
@@ -1729,6 +1744,12 @@ class FinalService:
                 and proof.get("identityVerified") is True and proof.get("treeTerminated") is True
                 and doc.get("supervisorExitProof", {}).get("confirmed") is True)
 
+    @staticmethod
+    def _monitoring_proof_valid(receipt, attempt, completion):
+        """Validate the runner's bounded proof against the frozen Attempt."""
+        from packages.jobs.independent_executor import monitoring_proof_valid
+        return monitoring_proof_valid(receipt or {}, attempt, completion)
+
     def _apply_original_receipt(self, job, target, receipt):
         from packages.jobs.independent_executor import fence
         state = aggregate(job, self.root)
@@ -1825,15 +1846,10 @@ class FinalService:
                 else:
                     receipt = documents[0].get("result")
                     plan = state["plans"][rid]
+                    if rid in state.get("cancellations", {}):
+                        continue  # The cancellation owner alone settles its cleanup.
                     original_step = next(s for s in plan["frozen"]["steps"]
                                          if s["stepId"] == targets[0]["attempt"]["stepId"])
-                    if original_step["completion"]["contract"] == "monitoring":
-                        # Historical admissions remain query-only. Until the
-                        # original executor supplies a declared, Attempt-bound
-                        # signal, exit 0 cannot settle monitoring as completed.
-                        self.diagnostics.append({"at": now(), "code": "monitoring_completion_unsupported"})
-                        del self.diagnostics[:-100]
-                        continue
                     pending_aid = plan.get("pendingProcessAttempt")
                     is_pending = pending_aid == targets[0]["attempt"]["attemptId"]
                     # A lookup can race a newer Attempt/cancellation or another
@@ -1856,6 +1872,34 @@ class FinalService:
                         continue
                     if not receipt or receipt.get("outcome") not in {"succeeded", "rejected"}:
                         continue
+                    if original_step["completion"]["contract"] == "monitoring":
+                        if state["attempts"][targets[0]["attempt"]["attemptId"]]["state"] not in {"running", "uncertain"}:
+                            continue
+                        self._validate_process_document(job, targets[0], documents[0])
+                        if not self._cleanup_complete(documents[0]):
+                            continue
+                        if receipt.get("outcome") == "succeeded" and not self._monitoring_proof_valid(
+                                receipt, targets[0]["attempt"], original_step["completion"]):
+                            # A successful external effect without the declared
+                            # proof is not safe to reinterpret as failed or to
+                            # replay. Preserve the original identity as unknown.
+                            unknown = copy.deepcopy(receipt)
+                            unknown["outcome"] = "unknown"
+                            unknown["receipt"] = {
+                                "code": "monitoring_completion_invalid",
+                                "originalReceipt": copy.deepcopy(receipt.get("receipt", {})),
+                            }
+                            aid = targets[0]["attempt"]["attemptId"]
+                            if state["attempts"][aid]["state"] == "running":
+                                self.final.ledger.finish_attempt(job, self.root, aid, "uncertain")
+                                self.final.ledger.record_effect(job, self.root, aid, "unknown", unknown)
+                            else:
+                                continue  # Repeated lookup cannot create another effect row.
+                            if is_pending:
+                                plan.pop("pendingProcessAttempt", None)
+                            self.final.ledger.transition_run(job, self.root, rid, "uncertain")
+                            self._settle(db, job, rid)
+                            continue
                     # A control may have arrived while lookup was in flight.
                     if rid in state.get("cancellations", {}):
                         continue

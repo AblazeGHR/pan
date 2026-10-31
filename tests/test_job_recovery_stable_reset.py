@@ -293,39 +293,54 @@ def test_monitoring_frozen_history_never_executes_as_plain_exit_zero(env):
         aggregate(job, env.root)["plans"][rid]["frozen"]["steps"][0]["completion"] = {
             "contract":"monitoring", "parameters":{"signalType":"done"}}
         env.service._save(db, "job", jid, job)
-    asyncio.run(env.service.dispatch_once())
+    asyncio.run(drive_until(env, jid, rid, "failed"))
     assert state(env, jid)["runs"][rid]["state"] == "failed"
-    assert not state(env, jid)["attempts"] and not state(env, jid)["effects"]
+    assert len(state(env, jid)["attempts"]) == 2
+    assert all(e["outcome"] == "rejected" for e in state(env, jid)["effects"])
 
 
-def test_historical_monitoring_pending_exit_zero_remains_query_only(env, monkeypatch):
+def test_historical_monitoring_pending_exit_zero_without_proof_is_unknown(env, monkeypatch):
     row = seed(env, monkeypatch)
     with env.service.transaction() as db:
         job = env.service._get(db, "job", row.jid)
         aggregate(job, env.root)["plans"][row.rid]["frozen"]["steps"][0]["completion"] = {
             "contract":"monitoring", "parameters":{"signalType":"done"}}
         env.service._save(db, "job", row.jid, job)
+    row.doc["frozenPlan"]["completion"] = {"contract":"monitoring", "parameters":{"signalType":"done"}}
+    row.doc["planDigest"] = fc.digest(row.doc["frozenPlan"])
     row.doc["result"]["outcome"] = "succeeded"
     row.doc["result"]["receipt"]["exitCode"] = 0
     observe(env)
-    assert state(env, row.jid)["runs"][row.rid]["state"] == "running"
-    assert not state(env, row.jid)["effects"]
+    assert state(env, row.jid)["runs"][row.rid]["state"] == "uncertain"
+    assert state(env, row.jid)["effects"][0]["outcome"] == "unknown"
     assert marker(env, row) is None
-    assert env.service.diagnostics[-1]["code"] == "monitoring_completion_unsupported"
+    assert state(env, row.jid)["attempts"][row.doc["attempt"]["attemptId"]]["state"] == "uncertain"
+    before = copy.deepcopy(state(env, row.jid))
+    observe(env)
+    assert state(env, row.jid) == before
 
 
-def test_monitoring_is_explicitly_unsupported_not_exit_zero_completion(env):
+def test_monitoring_is_admitted_and_requires_structured_completion(env):
     action = next(a for a in env.service.actions(actor=USER)["items"] if a["id"] == "product_process_cleanup_v1")
     value = definition("action", action)
     value["completionContracts"].append({"id":"monitoring", "schema":{"type":"object"}, "terminalProofSchema":{"type":"object"}})
     action = env.service.publish_action("owned_monitor_declared", value)
-    body = job_definition(env, policy(stableResetSeconds="1"), code="raise SystemExit(0)")
+    body = job_definition(env, policy(automatic=False, stableResetSeconds="1"), code="raise SystemExit(0)")
+    body["steps"][0]["arguments"]["argv"]["value"] = [sys.executable, "-c", "import json; print(json.dumps({'panJobCompletion':{'type':'owned.done','completed':True}}))"]
     body["steps"][0]["actionRef"] = object_ref("action", action)
     body["steps"][0]["completion"] = {"contract":"monitoring", "parameters":{"signalType":"owned.done"}}
     response = env.client.post("/api/jobs", json={"definition":body, "expectedRevision":0, "requestKey":"monitor"})
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "capability_unsupported"
-    assert env.client.get("/api/jobs").json()["items"] == []
+    assert response.status_code == 201, response.text
+    assert len(env.client.get("/api/jobs").json()["items"]) == 1
+    job = response.json()["result"]["object"]
+    enabled = env.client.post("/api/jobs/" + job["id"] + "/operations", json={
+        "operation":"enable", "expectedRevision":1, "expectedStateRevision":0,
+        "parameters":{}, "requestKey":"monitor-enable"})
+    assert enabled.status_code == 200, enabled.text
+    run = env.service.create_run(job["id"], {"expectedRevision":1, "requestKey":"monitor-run",
+        "input":{}, "cause":{"type":"manual"}}, actor=USER)
+    asyncio.run(drive_until(env, job["id"], run["runId"], "completed"))
+    assert state(env, job["id"])["runs"][run["runId"]]["state"] == "completed"
 
 
 def test_default_detached_http_stable_reset_exceeds_total_cap_without_identity_reuse(env):
