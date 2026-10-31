@@ -109,5 +109,7 @@
       "assertions": "CSV retains real opted-in runtime requirements plus historical D3 fields in either row order; supported record has no runtimeBindingGap."
     }
   ],
-  "additionalRuntimeContractCoverage": "tests/test_job_migration_runtime_contract.py: 20 unchanged nodes, including three exact runtime releases, QQ missing declaration, invalid release, missing targets, real owned import/backlog/CAS/same-Event/cold-reopen accepted and unknown guards"
+  "additionalRuntimeContractCoverage": "tests/test_job_migration_runtime_contract.py: 20 unchanged nodes, including three exact runtime releases, QQ missing declaration, invalid release, missing targets, real owned import/backlog/CAS/same-Event/cold-reopen accepted and unknown guards",
+  "originalLogArtifact": "ma-combination-original-red.log.gz",
+  "textProjection": "ma-combination-original-red.log (Git newline normalization)"
 }

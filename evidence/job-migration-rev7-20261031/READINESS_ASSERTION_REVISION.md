@@ -12,10 +12,12 @@ byte-identical by Git diff to accepted product input
 
 MA's combined source was `bde866a35f205ef090d7db19ddc1167b6148bffb`, Job
 `job_895b9d1d9e61da9d8fbf7118`: reported 52 nodes, 14 failures, no error/skip.
-The exact original log is copied unchanged as
-`ma-combination-original-red.log` (SHA256
+The exact original log bytes are archived in
+`ma-combination-original-red.log.gz` (decompressed SHA256
 `4d56c91fb3cbd527f7c80136072fd308d6e791bd56c6612a4177080574edc193`).
-All 14 FAILED node IDs were extracted from that log, not inferred from a
+The readable `.log` projection is subject to Git newline normalization; the
+gzip archive retains the exact original bytes. All 14 FAILED node IDs were
+extracted from that log, not inferred from a
 later passing run. `revision-assertion-map.json` maps every original node to
 its explicit successor and the retained/replaced contract assertions.
 
@@ -88,3 +90,7 @@ MA can review the test-only source commit, combine this clean evidence
 successor, and run the same two-file command on its fixed combination source.
 Do not use preservation or this passing synthetic exercise as permission to
 retire an original manager or to replay unresolved effects.
+
+Source/docs whitespace checks passed. Full evidence diff whitespace checks
+report the original pytest trailing blanks in red logs/XML; these raw failure
+artifacts are intentionally retained rather than edited to satisfy formatting.
