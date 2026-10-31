@@ -1,0 +1,11 @@
+{
+  "operationId": "mop1_9570dbe8c67bae6b4bd98fde",
+  "state": "rolled-back-offline",
+  "bundleDigest": "7bb1e8d251a012219b6b4adb592c2f87331732e25805d660b90801e579e1b5a0",
+  "runtimeActivated": false,
+  "runtimeFenceVerified": false,
+  "plan": {
+    "executable": false
+  },
+  "sourceWrites": 0
+}

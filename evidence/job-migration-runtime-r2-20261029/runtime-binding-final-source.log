@@ -1,0 +1,23 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+..............................................F............              [100%]
+================================== FAILURES ===================================
+__________ test_review_packet_is_stable_complete_and_source_readonly __________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6421/test_review_packet_is_stable_c0')
+
+    def test_review_packet_is_stable_complete_and_source_readonly(tmp_path):
+        evidence, root, digest = evidence_for(tmp_path)
+        before = _snapshot(evidence)
+        first, second = tmp_path / "review-a", tmp_path / "review-b"
+        manifest = build_packet(evidence, first, expected_manifest_sha256=digest)
+        repeated = build_packet(evidence, second, expected_manifest_sha256=digest)
+        assert repeated == manifest
+        assert _snapshot(first) == _snapshot(second)
+        assert _snapshot(evidence) == before
+>       assert manifest["counts"]["simple"] == 6 and manifest["counts"]["complex"] == 1
+E       assert (4 == 6)
+
+tests\test_job_final_migration_review_packet.py:49: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_final_migration_review_packet.py::test_review_packet_is_stable_complete_and_source_readonly
+1 failed, 58 passed, 1 deselected in 22.38s
