@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="15.471" timestamp="2026-10-31T14:02:27.637467+08:00" hostname="owned-isolated-test-host"><testcase classname="tests.test_retirement_rev10_qq_retry" name="test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]" time="15.149"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">tests\test_retirement_rev10_qq_retry.py:91: in test_original_http_cold_retry_duplicate_control_cas_same_effect
+    assert after['runs'][rid]['state'] == 'completed'
+E   AssertionError: assert 'uncertain' == 'completed'
+E
+E     - completed
+E     + uncertain</failure></testcase></testsuite></testsuites>
