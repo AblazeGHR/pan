@@ -69,6 +69,14 @@ def _monitoring_completion(result, stream, *, attempt, effect_key, completion):
         return result
     try:
         raw, size = stream.finish()
+        if (size > _MAX_COMPLETION_BYTES and result.get("outcome") in {"succeeded", "rejected"}
+                and result.get("cleanupProof", {}).get("confirmed") is True):
+            result = copy.deepcopy(result)
+            result["outcome"] = "rejected"
+            result.setdefault("receipt", {}).update(code="monitoring_completion_invalid",
+                message="completion stdout exceeds bounded proof size")
+            result["cleanupProof"]["reason"] = "monitoring-output-limit"
+            return result
         if result.get("outcome") != "succeeded":
             return result
         if size > _MAX_COMPLETION_BYTES:
@@ -163,7 +171,9 @@ async def execute_claimed(store, doc, *, executor=None):
                                 time.sleep(.05)
                                 continue
                             waited = owner.wait(handle, timeout=min(.05, max(0, deadline - time.monotonic())))
-                            if request.get("status") != "requested" and (waited.exited or time.monotonic() >= deadline):
+                            output_stop = completion_stream is not None and (
+                                completion_stream.size > _MAX_COMPLETION_BYTES or completion_stream.error is not None)
+                            if request.get("status") != "requested" and (waited.exited or time.monotonic() >= deadline or output_stop):
                                 return waited
                             if request.get("status") != "requested":
                                 continue

@@ -109,6 +109,18 @@ def test_matching_signal_never_overrides_nonzero_exit(tmp_path):
     assert 'completionProof' not in final['result']['receipt']
 
 
+def test_output_limit_uses_original_owned_cleanup_before_child_wait_ends(tmp_path):
+    started = time.monotonic()
+    _, final = submit(tmp_path, "import sys,time; sys.stdout.write('x'*(512*1024+1)); sys.stdout.flush(); time.sleep(10)")
+    assert time.monotonic()-started < 8
+    result = final['result']
+    assert result['outcome']=='rejected'
+    assert result['receipt']['code']=='monitoring_completion_invalid'
+    assert result['cleanupProof']['reason']=='monitoring-output-limit'
+    assert result['cleanupProof']['ownedTree']['confirmed'] is True
+    assert result['cleanupProof']['ownedTree']['remaining']==[]
+
+
 @pytest.mark.parametrize('parameters', [None, {}, {'signalType':''}, {'signalType':True}, {'signalType':'x'*129}])
 def test_invalid_monitoring_contract_has_no_admission_or_launch(tmp_path, parameters):
     store = ExecutionStore(tmp_path)
