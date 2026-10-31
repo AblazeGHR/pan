@@ -42,7 +42,7 @@
     "readiness-contract-final.xml": "fe44986de8edbf6ef303aad8fc2f47df1e3609b9a118823ed77d4a55ad3ce550",
     "readiness-contract-final.log": "798c28e9d9e5a31548283469c48be3eaf3b21be773a3ce8b13d66bc38f1c95ab",
     "original-regression-revised.xml": "4c2cd7791d328f350a708cad154823cd0d77238d44c4a6d8ce16caa96de1dbb6",
-    "revision-assertion-map.json": "fea0b229a85032bd90a86234ae94ceb78d2eff38463f7697f2461ee0bd2dc518",
+    "revision-assertion-map.json": "33705be048f07b1fa01a7cda1e133bae2a22c0a1ae572f6469edd599c5849828",
     "ma-combination-original-red.log.gz": "b46a61ef19d7f8753919cbaaaeda8edeb5f2ec2114e9c05dd34d46574ded0406"
   },
   "artifactHashConvention": "SHA256 of committed Git blob; original raw log bytes are retained inside gzip and bound separately by originalLogSha256 in revision-assertion-map.json."
