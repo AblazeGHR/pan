@@ -1,0 +1,653 @@
+{
+  "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/canonical-auto-force-v3.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-reasons-matrix-green.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_default_side_effects_never_retry": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/retry-safe-three.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/retry-safe-three.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/retry-safe-three.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/retry-stale-fence-green.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/retry-stale-fence-green.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/stale-independent-green.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_http_policy_and_public_status": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-file-complete-v2.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml"
+    ]
+  },
+  "tests.test_event_store::test_trigger_disabled_after_accept_never_resurrects[disabled]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/admission-contract-followthrough.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/canonical-crash-notice-v4.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-final.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-fixture.xml"
+    ]
+  },
+  "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-final.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-large-current.xml"
+    ]
+  },
+  "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-final.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-fixture.xml"
+    ]
+  },
+  "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/interaction-current-final.xml"
+    ]
+  },
+  "tests.test_job_final_admission::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/admission-contract-followthrough.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_job_final_admission::test_fa03_trigger_lifecycle_only_gates_future_admission[disable]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/admission-contract-followthrough.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_job_final_admission::test_fa03_trigger_lifecycle_only_gates_future_admission[pause]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/followthrough/admission-contract-followthrough.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+    ]
+  },
+  "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/settings-exact-defaults-green.xml"
+    ]
+  },
+  "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/retry-settings-complete-v3.xml",
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/settings-exact-defaults-green.xml"
+    ]
+  },
+  "tests.test_settings_ui::test_get_ui_defaults_when_absent": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/settings-exact-defaults-green.xml"
+    ]
+  },
+  "tests.test_settings_ui::test_put_ui_full_replacement": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/retry-reason-followthrough/settings-exact-defaults-green.xml"
+    ]
+  }
+}

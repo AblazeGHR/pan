@@ -63,3 +63,32 @@ The final nonpending proof guard was added after the 346-test combination; its
 26-node affected-path check is separate evidence. Do not relabel that original
 combination as having tested the later guard. Remaining full-suite failures and
 the final new-SHA remote CI are still outstanding.
+
+
+## Remaining original retry nodes
+
+All original 65 test identities remain collected. The 12 policy validation cases
+now use authenticated canonical creation with exact invalid_schema/no-write checks;
+the retained orphaned configuration case persists exactly and creates no execution.
+Four runner exception probes preserve process_exception as unknown with the original
+message, cleanup unconfirmed, and no second spawn even with retry requested.
+No Python exception is invented into known process-exit proof.
+
+Cold backoff, accepted cancellation, live unproven process, strict HTTP policy,
+and absent old remote bridge assertions now target the canonical ledger. The
+final notice probe runs an actual first-exit-7/second-exit-0 process: intermediate
+retry_wait creates no outbox; terminal completion creates exactly one Session
+and one WS row, both ACK once using the original outbox IDs. Independent Python
+cold restart completes only the native failed case with original Run/effect and
+exactly two Attempts/invocations. The old orphan fixture supplied no child exit
+receipt: its successor preserves original uncertain state across a fresh Python
+process, no replay; it does not claim a native orphan producer or migration.
+
+retry-settings-complete-v3.xml contains all 65 retry nodes passing and two separate
+UI stale-expectation failures. settings-exact-defaults-green.xml then proves all
+16 UI cases pass after explicit default and server-managed epoch assertions.
+The UI assertions retain whole-object equality, including exact default-off
+notification sources and generated 32-hex authorization epochs. Product defaults
+and authorization behavior did not change. Earlier three-node followthrough reds
+and the complete original 5a7 JUnits/sources are retained. These focused checks do
+not close the remaining full-suite or final-SHA CI gate.

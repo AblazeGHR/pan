@@ -14,6 +14,7 @@ the running service is never touched.
 """
 
 import asyncio
+import copy
 import json
 import sys
 from pathlib import Path
@@ -55,9 +56,12 @@ _UI_DEFAULTS = {
     # configs without the key fall back to the same False).
     "reportWorkerKillErrors": False,
     # App Settings → Behavior: automatic Force send is opt-in per source.
+    "sessionErrorBridge": True,
     "autoForceSend": {"system": False, "ma": False, "report": False},
     "notifications": {
         "codexWarningToast": True,
+        "lockerUnread": {"enabled": False, "system": False, "browser": False, "qqReport": False, "qqTargets": []},
+        "newError": {"enabled": False, "system": False, "browser": False, "qqReport": False, "qqTargets": []},
         "completionBridge": {
             "system": True, "browser": False, "qqReport": False,
             "qqSubscribe": False, "qqTargets": [],
@@ -89,7 +93,7 @@ def test_load_config_falls_back_to_ui_defaults_when_file_missing(tmp_path, monke
 def test_get_ui_defaults_when_absent(tmp_path, monkeypatch):
     _use_temp_config(tmp_path, monkeypatch)
     r = asyncio.run(srv.api_get_settings_ui())
-    assert r == _UI_DEFAULTS
+    assert r == {**_UI_DEFAULTS, "errorNotificationExclusions": {"enabled": False, "types": []}}
 
 
 def test_get_ui_merges_partial_config(tmp_path, monkeypatch):
@@ -226,10 +230,19 @@ def test_put_ui_full_replacement(tmp_path, monkeypatch):
             }
         },
     )
-    full = dict(_UI_DEFAULTS)
+    full = copy.deepcopy(_UI_DEFAULTS)
     r = asyncio.run(srv.api_put_settings_ui(full))
-    assert r == full
-    assert _read(p)["ui"] == full
+    # Explicit saves rotate the existing notification authorization fences.
+    expected = copy.deepcopy(full)
+    epoch = r['sessionErrorBridgeEpoch']
+    assert len(epoch) == 32 and int(epoch, 16) >= 0
+    expected['sessionErrorBridgeEpoch'] = epoch
+    for source in ('lockerUnread', 'newError'):
+        epoch = r['notifications'][source]['epoch']
+        assert len(epoch) == 32 and int(epoch, 16) >= 0
+        expected['notifications'][source]['epoch'] = epoch
+    assert r == expected
+    assert _read(p)["ui"] == expected
 
 
 def test_put_ui_creates_config_when_missing(tmp_path, monkeypatch):

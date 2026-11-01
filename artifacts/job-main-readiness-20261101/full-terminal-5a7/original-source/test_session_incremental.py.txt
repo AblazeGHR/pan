@@ -1,0 +1,826 @@
+"""方案 4 e2e：history 增量持久化（append-only jsonl）验证。
+
+覆盖：
+- 完整会话生命周期：create → 多次 append 消息/流式块 → result → 冷启动重载
+  → history 完整、顺序正确、元数据一致
+- 增量语义：jsonl 行数 == history 条数；主文件只含尾部；重复保存不重复追加
+- 新旧格式混合：旧格式（history 内嵌主文件）与新格式（jsonl）都能加载
+- append 后重启不丢；崩溃尾部半行容错
+- save_full（reimport 整体替换 history）语义
+- worker 级 e2e（MockProcess 驱动 _read_stdout，走防抖 flush 落盘路径）
+- 长 history 性能对比：增量追加 vs 旧全量重写
+"""
+
+import asyncio
+import json
+import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from packages.core import worker, session as _sess
+from packages.core.adapters import CbcAdapter
+
+
+# ── 与 test_worker_history.py 同构的 mock cbc 工具 ──
+
+def _make_event(event_type: str, **fields) -> bytes:
+    return (json.dumps({"type": event_type, **fields}) + "\n").encode("utf-8")
+
+
+def _assistant_event(text: str = None) -> bytes:
+    content = []
+    if text:
+        content.append({"type": "text", "text": text})
+    return _make_event("assistant", message={"role": "assistant", "content": content})
+
+
+def _result_event(result: str = "ok") -> bytes:
+    return _make_event("result", result=result, is_error=False)
+
+
+def _system_init_event(cbc_sid: str = "cbc-123", model: str = "test-model") -> bytes:
+    return _make_event("system", subtype="init", session_id=cbc_sid, model=model)
+
+
+class MockProcess:
+    """Mock asyncio.subprocess.Process：一次一个事件行，EOF 返回 b""。"""
+
+    def __init__(self, events: list[bytes], pid: int = 1000):
+        self._events = list(events)
+        self.returncode = None
+        self.pid = pid
+        self.stdin = AsyncMock()
+        self.stdout = self
+
+    async def read(self, n=-1):
+        if self._events:
+            return self._events.pop(0)
+        return b""
+
+
+def _cleanup():
+    _sess._cache.clear()
+    _sess._all_loaded = False
+    worker.workers.clear()
+    worker.set_broadcaster(None)
+
+
+def _jsonl_lines(sid: str) -> list[dict]:
+    p = _sess._history_path(sid)
+    if not p.exists():
+        return []
+    out = []
+    for l in p.read_text(encoding="utf-8").splitlines():
+        if not l.strip():
+            continue
+        try:
+            out.append(json.loads(l))
+        except json.JSONDecodeError:
+            continue  # 崩溃半行：跳过（与 _read_jsonl 一致）
+    return out
+
+
+def _no_ts(entries) -> list[dict]:
+    """剥掉追加边界字段，便于断言 provider/history 消息本体。"""
+    return [{k: v for k, v in e.items()
+             if k not in {"ts", "messageId", "clientMessageId"}}
+            for e in entries]
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  完整生命周期 + 冷启动重载                                                  #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_lifecycle_create_append_result_reload(tmp_path, monkeypatch):
+    """create → 多条 user/assistant → result → 冷启动重载：全对。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+
+    s = _sess.create(name="e2e")
+    sid = s.id
+    # 模拟用户消息 + 流式块 + result（对齐 worker 路径：result 补存 assistant）
+    for i in range(3):
+        s.history.append({"role": "user", "content": f"q{i}"})
+        _sess.save(s)
+        s.history.append({"role": "assistant", "content": f"a{i}"})
+        _sess.save(s)
+    s.last_result = {"status": "done", "result": "a2", "timestamp": "t"}
+    s.history.append({"role": "assistant", "content": "a2"})  # result 补存
+    s.managed_by = "ses_manager"
+    s.qq_subscriptions.add("user:12345")
+    s.name = "e2e-renamed"
+    _sess.save(s)
+
+    # 磁盘格式断言：jsonl 与 history 等长；主文件保留全部（未超尾部阈值）
+    assert len(_jsonl_lines(sid)) == len(s.history) == 7
+    main = json.loads(_sess._path(sid).read_text(encoding="utf-8"))
+    assert len(main["history"]) == 7
+
+    # 冷启动：清缓存 = 新进程重新加载
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s2 = _sess.get(sid)
+    assert s2 is not None
+    assert s2.name == "e2e-renamed"
+    assert s2.managed_by == "ses_manager"
+    assert s2.qq_subscriptions == {"user:12345"}
+    assert s2.last_result == {"status": "done", "result": "a2", "timestamp": "t"}
+    assert _no_ts(s2.history) == [
+        {"role": "user", "content": "q0"}, {"role": "assistant", "content": "a0"},
+        {"role": "user", "content": "q1"}, {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"}, {"role": "assistant", "content": "a2"},
+        {"role": "assistant", "content": "a2"},  # result 补存的 assistant
+    ]
+    # 加载后游标就位：继续 append 只追加新条目，不重复
+    s2.history.append({"role": "user", "content": "q3"})
+    _sess.save(s2)
+    lines = _jsonl_lines(sid)
+    assert len(lines) == 8 and _no_ts([lines[-1]]) == [{"role": "user", "content": "q3"}]
+    _cleanup()
+
+
+def test_append_tail_kept_main_file_constant(tmp_path, monkeypatch):
+    """history 超尾部阈值后：主文件保持尾部常量，jsonl 持续增长。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="long")
+    sid = s.id
+    n = 50  # > _MAIN_HISTORY_TAIL(20)
+    for i in range(n):
+        s.history.append({"role": "user", "content": f"m{i}"})
+        _sess.save(s)
+    assert len(_jsonl_lines(sid)) == n
+    # 纯 history append 不重写主文件：主文件仍是创建时的小快照
+    assert _sess._path(sid).stat().st_size < 20 * 1024
+    # 元数据变更 → 主文件重写，只含尾部常量（20 条）
+    s.name = "long-renamed"
+    _sess.save(s)
+    main = json.loads(_sess._path(sid).read_text(encoding="utf-8"))
+    assert main["name"] == "long-renamed"
+    assert len(main["history"]) == 20
+    assert _no_ts([main["history"][-1]]) == [{"role": "user", "content": "m49"}]
+    _cleanup()
+
+
+def test_delete_removes_both_json_and_jsonl(tmp_path, monkeypatch):
+    """双文件格式下 delete 必须同时删除 <id>.json 与 <id>.history.jsonl，
+    避免 jsonl 成为孤儿残留（旧实现只删单文件）。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="delme")
+    sid = s.id
+    for i in range(30):  # 超过尾部阈值，确保 jsonl 成为唯一完整 history 真源
+        s.history.append({"role": "user", "content": f"d{i}"})
+        _sess.save(s)
+    assert _sess._path(sid).exists()
+    assert _sess._history_path(sid).exists()
+    assert len(_jsonl_lines(sid)) == 30
+
+    _sess.delete(sid)
+    assert not _sess._path(sid).exists(), "delete 后 <id>.json 应被移除"
+    assert not _sess._history_path(sid).exists(), "delete 后 <id>.history.jsonl 应被移除"
+    # 孤儿 jsonl 不应再被 list_all / get 看到
+    assert _sess.get(sid) is None
+    assert sid not in {x.id for x in _sess.list_all()}
+    # 幂等：重复 delete 不报错
+    _sess.delete(sid)
+    _cleanup()
+
+
+def test_delete_legacy_json_only_no_crash(tmp_path, monkeypatch):
+    """旧格式 session（只有 <id>.json、无 jsonl）delete 正常清理且不报错。"""
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    legacy = {
+        "id": "ses_legacy_del", "name": "legacy", "adapter": "cbc",
+        "history": [{"role": "user", "content": "old1"}],
+        "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00",
+    }
+    (session_dir / "ses_legacy_del.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    assert _sess.get("ses_legacy_del") is not None
+    _sess.delete("ses_legacy_del")
+    assert not (session_dir / "ses_legacy_del.json").exists()
+    assert _sess.get("ses_legacy_del") is None
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  新旧格式混合加载                                                           #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_legacy_and_incremental_formats_coexist(tmp_path, monkeypatch):
+    """旧格式（history 内嵌主文件、无 jsonl）+ 新格式同时存在于同一目录。"""
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    # 旧格式：手写完整内嵌 history 的主文件，无 jsonl
+    legacy_hist = [{"role": "user", "content": "old1"}, {"role": "assistant", "content": "old2"}]
+    legacy = {
+        "id": "ses_legacy", "name": "legacy", "adapter": "cbc",
+        "history": legacy_hist, "created_at": "2026-01-01T00:00:00",
+        "updated_at": "2026-01-01T00:00:00",
+    }
+    (session_dir / "ses_legacy.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+
+    # 新格式：通过正常流程创建（自动生成 jsonl）
+    s = _sess.create(name="incr")
+    s.history.append({"role": "user", "content": "new1"})
+    _sess.save(s)
+    sid_new = s.id
+
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    all_s = _sess.list_all()
+    by_id = {x.id: x for x in all_s}
+    assert set(by_id) == {"ses_legacy", sid_new}
+
+    leg = by_id["ses_legacy"]
+    assert leg.history == legacy_hist, "legacy history not fully loaded"
+    # 旧格式首次保存 → 自动迁移：jsonl 生成且包含完整历史
+    leg.managed_by = "ses_manager"
+    _sess.save(leg)
+    assert len(_jsonl_lines("ses_legacy")) == 2
+    assert leg.history == legacy_hist
+
+    nw = by_id[sid_new]
+    assert _no_ts(nw.history) == [{"role": "user", "content": "new1"}]
+    _cleanup()
+
+
+def test_crash_partial_line_tolerated(tmp_path, monkeypatch):
+    """jsonl 尾部半行（append 崩溃）→ 半行被跳过，后续新记录自动补换行可恢复。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="crash")
+    sid = s.id
+    for i in range(5):
+        s.history.append({"role": "user", "content": f"x{i}"})
+        _sess.save(s)
+    # 模拟崩溃：追加一条不完整 JSON 半行（无换行结尾）
+    with open(_sess._history_path(sid), "ab") as f:
+        f.write(b'{"role": "assistant", "content": "partial')
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s2 = _sess.get(sid)
+    assert len(s2.history) == 5
+    assert _no_ts([s2.history[-1]]) == [{"role": "user", "content": "x4"}]
+    # 崩溃后继续 append：自动补换行，y0 不粘在半行上 → 可被恢复
+    s2.history.append({"role": "user", "content": "y0"})
+    _sess.save(s2)
+    assert len(_jsonl_lines(sid)) == 6
+    assert _no_ts(_jsonl_lines(sid)[-1:]) == [{"role": "user", "content": "y0"}]
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  save_full：整体替换 history（reimport 语义）                               #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_save_full_replaces_history_wholesale(tmp_path, monkeypatch):
+    """history 整体替换必须 save_full，避免增量游标跳过新历史头部。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="re")
+    sid = s.id
+    for i in range(5):
+        s.history.append({"role": "user", "content": f"old{i}"})
+        _sess.save(s)
+    assert len(_jsonl_lines(sid)) == 5
+
+    # 整体替换为更短的 history（长度 < 旧游标 → 普通 save 也会兜底全量重写）
+    s.history = [{"role": "user", "content": "new0"}, {"role": "user", "content": "new1"}]
+    _sess.save(s)
+    assert _jsonl_lines(sid) == [
+        {"role": "user", "content": "new0"}, {"role": "user", "content": "new1"}]
+
+    # 替换为等长 history（游标检测不到 → 必须显式 save_full）
+    s.history = [
+        {"role": "user", "content": "new-a"}, {"role": "user", "content": "new-b"}]
+    _sess.save_full(s)
+    assert _jsonl_lines(sid) == [
+        {"role": "user", "content": "new-a"}, {"role": "user", "content": "new-b"}]
+
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  历史条目 ts 时间戳（追加边界打点；导入/替换不打）                          #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_history_ts_stamped_on_append_only(tmp_path, monkeypatch):
+    """ts 在 append_history 打点（本地 ISO-8601）：新追加条目带 ts；迁移/导入
+    进来的旧条目不补写；已有 ts 不被 setdefault 覆盖——时间不确定就不显示。"""
+    _cleanup()
+
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    # 旧数据：主文件内嵌 history、无 jsonl（迁移路径）→ 旧条目不补 ts
+    legacy = {
+        "id": "ses_ts_legacy", "name": "legacy", "adapter": "cbc",
+        "history": [{"role": "user", "content": "old1"}],
+        "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00",
+    }
+    (session_dir / "ses_ts_legacy.json").write_text(
+        json.dumps(legacy, ensure_ascii=False), encoding="utf-8")
+    s = _sess.get("ses_ts_legacy")
+    assert "ts" not in s.history[0]
+    _sess.append_history(s, {"role": "assistant", "content": "new1"})
+    assert "ts" in s.history[1], "追加边界应打 ts"
+    _sess.save(s)
+    lines = _jsonl_lines("ses_ts_legacy")
+    assert "ts" not in lines[0], "迁移的旧条目不应被补 ts"
+    assert "ts" in lines[1], "新条目应带 ts"
+    datetime.fromisoformat(lines[1]["ts"])  # 可解析的 ISO-8601
+
+    # 已有 ts 不被 append_history / save 覆盖
+    s2 = _sess.create(name="ts2")
+    _sess.append_history(s2, {"role": "user", "content": "q", "ts": "2026-01-01T08:00:00"})
+    _sess.append_history(s2, {"role": "assistant", "content": "a"})
+    _sess.save(s2)
+    rows = _jsonl_lines(s2.id)
+    assert rows[0]["ts"] == "2026-01-01T08:00:00"
+    datetime.fromisoformat(rows[1]["ts"])
+
+    # 冷启动重载：ts 随条目持久化
+    sid = s2.id
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    r = _sess.get(sid)
+    assert r.history[0]["ts"] == "2026-01-01T08:00:00"
+    _cleanup()
+
+
+def test_append_history_persists_unique_pan_ids_for_searchable_bodies(tmp_path, monkeypatch):
+    """New text blocks get durable IDs; transport/context metadata does not."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="message-ids")
+    rows = [
+        {"role": "user", "content": "same body"},
+        {"role": "assistant", "content": "same body"},
+        {"role": "user", "content": "same body"},
+        {"role": "thinking", "content": "private thought"},
+        {"role": "tool", "content": "Command({})"},
+        {"role": "system", "content": "system context"},
+        {"role": "error", "content": "provider error"},
+        {"role": "user", "content": "initial prompt", "source": "system_prompt"},
+    ]
+    for row in rows:
+        _sess.append_history(s, row)
+    preserved_id = _sess.assign_pan_message_ids([
+        {"role": "assistant", "content": "continued block"},
+    ])[0]["messageId"]
+    continued = {
+        "role": "assistant", "content": "continued block",
+        "messageId": preserved_id,
+    }
+    _sess.append_history(s, continued)
+
+    body_ids = [row.get("messageId") for row in s.history[:5]]
+    assert all(_sess.is_pan_message_id(message_id) for message_id in body_ids)
+    assert len(set(body_ids)) == 5, "independent text blocks need distinct IDs"
+    assert all("messageId" not in row for row in s.history[5:-1])
+    assert s.history[-1]["messageId"] == preserved_id
+
+    expected_ids = list(body_ids)
+    sid = s.id
+    _sess.save(s)
+    _cleanup()
+    loaded = _sess.get(sid)
+    assert loaded is not None
+    assert [row.get("messageId") for row in loaded.history[:5]] == expected_ids
+    assert all("messageId" not in row for row in loaded.history[5:-1])
+    assert loaded.history[-1]["messageId"] == preserved_id
+    _cleanup()
+
+
+def test_history_ts_not_fabricated_for_replaced_history(tmp_path, monkeypatch):
+    """整体替换（reimport 语义）进来的 provider 行是「时间不确定」的行：
+    短/等长/长三种替换形状都必须保持无 ts，不被伪造成「现在」；
+    替换后正常追加的新消息照旧带 ts、已替换的历史行不被补写。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="re-ts")
+    sid = s.id
+    for i in range(3):
+        _sess.append_history(s, {"role": "user", "content": f"old{i}"})
+        _sess.save(s)
+    assert all("ts" in row for row in _jsonl_lines(sid)), "正常追加应带 ts"
+
+    # 短替换（长度 < 旧游标 → 普通 save 兜底全量重写）
+    s.history = [{"role": "user", "content": "short0"}]
+    _sess.save(s)
+    assert _jsonl_lines(sid) == [{"role": "user", "content": "short0"}]
+
+    # 等长替换（游标检测不到 → 必须显式 save_full）
+    s.history = [{"role": "user", "content": "eq0"}]
+    _sess.save_full(s)
+    assert _jsonl_lines(sid) == [{"role": "user", "content": "eq0"}]
+
+    # 长替换：旧实现只给游标之后的尾部伪造成 now，现在必须整段无 ts
+    s.history = [{"role": "user", "content": f"long{i}"} for i in range(5)]
+    _sess.save_full(s)
+    lines = _jsonl_lines(sid)
+    assert len(lines) == 5
+    assert all("ts" not in row for row in lines), lines
+
+    # 替换后再正常追加：只有新消息带 ts
+    _sess.append_history(s, {"role": "assistant", "content": "tail"})
+    _sess.save(s)
+    assert [("ts" in row) for row in _jsonl_lines(sid)] == [False] * 5 + [True]
+    _cleanup()
+
+
+def test_history_ts_not_fabricated_for_imported_or_forked_history(tmp_path, monkeypatch):
+    """create(history=...)（/api/sessions/import、/api/sessions/{id}/branch）与
+    worker fork 序列（session.py replace_history + save_async，见
+    worker.branch_worker）都不给 provider 行打 ts；此后新消息照旧带 ts。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    parsed = [{"role": "user", "content": "p0"},
+              {"role": "assistant", "content": "p1"}]
+
+    imported = _sess.create(
+        name="imported",
+        history=_sess.assign_pan_message_ids([dict(row) for row in parsed]),
+    )
+    imported_rows = _jsonl_lines(imported.id)
+    assert [("ts" in row) for row in imported_rows] == [False, False]
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in imported_rows)
+
+    # fork 序列：先建空会话（server.api_branch 的新会话），再整体替换 + 落盘
+    forked = _sess.create(name="forked")
+    _sess.replace_history(
+        forked, _sess.assign_pan_message_ids([dict(row) for row in parsed]),
+    )
+    asyncio.run(_sess.save_async(forked))
+    forked_rows = _jsonl_lines(forked.id)
+    assert [("ts" in row) for row in forked_rows] == [False, False]
+    assert all(_sess.is_pan_message_id(row["messageId"]) for row in forked_rows)
+
+    # fork 之后新产生的消息：带 ts；复制进来的历史保持无 ts
+    _sess.append_history(forked, {"role": "assistant", "content": "new"})
+    _sess.save(forked)
+    assert [("ts" in row) for row in _jsonl_lines(forked.id)] == [False, False, True]
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  worker 级 e2e：MockProcess 驱动 _read_stdout（走防抖 flush 落盘路径）      #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def test_concurrent_save_async_no_duplication(tmp_path, monkeypatch):
+    """并发 save_async（防抖 flush + consumer 用户消息同时落盘）不重复、不丢。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="conc")
+    sid = s.id
+
+    async def scenario():
+        # 并发空 flush（无新条目，不应写坏文件）
+        await asyncio.gather(*[_sess.save_async(s) for _ in range(10)])
+        # append + save 交错
+        for i in range(20):
+            s.history.append({"role": "user", "content": f"c{i}"})
+            await _sess.save_async(s)
+        # 并发 flush（模拟防抖任务与 consumer 同时落盘同一 session）
+        await asyncio.gather(*[_sess.save_async(s) for _ in range(5)])
+
+    asyncio.run(scenario())
+
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s2 = _sess.get(sid)
+    expected = [{"role": "user", "content": f"c{i}"} for i in range(20)]
+    assert _no_ts(s2.history) == expected
+    assert len(_jsonl_lines(sid)) == 20
+    _cleanup()
+
+
+def test_save_async_freezes_history_end_during_blocked_write(tmp_path, monkeypatch):
+    """An append racing the write is deferred to the next flush, not skipped."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="barrier")
+    sid = s.id
+    first = {"role": "user", "content": "first"}
+    second = {"role": "assistant", "content": "second"}
+    s.history.append(first)
+
+    entered = threading.Event()
+    release = threading.Event()
+    batches = []
+    original_append = _sess._append_jsonl
+
+    def blocked_append(path, items):
+        batches.append(list(items))
+        entered.set()
+        assert release.wait(2), "save hook was not released"
+        return original_append(path, items)
+
+    monkeypatch.setattr(_sess, "_append_jsonl", blocked_append)
+
+    async def scenario():
+        saving = asyncio.create_task(_sess.save_async(s))
+        assert await asyncio.to_thread(entered.wait, 2)
+        # This append occurs while _append_jsonl is blocked, after the writer
+        # has fixed its [start, end) snapshot.
+        s.history.append(second)
+        release.set()
+        await saving
+        assert s._hist_persisted == 1
+        await _sess.save_async(s)
+
+    asyncio.run(scenario())
+    assert batches == [[first], [second]]
+    assert _jsonl_lines(sid) == [first, second]
+
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    reloaded = _sess.get(sid)
+    assert reloaded.history == [first, second]
+    assert len(_jsonl_lines(sid)) == len(reloaded.history) == 2
+    _cleanup()
+
+
+def test_queue_ops_do_not_scale_with_history(tmp_path, monkeypatch):
+    """send_task append / _consume_pending pop 只写小主文件，不被 history 拖累。
+
+    设计要点：热路径 3 次 save 有 2 次是 queue 操作——queue 独立在 json 后，
+    queue 变更只写元数据+队列（KB 级），history 走 jsonl 追加互不干扰。
+    """
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    def make(n):
+        s = _sess.Session(id=f"ses_q_{n}", name="q", adapter="cbc")
+        s.history = [{"role": "user", "content": f"m{i}", "extra": "x" * 120}
+                     for i in range(n)]
+        s._hist_persisted = n
+        _sess._write_jsonl(_sess._history_path(s.id), s.history)
+        return s
+
+    small, big = make(10), make(5000)
+
+    def queue_append_ms(s, reps=7):
+        times = []
+        for i in range(reps):
+            s.queue_pending.append({"type": "task", "id": f"t{i}", "text": "x" * 200})
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    def queue_pop_ms(s, reps=7):
+        times = []
+        for _ in range(reps):
+            s.queue_pending.pop(0)
+            t0 = time.perf_counter()
+            _sess.save(s)
+            times.append((time.perf_counter() - t0) * 1000)
+        return sorted(times)[reps // 2]
+
+    a_small, a_big = queue_append_ms(small), queue_append_ms(big)
+    p_small, p_big = queue_pop_ms(small), queue_pop_ms(big)
+    print(f"\n    queue append: hist10={a_small:.3f}ms hist5000={a_big:.3f}ms; "
+          f"queue pop: hist10={p_small:.3f}ms hist5000={p_big:.3f}ms")
+    # queue 操作耗时与 history 规模无关（旧实现下 5000 条会被全量序列化拖到 ~3ms+）
+    assert a_big < a_small * 5 + 0.5, \
+        f"queue append should not scale with history: {a_small:.3f}→{a_big:.3f}ms"
+    assert p_big < p_small * 5 + 0.5, \
+        f"queue pop should not scale with history: {p_small:.3f}→{p_big:.3f}ms"
+    # jsonl 不受 queue 操作影响（行数不变 = history 未被序列化）
+    assert len(_jsonl_lines(big.id)) == 5000
+
+    # 正确性：queue_pending 落盘 + 冷启动重载完整，history 不受影响
+    s3 = _sess.create(name="q3")
+    s3.history.append({"role": "user", "content": "h1"})
+    _sess.save(s3)
+    s3.queue_pending = [{"type": "task", "id": "t1", "text": "go"}]
+    _sess.save(s3)
+    sid3 = s3.id
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+    r = _sess.get(sid3)
+    assert r.queue_pending == [{"type": "task", "id": "t1", "text": "go"}]
+    assert _no_ts(r.history) == [{"role": "user", "content": "h1"}]
+    assert len(_jsonl_lines(sid3)) == 1
+    _cleanup()
+
+
+def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
+    """真实 worker 读取路径（init → 流式块 → result）→ 落盘 → 冷启动重载。"""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s = _sess.create(name="wkr")
+    w = worker.Worker(
+        worker_id="worker-e2e",
+        session_id=s.id,
+        adapter=CbcAdapter(),
+        status="idle",
+        process=MagicMock(),
+        pending_signal=asyncio.Queue(),
+        _replaying=False,
+        _hist_flush_event=asyncio.Event(),
+    )
+    worker.workers[w.worker_id] = w
+    w.process = MockProcess([
+        _system_init_event(cbc_sid="cbc-e2e"),
+        _assistant_event(text="hello"),
+        _result_event(result="hello"),
+    ])
+    asyncio.run(worker._read_stdout(w))
+    sid = s.id
+    assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
+    assert s.last_result["status"] == "done"
+    assert len(_jsonl_lines(sid)) == 1
+    assert _no_ts(_jsonl_lines(sid)) == [{"role": "assistant", "content": "hello"}]
+
+    # 冷启动重载：完整
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    s2 = _sess.get(sid)
+    assert _no_ts(s2.history) == [{"role": "assistant", "content": "hello"}]
+    assert s2.cli_session_id == "cbc-e2e"
+    assert s2.last_result["status"] == "done"
+    _cleanup()
+
+
+# ══════════════════════════════════════════════════════════════════════════ #
+#  性能对比：增量追加 vs 旧全量重写                                           #
+# ══════════════════════════════════════════════════════════════════════════ #
+
+
+def _old_full_save_ms(s: _sess.Session, path: Path) -> float:
+    """复刻旧 _save_sync：全量 json.dumps(to_dict) + write_text。"""
+    t0 = time.perf_counter()
+    s.updated_at = "t"
+    path.write_text(
+        json.dumps(s.to_dict(), ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8")
+    return (time.perf_counter() - t0) * 1000
+
+
+def _new_incremental_save_ms(s: _sess.Session) -> float:
+    """新热路径：追加 1 条新 history 后 save（测量真实增量成本）。"""
+    s.history.append({"role": "user", "content": "x"})
+    t0 = time.perf_counter()
+    _sess.save(s)
+    return (time.perf_counter() - t0) * 1000
+
+
+def test_perf_incremental_vs_full(tmp_path, monkeypatch):
+    """量化：追加 1 条的增量保存 vs 同规模全量重写（越大越悬殊）。"""
+    _cleanup()
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(_sess, "SESSION_DIR", session_dir)
+
+    sizes = [100, 500, 1295, 5000]
+    print("\n  N       full(ms)   incr+1(ms)  speedup   jsonl(KB)  main(KB)")
+    for n in sizes:
+        s = _sess.Session(id=f"ses_perf_{n}", name="perf", adapter="cbc")
+        s.history = [{"role": "user", "content": f"m{i}",
+                      "extra": "x" * 120} for i in range(n)]
+        s._hist_persisted = n  # jsonl 已镜像 n 条（模拟历史存在）
+        main_path = _sess._path(s.id)
+        _sess._write_jsonl(_sess._history_path(s.id), s.history)
+
+        # 旧全量：5 次中位数
+        old_times = sorted(_old_full_save_ms(s, main_path) for _ in range(5))
+        old_ms = old_times[len(old_times) // 2]
+
+        # 新增量：每次追加 1 条，5 次中位数
+        new_times = sorted(_new_incremental_save_ms(s) for _ in range(5))
+        new_ms = new_times[len(new_times) // 2]
+
+        jsonl_kb = _sess._history_path(s.id).stat().st_size / 1024
+        main_kb = main_path.stat().st_size / 1024
+        speedup = old_ms / new_ms if new_ms > 0 else float("inf")
+        print(f"  {n:<5} {old_ms:8.3f} {new_ms:8.3f}  {speedup:6.1f}x"
+              f"   {jsonl_kb:7.1f} {main_kb:7.1f}")
+
+    # 断言（抗测量抖动，用中位数 + warmup + 宽松阈值）：
+    # 1) 旧全量随 N 线性增长；增量基本持平（O(1) append，与 history 规模无关）
+    # 2) 大数据量时增量明显快于全量
+    # 测量稳健性（Windows / CI）：
+    # - 检查段用独立 session id，不复用上方循环的 ses_perf_5000——该主文件已被
+    #   循环反复全量写预热在 OS 页缓存里，会显著低估全量写成本（实测 4.3→1.6ms），
+    #   让 2x 断言余量缩到 ~1.5x，成为 flaky 来源。
+    # - big N 取 20000：全量成本转为由 CPU 侧 json.dumps 主导（与页缓存冷热无关），
+    #   与恒定的增量成本拉开 10x+ 余量；增量仍严格 O(1)。
+    # - 采样前各 warmup 一次：排除首次写（冷分配 / 首次元数据重写）的一次性尖峰。
+    small_n, big_n = 100, 20000
+    s_small = _sess.Session(id=f"ses_chk_{small_n}", name="perf", adapter="cbc")
+    s_small.history = [{"role": "user", "content": f"m{i}",
+                        "extra": "x" * 120} for i in range(small_n)]
+    s_small._hist_persisted = small_n
+    _sess._write_jsonl(_sess._history_path(s_small.id), s_small.history)
+    s_big = _sess.Session(id=f"ses_chk_{big_n}", name="perf", adapter="cbc")
+    s_big.history = [{"role": "user", "content": f"m{i}",
+                      "extra": "x" * 120} for i in range(big_n)]
+    s_big._hist_persisted = big_n
+    _sess._write_jsonl(_sess._history_path(s_big.id), s_big.history)
+    # Interleave sizes in the SAME measurement window instead of comparing an
+    # earlier small-file burst against a later big-file burst. Alternate order
+    # so antivirus/OS scheduling drift cannot systematically favor one size.
+    # Keep all original performance thresholds; also test bounded work below.
+    operations = {
+        "new_small": lambda: _new_incremental_save_ms(s_small),
+        "new_big": lambda: _new_incremental_save_ms(s_big),
+        "old_small": lambda: _old_full_save_ms(s_small, _sess._path(s_small.id)),
+        "old_big": lambda: _old_full_save_ms(s_big, _sess._path(s_big.id)),
+    }
+    for operation in operations.values():
+        operation()  # warm every path before measuring
+    samples = {key: [] for key in operations}
+    for round_index in range(21):
+        keys = list(operations)
+        if round_index % 2:
+            keys.reverse()
+        for key in keys:
+            samples[key].append(operations[key]())
+    new_small, new_big, old_small, old_big = (
+        sorted(samples[key])[10]
+        for key in ("new_small", "new_big", "old_small", "old_big")
+    )
+
+    assert old_big > 2 * old_small, \
+        f"old full save should scale with N ({small_n}→{big_n}), " \
+        f"got {old_small:.3f}→{old_big:.3f}ms"
+    assert new_big < 3 * new_small, \
+        f"incremental append should stay ~flat, got {new_small:.3f}→{new_big:.3f}ms"
+    assert new_big * 2 < old_big, \
+        f"expected >=2x speedup at {big_n} entries, got {old_big:.3f} vs {new_big:.3f}ms"
+    print(f"    [check] {small_n}→{big_n}: old {old_small:.3f}→{old_big:.3f}ms "
+          f"(scales), incr {new_small:.3f}→{new_big:.3f}ms (flat); "
+          f"speedup@{big_n} = {old_big / new_big:.1f}x")
+    # 新格式最终落盘：save_full 后主文件仍是元数据 + 尾部（常量），不是全量
+    _sess.save_full(s_big)
+    assert _sess._path(s_big.id).stat().st_size < 50 * 1024, \
+        "main file should stay small (metadata + tail)"
+    _cleanup()
+
+
+def test_incremental_save_never_scans_persisted_history(tmp_path, monkeypatch):
+    """Deterministic O(delta + bounded tail) guard, independent of disk timing."""
+    _cleanup()
+    monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+    real_append = _sess._append_jsonl
+    observed = []
+
+    def append_spy(path, rows):
+        observed.append(len(rows))
+        return real_append(path, rows)
+
+    monkeypatch.setattr(_sess, "_append_jsonl", append_spy)
+
+    class NoScanHistory(list):
+        def __iter__(self):
+            raise AssertionError("incremental save traversed persisted history")
+
+        def __getitem__(self, key):
+            if isinstance(key, slice):
+                start, stop, step = key.indices(len(self))
+                assert step == 1
+                assert stop - start <= _sess._MAIN_HISTORY_TAIL
+            return super().__getitem__(key)
+
+    for size in (100, 20000):
+        s = _sess.Session(id=f"ses_bounded_{size}", name="bounded", adapter="cbc")
+        s.history = [{"role": "user", "content": f"m{i}"} for i in range(size)]
+        _sess.save(s)  # establish the persisted baseline and summary first
+        s.history = NoScanHistory(s.history)
+        observed.clear()
+        s.history.append({"role": "user", "content": "new tail"})
+        _sess.save(s)
+        assert observed == [1]
+        assert s._hist_persisted == size + 1
+        assert s.summary_projection["history_total"] == size + 1
+        assert _sess._read_jsonl(_sess._history_path(s.id))[-1]["content"] == "new tail"
+        assert _sess._path(s.id).stat().st_size < 50 * 1024
+    _cleanup()
+
+
+if __name__ == "__main__":
+    print("run via: pytest tests/test_session_incremental.py -v")

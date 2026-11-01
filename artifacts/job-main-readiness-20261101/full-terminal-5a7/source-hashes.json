@@ -1,0 +1,242 @@
+[
+  {
+    "source": "tests/test_authorization_runtime.py",
+    "sha256": "2da6fa197064d74f78526cdae52e1adb50396648966468186e88b55753a4d6a5",
+    "copy": "test_authorization_runtime.py.txt"
+  },
+  {
+    "source": "tests/test_auto_force_http_e2e.py",
+    "sha256": "04237b4896cf8cd81537fd68bc3cf50fb9430caf5890c8b6191a866ecbad94c8",
+    "copy": "test_auto_force_http_e2e.py.txt"
+  },
+  {
+    "source": "tests/test_background_job_api.py",
+    "sha256": "cd971cc2b2bbf927f132f2afb2d791ecc446b63f90de1228e2736873b793d16c",
+    "copy": "test_background_job_api.py.txt"
+  },
+  {
+    "source": "tests/test_background_job_retry_if.py",
+    "sha256": "3bbe28c126f2025ff9451c2d2b4c0fbb255af2b8a38cee1ae1c130c9ad773167",
+    "copy": "test_background_job_retry_if.py.txt"
+  },
+  {
+    "source": "tests/test_background_jobs.py",
+    "sha256": "d5a99a098d5e50886f46b340bfb64ea341d74ccc7b6e125ddfb4c3e1cfdfd820",
+    "copy": "test_background_jobs.py.txt"
+  },
+  {
+    "source": "tests/test_event_store.py",
+    "sha256": "c3c9c22d74623bc5b983c9a678ba786292693a2930f3cd71b24a426b62d16537",
+    "copy": "test_event_store.py.txt"
+  },
+  {
+    "source": "tests/test_illegal_queue_wake_http.py",
+    "sha256": "28594b1b2e8a323785785c5357c18d9fe6913df9f97668b47379e6d0dc084fb8",
+    "copy": "test_illegal_queue_wake_http.py.txt"
+  },
+  {
+    "source": "tests/test_independent_job_bridge.py",
+    "sha256": "887fb414b41581967cac846227c1b2928608d3eecb65d69e98af04e299efcc94",
+    "copy": "test_independent_job_bridge.py.txt"
+  },
+  {
+    "source": "tests/test_interaction_questions.py",
+    "sha256": "bfc5c2b3b2476c868e77bb3b7f980f69fa11c889d7c78dc76f82cba83bba3894",
+    "copy": "test_interaction_questions.py.txt"
+  },
+  {
+    "source": "tests/test_job_action_templates.py",
+    "sha256": "cd869910206b87d9d4171b8947b882e7a1cd642b914aed2010121151357c9d33",
+    "copy": "test_job_action_templates.py.txt"
+  },
+  {
+    "source": "tests/test_job_completion_recovery.py",
+    "sha256": "df8ba2102581b8d83421d161d03e1a36c732efae67816abf446ffd6935ee3881",
+    "copy": "test_job_completion_recovery.py.txt"
+  },
+  {
+    "source": "tests/test_job_delete_http_owned.py",
+    "sha256": "8d56a0ff2b137c98be0a2a867f8bb8c23a30ec044f015a3c49d0d6a97e07f843",
+    "copy": "test_job_delete_http_owned.py.txt"
+  },
+  {
+    "source": "tests/test_job_delete_safety.py",
+    "sha256": "5ddd2aae377c394453dfe72a53c50e362425ec0cc58093dab53b93dc13c01287",
+    "copy": "test_job_delete_safety.py.txt"
+  },
+  {
+    "source": "tests/test_job_final_admission.py",
+    "sha256": "3415e3c901199c3ac607df2bab3cc6298cff9677bc21c824fa3bc6550925033d",
+    "copy": "test_job_final_admission.py.txt"
+  },
+  {
+    "source": "tests/test_job_hidden_production.py",
+    "sha256": "180d3eec6e07bdcf5d52fbc77e297ee5ddeb7819fa57335634ed4beb9065dcec",
+    "copy": "test_job_hidden_production.py.txt"
+  },
+  {
+    "source": "tests/test_job_lifecycle_prevention.py",
+    "sha256": "700e260bbe03dccb189176b3df66869e4374a5a1368a2a6f444d25b459d54c4b",
+    "copy": "test_job_lifecycle_prevention.py.txt"
+  },
+  {
+    "source": "tests/test_job_migration_pending_adapter_contract.py",
+    "sha256": "22f4218b4c276cd396855b851eb2057bcd3f044ec43713e5be7cabbe68cd5a07",
+    "copy": "test_job_migration_pending_adapter_contract.py.txt"
+  },
+  {
+    "source": "tests/test_job_recovery_stable_reset.py",
+    "sha256": "6e47dde1c307d95eafc4bf752dc94218cd24f043329251112bfdc713f2d2a0d4",
+    "copy": "test_job_recovery_stable_reset.py.txt"
+  },
+  {
+    "source": "tests/test_job_retirement_quota_transport.py",
+    "sha256": "b1805396aad0735c340a7cd2c09dce25212b788b0f908e0551301ab6160a7df3",
+    "copy": "test_job_retirement_quota_transport.py.txt"
+  },
+  {
+    "source": "tests/test_job_runner_venv.py",
+    "sha256": "a557b6cbf7882146b44f5610aea4a40f87d85a50f967f4b3684d5c3444c7ff09",
+    "copy": "test_job_runner_venv.py.txt"
+  },
+  {
+    "source": "tests/test_job_window_policy.py",
+    "sha256": "5ff51ef809257f718a7aa8b6f80d1f1062c220049cd215b5304bdaa231eb4616",
+    "copy": "test_job_window_policy.py.txt"
+  },
+  {
+    "source": "tests/test_jobs_api.py",
+    "sha256": "6275454f385b4c0bc9ee5cfdeef10490273a06fc6ea54d98412451ac2fb2251d",
+    "copy": "test_jobs_api.py.txt"
+  },
+  {
+    "source": "tests/test_legacy_mcp_compat.py",
+    "sha256": "0e1bfa7155447550808192093f58e1daa86bae3ae5094fa897c90c97dddc0daa",
+    "copy": "test_legacy_mcp_compat.py.txt"
+  },
+  {
+    "source": "tests/test_legal_offline_http.py",
+    "sha256": "2fc2ea071584c509753f8c659a10e38ce3e5843824c9835ab68603521c044b3e",
+    "copy": "test_legal_offline_http.py.txt"
+  },
+  {
+    "source": "tests/test_main_service_exit.py",
+    "sha256": "9ace6bacb447081038009e0fd9b2f4b84298909041ea7396c19f8f87ac668f3c",
+    "copy": "test_main_service_exit.py.txt"
+  },
+  {
+    "source": "tests/test_main_service_restart.py",
+    "sha256": "8addb413d4b76a963bac19a7e8b686b81810228a5b3c0505737d3640adda8bcf",
+    "copy": "test_main_service_restart.py.txt"
+  },
+  {
+    "source": "tests/test_persistence_sharding.py",
+    "sha256": "f828571d2ebee76fbe5484fd994974be341a62d6260c5a961d53d6d68d4c2d28",
+    "copy": "test_persistence_sharding.py.txt"
+  },
+  {
+    "source": "tests/test_plugin_provider_window.py",
+    "sha256": "5f3d15a26f49fb15c7d60a001b7362bf0d6c51bea83cafa7dd55567d2cd5922f",
+    "copy": "test_plugin_provider_window.py.txt"
+  },
+  {
+    "source": "tests/test_plugin_qq_integration.py",
+    "sha256": "6d86ca922ec493439a602c5c9bdd15093a830d7135068fd636b234e49e58f6a9",
+    "copy": "test_plugin_qq_integration.py.txt"
+  },
+  {
+    "source": "tests/test_plugin_session_config.py",
+    "sha256": "20fad4c37fd5a47176321f5ebf941bb26e3b40c54673498a8e8eb241d5d931cc",
+    "copy": "test_plugin_session_config.py.txt"
+  },
+  {
+    "source": "tests/test_quota_host_http.py",
+    "sha256": "f463991f1b54f9dd8553967c20249c74b04c485c753e1e8e01d0857a593619c6",
+    "copy": "test_quota_host_http.py.txt"
+  },
+  {
+    "source": "tests/test_quota_policy_http.py",
+    "sha256": "f674c137551586c62f8267bb98854d1cc428e46879a24e2c211e2a68434fba2c",
+    "copy": "test_quota_policy_http.py.txt"
+  },
+  {
+    "source": "tests/test_retirement_notification_runtime.py",
+    "sha256": "1ac34064aab6f451009242cb600b3d0296c11fe106b7840506d8aca57dd20fd9",
+    "copy": "test_retirement_notification_runtime.py.txt"
+  },
+  {
+    "source": "tests/test_retirement_rev17_qq_observation.py",
+    "sha256": "634d85d6bf5ca77cc02902df65b7f619388dedf8b12090d09d03416061ba0b97",
+    "copy": "test_retirement_rev17_qq_observation.py.txt"
+  },
+  {
+    "source": "tests/test_retirement_rev6_parity.py",
+    "sha256": "1a810491f9a4d063e39ce6c57b23d491aff8da2d65391590fdd0cd41fa3777be",
+    "copy": "test_retirement_rev6_parity.py.txt"
+  },
+  {
+    "source": "tests/test_retirement_rev9_qq_http.py",
+    "sha256": "e104efeb6b334a47c444f604a0926a70ca4e89487b525180499de4fae6ca8277",
+    "copy": "test_retirement_rev9_qq_http.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_dependency_cutover.py",
+    "sha256": "5b6208ffa0ea06b81da3a97bce45dff577a2d256e4a41274cb02ffb4a24f1bec",
+    "copy": "test_scheduler_dependency_cutover.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_legacy_bridge.py",
+    "sha256": "7330dcd394fccc466f6d49cc61af2d26b72522e59784a7a448a7441d8c864f98",
+    "copy": "test_scheduler_legacy_bridge.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_management_browser.py",
+    "sha256": "6d1bd381f95c356fe3ffd2513677890e56941c702ab818ed8c47523e1114b993",
+    "copy": "test_scheduler_management_browser.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_store.py",
+    "sha256": "d53e65d28632ce176804e999afff0715322f2675c821c3ec26bedb4695f69753",
+    "copy": "test_scheduler_store.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_structured_browser.py",
+    "sha256": "93f5ffe39d257c481acb66fee2d3f13ab8f66941fe0ba24fafd8741b235a4817",
+    "copy": "test_scheduler_structured_browser.py.txt"
+  },
+  {
+    "source": "tests/test_scheduler_time_revision2_browser.py",
+    "sha256": "571526ef4e6582c23c122ff98181ed67f8b30e8bf3b0f89ae1e1c9cec43f24cd",
+    "copy": "test_scheduler_time_revision2_browser.py.txt"
+  },
+  {
+    "source": "tests/test_session_incremental.py",
+    "sha256": "c277ada94cf146e70b0a79c50162141339edd6f19d17d36bd6a8de4033717071",
+    "copy": "test_session_incremental.py.txt"
+  },
+  {
+    "source": "tests/test_session_message_jobs.py",
+    "sha256": "5090ea942c80530df760410f02b717d02887aa7a833a25f799473bc107d363e6",
+    "copy": "test_session_message_jobs.py.txt"
+  },
+  {
+    "source": "tests/test_settings_ui.py",
+    "sha256": "6c8cd875d4e11e4337bf487014726824975ca5127b04af80c7dcef575c3122a6",
+    "copy": "test_settings_ui.py.txt"
+  },
+  {
+    "source": "tests/test_system_fields.py",
+    "sha256": "365078cc9a7d3a08127ccfd22748f15037e8093fa8d2ed16eb0a683330da73bd",
+    "copy": "test_system_fields.py.txt"
+  },
+  {
+    "source": "tests/test_terminal_archive_scope_ma.py",
+    "sha256": "d7e97393e8490cb77ccd99c39ada3444544e2779dda1e3ea1fdd98b032a3ee43",
+    "copy": "test_terminal_archive_scope_ma.py.txt"
+  },
+  {
+    "source": "tests/test_web_frontend.py",
+    "sha256": "e29b3643dbd565f518f2bb38ac45d5c45cfdb7d91b1c5c4c6b2a3a2c3e21ed5a",
+    "copy": "test_web_frontend.py.txt"
+  }
+]

@@ -1,0 +1,47 @@
+{
+  "local-frozen": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "13",
+        "failures": "247",
+        "skipped": "96",
+        "tests": "8472",
+        "time": "4914.428",
+        "timestamp": "2026-11-01T19:45:05.986768+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "sha256": "eab394460e3cac316a5a9011456fa8e6000753e29a53cac38ad34115a9b162e1"
+  },
+  "ci-py312": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "20",
+        "failures": "235",
+        "skipped": "102",
+        "tests": "8472",
+        "time": "4654.160",
+        "timestamp": "2026-11-01T11:24:05.098852+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "sha256": "ad58fde12b082e14d6041916e85995c3a9ddfbb7531f0e3c2a2c618836b17c7b"
+  },
+  "ci-py314": {
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "19",
+        "failures": "235",
+        "skipped": "103",
+        "tests": "8472",
+        "time": "4292.232",
+        "timestamp": "2026-11-01T11:24:06.810383+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "sha256": "27ed5c7ccea292e58c9a907fa2114efd1398763575621c93e9ffa3612df75f8a"
+  }
+}

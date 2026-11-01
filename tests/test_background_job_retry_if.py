@@ -1,41 +1,13 @@
 """Job retry policy contracts; all registry/process state is test owned."""
 import asyncio
-import concurrent.futures
-from types import SimpleNamespace
-import os
 import subprocess
 import sys
-import time
 from unittest.mock import Mock
 
 import pytest
 
-from packages.core import background_jobs as jobs, background_retry as retry
+from packages.core import background_retry as retry
 from tests.test_job_automatic_recovery import env
-
-
-@pytest.fixture
-def factory(tmp_path, monkeypatch):
-    monkeypatch.setattr(jobs._sessions, "get", lambda sid: Mock(id=sid))
-    monkeypatch.setattr(jobs, "_scheduled_task_hooks", {})
-    monkeypatch.setattr(jobs, "_owns_process", lambda fact: object() if fact.get("pid") == os.getpid() else None)
-    real_spawn = jobs._spawn_background_runner_unlocked
-    spawned = []
-
-    def spawn(job, registry_root=None):
-        spawned.append((job["jobId"], job["attemptId"]))
-        return jobs._update(job["jobId"], dict(status="running", runnerPid=os.getpid(),
-                            runnerProcessCreatedAt=1, runnerSpawnStartedAt=time.time()),
-                            registry_root=registry_root)
-
-    monkeypatch.setattr(jobs, "_spawn_background_runner_unlocked", spawn)
-
-    def create(**kwargs):
-        return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
-                          name="Retry contract", **kwargs)
-    create.spawned = spawned
-    create.real_spawn = real_spawn
-    return create
 
 
 @pytest.mark.parametrize("reason", sorted(retry.REASONS))
@@ -120,37 +92,64 @@ def test_retry_does_not_swallow_registry_failure(env, monkeypatch):
     {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
     {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
 ])
-def test_invalid_policy_has_no_effect(factory, options):
-    with pytest.raises(ValueError):
-        factory(**options)
-    assert not factory.spawned and jobs.list_jobs() == []
+def test_invalid_policy_has_no_effect(env, options):
+    from tests.test_job_automatic_recovery import job_definition, policy
+    recovery = policy()
+    value = job_definition(env, recovery)
+    if 'retry_if' in options:
+        recovery['retryIf'] = options['retry_if']
+    elif 'max_retries' in options:
+        # Raw malformed types/ranges remain invalid; no truthy coercion.
+        recovery['maxAttempts'] = options['max_retries']
+    elif 'backoff_sec' in options:
+        delay = options['backoff_sec']
+        recovery['backoffSeconds'] = [delay if type(delay) is bool else str(delay)]
+    else:
+        # Caller metadata no longer asserts an Action's retry guarantee. The
+        # canonical Action release owns that declaration; stale fields reject.
+        key = 'idempotencyKey' if 'idempotency_key' in options else 'deduplication'
+        value[key] = next(iter(options.values()))
+    value['recovery'] = recovery
+    response = env.client.post('/api/jobs', json={'definition': value,
+        'expectedRevision': 0, 'requestKey': 'policy-input'})
+    if options == {'retry_if': ['orphaned']}:
+        # Current immutable process release already declares retry safety, so
+        # this approved reason is valid configuration without admitting work.
+        assert response.status_code == 201, response.text
+        state = env.service.final.get(response.json()['result']['object']['id'])
+        assert not state['runs'] and not state['attempts'] and not state['effects']
+    else:
+        from packages.jobs.final_contracts import ERROR_HTTP_STATUS
+        assert response.status_code == ERROR_HTTP_STATUS['invalid_schema'], response.text
+        assert response.json()['error']['code'] == 'invalid_schema'
+        assert env.client.get('/api/jobs').json()['items'] == []
 
 
-def test_restart_reconcile_persists_count_backoff_and_limit(factory, monkeypatch):
-    clock = [1000.0]
-    monkeypatch.setattr(jobs.time, "time", lambda: clock[0])
-    job = factory(retry_if=["orphaned"], max_retries=2, backoff_sec=10,
-                  idempotency_key="watcher-single-writer")
-    jobs._update(job["jobId"], dict(runnerPid=999999999, runnerSpawnStartedAt=900))
-    assert jobs.reconcile_running() == 1
-    ended = jobs.get(job["jobId"])
-    assert ended["reason"] == "orphaned" and ended["nextRetryAt"] == 1010
-    assert jobs.reconcile_running() == 0
-    clock[0] = 1010
-    assert jobs.reconcile_running() == 1
-    assert jobs.get(job["jobId"])["attempt"] == 2
-    assert jobs.reconcile_running() == 0
-    # Subsequent recovery reads only JSON, with no in-memory retry counter.
-    for attempt in (2, 3):
-        jobs._update(job["jobId"], dict(runnerPid=999999999, runnerSpawnStartedAt=900))
-        assert jobs.reconcile_running() == 1
-        clock[0] += 10
-        assert jobs.retry_due() == int(attempt < 3)
-    current = jobs.get(job["jobId"])
-    assert current["status"] == "failed" and current["reason"] == "orphaned"
-    assert current["attempt"] == 3 and current["remaining"] == 0
-    assert [a["attempt"] for a in current["retryAttempts"]] == [1, 2, 3]
-    assert jobs.reconcile_running() == 0
+def test_restart_reconcile_persists_count_backoff_and_limit(env, monkeypatch):
+    from decimal import Decimal
+    from packages.jobs.final_service import FinalService
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, marker
+    from tests.test_job_retry_reason_matrix import original_reason
+    row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=['orphaned'],
+        maxAttempts=3, backoffSeconds=['10'])))
+    original_reason(row, 'orphaned')
+    cold = FinalService(env.root, env.auth, owner=env.service.owner)
+    monkeypatch.setattr(cold, '_external_adapter', lambda _: row.original)
+    clock = [Decimal('1000')]
+    monkeypatch.setattr(cold, '_recovery_time', lambda timestamp=None: clock[0])
+    asyncio.run(cold.recover_external_receipts())
+    pending = cold.final.store.get(row.jid)['finalRuntime']['plans'][row.rid]['autoRecovery']
+    assert Decimal(pending['eligibleAt']) == Decimal('1010')
+    clock[0] = Decimal('1009')
+    asyncio.run(cold.dispatch_once())
+    assert not row.original.calls and len(cold.final.get(row.jid)['attempts']) == 1
+    clock[0] = Decimal('1010')
+    asyncio.run(cold.dispatch_once())
+    assert len(row.original.calls) == 1 and len(cold.final.get(row.jid)['attempts']) == 2
+    # The new executor outcome is unknown: remaining budget is not replay permission.
+    assert cold.final.get(row.jid)['runs'][row.rid]['state'] == 'uncertain'
+    asyncio.run(cold.dispatch_once())
+    assert len(row.original.calls) == 1
 
 
 def test_cancel_during_backoff_prevents_retry(env, monkeypatch):
@@ -168,14 +167,21 @@ def test_cancel_during_backoff_prevents_retry(env, monkeypatch):
     assert env.service.operation(result['operationId'], actor=USER)['status'] == 'completed'
 
 
-def test_accepted_cancel_beats_orphan_recovery(factory):
-    job = factory(retry_if=list(retry.REASONS), max_retries=3, deduplication="No-op command")
-    jobs._update(job["jobId"], dict(cancelRequestedAt=1, runnerPid=999999999,
-                                  runnerSpawnStartedAt=1))
-    assert jobs.reconcile_running() == 1
-    current = jobs.get(job["jobId"])
-    assert current["status"] == "cancelled" and current["lastReason"] == "cancelled"
-    assert current["attempt"] == 1 and jobs.retry_due() == 0
+def test_accepted_cancel_beats_orphan_recovery(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, USER
+    row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=list(retry.REASONS))))
+    observe(env)
+    run = env.service.final.get(row.jid)['runs'][row.rid]
+    asyncio.run(env.service.control_run_postcommit(row.rid, {'operation': 'cancel',
+        'expectedStateRevision': run['stateRevision'], 'requestKey': 'cancel-original'}, actor=USER))
+    observe(env)  # Settle only the original confirmed cleanup receipt.
+    asyncio.run(env.service.dispatch_once())
+    before = env.service.final.store.get(row.jid)
+    assert before['finalRuntime']['runs'][row.rid]['state'] == 'cancelled'
+    row.doc.update(result=None, phase='running', supervisorExitProof={'confirmed': False})
+    observe(env)
+    asyncio.run(env.service.dispatch_once())
+    assert env.service.final.store.get(row.jid) == before and not row.original.calls
 
 
 def test_concurrent_recovery_and_late_runner_are_fenced(env, monkeypatch):
@@ -196,27 +202,32 @@ def test_concurrent_recovery_and_late_runner_are_fenced(env, monkeypatch):
     assert env.service.final.get(row.jid) == state and len(row.original.calls) == 1
 
 
-def test_orphan_does_not_duplicate_live_task(factory):
-    job = factory(retry_if=["orphaned"], max_retries=1, deduplication="No-op command")
-    jobs._update(job["jobId"], dict(runnerPid=999999999, runnerSpawnStartedAt=1,
-                                  pid=os.getpid(), processCreatedAt=1))
-    assert jobs.reconcile_running() == 1
-    current = jobs.get(job["jobId"])
-    assert current["attempt"] == 1 and current["reason"] == "orphaned"
-    assert current["retryBlockedReason"] == "task exit is unverified"
+def test_orphan_does_not_duplicate_live_task(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe
+    row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=['orphaned'])))
+    row.doc.update(result=None, phase='running', supervisorExitProof={'confirmed': False})
+    before = env.service.final.store.get(row.jid)
+    for _ in range(2):
+        observe(env)
+        asyncio.run(env.service.dispatch_once())
+    assert env.service.final.store.get(row.jid) == before and not row.original.calls
 
 
-def test_http_policy_and_public_status(factory):
-    from packages.web import server
-    result = asyncio.run(server.api_background_job_start(dict(
-        targetSessionId="ses_target", argv=[sys.executable], cwd=str(jobs.DEFAULT_ROOT.parent),
-        name="API retry contract", retryIf=["failed"], maxRetries=1, backoffSec=30,
-        idempotencyKey="caller-enforced")))
-    assert result["retryIf"] == ["failed"] and result["attempt"] == 1
-    jobs.runner_update(result["jobId"], status="failed", reason="timeout")
-    public = jobs.job_public_view(jobs.get(result["jobId"]))
-    assert public["lastReason"] == "timeout" and public["remaining"] == 1
-    assert public["nextRetryAt"] is None
+def test_http_policy_and_public_status(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, marker
+    from tests.test_job_retry_reason_matrix import original_reason
+    row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=['failed'],
+        maxAttempts=2, backoffSeconds=['30'])))
+    original_reason(row, 'timeout')
+    observe(env)
+    job = env.client.get('/api/jobs/' + row.jid)
+    run = env.client.get('/api/job-runs/' + row.rid)
+    assert job.status_code == run.status_code == 200
+    assert job.json()['recovery']['retryIf'] == ['failed']
+    assert job.json()['recovery']['maxAttempts'] == 2
+    assert run.json()['runId'] == row.rid and run.json()['state'] == 'failed'
+    assert marker(env, row) is None and len(env.service.final.get(row.jid)['attempts']) == 1
+    assert not row.original.calls
 
 
 @pytest.mark.parametrize("error, reason", [
@@ -224,97 +235,136 @@ def test_http_policy_and_public_status(factory):
     (subprocess.TimeoutExpired("owned command", 1), "timeout"),
     (KeyboardInterrupt(), "interrupted"), (OSError("spawn failed"), "failed"),
 ])
-def test_runner_does_not_collapse_terminal_reasons(factory, monkeypatch, error, reason):
-    from packages.core import background_runner
-    job = factory(retry_if=[reason], max_retries=1, deduplication="No-op command")
-    def fail(*args, **kwargs):
-        raise error
-    monkeypatch.setattr(jobs, "runner_spawn", fail)
-    if os.name == "nt":
-        monkeypatch.setattr(jobs, "claim_hidden_runner", lambda *args, **kwargs: True)
-    result = background_runner._run_legacy(SimpleNamespace(job_id=job["jobId"], attempt_id=job["attemptId"]))
-    assert result == (130 if reason == "interrupted" else 1)
-    current = jobs.get(job["jobId"])
-    assert current["reason"] == reason and current["nextRetryAt"] is not None
+def test_runner_does_not_collapse_terminal_reasons(tmp_path, error, reason):
+    from packages.actions.typed_executor import TypedExecutor
+    from tests.test_job_final_executors import attempt, key
+    class OriginalOwner:
+        calls = 0
+        def spawn(self, *args, **kwargs):
+            self.calls += 1
+            raise error
+    owner = OriginalOwner()
+    executor = TypedExecutor(process_owner=owner)
+    plan = {'operation': 'process', 'effect': 'write_local',
+        'arguments': {'argv': [sys.executable, '-c', 'pass'], 'cwd': str(tmp_path)}}
+    receipt = asyncio.run(executor.execute(attempt=attempt(), effect_key=key(), frozen_plan=plan))
+    # An exception is preserved as evidence, not invented process-exit proof.
+    assert receipt['outcome'] == 'unknown' and receipt['effectKey'] == key()
+    assert receipt['receipt']['code'] == 'process_exception'
+    assert receipt['receipt']['message'] == (str(error) or type(error).__name__)
+    assert receipt['cleanupProof'].get('confirmed') is not True
+    again = asyncio.run(executor.execute(attempt=attempt(), effect_key=key(), frozen_plan=plan, retry=True))
+    assert again == receipt and owner.calls == 1
 
 
-def test_unavailable_independent_policy_fails_before_remote_start(factory, monkeypatch):
+def test_unavailable_independent_policy_fails_before_remote_start(env, monkeypatch):
     from packages.jobs import pan_bridge
+    from tests.test_job_automatic_recovery import job_definition, policy
     remote = Mock()
-    monkeypatch.setattr(pan_bridge, "configured_client", lambda: object())
-    monkeypatch.setattr(pan_bridge, "request", remote)
-    with pytest.raises(ValueError, match="not supported"):
-        factory(retry_if=["failed"], max_retries=1, idempotency_key="caller-enforced")
-    remote.assert_not_called()
-    assert not factory.spawned
+    monkeypatch.setattr(pan_bridge, 'configured_client', lambda: object())
+    monkeypatch.setattr(pan_bridge, 'request', remote)
+    response = env.client.post('/api/jobs', json={'definition': job_definition(env, policy()),
+        'expectedRevision': 0, 'requestKey': 'native-recovery'})
+    assert response.status_code == 201, response.text
+    state = env.service.final.get(response.json()['result']['object']['id'])
+    assert not state['runs'] and not state['attempts'] and not state['effects']
+    remote.assert_not_called()  # No old independent Job create/retry protocol.
 
 
-def test_recovery_notifies_final_outcome_once(factory, monkeypatch):
-    job = factory(retry_if=["failed"], max_retries=1, backoff_sec=60,
-                  deduplication="No-op command")
+def test_recovery_notifies_final_outcome_once(env):
+    from tests.test_job_automatic_recovery import create, job_definition, policy, drive_until, state
+    count = env.tmp / 'notice-count.txt'
+    code = (f"from pathlib import Path; p=Path({str(count)!r}); n=int(p.read_text()) if p.exists() else 0; "
+            "p.write_text(str(n+1)); raise SystemExit(7 if n == 0 else 0)")
+    value = job_definition(env, policy(backoffSeconds=['0.3']), code)
+    value['notification'] = {'on': ['completed'], 'recipients': [
+        {'recipientId': 'final-only', 'channelId': 'session', 'targetRef': 'ses_retry'}]}
+    jid, rid = create(env, value)
     notices = []
-    async def enqueue(*args, **kwargs):
-        notices.append(kwargs["event_id"])
-        return {"ok": True}
-    monkeypatch.setattr(jobs._worker, "enqueue_notice", enqueue)
-    jobs.runner_update(job["jobId"], status="failed")
-    asyncio.run(jobs.recover_notifications())
-    assert notices == []
-    jobs._update(job["jobId"], {"nextRetryAt": 0})
-    assert jobs.retry_due() == 1
-    current = jobs.get(job["jobId"])
-    jobs.runner_update(job["jobId"], expected_attempt=current["attemptId"], status="completed", exitCode=0)
-    asyncio.run(jobs.recover_notifications())
-    asyncio.run(jobs.recover_notifications())
-    assert notices == [f"{job['jobId']}:attempt:{current['attemptId']}:terminal"]
+    async def sender(row):
+        notices.append(row)
+        return {'outcome': 'succeeded', 'receipt': {'originalOutboxId': row['outboxId']}}
+    env.service.outbox_sender = sender
+    async def run():
+        await drive_until(env, jid, rid, 'retry_wait')
+        await env.service.deliver_outbox()
+        assert not notices and not state(env, jid)['outbox']
+        await drive_until(env, jid, rid, 'completed')
+        await env.service.deliver_outbox()
+        await env.service.deliver_outbox()
+    asyncio.run(run())
+    final = state(env, jid)
+    assert count.read_text(encoding='utf-8') == '2' and len(final['attempts']) == 2
+    assert len(notices) == len(final['outbox']) == 2
+    assert {row['channel'] for row in notices} == {'session', 'ws'}
+    assert len({row['outboxId'] for row in notices}) == 2
+    for row in notices:
+        assert row['runId'] == rid and row['outboxId'] in final['outbox']
+        assert final['outbox'][row['outboxId']]['status'] == 'acked'
+    assert len(final['runs']) == 1
 
 
 @pytest.mark.parametrize("recovery_reason", ["orphaned", "failed"])
-def test_separate_recovery_process_after_runner_loss(tmp_path, monkeypatch, recovery_reason):
-    """A fresh interpreter recovers the same durable Job; no Pan service needed."""
-    from packages.core import session
-    monkeypatch.setattr(jobs, "_scheduled_task_hooks", {})
-    target = session.Session(id="ses_retry", name="Retry", workdir=str(tmp_path))
-    session._cache[target.id] = target
-    # Publish a process record as if shutdown interrupted its runner.
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kw: job)
-    marker = tmp_path / "completed.txt"
-    command = "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('recovered')"
-    if recovery_reason == "failed":
-        command = ("from pathlib import Path; import time; p=Path(" + repr(str(marker))
-                   + "); first=not p.exists(); p.write_text('recovered'); time.sleep(.1); "
-                   "raise SystemExit(7 if first else 0)")
-    job = jobs.start(target.id, [sys.executable, "-c", command],
-        str(tmp_path), name="Restart contract", hide_window=False,
-        retry_if=[recovery_reason], max_retries=1, deduplication="Writes the same marker value")
-    if recovery_reason == "failed":
-        from packages.core import background_runner
-        assert background_runner._run_legacy(SimpleNamespace(
-            job_id=job["jobId"], attempt_id=job["attemptId"])) == 7
-        assert jobs.get(job["jobId"])["reason"] == "failed"
-    root = jobs.DEFAULT_ROOT
-    env = {**os.environ, "PYTHONPATH": str(jobs.PROJECT_ROOT), "PAN_BACKGROUND_JOBS_DIR": str(root)}
-    script = "from packages.core import background_jobs as j; j.reconcile_running(); print(j.get(" + repr(job["jobId"]) + ")['attempt'])"
-    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=20)
-    try:
-        assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == "2"
-        deadline = time.monotonic() + 15
-        while time.monotonic() < deadline:
-            current = jobs.get(job["jobId"])
-            if current["status"] in retry.TERMINAL:
-                break
-            time.sleep(.05)
-        assert current["status"] == "completed", current
-        assert marker.read_text() == "recovered"
-        assert current["attempt"] == 2 and current["remaining"] == 0
-        assert current["retryAttempts"][0]["reason"] == recovery_reason
-        assert current["retryAttempts"][1]["status"] == "completed"
-        assert jobs.reconcile_running() == 0
-    finally:
-        current = jobs.get(job["jobId"])
-        for pid, created in ((current.get("pid"), current.get("processCreatedAt")),
-                             (current.get("runnerPid"), current.get("runnerProcessCreatedAt"))):
-            owned = jobs._owns_process(dict(pid=pid, processCreatedAt=created))
-            if owned:
-                jobs._kill_tree(owned)
+def test_separate_recovery_process_after_runner_loss(env, monkeypatch, recovery_reason):
+    """Cold lookup keeps unknown identity; only proven failed effects may retry."""
+    import json
+    from tests.test_job_automatic_recovery import create, seed, job_definition, policy, drive_until, observe
+    count = env.tmp / 'cold-count.txt'
+    if recovery_reason == 'failed':
+        code = (f"from pathlib import Path; p=Path({str(count)!r}); n=int(p.read_text()) if p.exists() else 0; "
+                "p.write_text(str(n+1)); raise SystemExit(7 if n == 0 else 0)")
+        jid, rid = create(env, job_definition(env, policy(backoffSeconds=['0.3']), code))
+        asyncio.run(drive_until(env, jid, rid, 'retry_wait'))
+        before = env.service.final.get(jid)
+        assert count.read_text(encoding='utf-8') == '1'
+    else:
+        # The old runner-dead fixture supplied no owned-tree exit proof.
+        # Preserve that uncertainty; a fresh process is not retry authorization.
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=['orphaned'])))
+        from tests.test_job_retry_reason_matrix import original_reason
+        original_reason(row, 'orphaned')
+        row.doc.update(result=None, phase='running')
+        observe(env)
+        jid, rid = row.jid, row.rid
+        before = env.service.final.get(jid)
+        assert before['runs'][rid]['state'] == 'uncertain' and not row.original.calls
+    asyncio.run(env.service.close())
+    script = """
+import asyncio, json, sys, time
+from pathlib import Path
+from packages.jobs.final_service import FinalService
+from packages.jobs.final_api import CanonicalUserAuth
+root, authroot, jid, rid, reason = sys.argv[1:]
+s = FinalService(Path(root), CanonicalUserAuth(Path(authroot)))
+async def run():
+    s.recover()
+    if reason == 'failed':
+        deadline = time.monotonic() + 30
+        while s.final.get(jid)['runs'][rid]['state'] != 'completed':
+            assert time.monotonic() < deadline, s.final.get(jid)
+            await s.dispatch_once()
+            await asyncio.sleep(.04)
+    else:
+        await s.recover_external_receipts()
+        await s.dispatch_once()
+        await s.recover_external_receipts()
+    print(json.dumps(s.final.get(jid)))
+    await s.close()
+asyncio.run(run())
+"""
+    result = subprocess.run([sys.executable, '-c', script, str(env.root),
+        str(env.tmp / 'automation'), jid, rid, recovery_reason],
+        capture_output=True, text=True, encoding='utf-8', timeout=45)
+    assert result.returncode == 0, result.stderr
+    final = json.loads(result.stdout.strip().splitlines()[-1])
+    assert len(final['runs']) == 1 and final['runs'][rid]['runId'] == rid
+    if recovery_reason == 'failed':
+        assert final['runs'][rid]['state'] == 'completed'
+        assert count.read_text(encoding='utf-8') == '2' and len(final['attempts']) == 2
+        assert set(before['attempts']) < set(final['attempts'])
+        assert final['steps'][rid]['s0']['attemptCount'] == 2
+        assert len({json.dumps(x['effectKey'], sort_keys=True) for x in final['effects']}) == 1
+    else:
+        assert final == before and not count.exists()
+        assert len(final['attempts']) == len(final['effects']) == 1
+        assert final['effects'][0]['outcome'] == 'unknown'
