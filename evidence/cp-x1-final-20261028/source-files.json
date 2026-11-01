@@ -1,0 +1,8 @@
+{
+  "sourceSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "workingTreeSha256": {
+    ".github/workflows/test.yml": "a86155c5d53df982d98055b110830b602b7065c6618ba99440e36fa478ee765e",
+    "scripts/platform_fast_gate.py": "46a5530d0639bf7442877cfe6f4ac67e25edb2ecf3ea512cbee04b98c3b50042",
+    "tests/test_platform_fast_gate.py": "a72b1c64f6b2642a74ec977d744230c4ab952b8094dcaeae9a2b9b6ca75c1e8d"
+  }
+}

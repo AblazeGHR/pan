@@ -1,0 +1,1328 @@
+{
+  "baseSha": "bdd4c778d55daff58529635b2adc464c03a1393c",
+  "integrationAncestor": "bac726cf84c0510dff8618afb82e227e660f590c",
+  "sourceSha": "9aece5bbbe3729acb35ac7d292a6f01318aae68d",
+  "branch": "r5/p21-r6-time-events-20261025",
+  "sourceChangedPaths": [
+    {
+      "path": "packages/jobs/final_service.py",
+      "blob": "727759e940dfcdf23acec2b8b2b82d8e1c853a59",
+      "sha256": "019e058421711eb59014606e6dde37d88a72688b386901394a75305c7e58d5ed"
+    },
+    {
+      "path": "packages/web/src/components/automation/CanonicalDefinitionFields.tsx",
+      "blob": "49db0726d8c4c66a9fd2ed999562aacc5a08ade9",
+      "sha256": "ed545480943ad633ba77bd0a2c37b3b93ad1061c514629a9bc2908d4b3faaeae"
+    },
+    {
+      "path": "packages/web/src/components/automation/CanonicalForms.test.tsx",
+      "blob": "ba02380adef5b4df488f6c867026ce1583ff5374",
+      "sha256": "57d7a2c253149c923fb0d67b89463d2bd3a4e8cd5541b1958a9cecf5bcfe6c60"
+    },
+    {
+      "path": "packages/web/src/components/automation/CanonicalSchedulerFields.tsx",
+      "blob": "1e529b50a39cf76b407288b1c2b55ee321b179d0",
+      "sha256": "796e65cffb2e78e54876839e2fb6eaf8482cf9ee98930637a243c96c5b356e82"
+    },
+    {
+      "path": "packages/web/src/components/automation/EventRegister.tsx",
+      "blob": "2a68a1216be6e598b113b5c6af17944a5ab9c05e",
+      "sha256": "7e17f72691c10f497d232d441e787da61dacca5ceb6df6aa8f0a275f415433c0"
+    },
+    {
+      "path": "packages/web/src/components/automation/fields.tsx",
+      "blob": "4a3401a83a0bcb8979c98798566ec39cad8e564f",
+      "sha256": "013caaaf5b3b1cdf8c8b3e373b00aeb501618bb447dd2eec5b4b02694711bfdc"
+    },
+    {
+      "path": "packages/web/src/services/canonicalJobs.ts",
+      "blob": "3b1cb862a48d0e10ee9773dcc91b336c6cea1395",
+      "sha256": "45dfc3a8cb0e42276b8098fe61f1dd03e63f4e901f5c3e54e6cc47dd81431b80"
+    },
+    {
+      "path": "packages/web/src/views/AutomationWorkspace.test.tsx",
+      "blob": "e1f8cb2046f887352d02eb925f5da2b79a82c59c",
+      "sha256": "55544a64b3049fc676ff163c726f85f57f77424c07d8819e76f27f28e177b22e"
+    },
+    {
+      "path": "packages/web/src/views/CanonicalJobsView.test.tsx",
+      "blob": "81a3ac7baec34d9c2a168f5d4b817edcfa85e3e3",
+      "sha256": "3dc4e337b6a8afe9e4257ccef938ac20cfb010420c6e404f1eebcfa60778dce2"
+    },
+    {
+      "path": "packages/web/src/views/CanonicalJobsView.tsx",
+      "blob": "fda8b64d09dc61b743d50bb55a2064b7636a0361",
+      "sha256": "d12622e9adf9e97927916fe82fff647218f110d16bdff22e534d225c3c5b5b65"
+    },
+    {
+      "path": "tests/test_canonical_form_metadata.py",
+      "blob": "feccc7e3b367ec66a269bfa2627467264cb09c5e",
+      "sha256": "6b2ebf27878592e531252ce743715077d9a8ece823757aa3173920efda00b026"
+    },
+    {
+      "path": "tests/test_scheduler_management_browser.py",
+      "blob": "bfc2cb15ee49369ea185cffa7f8a03c8c4d17b37",
+      "sha256": "d2d4db6b64d9bd373ebd08f4ce351b3de770b5a9bf6c70b7bdbf7ae37f6e756a"
+    },
+    {
+      "path": "tests/test_scheduler_structured_browser.py",
+      "blob": "221fd5adeead79c43398c2caebe505a2d7bfe805",
+      "sha256": "93f5ffe39d257c481acb66fee2d3f13ab8f66941fe0ba24fafd8741b235a4817"
+    }
+  ],
+  "sharedBackendChangedMethods": [
+    "FinalService.actions"
+  ],
+  "retainedHostsUnchanged": [
+    "packages/scheduler/store.py",
+    "packages/scheduler/time_events.py",
+    "packages/scheduler/legacy_bridge.py"
+  ],
+  "commands": [
+    {
+      "label": "backend-final-v2",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025",
+      "exit": 0,
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_canonical_form_metadata.py",
+        "tests/test_job_final_http_service.py",
+        "tests/test_job_final_clients.py",
+        "tests/test_scheduler_creator_management.py",
+        "tests/test_scheduler_dependency_cutover.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=evidence/r6i-forms/backend-final-v2.xml"
+      ],
+      "matrix": "backend-final-v2.xml"
+    },
+    {
+      "label": "browser-complete-final",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025",
+      "exit": 0,
+      "argv": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        ".validation/r6i-venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_scheduler_structured_browser.py",
+        "tests/test_scheduler_management_browser.py",
+        "-o",
+        "addopts=",
+        "-q",
+        "--junitxml=evidence/r6i-forms/browser-complete-final.xml"
+      ],
+      "matrix": "browser-complete-final.xml"
+    },
+    {
+      "label": "vitest-final-v2",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\packages\\web",
+      "exit": 0,
+      "tests": 90,
+      "files": 8,
+      "skipped": 0,
+      "argv": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/components/automation",
+        "src/views/AutomationWorkspace.test.tsx",
+        "src/views/CanonicalJobsView.test.tsx",
+        "src/views/AutomationView.test.tsx",
+        "src/services/canonicalJobs.test.ts",
+        "src/stores/automationSession.test.tsx",
+        "src/router.retirement.test.tsx",
+        "--reporter=verbose"
+      ],
+      "nodes": [
+        "services/canonicalJobs.test.ts > sends canonical JSON with the current in-memory Bearer including DELETE",
+        "services/canonicalJobs.test.ts > maps WP01 invalid_schema without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 invalid_condition without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 unsupported_operation without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 unauthenticated without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 authorization_denied without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 not_found without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 revision_conflict without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 idempotency_conflict without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 reference_conflict without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 pending_publication without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 reconciliation_required without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 not_retryable without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 cancellation_window_closed without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 capability_unsupported without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 unsupported_schema_version without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 capacity_exceeded without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 provider_unavailable without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > maps WP01 storage_unavailable without echoing untrusted error text",
+        "services/canonicalJobs.test.ts > expires the shared Bearer and clears only the matching 401 credential",
+        "services/canonicalJobs.test.ts > encodes page cursors and operation identities",
+        "services/canonicalJobs.test.ts > extracts the complete definition without server state",
+        "router.retirement.test.tsx > retired Jobs route > explains migration and links to canonical management",
+        "components/automation/fields.test.tsx > keeps the surviving literal display equal to the condition after deleting its predecessor",
+        "components/automation/fields.test.tsx > syncs an external literal and clears obsolete custom validity",
+        "components/automation/fields.test.tsx > retains unfinished invalid text on the surviving condition and on unrelated rerenders",
+        "components/automation/fields.test.tsx > preserves a valid unnormalized lexeme through its own edit and a sibling edit",
+        "components/automation/fields.test.tsx > replacing the condition structure resets obsolete literal buffers and validity",
+        "stores/automationSession.test.tsx > restores the shared login on startup without a Bearer and renders logout instead of a required key",
+        "stores/automationSession.test.tsx > uses Cookie credentials without a Bearer and lets the server decide sliding expiry (0)",
+        "stores/automationSession.test.tsx > uses Cookie credentials without a Bearer and lets the server decide sliding expiry (1)",
+        "stores/automationSession.test.tsx > clears restored Cookie login on 401 (0)",
+        "stores/automationSession.test.tsx > clears restored Cookie login on 401 (1)",
+        "stores/automationSession.test.tsx > does not revive login when a pending startup probe finishes after logout",
+        "stores/automationSession.test.tsx > logs out through the Cookie and clears the login form state",
+        "stores/automationSession.test.tsx > saves the global duration and reloads it from the server after remount",
+        "components/automation/CanonicalForms.test.tsx > edits one rule without converting or truncating other rule IDs, precision, offsets, timezone, policies or counts",
+        "components/automation/CanonicalForms.test.tsx > adds and removes multiple rules and changes type with stable IDs, including the surviving row",
+        "components/automation/CanonicalForms.test.tsx > edits decimal grace/interval strings, grid, misfire and driveLimit without floating point conversion",
+        "components/automation/CanonicalForms.test.tsx > keeps extension fields and unknown existing policy tokens while changing a supported field",
+        "views/AutomationView.test.tsx > deduplicates refresh and rejects an old read after mutation invalidation",
+        "views/AutomationView.test.tsx > sends Bearer for cancel and never retries rejected effects",
+        "components/automation/CanonicalForms.test.tsx > selects server-issued Action revision/digest and completion and edits ordinary string/number/boolean parameters without definition JSON",
+        "components/automation/CanonicalForms.test.tsx > moves stable steps, preserves bindings, flags forward output references and keeps the surviving row on removal",
+        "views/CanonicalJobsView.test.tsx > lists, creates, edits and retires jobs with canonical CAS envelopes",
+        "views/AutomationView.test.tsx > creates the Event target template as a normal Action using the registry revision",
+        "views/AutomationView.test.tsx > a late unauthorized response cannot clear a newer login",
+        "views/AutomationView.test.tsx > shares Action loads, adopts template mutation without extra reads, and fences late registry replies",
+        "components/automation/CanonicalForms.test.tsx > defines Job input fields and uses input or Event paths without flattening typed bindings",
+        "components/automation/CanonicalForms.test.tsx > edits policies without dropping exact recovery values, notification recipient identity or existing retention metadata",
+        "views/AutomationWorkspace.test.tsx > navigates exactly three tabs and follows canonical Job/Trigger/source references",
+        "components/automation/CanonicalForms.test.tsx > retains a previously fixed Action revision and all bindings when a newer catalog revision arrives",
+        "components/automation/CanonicalForms.test.tsx > edits OR event types and nested AND/OR/NOT conditions with structured controls while keeping existing filters",
+        "views/CanonicalJobsView.test.tsx > lists, creates, edits and retires triggers with canonical CAS envelopes",
+        "views/AutomationWorkspace.test.tsx > round trips every rule, fraction, timezone, DST, anchor, limit and provider identity",
+        "views/CanonicalJobsView.test.tsx > lists, creates, edits and retires event-creators with canonical CAS envelopes",
+        "views/AutomationWorkspace.test.tsx > reviews shared source impact and preserves a conflicting local draft",
+        "views/CanonicalJobsView.test.tsx > lists, creates, edits and retires job-templates with canonical CAS envelopes",
+        "views/CanonicalJobsView.test.tsx > performs retry using Run state revision and current Job config",
+        "views/CanonicalJobsView.test.tsx > performs run-again using Run state revision and current Job config",
+        "views/AutomationWorkspace.test.tsx > explicitly rebases changed references and requires impact review again 303ms",
+        "views/CanonicalJobsView.test.tsx > performs clone-and-run using Run state revision and current Job config",
+        "views/AutomationWorkspace.test.tsx > disables only the source through lifecycle CAS and blocks deleting a shared source",
+        "views/CanonicalJobsView.test.tsx > performs cancel using Run state revision and current Job config",
+        "views/AutomationWorkspace.test.tsx > retires only unreferenced disabled sources and preserves history semantics",
+        "views/CanonicalJobsView.test.tsx > performs pause using Run state revision and current Job config",
+        "views/AutomationWorkspace.test.tsx > creates a separate Creator with server-supplied provider metadata and explicit enable",
+        "views/CanonicalJobsView.test.tsx > performs resume using Run state revision and current Job config",
+        "views/CanonicalJobsView.test.tsx > shows readable 422 rejection for run operations",
+        "views/AutomationWorkspace.test.tsx > queries an unconfirmed original key and never automatically resends",
+        "views/CanonicalJobsView.test.tsx > shows readable 403 rejection for run operations",
+        "views/AutomationWorkspace.test.tsx > keeps multiple rule JSON intact on denial and does not send enabled state in definitions",
+        "views/CanonicalJobsView.test.tsx > keeps an edit draft on conflict and close does not submit",
+        "views/AutomationWorkspace.test.tsx > rejects invalid JSON locally without losing the draft or sending a write",
+        "views/CanonicalJobsView.test.tsx > does not resend an unconfirmed request and queries its original identity",
+        "views/CanonicalJobsView.test.tsx > shows accepted as pending effect and queries by operationId",
+        "views/AutomationWorkspace.test.tsx > selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger",
+        "views/CanonicalJobsView.test.tsx > renders loading and list errors with a retry",
+        "views/CanonicalJobsView.test.tsx > keeps canonical navigation and performs no legacy transport requests",
+        "views/CanonicalJobsView.test.tsx > clears canonical data on logout and blocks unauthenticated reads",
+        "views/AutomationWorkspace.test.tsx > preserves simultaneous Job and source drafts behind one navigation guard",
+        "views/AutomationWorkspace.test.tsx > keeps stable random request IDs without randomUUID on remote HTTP contexts",
+        "views/AutomationWorkspace.test.tsx > preserves typed literals, stable step IDs, input/Event/output mappings and policies in the canonical Job",
+        "views/AutomationWorkspace.test.tsx > keeps OR events, nested OR/NOT conditions and Event arguments while editing a canonical subscription",
+        "views/AutomationWorkspace.test.tsx > retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server",
+        "views/AutomationWorkspace.test.tsx > blocks duplicate submits and departure while the canonical definition receipt is pending",
+        "views/AutomationWorkspace.test.tsx > requires explicit full definition and Action parameter review before canonical enable",
+        "views/AutomationWorkspace.test.tsx > saves an ordinary Scheduler entirely through time-rule fields with canonical CAS and original-key recovery",
+        "views/AutomationWorkspace.test.tsx > creates a Job from Action and typed binding controls then links a Trigger through source and condition controls",
+        "views/AutomationWorkspace.test.tsx > saves retention.pinned through canonical Job definition CAS without a runtime pin override"
+      ]
+    },
+    {
+      "label": "tsc-final",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\packages\\web",
+      "exit": 0,
+      "argv": [
+        "pnpm",
+        "exec",
+        "tsc",
+        "-b",
+        "--noEmit"
+      ]
+    },
+    {
+      "label": "build-final",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\packages\\web",
+      "exit": 0,
+      "argv": [
+        "pnpm",
+        "build"
+      ],
+      "compressedAssets": 88
+    },
+    {
+      "label": "dependencies-final",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025",
+      "exit": 0,
+      "argv": [
+        "python",
+        "scripts/check_scheduler_dependencies.py",
+        "--output",
+        "evidence/r6i-forms/dependencies-final.json"
+      ]
+    },
+    {
+      "label": "source-commit",
+      "cwd": "D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025",
+      "exit": 0,
+      "argv": [
+        "git",
+        "commit",
+        "-m",
+        "fix(web): restore canonical scheduler and job structured forms"
+      ],
+      "hook": "React frontend OK"
+    }
+  ],
+  "allXmlRunsIncludingRed": {
+    "action-metadata-current.xml": {
+      "tests": 2,
+      "passed": 1,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_reference_metadata_uses_existing_read_authorization",
+          "status": "passed"
+        }
+      ]
+    },
+    "action-metadata-final.xml": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_reference_metadata_uses_existing_read_authorization",
+          "status": "passed"
+        }
+      ]
+    },
+    "backend-final-v2.xml": {
+      "tests": 91,
+      "passed": 91,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_catalog_reference_is_actual_definition_digest_and_accepted_for_native_job",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_canonical_form_metadata",
+          "name": "test_action_reference_metadata_uses_existing_read_authorization",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_run_and_six_operations_use_same_wp02_identities",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_run_request_key_replays_after_restart_without_new_run",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_creator_trigger_template_and_retire_real_storage",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_revoke_between_steps_prevents_next_effect",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_system_grant_and_high_risk_remain_separate",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_unknown_is_not_retried_or_replayed_on_restart",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_service_invalid_definitions_do_not_write[kind-background-process]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_service_invalid_definitions_do_not_write[source-user]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_service_invalid_definitions_do_not_write[enabled-True]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_service_invalid_definitions_do_not_write[authorization-value3]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_service_invalid_definitions_do_not_write[configRevision-999]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_real_http_401_403_404_409_and_cookie_same_origin",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_concurrent_cas_allows_exactly_one_writer",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_failed_creator_or_cross_reference_rolls_back_every_table",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft03_old_facade_retires_writes_and_keeps_reads",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_new_trigger_never_consumes_old_wp04_event",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_action_disable_after_admission_prevents_effect",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_definition_retire_preserves_already_admitted_run",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_forbid_is_durable_skipped_admission_not_a_second_run",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_creator_runtime_rechecks_lifecycle_grant_before_new_publication",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_real_agent_http_uses_existing_matrix_and_scoped_operations",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_bound_background_driver_survives_reload_without_resend",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft02_unbound_automatic_recovery_is_explicit_unsupported",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_recovery_never_reports_lost_cancelling_effect_as_cancelled",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_queue_keeps_admission_order_after_sorted_json_reload",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_unknown_effect_holds_queue_capacity_but_queued_cancel_can_settle",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_http_service",
+          "name": "test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_real_stdio_crud_operations_permissions_and_legacy[core]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_real_stdio_crud_operations_permissions_and_legacy[native]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_real_tcp_401_and_user_crud[jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_real_tcp_401_and_user_crud[triggers]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_real_tcp_401_and_user_crud[event-creators]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_real_tcp_401_and_user_crud[job-templates]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation0-jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation0-triggers]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation0-event-creators]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation0-job-templates]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation1-jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation1-triggers]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation1-event-creators]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation1-job-templates]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation2-jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation2-triggers]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation2-event-creators]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_wp01_validation_before_transport[mutation2-job-templates]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/jobs/j/runs?limit=1]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/event-creators/c/operations]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/triggers/t]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/job-templates/t]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/job-runs/r/operations]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/operations?operation=retry&requestKey=k]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_canonical_allowlist[/api/final/actions]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[https://bad/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[//bad/api/final/jobs]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/jobs/x/private]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/private]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/main/exit]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/jobs#fragment]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/jobs/%2e%2e]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/jobs/..]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_bridge_stays_bounded[/api/final/jobs/%2fapi%2fmain%2fexit]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_real_tcp_run_controls_and_receipt_recovery",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[pause-body0]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[cancel-body1]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[retry-body2]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[run-again-body3]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[clone-and-run-body4]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_invalid_run_controls_never_reach_transport[clone-and-run-body5]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_http_unconfirmed_write_is_never_replayed",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_remote_mcp_cannot_borrow_local_authority[/api]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_remote_mcp_cannot_borrow_local_authority[/api/final]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_imported_gateway_request_cannot_borrow_default_stdio_authority[/api/final]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_real_http_mcp_request_cannot_borrow_local_ipc",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_job_final_clients",
+          "name": "test_cli_unknown_receipt_exits_nonzero",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_creator_management",
+          "name": "test_provider_metadata_and_shared_reference_cas_preserve_full_config_and_authorization",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_creator_management",
+          "name": "test_reference_metadata_requires_all_object_read_grants_and_cookie_writes_same_origin",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_creator_management",
+          "name": "test_selected_creator_revision_is_checked_atomically_before_creating_link",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_dependency_cutover",
+          "name": "test_all_production_consumers_have_no_static_legacy_host_imports",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_dependency_cutover",
+          "name": "test_web_import_and_canonical_startup_reopen_without_loading_either_legacy_host",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_dependency_cutover",
+          "name": "test_extracted_delete_preserves_original_protected_guard_and_reservation",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_dependency_cutover",
+          "name": "test_legacy_job_pass_never_drives_injected_legacy_time_runtime",
+          "status": "passed"
+        }
+      ]
+    },
+    "backend-final.xml": {
+      "tests": 0,
+      "passed": 0,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": []
+    },
+    "browser-advanced-initial.xml": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-complete-final.xml": {
+      "tests": 3,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-complete-v1.xml": {
+      "tests": 3,
+      "passed": 0,
+      "failed": 3,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "failed"
+        }
+      ]
+    },
+    "browser-complete-v2.xml": {
+      "tests": 3,
+      "passed": 1,
+      "failed": 2,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-complete-v3.xml": {
+      "tests": 3,
+      "passed": 3,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-final-partial.xml": {
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "passed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-sources-initial.xml": {
+      "tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        }
+      ]
+    },
+    "browser-sources-v2.xml": {
+      "tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        }
+      ]
+    },
+    "browser-sources-v3.xml": {
+      "tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        }
+      ]
+    },
+    "browser-sources-v4.xml": {
+      "tests": 2,
+      "passed": 1,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-sources-v5.xml": {
+      "tests": 2,
+      "passed": 1,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        },
+        {
+          "class": "tests.test_scheduler_management_browser",
+          "name": "test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "status": "passed"
+        }
+      ]
+    },
+    "browser-sources-v6.xml": {
+      "tests": 1,
+      "passed": 0,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "failed"
+        }
+      ]
+    },
+    "browser-sources-v7.xml": {
+      "tests": 1,
+      "passed": 1,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "nodes": [
+        {
+          "class": "tests.test_scheduler_structured_browser",
+          "name": "test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "finalPytestUnique": {
+    "tests": 94,
+    "passed": 94,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "finalFrontend": {
+    "tests": 90,
+    "passed": 90,
+    "files": 8,
+    "skipped": 0
+  },
+  "browserResults": {
+    "browser-result-full.json": {
+      "port": 59303,
+      "ownedRoot": true,
+      "productionBundle": true,
+      "actionReferenceMetadataPresent": true,
+      "chromiumVersion": "153.0.8010.12",
+      "pageErrors": [],
+      "ordinaryJSONFills": 0,
+      "kindsCreatedEdited": [
+        "interval",
+        "once",
+        "weekly",
+        "cron"
+      ],
+      "multiRuleStableIds": true,
+      "jobCreatedWithForm": true,
+      "jobStepsStableIds": true,
+      "jobRetentionDefinitionPin": true,
+      "typedBindingAndMoveValidation": true,
+      "nativeSubscriptions": 2,
+      "triggerEditedWithForm": true,
+      "sharedConflictDraftRebase": true,
+      "unknownCommittedOriginalQuery": true,
+      "unknownPutCalls": 1,
+      "legacySourceRequests": 0,
+      "providerCalls": 0,
+      "writeRequests": [
+        [
+          "POST",
+          "/api/main/startup-recovery/claim"
+        ],
+        [
+          "POST",
+          "/api/jobs"
+        ],
+        [
+          "PUT",
+          "/api/jobs/job_6ec52afe7280447c9ad8cd1d"
+        ],
+        [
+          "POST",
+          "/api/jobs/job_6ec52afe7280447c9ad8cd1d/operations"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_94f1d1d8074cd1e66a51b6bf"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_a6ce8e700905b8904f4726c6"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_d73a5302494091d7a01bd185"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_fe43683f8d72adb489f91338"
+        ],
+        [
+          "POST",
+          "/api/triggers"
+        ],
+        [
+          "POST",
+          "/api/triggers"
+        ],
+        [
+          "PUT",
+          "/api/triggers/trigger_a1e3bd3980a340a4b04472de"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_fe43683f8d72adb489f91338"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_fe43683f8d72adb489f91338"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_fe43683f8d72adb489f91338"
+        ]
+      ],
+      "invalidFields": [],
+      "portReleased": true
+    },
+    "browser-result-sources.json": {
+      "port": 60872,
+      "ownedRoot": true,
+      "productionBundle": true,
+      "actionReferenceMetadataPresent": true,
+      "chromiumVersion": "153.0.8010.12",
+      "pageErrors": [],
+      "ordinaryJSONFills": 0,
+      "kindsCreatedEdited": [
+        "interval",
+        "once",
+        "weekly",
+        "cron"
+      ],
+      "multiRuleStableIds": true,
+      "jobCreatedWithForm": false,
+      "jobStepsStableIds": false,
+      "jobRetentionDefinitionPin": false,
+      "typedBindingAndMoveValidation": false,
+      "nativeSubscriptions": 2,
+      "triggerEditedWithForm": true,
+      "sharedConflictDraftRebase": true,
+      "unknownCommittedOriginalQuery": true,
+      "unknownPutCalls": 1,
+      "legacySourceRequests": 0,
+      "providerCalls": 0,
+      "writeRequests": [
+        [
+          "POST",
+          "/api/main/startup-recovery/claim"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "POST",
+          "/api/event-creators"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_0836cc758ebf40a4eb078f3b"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_e668bb910a2b22c11ab45806"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_412f70b30bcdb7e57c51bad3"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_1c679674e1b93d457d65454a"
+        ],
+        [
+          "POST",
+          "/api/triggers"
+        ],
+        [
+          "POST",
+          "/api/triggers"
+        ],
+        [
+          "PUT",
+          "/api/triggers/trigger_87d1e893f08e4b858e8ee98d"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_1c679674e1b93d457d65454a"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_1c679674e1b93d457d65454a"
+        ],
+        [
+          "PUT",
+          "/api/event-creators/creator_1c679674e1b93d457d65454a"
+        ]
+      ],
+      "invalidFields": [],
+      "portReleased": true
+    },
+    "advanced-browser-result.json": {
+      "port": 51071,
+      "rootOwned": true,
+      "productionBundle": true,
+      "chromiumVersion": "153.0.8010.12",
+      "sourceId": "creator_8bfbcd86d223160a2642467d",
+      "configRoundTrip": true,
+      "sharedReferences": 3,
+      "sourceConflictRebased": true,
+      "sourceLifecycleCAS": true,
+      "nativePicker": true,
+      "retiredHistoryReadable": true,
+      "legacySourceRequests": 0,
+      "pageErrors": [],
+      "providerCalls": 0,
+      "portReleased": true
+    }
+  },
+  "inherited43Red": {
+    "rerunThisUiRepair": false,
+    "unchangedEvidence": "evidence/r6i-repair/original-red-assessment.json",
+    "additional2": "evidence/r6i-repair/baseline-additional-command.json",
+    "noSkipOrAssertionEdits": true
+  },
+  "rawLogSha256": {
+    "action-metadata-current.log": "07394c20f2fa4562a2782ad46d193cb64720906ee09b78127dedf94b45a84454",
+    "action-metadata-final.log": "150fd10b7c07937b6f3a5b1b7881d888022302cfc6bb49525e3c8806bfe870e8",
+    "advanced-browser-server-initial.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "advanced-browser-server.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "backend-final-v2.log": "0d39d1f819045ad03e0e619ccb1ff6e661597f3e18572a7a3869d2e953bd51ff",
+    "backend-final.log": "1c77d102cb5684cc4c30312612eff6f5c26250135afb68d70992005f36f5986d",
+    "browser-advanced-initial.log": "902437448d538b019196b971de43581a087403d4233bf3a864b5a2b182ce5e92",
+    "browser-complete-final.log": "c59a4f93d55e11230496f94dc2330927781c40bd2a920a160b5f26618427f847",
+    "browser-complete-v1.log": "080d5553df071af90a716802bf4b62864afc1d6930ffdbc78fc1df42af527632",
+    "browser-complete-v2.log": "19c507f182a90a3dc2bfcec56e7461853b340fd22bb61d566426922e59fa3b9a",
+    "browser-complete-v3.log": "8ff16ccc4a44fd0961e68809203cc93a1869380b3434a54ea7a9e7d121f0709a",
+    "browser-final-partial.log": "50e3c68c3f39d5140e6be20c0ae88ab0eec07f84961eb0a4bc33b21a6268477c",
+    "browser-server.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "browser-sources-initial.log": "7a1ffa4c50b7befddb93f77778838fe24b004110250a1d31716f955beb9940e0",
+    "browser-sources-v2.log": "6d14ed1b01ad4b1d4b42d997a389acc71be6fb97aa287478e32689a13249aabb",
+    "browser-sources-v3.log": "ca359a90e97d60190242215466479780980e97659e200cca17304b38cab49ab5",
+    "browser-sources-v4.log": "bc8192bd1620f9f1c20178c092794be1d94b779596377b9031b0ad11526f4927",
+    "browser-sources-v5.log": "6283d04c5f7690662de7902bd41d89787bfc51dc6ae8b3fa7df2932ee5322d5b",
+    "browser-sources-v6.log": "1c63a0be909d6f9987891e4d0b36a0f85d2edeaa3ea0c12b9b2d22cfa4f35aa4",
+    "browser-sources-v7.log": "902437448d538b019196b971de43581a087403d4233bf3a864b5a2b182ce5e92",
+    "build-final.log": "058361962b5a6c8f24a6ec37ab98751b4a3837310b84b0b6e36451713f422a6b",
+    "build-initial.log": "24267921277ea2966adb082bbf0e3c6f6b7fab30f33b79b2b62796d5e418915d",
+    "build-v2.log": "38a359d8ee5a9e7d772648278f6ef7e0769826595e4735017d3523bf9fbe92e4",
+    "build-v3.log": "7659869c270e56c06191b78074d3b0470589b94e67ad07836412effbb63f7706",
+    "build-v4.log": "c25471d9131f5e963bbebf55ae75a3d3deb1ad0182163d2de42b33e6f0d87cc1",
+    "build-v5.log": "c0ffef2afc16ae28ade46087c7c28b5c0b7c6e3b7c4e0d9ed741032911b422f1",
+    "build-v6.log": "95aa910a466434cbbfef0c8b67756c46976f71cc2e43643b4a99d3814efd7946",
+    "build-v7.log": "0b70eaca65d8ada81b05424143aab1147fc5655c6382357478128d0f51260e34",
+    "format-check.log": "79bcc187eadf3fc2c39c21c3567c14f71d68661eacf4b16b8e31c7b158070483",
+    "format-v2.log": "319d116230e0c8f7be7163d4a5fc0555d002466a4506264c536dabdb6067c593",
+    "format-v3.log": "fab10f74469bdcff8cb9e3f82a1a4b410a28bfd22476e4822d28559cee33319e",
+    "format-v4.log": "da163bac2553cfef7ce55bae8e53696dd3987be6726cab9d9d6aae99179667a0",
+    "format-write.log": "28adce76f467255de3c8e6566577c7ed35a29317c7b47525a6995582a0894658",
+    "source-commit.log": "3d271e152e5003c284caf5be43dafd354274081454035858fa64f441312ff9b0",
+    "tsc-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-initial.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v10.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v5.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v6.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v7.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v8.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tsc-v9.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "vitest-final-v2.log": "334460e16c0833ed9fc6a3263f7e3998faf51e59d24dab8a504392eca6e939ef",
+    "vitest-final.log": "7fc28e8e14cd2c8b76e70580fbbe60fbbce7d2885ba514ef53b9cafeab65a115",
+    "vitest-initial.log": "1780522aca3803c42d6215831c9c6b6cbe93568876934c1f74d7090753114dcd",
+    "vitest-v10.log": "503acb3c8d77ba3ad529d08f8b7adf9f0c623212946b516b4719168748052dc4",
+    "vitest-v2.log": "a5b9b64643619f8654dc9e18b01229a0ed4c6ad55c70783ce4d11da794d8c200",
+    "vitest-v3.log": "0d2e10f4455abb5d1b711890ecf8d06f84abe7c2490bf141c9b5f322e5502552",
+    "vitest-v4.log": "cf24eb66966503f2a56a362d4f5346083a20a2a8b9e912409711fe67493a2ffe",
+    "vitest-v5.log": "b3713cdecb2f34f1499843e6370a5f979aa662df73e570b7c3b98a985d4736c9",
+    "vitest-v6.log": "8888e44f3776d3ee339e15c1ff670f7afe59432943dadb971f89c1f1237c6f3e",
+    "vitest-v7.log": "0f8f66b78f871be13d5f0a2f8cb9ef7b9a077f638fcab28f85194aaa4e0c5ab4",
+    "vitest-v8.log": "c6c5e8aace198999ea88d4338448c19e6ea669b89775392b4f88b63c75997fff",
+    "vitest-v9.log": "8f7f76f59a49d89ea74079177c41e01fd249f37fad49230085e856454f1a2154"
+  },
+  "rawArchiveSha256": "78e9c52d5aa972afaa32cef5811ed5f748976ed81075f0528f2227ac8040e457",
+  "rawArtifactsSha256": "72ed8f4e4add318976a8bf193605f7f1a2ae48e7ddafc2c122f7e3cf09eed28d",
+  "reviewCopyNormalization": "Only trim trailing spaces/tabs on XML/HTML/patch review lines; original bytes archived and verified."
+}

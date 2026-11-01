@@ -1,0 +1,122 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+FF                                                                       [100%]
+================================== FAILURES ===================================
+_______ test_scheduled_response_does_not_wait_for_worker_shutdown[exit] _______
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5851/test_scheduled_response_doe...4aa3168481d4dd0c88dd39ef6243f75025c0f05')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000286651B1350>)
+operation = 'exit'
+
+    @pytest.mark.parametrize("operation", ["exit", "restart"])
+    def test_scheduled_response_does_not_wait_for_worker_shutdown(prepared, operation):
+        async def exercise():
+            entered, release = asyncio.Event(), asyncio.Event()
+            async def blocked_shutdown(**kwargs):
+                prepared.events.append(("shutdown", kwargs))
+                entered.set()
+                await release.wait()
+            prepared.monkeypatch.setattr(worker, "shutdown_all", blocked_shutdown)
+            request = asyncio.create_task(server.api_system_main_lifecycle({"operation": operation,
+                "options": {"markRunningSessionsOffline": True}}))
+            await asyncio.wait_for(entered.wait(), timeout=10)
+            try:
+                finished, _ = await asyncio.wait({request}, timeout=.25)
+                assert request in finished, "scheduled response waited for Worker shutdown"
+                result = request.result()
+                assert result["accepted"] and result["status"] == "scheduled"
+                assert [row[0] for row in prepared.events] == ["gate", "shutdown"]
+            finally:
+                release.set()
+                await request
+>       asyncio.run(exercise())
+
+tests\test_lifecycle_strict_successors.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def exercise():
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def blocked_shutdown(**kwargs):
+            prepared.events.append(("shutdown", kwargs))
+            entered.set()
+            await release.wait()
+        prepared.monkeypatch.setattr(worker, "shutdown_all", blocked_shutdown)
+        request = asyncio.create_task(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": True}}))
+        await asyncio.wait_for(entered.wait(), timeout=10)
+        try:
+            finished, _ = await asyncio.wait({request}, timeout=.25)
+>           assert request in finished, "scheduled response waited for Worker shutdown"
+E           AssertionError: scheduled response waited for Worker shutdown
+E           assert <Task pending name='Task-2' coro=<api_system_main_lifecycle() running at D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\web\server.py:4132> wait_for=<Future pending cb=[Task.task_wakeup()]>> in set()
+
+tests\test_lifecycle_strict_successors.py:25: AssertionError
+_____ test_scheduled_response_does_not_wait_for_worker_shutdown[restart] ______
+
+prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5851/test_scheduled_response_doe...4e9089f109c4179a74e180f0404593d07dfb821')], monkeypatch=<_pytest.monkeypatch.MonkeyPatch object at 0x00000286651B10F0>)
+operation = 'restart'
+
+    @pytest.mark.parametrize("operation", ["exit", "restart"])
+    def test_scheduled_response_does_not_wait_for_worker_shutdown(prepared, operation):
+        async def exercise():
+            entered, release = asyncio.Event(), asyncio.Event()
+            async def blocked_shutdown(**kwargs):
+                prepared.events.append(("shutdown", kwargs))
+                entered.set()
+                await release.wait()
+            prepared.monkeypatch.setattr(worker, "shutdown_all", blocked_shutdown)
+            request = asyncio.create_task(server.api_system_main_lifecycle({"operation": operation,
+                "options": {"markRunningSessionsOffline": True}}))
+            await asyncio.wait_for(entered.wait(), timeout=10)
+            try:
+                finished, _ = await asyncio.wait({request}, timeout=.25)
+                assert request in finished, "scheduled response waited for Worker shutdown"
+                result = request.result()
+                assert result["accepted"] and result["status"] == "scheduled"
+                assert [row[0] for row in prepared.events] == ["gate", "shutdown"]
+            finally:
+                release.set()
+                await request
+>       asyncio.run(exercise())
+
+tests\test_lifecycle_strict_successors.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def exercise():
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def blocked_shutdown(**kwargs):
+            prepared.events.append(("shutdown", kwargs))
+            entered.set()
+            await release.wait()
+        prepared.monkeypatch.setattr(worker, "shutdown_all", blocked_shutdown)
+        request = asyncio.create_task(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": True}}))
+        await asyncio.wait_for(entered.wait(), timeout=10)
+        try:
+            finished, _ = await asyncio.wait({request}, timeout=.25)
+>           assert request in finished, "scheduled response waited for Worker shutdown"
+E           AssertionError: scheduled response waited for Worker shutdown
+E           assert <Task pending name='Task-6' coro=<api_system_main_lifecycle() running at D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\web\server.py:4132> wait_for=<Future pending cb=[Task.task_wakeup()]>> in set()
+
+tests\test_lifecycle_strict_successors.py:25: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_lifecycle_strict_successors.py::test_scheduled_response_does_not_wait_for_worker_shutdown[exit]
+FAILED tests/test_lifecycle_strict_successors.py::test_scheduled_response_does_not_wait_for_worker_shutdown[restart]

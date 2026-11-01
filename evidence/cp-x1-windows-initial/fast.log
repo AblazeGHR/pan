@@ -1,0 +1,50 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+....................................................ssssssssssssssssss.. [ 42%]
+s....................................................................... [ 85%]
+........................                                                 [100%]
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================ slowest 15 durations =============================
+1.10s call     tests/test_job_final_independent_execution.py::test_fe02_real_worker_survives_the_admitting_host_process_exit
+1.00s call     tests/test_job_runtime_owner.py::test_creator_event_single_admission_execution_notification_and_restart
+0.80s call     tests/test_job_runtime_owner.py::test_offline_bundle_activation_explicit_states_and_idempotent_restart
+0.76s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[active]
+0.71s call     tests/test_job_runtime_owner.py::test_activation_adopts_reviewed_next_fire_without_historical_replay[cron]
+0.70s call     tests/test_job_runtime_owner.py::test_activation_adopts_reviewed_next_fire_without_historical_replay[interval]
+0.64s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[cursor]
+0.64s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[plan]
+0.62s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[profile]
+0.62s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[readonly]
+0.60s call     tests/test_job_final_independent_execution.py::test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent
+0.55s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[bundle]
+0.55s call     tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[references]
+0.53s call     tests/test_job_runtime_owner.py::test_failed_activation_cannot_be_bypassed_by_omitting_bundle
+0.52s call     tests/test_platform_process_posix_unit.py::test_terminate_reports_remaining_when_group_survives
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_platform_process_contract.py:84: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:97: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:103: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:110: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:117: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:124: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:133: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:148: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:163: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:188: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:198: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:216: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:227: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:237: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:256: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:266: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:276: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:283: POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过
+SKIPPED [1] tests\test_platform_process_contract.py:337: 仅在 POSIX 主机上验证 Windows 实现门禁

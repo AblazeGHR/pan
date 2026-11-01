@@ -1,0 +1,29 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "react",
+  "argv": [
+    "cmd.exe",
+    "/d",
+    "/c",
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "src/views/CanonicalJobsView.retirement-r14.test.tsx",
+    "src/hooks/useWebSocket.test.tsx",
+    "src/hooks/useWebSocket.partial-r24.test.ts",
+    "src/components/automation/CanonicalForms.test.tsx"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web",
+  "exit": 0,
+  "elapsedSeconds": 5.662753105163574,
+  "log": "react.log",
+  "logSha256": "2148eda879f5f5d219e0e972660060dcf84d93ad415c8baf8d08f1640f19c479",
+  "counts": {
+    "tests": 131,
+    "passed": 131,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  }
+}

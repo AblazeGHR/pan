@@ -1,0 +1,571 @@
+{
+  "origin": "http://pan-phase3.test",
+  "transport": "Playwright route.fulfill / routeWebSocket; no TCP listener",
+  "screenshots": [
+    "job-1440.png",
+    "trigger-1440.png",
+    "event-register-1440.png",
+    "source-impact-1440.png",
+    "chain-editor-1440.png",
+    "existing-scheduler-flow-1440.png",
+    "new-scheduler-flow-1440.png",
+    "job-390.png",
+    "trigger-390.png",
+    "event-register-390.png",
+    "source-impact-390.png",
+    "chain-editor-390.png",
+    "existing-scheduler-flow-390.png",
+    "new-scheduler-flow-390.png",
+    "job-320.png",
+    "trigger-320.png",
+    "event-register-320.png",
+    "source-impact-320.png",
+    "chain-editor-320.png",
+    "existing-scheduler-flow-320.png",
+    "new-scheduler-flow-320.png"
+  ],
+  "overflows": [
+    {
+      "width": 1440,
+      "name": "job",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "trigger",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "event-register",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "source-impact",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "chain-editor",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "existing-scheduler-flow",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 1440,
+      "name": "new-scheduler-flow",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "job",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "trigger",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "event-register",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "source-impact",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "chain-editor",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "existing-scheduler-flow",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 390,
+      "name": "new-scheduler-flow",
+      "viewport": 390,
+      "document": 390,
+      "panel": 390,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "job",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "trigger",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "event-register",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "source-impact",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "chain-editor",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "existing-scheduler-flow",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    },
+    {
+      "width": 320,
+      "name": "new-scheduler-flow",
+      "viewport": 320,
+      "document": 320,
+      "panel": 320,
+      "offenders": []
+    }
+  ],
+  "keyboard": [
+    {
+      "width": 1440,
+      "arrows": true,
+      "homeEnd": true,
+      "focusOutline": "2px"
+    },
+    {
+      "width": 390,
+      "arrows": true,
+      "homeEnd": true,
+      "focusOutline": "2px"
+    },
+    {
+      "width": 320,
+      "arrows": true,
+      "homeEnd": true,
+      "focusOutline": "2px"
+    }
+  ],
+  "pageErrors": [],
+  "requests": [
+    {
+      "width": 1440,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 390,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 390,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 390,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 320,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 320,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 320,
+      "path": "/api/sessions",
+      "method": "GET"
+    }
+  ],
+  "legacyEntry": true
+}

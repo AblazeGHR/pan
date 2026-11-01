@@ -1,0 +1,197 @@
+{
+  "baselineSha": "6d1b3f1c382ae80afb3ec1cbc974650243a783b0",
+  "sourceSha": "1010860c5d9873be1ad6f0db8ec2d2bc7195092f",
+  "sourceTree": "2b09c2782162ae788aed63d77d4fc35c8376516c",
+  "sourceParent": "6d1b3f1c382ae80afb3ec1cbc974650243a783b0",
+  "branch": "r6/job-time-creator-line-20261029",
+  "checks": {
+    "backend-final": {
+      "tests": 488,
+      "failures": 15,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "104.954",
+      "failedNodes": [
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-admit]",
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[after-admit-before-cursor]",
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-ack]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]",
+        "tests.test_scheduler_source_migration::test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]",
+        "tests.test_job_final_transports::test_ft01_run_controls_require_execute_and_clone_create[clone-and-run]",
+        "tests.test_job_final_http_service::test_ft01_system_grant_and_high_risk_remain_separate"
+      ]
+    },
+    "new-final": {
+      "tests": 39,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "8.253",
+      "failedNodes": []
+    },
+    "templates": {
+      "tests": 79,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "7.739",
+      "failedNodes": []
+    },
+    "revision2": {
+      "tests": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "1.475",
+      "failedNodes": []
+    },
+    "browser": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "4.785",
+      "failedNodes": []
+    },
+    "baseline-migration": {
+      "tests": 41,
+      "failures": 13,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "17.860",
+      "failedNodes": [
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-admit]",
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[after-admit-before-cursor]",
+        "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-ack]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]",
+        "tests.test_scheduler_source_migration::test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]",
+        "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]"
+      ]
+    },
+    "baseline-high-risk": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "0.845",
+      "failedNodes": [
+        "tests.test_job_final_http_service::test_ft01_system_grant_and_high_risk_remain_separate"
+      ]
+    },
+    "transport-rerun": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": "0.333",
+      "failedNodes": []
+    }
+  },
+  "baselineEquivalentFailedNodes": [
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-admit]",
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[after-admit-before-cursor]",
+    "tests.test_scheduler_pending_adoption::test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-ack]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]",
+    "tests.test_scheduler_source_migration::test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]",
+    "tests.test_scheduler_source_migration::test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]",
+    "tests.test_job_final_http_service::test_ft01_system_grant_and_high_risk_remain_separate"
+  ],
+  "additionalMatrixFailure": {
+    "node": "tests.test_job_final_transports::test_ft01_run_controls_require_execute_and_clone_create[clone-and-run]",
+    "reason": "WinError 10055 in asyncio socketpair before test body",
+    "isolatedRerunPassed": true,
+    "rootCauseNotEstablished": true
+  },
+  "frontend": {
+    "files": 4,
+    "passed": 75,
+    "failed": 0,
+    "command": "pnpm --dir packages/web exec vitest run src/components/automation/CanonicalForms.test.tsx src/views/AutomationWorkspace.test.tsx src/views/CanonicalJobsView.test.tsx src/services/canonicalJobs.test.ts"
+  },
+  "build": {
+    "exitCode": 0,
+    "command": "pnpm --dir packages/web build",
+    "includesTypecheck": true,
+    "compressedAssetsVerified": 88,
+    "warnings": [
+      "existing chunks over 500 kB advisory"
+    ]
+  },
+  "commands": {
+    "backend-final": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_time_revision2.py tests/test_scheduler_time_templates.py tests/test_platform_layer.py tests/test_platform_api.py tests/test_job_final_creators.py tests/test_job_final_contracts.py tests/test_scheduler_canonical_migration.py tests/test_scheduler_time_events.py tests/test_scheduler_store.py tests/test_scheduler_cron.py tests/test_scheduler_engine.py tests/test_scheduler_pending_adoption.py tests/test_scheduler_source_migration.py tests/test_scheduler_creator_management.py tests/test_scheduler_dependency_cutover.py tests/test_job_final_transports.py tests/test_job_final_http_service.py -q --tb=short --junitxml=evidence/time-creator-rev2/backend-final.xml",
+    "new-final": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_time_revision2.py tests/test_scheduler_time_templates.py -q --tb=short --junitxml=evidence/time-creator-rev2/new-final.xml",
+    "browser": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_time_revision2_browser.py -q --tb=short --junitxml=evidence/time-creator-rev2/browser.xml",
+    "baseline-export": "git archive 6d1b3f1c packages tests scripts pytest.ini minimal-requirements.txt",
+    "baseline-migration": "python <BASELINE_EXPORT>/scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_pending_adoption.py tests/test_scheduler_source_migration.py -q --tb=short",
+    "baseline-high-risk": "python <BASELINE_EXPORT>/scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate -q --tb=short",
+    "schema": "python -m packages.jobs.final_contracts --write; python -m packages.jobs.final_contracts --check",
+    "static": "git diff --check; normal pre-commit React frontend check"
+  },
+  "sourceFiles": {
+    "docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md": "b81346298a83fe339e3e85efaa5c7950b885bafb801855e18613480997dd7797",
+    "minimal-requirements.txt": "5f175bb93b724ae5d0292673fbd047b60aea081a819ba6b80f429b55b0d3e2e6",
+    "packages/core/platform/__init__.py": "7ecdca266a72c74576acae5049fa404dc45295330081b36cd95383697f6b096f",
+    "packages/core/platform/timezones.py": "8a7e982d8775314b16632db5307229e4f6081f188de754c41584cd3e78be3150",
+    "packages/jobs/final_api.py": "018eefa3ded27a41c8960ad946e75b2e5bee19aa55ec2ff81d120974cb4eb8e4",
+    "packages/jobs/final_contracts.py": "cc1e442181c04a7359d1a65a6bcec490e32a744d6ee4ac5218b3ef9754126dad",
+    "packages/jobs/final_service.py": "1ad4dbcd0a75f86a0f380d79d467ef1fa2f4e46d2615f9bd470ef0b0cbd7ba3a",
+    "packages/jobs/schedule_calculations.py": "278326fe776d67d93d0444a49466eb5f16f21e3b61f6fe23f7a292523e25ea91",
+    "packages/jobs/schemas/final/contract_manifest.json": "3ff02056e852273275df66ec62f85062bc2fd8fdb6e8b8961d640b7a03bec3f5",
+    "packages/jobs/schemas/final/scheduler_config.schema.json": "c09d7d0d8cb635f68ac58a7b72c719aebc9c30f99f4ba3887fa8f7bb3f04e036",
+    "packages/scheduler/composition.py": "a2028ad0f9b04645c8fa373aa7c618132ff211e542b72718cb555b75f373b084",
+    "packages/scheduler/creators.py": "41c9c42061d61bd5574983ed1d97bfbde84f37c39209a63b002a2f6f05b494ac",
+    "packages/scheduler/providers.py": "96b511cbf48196353425f29ab6561644d76921a0c20c8dcc87b89b200c52414b",
+    "packages/scheduler/time_events.py": "df35875f0da04c448ea6347eb692318249b9e97a34c255b352f199c827b27288",
+    "packages/web/src/components/automation/CanonicalForms.test.tsx": "101afe686348d4736b3cc8227da0a869aaecaf8bb3f1b75c821a8ecad796450f",
+    "packages/web/src/components/automation/CanonicalSchedulerFields.tsx": "5a665d676d3783835cb61613c176439694d70baa76c2f9a5658375cf586f1a75",
+    "packages/web/src/components/automation/TimeTemplateFields.tsx": "e45bd2cd096552833c3d5d64c4befc243538fe1ab6fd05a8437491512c6cf1aa",
+    "packages/web/src/services/canonicalJobs.test.ts": "e2c847d5312a35faa1fcbfe8b227e84d4d7e7f6d8edce1ba854446fb9dc58278",
+    "packages/web/src/services/canonicalJobs.ts": "7dc72d8774dc51840f6e3057179407c20702542254725fcafce707666c29a1d5",
+    "packages/web/src/views/CanonicalJobsView.test.tsx": "04768835c0ddb6d019eafc2b1dfa5c1ce39fbbf8459a3cc5b24e812d41bdf20f",
+    "packages/web/src/views/CanonicalJobsView.tsx": "c4a4870466dfc84183d19cd8953136c406fb25d3b403efd9e68ac20e24cd26fe",
+    "tests/support/scheduler_management_server.py": "c9375b6fde3dfb82a83da996631c043e04759273dd2c6e1fd0a8ba8ba7784ef9",
+    "tests/test_job_final_transports.py": "e323efd6a25f5aabceb778a2a6916551c72300c9cfc2d55b0b9addfc1333e8fd",
+    "tests/test_platform_api.py": "2bf72a7aa96b48341ad90328acad96dee5435eb52d6885834349db53d784430c",
+    "tests/test_platform_layer.py": "9417245a3188e3f65eb543b6f38652f64abfabee109f0a8557fb044fc6fe66a6",
+    "tests/test_scheduler_time_revision2.py": "fcf5d65533489ac2674c4db9b75a8a1c6d5fef105354d70eaaab4f4705cf8cf5",
+    "tests/test_scheduler_time_revision2_browser.py": "f39f2bb792ccffe772a6bc497d5b1bdae9375a57ae46ed0d838e181dbe9a5bcc",
+    "tests/test_scheduler_time_templates.py": "0a2178743d37d5852075b5be1eee70fc1fdd1af5485242b06210a90164e5b85a"
+  },
+  "protectedRefsObserved": {
+    "main": "0025c9d67c6ef29bf034e10ae1443a052bc62d64",
+    "practical": "0025c9d67c6ef29bf034e10ae1443a052bc62d64"
+  },
+  "noMergePushOrServiceControl": true,
+  "realDataMigration": false,
+  "unverified": [
+    "full backend suite",
+    "Linux/macOS runtime and remote CI",
+    "real OS timezone changes",
+    "real providers/effects",
+    "real profile migration",
+    "deployment",
+    "human acceptance"
+  ]
+}

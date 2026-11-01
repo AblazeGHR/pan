@@ -1,0 +1,15 @@
+WARNING: Ignoring invalid distribution ~ip (C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages)
+Collecting playwright
+  Using cached playwright-1.64.1-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting pyee<15,>=13 (from playwright)
+  Using cached pyee-14.0.0-py3-none-any.whl.metadata (1.8 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright)
+  Using cached greenlet-3.5.6-cp314-cp314-win_amd64.whl.metadata (3.9 kB)
+Requirement already satisfied: typing-extensions in C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages (from pyee<15,>=13->playwright) (4.15.0)
+Using cached playwright-1.64.1-py3-none-win_amd64.whl (38.8 MB)
+Using cached greenlet-3.5.6-cp314-cp314-win_amd64.whl (327 kB)
+Using cached pyee-14.0.0-py3-none-any.whl (15 kB)
+WARNING: Ignoring invalid distribution ~ip (C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages)
+Installing collected packages: pyee, greenlet, playwright
+
+Successfully installed greenlet-3.5.6 playwright-1.64.1 pyee-14.0.0

@@ -1,0 +1,21 @@
+{
+  "executorPort": 61906,
+  "label": "public-original-fence",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 3,
+  "launcherIsSupervisor": true,
+  "ownershipRootIsScript": true,
+  "oldFrozenPlanUnchanged": true,
+  "newReleaseImmutable": true,
+  "staleFencesRejected": 4,
+  "finishAttemptStillRejectsUncertain": true,
+  "originalAttemptReconciled": true,
+  "effects": 1,
+  "canonicalPort": 61907,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "native"
+}

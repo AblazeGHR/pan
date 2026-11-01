@@ -1,0 +1,49 @@
+{
+  "baseline": "423aa59c1f734621b87923f4d468686b084a7280",
+  "testSource": "7c0be3feaaa28258b9b8b82163ca9c974ef1b93e",
+  "acceptedProductInput": "cc3fc708f03f474c5a983258456b767e436b38cf",
+  "productDiffBytes": 0,
+  "all14SuccessorsPresent": true,
+  "newParameterizedDefaultPaths": 5,
+  "focused": {
+    "exit": 0,
+    "junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "57",
+      "time": "43.516",
+      "timestamp": "2026-10-31T20:20:30.139345+08:00",
+      "hostname": "ablaze"
+    }
+  },
+  "originalRegression": {
+    "exit": 0,
+    "junit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "1",
+      "tests": "107",
+      "time": "56.714",
+      "timestamp": "2026-10-31T20:10:44.173181+08:00",
+      "hostname": "ablaze"
+    },
+    "executionBase": "423aa59c1f734621b87923f4d468686b084a7280",
+    "note": "Readiness file was dirty but not selected; all six selected test file Git blobs are identical at final test source. Original platform link skip and all_51 deselection retained."
+  },
+  "commands": {
+    "focused": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_migration_runtime_readiness.py tests/test_job_migration_runtime_contract.py -q -o addopts= --junitxml=evidence/job-migration-rev7-20261031/readiness-contract-final.xml",
+    "originalRegression": "D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_final_migration.py tests/test_job_final_migration_apply.py tests/test_job_final_migration_partial.py tests/test_job_migration_readiness.py tests/test_job_final_migration_user_authorization.py tests/test_job_final_migration_review_packet.py -q -o addopts= -k \"not all_51\" --junitxml=evidence/job-migration-rev7-20261031/original-regression-revised.xml"
+  },
+  "artifactSha256": {
+    "ma-combination-original-red.log": "fe3e7a945e90d3f817345c8ac0a902cf0a3794bc8b236a83dcffd4cccde54fb0",
+    "readiness-contract-final.xml": "fe44986de8edbf6ef303aad8fc2f47df1e3609b9a118823ed77d4a55ad3ce550",
+    "readiness-contract-final.log": "798c28e9d9e5a31548283469c48be3eaf3b21be773a3ce8b13d66bc38f1c95ab",
+    "original-regression-revised.xml": "4c2cd7791d328f350a708cad154823cd0d77238d44c4a6d8ce16caa96de1dbb6",
+    "revision-assertion-map.json": "33705be048f07b1fa01a7cda1e133bae2a22c0a1ae572f6469edd599c5849828",
+    "ma-combination-original-red.log.gz": "b46a61ef19d7f8753919cbaaaeda8edeb5f2ec2114e9c05dd34d46574ded0406"
+  },
+  "artifactHashConvention": "SHA256 of committed Git blob; original raw log bytes are retained inside gzip and bound separately by originalLogSha256 in revision-assertion-map.json."
+}

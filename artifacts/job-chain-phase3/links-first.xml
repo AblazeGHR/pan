@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="6" time="2.871" timestamp="2026-10-25T15:22:25.192905+08:00" hostname="ablaze"><testcase classname="tests.test_automation_job_links" name="test_new_flow_idempotency_and_existing_flow_do_not_merge_sources" time="0.483" /><testcase classname="tests.test_automation_job_links" name="test_failure_quarantines_drafts_and_retry_reuses_objects[trigger]" time="0.286" /><testcase classname="tests.test_automation_job_links" name="test_failure_quarantines_drafts_and_retry_reuses_objects[activation]" time="0.340" /><testcase classname="tests.test_automation_job_links" name="test_job_disable_and_delete_preserve_shared_source_and_owner_is_protected" time="0.219"><failure message="packages.automation.store.Conflict: Managed Trigger must be edited from its owning Job">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4574/test_job_disable_and_delete_pr0')
+
+    @async_test
+    async def test_job_disable_and_delete_preserve_shared_source_and_owner_is_protected(tmp_path):
+        svc,jobs,sources=await setup(tmp_path)
+        try:
+            result=await svc.links.compose(request());job=result['job'];source=sources.list()[0]
+            t=next(iter(svc.ledger.read()['triggers'].values()))
+            assert t['ownerJobId']==job['jobId'] and t['targetJobId']==job['jobId']
+&gt;           with pytest.raises(Conflict):svc.ledger.set_enabled(t['id'],False,t['revision'],{'type':'user'})
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_automation_job_links.py:88:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\automation\store.py:124: in set_enabled
+    return self.put(raw,expected,True,authority=authority)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\store.py:117: in put
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\automation\store.py:38: in mutate
+    result = change(state)
+             ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+state = {'revision': 8, 'triggers': {'trg_job_d12a87146aff31c4fbf7a263': {'id': 'trg_job_d12a87146aff31c4fbf7a263', 'name': 'c...st', 'actionId': 'one', 'arguments': {...}}, {'stepId': 'second', 'actionId': 'two', 'arguments': {...}}], ...}, ...}}}
+
+    def change(state):
+        item = copy.deepcopy(raw)
+        allowed = {'id', 'name', 'description', 'eventTypes', 'eventFilter', 'condition', 'actionId', 'arguments', 'steps', 'targetJobId', 'ownerJobId', 'ownerLinkId', 'executionMode', 'maxConcurrency', 'retry', 'enabled'}
+        if set(item) - allowed:
+            raise ValueError('Unknown Trigger fields')
+        tid = item.setdefault('id', 'trg_' + uuid.uuid4().hex)
+        if not isinstance(tid, str) or not tid or len(tid) &gt; 100:
+            raise ValueError('Invalid Trigger ID')
+        old = state['triggers'].get(tid)
+        if (item.get('ownerJobId') or (old and old.get('ownerJobId'))) and not managed:
+&gt;           raise Conflict('Managed Trigger must be edited from its owning Job')
+E           packages.automation.store.Conflict: Managed Trigger must be edited from its owning Job
+
+packages\automation\store.py:60: Conflict</failure></testcase><testcase classname="tests.test_automation_job_links" name="test_job_and_source_revision_conflicts_are_explicit" time="0.258" /><testcase classname="tests.test_automation_job_links" name="test_managed_trigger_launches_chain_twice_without_direct_event_subscription" time="0.633" /></testsuite></testsuites>

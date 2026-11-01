@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.431" timestamp="2026-10-28T22:51:54.460465+08:00" hostname="ablaze"><testcase classname="tests.test_platform_process_windows_hidden" name="test_hidden_tree_identity_stdio_and_desktop_cleanup[base]" time="0.206"><failure message="AssertionError: assert (False)&#10; +  where False = &lt;built-in method startswith of str object at 0x0000020C380FEC70&gt;('PanJob_')&#10; +    where &lt;built-in method startswith of str object at 0x0000020C380FEC70&gt; = 'Default'.startswith">tests\test_platform_process_windows_hidden.py:78: in test_hidden_tree_identity_stdio_and_desktop_cleanup
+    assert name.startswith('PanJob_') and name != original
+E   AssertionError: assert (False)
+E    +  where False = &lt;built-in method startswith of str object at 0x0000020C380FEC70&gt;('PanJob_')
+E    +    where &lt;built-in method startswith of str object at 0x0000020C380FEC70&gt; = 'Default'.startswith</failure></testcase><testcase classname="tests.test_platform_process_windows_hidden" name="test_atomic_membership_precedes_resume_and_no_late_assign" time="0.008"><failure message="Failed: post-create assignment must never authorize an owned command">tests\test_platform_process_windows_hidden.py:169: in test_atomic_membership_precedes_resume_and_no_late_assign
+    with closing(owner.spawn([sys.executable, '-c', 'from pathlib import Path; Path('+repr(str(marker))+').touch()'])) as owned:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;exact-a9d236c1-process.py&gt;:589: in spawn
+    ???
+tests\test_platform_process_windows_hidden.py:166: in forbidden
+    pytest.fail('post-create assignment must never authorize an owned command')
+E   Failed: post-create assignment must never authorize an owned command</failure></testcase></testsuite></testsuites>

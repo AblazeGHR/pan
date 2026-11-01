@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="1.141" timestamp="2026-10-31T19:53:27.882246+08:00" hostname="ablaze"><testcase classname="tests.test_job_final_migration" name="test_six_simple_instances_are_classified_and_planned" time="0.027"><failure message="AssertionError: assert 'retain-sourc...time-contract' == 'plan-only'&#10;  &#10;  - plan-only&#10;  + retain-source-manager-await-runtime-contract">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6481/test_six_simple_instances_are_0')
+
+    def test_six_simple_instances_are_classified_and_planned(tmp_path: Path) -&gt; None:
+        root = _make_root(tmp_path)
+        report = build_inventory(root)
+    
+        assert report["readOnly"] is True
+        assert report["migrationExecuted"] is False
+        assert report["targetWrites"] == 0
+        assert report["summary"]["total"] == 6
+        assert report["summary"]["simple"] == 6
+        assert report["summary"]["complex"] == 0
+        assert report["summary"]["unknown"] == 0
+        assert report["summary"]["scanErrors"] == 0
+        assert report["summary"]["bySourceType"] == {
+            "MIG-ACTION-JOB": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-BG": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-MSG": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-SCHED": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-TEMPLATE": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+            "MIG-TRIGGER": {"total": 1, "simple": 1, "complex": 0, "unknown": 0},
+        }
+        assert len(report["plan"]["items"]) == 6
+        assert report["plan"]["preserved"] == []
+        assert report["plan"]["executable"] is False
+        assert report["plan"]["executionAttempted"] is False
+    
+        for item in report["instances"]:
+            assert item["classification"] == SIMPLE
+            assert item["classificationDetail"] == "simple"
+            assert item["mappingVersion"] == MAPPING_VERSION
+            assert item["fieldMap"]
+&gt;           assert item["suggestedAction"] == "plan-only"
+E           AssertionError: assert 'retain-sourc...time-contract' == 'plan-only'
+E             
+E             - plan-only
+E             + retain-source-manager-await-runtime-contract
+
+tests\test_job_final_migration.py:372: AssertionError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[assign-None]" time="0.177"><failure message="scripts.job_final_migration.mapping.ApplyError: runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6481/test_fm01_scheduler_business_a0')
+api = 'assign', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+&gt;       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:184: in map
+    require(runtime or delivery_binding_gap(item["type"], item.get("sourceKind"), source) is None,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False
+message = 'runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics'
+
+    def require(condition: bool, message: str) -&gt; None:
+        if not condition:
+&gt;           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics
+
+scripts\job_final_migration\mapping.py:28: ApplyError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_session-None]" time="0.157"><failure message="scripts.job_final_migration.mapping.ApplyError: runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6481/test_fm01_scheduler_business_a1')
+api = 'send_session', args = None
+
+    @pytest.mark.parametrize("api,args", [("assign", None), ("send_session", None),
+        ("shell", {"command": "D:/fixture/script.cmd", "cwd": "D:/fixture"}),
+        ("send_qq", {"targetType": "group", "targetId": "123456", "botUin": "654321"})])
+    def test_fm01_scheduler_business_actions(tmp_path, api, args):
+        root = tmp_path / "data"
+        root.mkdir()
+        value = _scheduled_job()
+        value["action"] = {"api": api}
+        if args:
+            value["action"]["args"] = args
+        if api == "send_qq":
+            value["targetSessionId"] = None
+        _write_json(root / f"background_jobs/jobs/{SCHED_JOB_ID}.json", value)
+&gt;       report = commit(root, tmp_path / "canonical.json")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_final_migration_apply.py:284: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_final_migration_apply.py:68: in commit
+    return migration.migrate(root, target, context, apply=True,
+scripts\job_final_migration\apply.py:217: in migrate
+    entries.append({**copy.deepcopy(item), **mapper.map(item, _source(item, sources))})
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts\job_final_migration\mapping.py:184: in map
+    require(runtime or delivery_binding_gap(item["type"], item.get("sourceKind"), source) is None,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False
+message = 'runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics'
+
+    def require(condition: bool, message: str) -&gt; None:
+        if not condition:
+&gt;           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: runtime_binding_unavailable: retain original delivery manager; input binding alone does not prove revision/reservation/per-target receipt semantics
+
+scripts\job_final_migration\mapping.py:28: ApplyError</failure></testcase><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[shell-args2]" time="0.227" /><testcase classname="tests.test_job_final_migration_apply" name="test_fm01_scheduler_business_actions[send_qq-args3]" time="0.239" /></testsuite></testsuites>

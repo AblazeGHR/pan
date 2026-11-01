@@ -979,13 +979,30 @@ async def api_send(
     wire 发送都在通道内完成。
     """
     ch = get_channel()
+    arguments = {"target_type": target_type, "target_id": target_id, "text": text}
+    if bot_uin:
+        arguments["bot_uin"] = bot_uin
     if bot_uin:
         ch = get_channel_by_uin(bot_uin)
         if ch is None:
             return {"ok": False, "error": {
                 "code": "unknown_bot_uin",
-                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
+                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"},
+                "qqSendPhase": {"producer": "plugin.api_send", "stage": "before-channel-send",
+                                "reason": "unknown-selected-bot", "arguments": arguments}}
     result = await ch.send(target_type, target_id, text)
+    # Only the original OneBot implementation's own pre-send returns carry
+    # this evidence. Custom channels cannot acquire it by copying error codes.
+    from packages.qq.channels.onebot import OneBotChannel
+    phase = result.get("qqSendPhase")
+    if (type(ch).send is OneBotChannel.send and getattr(ch.send, "__func__", None) is OneBotChannel.send
+            and isinstance(phase, dict)
+            and phase.get("producer") == "onebot.send" and phase.get("stage") == "before-call-api"
+            and phase.get("reason") in {"invalid-target-type", "invalid-target-id", "empty-text", "resolve-not-connected"}
+            and result.get("ok") is False):
+        result = {**result, "qqSendPhase": {**phase, "arguments": arguments}}
+    elif "qqSendPhase" in result:
+        result = {key: value for key, value in result.items() if key != "qqSendPhase"}
     # 发送成功才落盘本次主动发送（assistant 角色），保持对话上下文完整；
     # bot_uin 标注本条由哪个 bot 发出（多账号；未配置时为 None 不写字段）
     if result.get("ok"):

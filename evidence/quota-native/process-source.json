@@ -1,0 +1,20 @@
+{
+  "parent": "a66edbaa94c1a12b22915267e22346a255f3740f",
+  "interpreter": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "unchangedProductSha256": {
+    "packages/actions/typed_executor.py": "43aece7616cadf35d306d34a4b8a7952f262b9a6ca517aea6157d9bd39bfecf5",
+    "packages/automation/api.py": "04e64a8a040231c46daf6564634329734d12de4597e5fedcf92a00b6c05638f4",
+    "packages/automation/quota_policy.py": "34c79c3afb88ff70deffc850d5a7ca190a005834d2d3026d4278e0a6069a381c",
+    "packages/jobs/final_service.py": "058d45c12d31d379fad518d7fd19747dd0c3bc59620ec16cd3f590449876abe6",
+    "packages/automation/quota_native.py": "0a30e83aff88f739d43ab20b5d51f834a0105939f63267b2348cd5bf6fff2ef9"
+  },
+  "files": {
+    "tests/test_quota_native_admission.py": "39c121e8645e9575afe0bf45679960864e931b4a7e893a3652daa08df7b7cf84",
+    "evidence/quota-native/production_http_server.py": "8c0e44e81688024eab6366857486f34cdb1b20e7bc6554580258bd2e68a6bf55",
+    "tests/test_quota_policy_http.py": "53b5012f45891147623dc86b771f7b690fde5f154bd5359d09680a3ca41c0892",
+    "tests/test_job_retirement_quota_transport.py": "b1805396aad0735c340a7cd2c09dce25212b788b0f908e0551301ab6160a7df3",
+    "tests/support/automation_http_server.py": "4a4949a8f5838169085c4b6efb166e7ad5963fca1513d7855f786c2ec57d4782",
+    "tests/test_real_queue_http_e2e.py": "5b4de803f0545234c4b054a86cca72ca2cd7fcac5830288c9181e94f5aa1efd9"
+  }
+}

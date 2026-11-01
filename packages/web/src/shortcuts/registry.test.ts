@@ -30,7 +30,6 @@ describe('dynamic panel shortcut registry', () => {
     expect(merged.map((entry) => entry.id)).toEqual([
       'builtin:chat',
       'builtin:editor',
-      'builtin:jobs',
       'builtin:terminals',
       'builtin:locker',
       'builtin:actions',
@@ -44,8 +43,6 @@ describe('dynamic panel shortcut registry', () => {
       .toBe('Mod+1');
     expect(actions.find((action) => action.id === 'panel:builtin:editor')?.defaultBinding)
       .toBe('Mod+2');
-    expect(actions.find((action) => action.id === 'panel:builtin:jobs')?.defaultBinding)
-      .toBeNull();
     expect(actions.find((action) => action.id === 'panel:plugin:alpha/one')?.defaultBinding)
       .toBeNull();
 
@@ -66,7 +63,7 @@ describe('dynamic panel shortcut registry', () => {
       { pluginId: 'bad', id: 'no-path' } as never,
       null as never,
     ]);
-    expect(merged).toHaveLength(8);
+    expect(merged).toHaveLength(7);
     expect(merged.filter((entry) => entry.id === 'plugin:alpha/one')).toHaveLength(1);
   });
 

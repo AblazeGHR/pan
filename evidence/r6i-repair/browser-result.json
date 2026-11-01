@@ -1,0 +1,17 @@
+{
+  "port": 53332,
+  "rootOwned": true,
+  "productionBundle": true,
+  "chromiumVersion": "153.0.8010.12",
+  "sourceId": "creator_ee6bc0302603e038662cd2b3",
+  "configRoundTrip": true,
+  "sharedReferences": 3,
+  "sourceConflictRebased": true,
+  "sourceLifecycleCAS": true,
+  "nativePicker": true,
+  "retiredHistoryReadable": true,
+  "legacySourceRequests": 0,
+  "pageErrors": [],
+  "providerCalls": 0,
+  "portReleased": true
+}

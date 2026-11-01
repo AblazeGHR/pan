@@ -1,0 +1,32 @@
+diff --git a/packages/actions/qq_channel_provider.py b/packages/actions/qq_channel_provider.py
+index 88dce83c..1b4e9484 100644
+--- a/packages/actions/qq_channel_provider.py
++++ b/packages/actions/qq_channel_provider.py
+@@ -20,0 +21,19 @@ class QQChannelProvider:
++    @staticmethod
++    def receipt_outcome(raw: Mapping[str, Any]) -> str:
++        """A transport failure or missing acknowledgement is never delivery.
++
++        Legacy preflight error codes retain their rejected observation, but
++        are NOT no-send proof and cannot authorize a retry. Only the original
++        nonempty message identity acknowledges a successful QQ send.
++        """
++        if raw.get("ok") is True:
++            message_id = raw.get("message_id")
++            return "succeeded" if (isinstance(message_id, (str, int))
++                and not isinstance(message_id, bool) and str(message_id).strip()) else "unknown"
++        error = raw.get("error")
++        if raw.get("ok") is False and isinstance(error, Mapping) and error.get("code") in {
++                "unknown_bot_uin", "bot_not_connected", "invalid_target_type",
++                "invalid_target_id", "empty_text"}:
++            return "rejected"
++        return "unknown"
++
+diff --git a/packages/actions/typed_executor.py b/packages/actions/typed_executor.py
+index 2f175fdf..00c05b8d 100644
+--- a/packages/actions/typed_executor.py
++++ b/packages/actions/typed_executor.py
+@@ -647,0 +648,3 @@ class TypedExecutor:
++            from packages.actions.qq_channel_provider import QQChannelProvider
++            if type(self.channel_provider) is QQChannelProvider and isinstance(result, Mapping):
++                outcome = QQChannelProvider.receipt_outcome(result)

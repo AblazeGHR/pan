@@ -1,0 +1,10 @@
+pre-commit: checking React frontend...
+React frontend OK
+[r5/p21-r6-time-events-20261025 be4d9107] fix(jobs): persist canonical attempt epoch and migrate scheduler management
+ 21 files changed, 1063 insertions(+), 527 deletions(-)
+ create mode 100644 docs/design/job-unification/R6_I_REPAIR_20261027.md
+ create mode 100644 tests/support/scheduler_management_server.py
+ create mode 100644 tests/test_job_attempt_epoch.py
+ create mode 100644 tests/test_job_retained_pin_successor.py
+ create mode 100644 tests/test_scheduler_creator_management.py
+ create mode 100644 tests/test_scheduler_management_browser.py

@@ -1,0 +1,12 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "node": "v24.22.1",
+  "pnpm": "9.7.0",
+  "lockSha256": "249d2fc3a1a0fd511ef440b4f51224f946f1f58dd850060b0bae7d78a164b149",
+  "frozenInstallExit": 0,
+  "dependencyRoot": "owned worktree packages/web/node_modules",
+  "pnpmDirectoryIsLink": false,
+  "preservedPreviousDependencies": ".validation/rev25-inherited-node_modules",
+  "ownedStore": ".validation/rev25-pnpm-store",
+  "packageOrLockSourceChanged": false
+}

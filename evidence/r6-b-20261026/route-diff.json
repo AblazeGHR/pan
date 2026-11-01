@@ -1,0 +1,42 @@
+{
+  "removedDecoratedRoutes": [
+    [
+      "POST",
+      "/api/main/exit",
+      "api_main_exit"
+    ],
+    [
+      "POST",
+      "/api/main/restart",
+      "api_main_restart"
+    ]
+  ],
+  "addedDecoratedRoutes": [],
+  "retainedExplicit410Routes": [
+    [
+      "POST",
+      "/api/background-jobs"
+    ],
+    [
+      "POST",
+      "/api/session-message-jobs"
+    ],
+    [
+      "PATCH",
+      "/api/background-jobs/{job_id}"
+    ],
+    [
+      "POST",
+      "/api/background-jobs/{job_id}/retry"
+    ]
+  ],
+  "removedSymbols": [
+    "api_background_job_start",
+    "api_session_message_job_start",
+    "api_background_job_update",
+    "api_background_job_retry",
+    "api_main_exit",
+    "api_main_restart"
+  ],
+  "effectiveSnapshot": "tests/fixtures/r6_http_write_routes.json"
+}

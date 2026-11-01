@@ -1,0 +1,79 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "results": [
+    {
+      "phase": "import",
+      "exitCode": 0,
+      "seconds": 0.732,
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-c",
+        "\nimport sys, tempfile\nfrom pathlib import Path\nwith tempfile.TemporaryDirectory(prefix='pan-fast-import-') as owned:\n    from packages.core import config\n    config.CONFIG_FILE = Path(owned) / 'config.json'\n    import packages.web.server as server\n    assert server.app is not None\n    print('real server imported; sys.platform=' + sys.platform)\n"
+      ],
+      "log": "import.log"
+    },
+    {
+      "phase": "collect",
+      "exitCode": 0,
+      "seconds": 7.158,
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/",
+        "packages/qq/",
+        "packages/wechat/",
+        "--collect-only",
+        "-q",
+        "-ra",
+        "--junitxml=D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\evidence\\cp-x1-windows-final\\collect.xml"
+      ],
+      "log": "collect.log"
+    },
+    {
+      "phase": "fast",
+      "exitCode": 0,
+      "seconds": 21.158,
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_platform_layer.py",
+        "tests/test_platform_api.py",
+        "tests/test_portability_paths.py",
+        "tests/test_platform_import_chain.py::test_shared_modules_have_no_unguarded_windows_imports",
+        "tests/test_platform_import_chain.py::test_platform_layer_imports_only_stdlib",
+        "tests/test_platform_process_contract.py",
+        "tests/test_platform_process_posix_unit.py",
+        "tests/test_job_runtime_owner.py",
+        "tests/test_job_attempt_epoch.py",
+        "tests/test_job_final_executors.py",
+        "tests/test_job_final_independent_execution.py::test_fe02_concurrent_admission_never_calls_legacy_create_retry",
+        "tests/test_job_final_independent_execution.py::test_fe02_stale_fence_never_settles_or_cancels",
+        "tests/test_job_final_independent_execution.py::test_fe02_success_unknown_partial_cannot_be_replayed",
+        "tests/test_job_final_independent_execution.py::test_fe02_retry_needs_cleanup_proof",
+        "tests/test_job_final_independent_execution.py::test_fe02_ambiguous_launch_does_not_relaunch_or_change_other_intents",
+        "tests/test_job_final_independent_execution.py::test_fe02_intent_and_terminal_outbox_transactions_are_atomic",
+        "tests/test_job_final_independent_execution.py::test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent",
+        "tests/test_job_final_independent_execution.py::test_fe02_real_worker_survives_the_admitting_host_process_exit",
+        "tests/test_job_final_independent_execution.py::test_fe02_explicit_reconciliation_queries_original_receipt_without_new_attempt",
+        "tests/test_platform_fast_gate.py",
+        "-q",
+        "-ra",
+        "--durations=15",
+        "--junitxml=D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\evidence\\cp-x1-windows-final\\fast.xml"
+      ],
+      "log": "fast.log"
+    }
+  ]
+}

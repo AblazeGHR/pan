@@ -1,0 +1,1819 @@
+{
+  "baselineSha": "8d0f0663e563c4ab1c7344ab9289d9f184800745",
+  "tests": [
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_chain_mapping_freezes_on_event_acceptance",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_chain_failure_and_unknown_stop",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_failure_or_unknown_stops_before_next_effect"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_cancel_and_restart_running_step_never_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_boundary_recovers_same_run_without_effect_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_boundary_restart_queries_same_run_and_preserves_completed_step"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_failed_retry_only_current_idempotent_step",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_running_step_restart_never_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_post_effect_write_failure_blocks_chain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_action_chain.py::test_trigger_action_revoked_between_steps",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_empty_snapshot_then_match_cannot_lose_wakeup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_disable_between_claim_and_dependency_deferral_cancels",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_kick_read_inflight_at_close_must_not_spawn",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime",
+        "tests/test_automation_retirement.py::test_owner_blocks_match_and_old_admission_adapter"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_start_recovery_inflight_at_close_must_not_reopen",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered",
+        "tests/test_automation_retirement.py::test_no_owner_service_cannot_start_legacy_host"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_concurrent_stale_kicks_keep_one_runner_and_close_cancels_it",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_deferral_disable_order_and_stale_revision_never_resurrect",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_kick_after_owner_retirement_starts_successor",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime",
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_concurrency.py::test_close_before_new_runner_first_step_retires_registration",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_running_edge_durable_pause_and_dedupe",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_http.py::test_core_event_admission_is_queryable_over_canonical_http",
+        "tests/test_automation_core.py::test_event_admits_once_and_only_job_owner_dispatches"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_serial_cross_trigger_dynamic_and_disable",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_disable_cancels_queued_running_continues",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_state_cache_mapping_errors_and_skip",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_state_cache_false_and_unavailable_never_execute",
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_append_failure_no_effect_and_loop_responsive",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_durable_event_commit_precedes_any_admission_or_fanout",
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_recover_queued_uncertain_and_unavailable",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered",
+        "tests/test_automation_retirement.py::test_owner_fences_every_legacy_ledger_write"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_bus_plugin_identity_fanout_full_and_deactivate",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_bus_plugin_identity_fanout_full_and_deactivate"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_http_user_boundary_revision_token_expiry",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_http_user_boundary_revision_token_expiry"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_shutdown_interrupted_is_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_admission_fence_partial_persist_and_slow_disk",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_target_checkpoint_failure_stops_and_marks_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_dynamic_action_disabled_deleted_and_contract_failure",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect",
+        "tests/test_automation_retry_parallel.py::test_retry_requires_frozen_idempotence_and_cleanup_contract"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_backlog_full_visible_and_zero_targets",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_trigger_concurrent_revision_and_atomic_failure",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_trigger_concurrent_revision_and_atomic_failure"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_auth_expiry_and_restart",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_auth_expiry_and_restart"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_run_cancel_api_revision_and_business_state",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_core.py::test_run_cancel_api_revision_and_business_state"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_example_internal_plugin_runtime_lifecycle",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_bus_plugin_identity_fanout_full_and_deactivate",
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_redelivery_does_not_spend_backlog_capacity",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_concurrent_event_redelivery_persists_one_envelope_and_run",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_core.py::test_dependency_revocation_during_durable_claim_waits",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit",
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_http.py::test_real_running_event_pause_blocks_queue",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_http.py::test_core_event_admission_is_queryable_over_canonical_http",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_new_flow_idempotency_and_existing_flow_do_not_merge_sources",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_canonical_composition_replays_ids_and_never_merges_equal_sources",
+        "tests/test_automation_job_links.py::test_shared_creator_survives_other_composition_failure_and_revision_conflicts"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_failure_quarantines_drafts_and_retry_reuses_objects",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_canonical_partial_composition_is_fenced_and_resume_reuses_ids"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_job_disable_and_delete_preserve_shared_source_and_owner_is_protected",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_shared_creator_survives_other_composition_failure_and_revision_conflicts",
+        "tests/test_automation_retirement.py::test_legacy_links_refuse_mutation_without_touching_runtime"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_job_and_source_revision_conflicts_are_explicit",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_shared_creator_survives_other_composition_failure_and_revision_conflicts"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_managed_trigger_launches_chain_twice_without_direct_event_subscription",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_explicit_target_reused_across_events_and_restart",
+        "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_persistent_rollback_write_failure_cannot_publish_or_run_half_setup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_canonical_partial_composition_is_fenced_and_resume_reuses_ids"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_multiple_links_retain_trigger_ids_and_only_remove_detached_link",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_canonical_composition_reopens_by_original_operation_and_source_links",
+        "tests/test_automation_retirement.py::test_legacy_links_refuse_mutation_without_touching_runtime"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_disabling_source_does_not_cancel_admitted_job_chain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_disabling_creator_preserves_already_admitted_canonical_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_composition_http_auth_owner_protection_impact_and_creation_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup",
+        "tests/test_automation_job_links.py::test_canonical_partial_composition_is_fenced_and_resume_reuses_ids",
+        "tests/test_automation_retirement.py::test_legacy_links_refuse_mutation_without_touching_runtime"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_existing_source_failure_retry_does_not_disable_shared_source",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_shared_creator_survives_other_composition_failure_and_revision_conflicts"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_existing_action_job_timing_is_preserved_and_not_silently_migrated",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_links_refuse_mutation_without_touching_runtime",
+        "tests/test_job_final_admission.py::test_fa03_retained_legacy_subscription_is_read_only_after_cutover"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_job_target_mapping_is_frozen_per_admission_and_authorization_still_applies",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission",
+        "tests/test_automation_core.py::test_delegated_execution_revision_rechecked_before_first_effect"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_job_links.py::test_setup_resumes_with_rebuilt_stores_after_profile_owner_restart",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_canonical_composition_reopens_by_original_operation_and_source_links"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_http.py::test_node_parallel_finite_retries_and_uncertain_confirmation_http",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_http.py::test_http_uncertain_retry_is_rejected_by_original_run_identity",
+        "tests/test_automation_retry_http.py::test_http_retry_replays_operation_without_a_second_admission",
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_parallel_trigger_contract",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_parallel_trigger_contract"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_action_explicit_idempotence",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_action_explicit_idempotence"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_uncertain_confirmation_keeps_run_and_new_attempt",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_cleanup_unconfirmed_never_authorizes_automatic_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_unknown_types_and_bounds_rejected_without_write",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_types_and_bounds_rejected_without_write"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_action_idempotent_strict_boolean",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_action_idempotent_strict_boolean"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_defaults_and_concurrency_change_need_user_even_disabled",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_defaults_and_concurrency_change_need_user_even_disabled"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_parallel_bounded_independent_and_live_reduction",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_atomic_claim_fences_concurrent_readers_and_trigger_limit",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_retry_backoff_budget_identities_event_dedup_and_recovery",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats",
+        "tests/test_automation_retry_parallel.py::test_canonical_recovery_does_not_retry_failed_or_unknown_original_run"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_idempotence_or_policy_cannot_be_promoted_after_first_start",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_retry_requires_frozen_idempotence_and_cleanup_contract"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_action_change_during_backoff_fails_without_new_effect",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect",
+        "tests/test_automation_retry_parallel.py::test_retry_requires_frozen_idempotence_and_cleanup_contract"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_wait_cancel_disable_and_reenable_never_replay_history",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_query_retry_uses_frozen_targets_and_only_failed_targets",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_uncertain_no_auto_retry_confirm_revision_and_frozen_query",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_serial_retry_head_order_and_parallel_independent_tail",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_disable_running_allows_finish_cancels_queue_and_wait",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run",
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_retry_pause_gate_plugin_loss_and_new_generation",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_cancel_after_finish_commit_preserves_committed_outcome",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_retry_schedule_write_failure_is_uncertain_not_reexecution",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_uncertain_query_confirmation_reuses_ids_and_successes",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_manual_confirmation_is_bounded_and_disabled_rejected",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retry_http.py::test_http_uncertain_retry_is_rejected_by_original_run_identity"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_retry_defaults_cap_and_schema_matches_parser",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_retry_defaults_cap_and_schema_matches_parser"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_schema_and_confirmation_api_require_user_and_exact_revision",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup",
+        "tests/test_automation_retry_parallel.py::test_retry_operation_has_exact_revision_auth_and_replays_one_attempt"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_older_client_updates_preserve_explicit_scheduler_policy",
+      "action": "keep",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_older_client_updates_preserve_explicit_scheduler_policy"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_committed_retry_does_not_overlap_unretired_attempt_task",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_run_capacity_diagnostic_and_waiting_counts_as_pending",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history",
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_event_store_replay_during_backoff_never_resets_attempt",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_close_after_parallel_claim_before_child_start_creates_no_effect",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_automation_retry_parallel.py::test_parallel_empty_snapshot_wake_is_not_lost",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_eta_final_combined.py::test_node_query_pause_production_ui_restart_and_delay_mcp",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_eta_report_integration_http.py::test_trusted_locker_and_error_report_share_product_runtime",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_report_integration_http.py::test_terminal_report_and_event_admission_share_original_issue_without_extra_report",
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_store_duplicate_conflict_retention_capacity_and_paging",
+      "action": "keep",
+      "successors": [
+        "tests/test_event_store.py::test_store_duplicate_conflict_retention_capacity_and_paging"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_event_store.py::test_commit_precedes_fanout_schema_and_write_failure",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_durable_event_commit_precedes_any_admission_or_fanout"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_crash_after_commit_before_delivery_and_frozen_trigger_set",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_uncertain_preserves_attempt_and_refuses_user_replay",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity",
+        "tests/test_event_store.py::test_legacy_uncertain_event_replay_remains_refused"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_api_bounded_pages_replay_authorization_and_dedup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_run_retention_protects_pending_uncertain_and_retained_event",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_payload_and_bytes_capacity_fail_closed",
+      "action": "keep",
+      "successors": [
+        "tests/test_event_store.py::test_payload_and_bytes_capacity_fail_closed"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_event_store.py::test_failed_delivery_page_preserves_each_count_and_rolls_back_together",
+      "action": "keep",
+      "successors": [
+        "tests/test_event_store.py::test_failed_delivery_page_preserves_each_count_and_rolls_back_together"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_event_store.py::test_empty_event_release_is_read_only_and_existing_run_still_admitted",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_owner_fences_every_legacy_ledger_write",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_pending_old_plugin_events_do_not_starve_independent_event",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_dispatch_cancel_flushes_completed_failure_without_delivering_pending",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_dispatch_cancellation_flushes_failure_page_and_keeps_unfinished_event"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_slow_commit_cancellation_settles_and_restart_delivers",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return",
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_event_store.py::test_capacity_alarm_visible_without_evicting_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_event_store.py::test_plugin_revocation_while_waiting_for_admission_rejects_old_handle",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store.py::test_many_concurrent_same_event_ids_have_one_run_and_attempt",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_concurrent_event_redelivery_persists_one_envelope_and_run",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store_http.py::test_actual_running_event_persists_before_query_pause",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_receipt_http_points_to_same_run_before_and_after_dispatch"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_store_http.py::test_node_durable_event_http_replay_restart_and_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run",
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_revoke_during_action_preparation_defers_same_attempt",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_delegated_execution_revision_rechecked_before_first_effect",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_publication_does_not_block_same_peer_delivery_ack",
+      "action": "keep",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_publication_does_not_block_same_peer_delivery_ack"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_publication_queue_is_bounded_and_cancel_settles_commit",
+      "action": "keep",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_publication_queue_is_bounded_and_cancel_settles_commit"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_one_scheduler_io_failure_recovers_without_external_kick",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_maintenance_and_readmission_preserve_current_event_dedup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions",
+        "tests/test_event_store.py::test_concurrent_event_redelivery_persists_one_envelope_and_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_retained_run_rejects_different_fact_after_event_expiry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_retained_legacy_fact_identity_blocks_conflicting_republication_after_inbox_expiry"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_cancel_backoff_head_wakes_serial_tail",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_old_profile_copy_reopen_failure_recovery_and_repeat_maintenance",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered",
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_revocation_between_targets_preserves_success_and_never_auto_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect",
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_event_trigger_reliability.py::test_locker_trusted_binding_still_verified_before_each_target",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown",
+        "tests/test_automation_retirement.py::test_owner_blocks_legacy_quota_query_host_before_query_or_effect"
+      ],
+      "reason": "Policy config/read-only host safety retained over in-process HTTP; legacy query Job admission explicitly fenced."
+    },
+    {
+      "old": "tests/test_quota_host_http.py::test_owned_host_configuration_read_projection_and_restart",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_quota_host_http.py::test_owned_host_configuration_read_projection_and_restart",
+        "tests/test_automation_retirement.py::test_owner_blocks_legacy_quota_query_host_before_query_or_effect"
+      ],
+      "reason": "Policy config/read-only host safety retained over in-process HTTP; legacy query Job admission explicitly fenced."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa01_direct_trigger_reuses_visible_managed_job_across_events_and_restart",
+      "action": "retire",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_explicit_target_reused_across_events_and_restart"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa02_revision_is_provenance_not_event_dedup_identity",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa02_state_cached_false_and_read_error_never_execute",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_state_cache_false_and_unavailable_never_execute"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa03_trigger_lifecycle_only_gates_admission",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa03_trigger_lifecycle_only_gates_future_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa03_target_job_lifecycle_blocks_effects",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa03_direct_chain_has_one_managed_job_and_no_automation_attempts",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs",
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_identity_without_resend",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ],
+      "reason": "Assertions moved to canonical admission, Run/Step, Event inbox, or read-only history; no legacy effect host."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa03_embedded_event_subscription_enters_only_canonical_trigger_path",
+      "action": "retire",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa03_retained_legacy_subscription_is_read_only_after_cutover",
+        "tests/test_automation_retirement.py::test_owner_blocks_match_and_old_admission_adapter"
+      ],
+      "reason": "Legacy execution/attempt/scheduler protocol removed; negative control and canonical identity/control assertions replace it."
+    },
+    {
+      "old": "tests/test_job_final_admission.py::test_fa03_retired_trigger_hosts_are_absent",
+      "action": "keep",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa03_retired_trigger_hosts_are_absent"
+      ],
+      "reason": "Existing schema, auth, storage, or transport contract retained."
+    },
+    {
+      "old": "tests/test_eta_ledger_growth.py::test_owned_ledger_growth_measurement",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_ledger_growth.py::test_owned_ledger_growth_measurement"
+      ],
+      "reason": "Finite synthetic history read/refusal cost; bytes unchanged after refused historical mutation."
+    }
+  ],
+  "qaNewFailuresCovered": [
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_chain_mapping_freezes_on_event_acceptance",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result0-failed]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_failure_or_unknown_stops_before_next_effect"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result1-uncertain]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_failure_or_unknown_stops_before_next_effect"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_chain_failure_and_unknown_stop[result2-uncertain]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_chain_failure_or_unknown_stops_before_next_effect"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_cancel_and_restart_running_step_never_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_boundary_recovers_same_run_without_effect_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_boundary_restart_queries_same_run_and_preserves_completed_step"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_failed_retry_only_current_idempotent_step",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_running_step_restart_never_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_post_effect_write_failure_blocks_chain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_action_chain::test_trigger_action_revoked_between_steps",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_core::test_running_edge_durable_pause_and_dedupe",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_http.py::test_core_event_admission_is_queryable_over_canonical_http",
+        "tests/test_automation_core.py::test_event_admits_once_and_only_job_owner_dispatches"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_core::test_state_cache_mapping_errors_and_skip",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_state_cache_false_and_unavailable_never_execute",
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_core::test_admission_fence_partial_persist_and_slow_disk",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_core::test_target_checkpoint_failure_stops_and_marks_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_core::test_dependency_revocation_during_durable_claim_waits",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit",
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_http::test_real_running_event_pause_blocks_queue",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_http.py::test_core_event_admission_is_queryable_over_canonical_http",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_job_links::test_disabling_source_does_not_cancel_admitted_job_chain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_job_links.py::test_disabling_creator_preserves_already_admitted_canonical_run"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_http::test_node_parallel_finite_retries_and_uncertain_confirmation_http",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_http.py::test_http_uncertain_retry_is_rejected_by_original_run_identity",
+        "tests/test_automation_retry_http.py::test_http_retry_replays_operation_without_a_second_admission",
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_uncertain_confirmation_keeps_run_and_new_attempt",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_cleanup_unconfirmed_never_authorizes_automatic_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_parallel_bounded_independent_and_live_reduction",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_atomic_claim_fences_concurrent_readers_and_trigger_limit",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_retry_backoff_budget_identities_event_dedup_and_recovery",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats",
+        "tests/test_automation_retry_parallel.py::test_canonical_recovery_does_not_retry_failed_or_unknown_original_run"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_idempotence_or_policy_cannot_be_promoted_after_first_start",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_retry_requires_frozen_idempotence_and_cleanup_contract"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_action_change_during_backoff_fails_without_new_effect",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect",
+        "tests/test_automation_retry_parallel.py::test_retry_requires_frozen_idempotence_and_cleanup_contract"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_wait_cancel_disable_and_reenable_never_replay_history",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_query_retry_uses_frozen_targets_and_only_failed_targets",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_uncertain_no_auto_retry_confirm_revision_and_frozen_query",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_serial_retry_head_order_and_parallel_independent_tail[serial]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_serial_retry_head_order_and_parallel_independent_tail[parallel]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_disable_running_allows_finish_cancels_queue_and_wait",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run",
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_retry_pause_gate_plugin_loss_and_new_generation",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_pause_resume_and_cancel_are_canonical_run_controls",
+        "tests/test_event_store.py::test_revoked_plugin_handle_waiting_for_admission_cannot_commit"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_cancel_after_finish_commit_preserves_committed_outcome",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_retry_schedule_write_failure_is_uncertain_not_reexecution",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_post_effect_checkpoint_failure_never_reexecutes_on_recovery"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_uncertain_query_confirmation_reuses_ids_and_successes",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retry_parallel.py::test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms",
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_manual_confirmation_is_bounded_and_disabled_rejected",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retry_http.py::test_http_uncertain_retry_is_rejected_by_original_run_identity"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_schema_and_confirmation_api_require_user_and_exact_revision",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup",
+        "tests/test_automation_retry_parallel.py::test_retry_operation_has_exact_revision_auth_and_replays_one_attempt"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_committed_retry_does_not_overlap_unretired_attempt_task",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel",
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_run_capacity_diagnostic_and_waiting_counts_as_pending",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history",
+        "tests/test_automation_concurrency.py::test_canonical_job_owns_concurrency_and_queued_cancel"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_event_store_replay_during_backoff_never_resets_attempt",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_close_after_parallel_claim_before_child_start_creates_no_effect",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_retry_parallel::test_parallel_empty_snapshot_wake_is_not_lost",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_eta_final_combined::test_node_query_pause_production_ui_restart_and_delay_mcp",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ]
+    },
+    {
+      "oldNode": "tests.test_eta_report_integration_http::test_trusted_locker_and_error_report_share_product_runtime",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_report_integration_http.py::test_terminal_report_and_event_admission_share_original_issue_without_extra_report",
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_commit_precedes_fanout_schema_and_write_failure",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_durable_event_commit_precedes_any_admission_or_fanout"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_crash_after_commit_before_delivery_and_frozen_trigger_set",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_uncertain_preserves_attempt_and_refuses_user_replay",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity",
+        "tests/test_event_store.py::test_legacy_uncertain_event_replay_remains_refused"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_api_bounded_pages_replay_authorization_and_dedup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_run_retention_protects_pending_uncertain_and_retained_event",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_empty_event_release_is_read_only_and_existing_run_still_admitted",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_owner_fences_every_legacy_ledger_write",
+        "tests/test_event_store.py::test_lost_subscription_receipt_queries_original_admission_never_resends"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_pending_old_plugin_events_do_not_starve_independent_event[0]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_pending_old_plugin_events_do_not_starve_independent_event[0.06]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_slow_commit_cancellation_settles_and_restart_delivers",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_slow_event_commit_cancellation_settles_before_return",
+        "tests/test_event_store.py::test_crash_after_commit_preserves_frozen_subscription_set_and_original_id"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_capacity_alarm_visible_without_evicting_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_capacity_alarm_refuses_new_event_without_evicting_history"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store::test_many_concurrent_same_event_ids_have_one_run_and_attempt",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_concurrent_event_redelivery_persists_one_envelope_and_run",
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store_http::test_actual_running_event_persists_before_query_pause",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_receipt_http_points_to_same_run_before_and_after_dispatch"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_store_http::test_node_durable_event_http_replay_restart_and_uncertain",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store_http.py::test_event_history_http_bounded_pages_authorized_replay_and_no_new_run",
+        "tests/test_event_store.py::test_replay_of_uncertain_canonical_run_preserves_effect_identity"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_revoke_during_action_preparation_defers_same_attempt[action_read]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_delegated_execution_revision_rechecked_before_first_effect",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_revoke_during_action_preparation_defers_same_attempt[target_checkpoint]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_delegated_execution_revision_rechecked_before_first_effect",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_one_scheduler_io_failure_recovers_without_external_kick[read]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_one_scheduler_io_failure_recovers_without_external_kick[claim]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_event_store.py::test_partial_subscription_failure_retries_only_missing_identity",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_cancel_backoff_head_wakes_serial_tail",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_old_profile_copy_reopen_failure_recovery_and_repeat_maintenance",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered",
+        "tests/test_event_store.py::test_retention_preserves_all_legacy_history_and_unsettled_admissions"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_revocation_between_targets_preserves_success_and_never_auto_replays",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_action_chain.py::test_action_revoked_between_steps_prevents_second_effect",
+        "tests/test_automation_retry_parallel.py::test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats"
+      ]
+    },
+    {
+      "oldNode": "tests.test_event_trigger_reliability::test_locker_trusted_binding_still_verified_before_each_target",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_eta_final_combined.py::test_runtime_issue_trusted_system_binding_and_no_payload_identity_fallback",
+        "tests/test_automation_core.py::test_session_targets_checkpoint_partial_and_event_selector"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa01_direct_trigger_reuses_visible_managed_job_across_events_and_restart",
+      "action": "retire",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_explicit_target_reused_across_events_and_restart"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa02_revision_is_provenance_not_event_dedup_identity",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa02_state_cached_false_and_read_error_never_execute[0-admitted]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_state_cache_false_and_unavailable_never_execute"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa03_target_job_lifecycle_blocks_effects[disabled]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa03_target_job_lifecycle_blocks_effects[paused]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_core.py::test_target_job_lifecycle_blocks_future_admission_without_cancelling_prior_run"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa03_direct_chain_has_one_managed_job_and_no_automation_attempts",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_two_triggers_same_job_have_independent_deduplicated_runs",
+        "tests/test_automation_action_chain.py::test_chain_and_arguments_freeze_at_canonical_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_job_final_admission::test_fa01_interrupted_intent_queries_original_identity_without_resend[True]",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_job_final_admission.py::test_fa01_interrupted_intent_queries_original_operation_without_resend"
+      ]
+    },
+    {
+      "oldNode": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown",
+        "tests/test_automation_retirement.py::test_owner_blocks_legacy_quota_query_host_before_query_or_effect"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_close_before_new_runner_first_step_retires_registration",
+      "action": "retire",
+      "successors": [
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_concurrent_stale_kicks_keep_one_runner_and_close_cancels_it",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_deferral_disable_order_and_stale_revision_never_resurrect",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_automation_http.py::test_run_http_auth_revision_cancel_and_original_operation_lookup"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_disable_between_claim_and_dependency_deferral_cancels",
+      "action": "retire",
+      "successors": [
+        "tests/test_event_store.py::test_trigger_disabled_after_accept_never_resurrects",
+        "tests/test_automation_retirement.py::test_legacy_execution_api_is_absent"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_empty_snapshot_then_match_cannot_lose_wakeup",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_concurrency.py::test_same_event_concurrent_admission_has_one_run_and_operation",
+        "tests/test_event_trigger_reliability.py::test_pending_unavailable_subscriptions_do_not_starve_next_page"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_kick_after_owner_retirement_starts_successor",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime",
+        "tests/test_automation_concurrency.py::test_serial_cancelled_head_does_not_starve_next_admission"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_start_recovery_inflight_at_close_must_not_reopen",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_history_is_read_only_and_never_recovered",
+        "tests/test_automation_retirement.py::test_no_owner_service_cannot_start_legacy_host"
+      ]
+    },
+    {
+      "oldNode": "tests.test_automation_concurrency::test_kick_read_inflight_at_close_must_not_spawn",
+      "action": "rewrite",
+      "successors": [
+        "tests/test_automation_retirement.py::test_canonical_service_start_close_does_not_drive_old_runtime",
+        "tests/test_automation_retirement.py::test_owner_blocks_match_and_old_admission_adapter"
+      ]
+    }
+  ],
+  "qaNewFailuresOutsideScope": [
+    "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]",
+    "tests.test_authorization_mcp::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]",
+    "tests.test_authorization_mcp::test_user_management_ignores_grants_forged_http_rejected_system_definitions_immutable",
+    "tests.test_authorization_runtime::test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation",
+    "tests.test_authorization_runtime::test_trigger_effect_revision_barrier",
+    "tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[codex]",
+    "tests.test_codex_session_conversion::test_other_adapter_readonly_and_security_gate_reject[cbc]",
+    "tests.test_interaction_runtime::test_real_auth_and_directed_engine",
+    "tests.test_job_action_chain::test_restart_boundary_reuses_original_run_and_never_reruns_completed",
+    "tests.test_job_action_chain::test_system_shell_steps_have_distinct_trusted_child_admissions",
+    "tests.test_job_action_chain::test_real_owned_commands_pass_structured_output_without_server",
+    "tests.test_job_action_chain::test_admitted_fixed_template_step_uses_original_template_revision",
+    "tests.test_job_action_http::test_complete_template_reference_snapshot_and_recovery_http",
+    "tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[edit]",
+    "tests.test_job_action_templates::test_running_snapshot_stable_terminal_cleanup_and_no_auto_restore[delete]",
+    "tests.test_job_action_templates::test_cancel_exception_shutdown_and_recovery_remove_snapshots",
+    "tests.test_job_action_templates::test_cleanup_failure_is_visible_cleaning_and_retries_cleanup_only",
+    "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop",
+    "tests.test_job_action_templates::test_snapshot_write_or_post_effect_checkpoint_failure_never_replays",
+    "tests.test_job_action_templates::test_terminal_job_write_failure_after_cleanup_recovers_same_run_once",
+    "tests.test_job_action_templates::test_fixed_template_action_capability_idempotence_and_group_gate",
+    "tests.test_job_action_templates::test_running_template_instantiation_uses_private_context_after_template_delete",
+    "tests.test_job_action_templates::test_api_permissions_unknown_fields_legacy_aliases_and_repair",
+    "tests.test_job_action_templates::test_duplicate_profile_owner_cannot_recover_or_close_active_execution",
+    "tests.test_job_action_templates::test_notification_retry_is_independent_of_effect_and_snapshot",
+    "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+    "tests.test_job_chain_phase5_e2e::test_real_mcp_legacy_message_and_process_become_action_jobs",
+    "tests.test_job_chain_phase5_e2e::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy",
+    "tests.test_job_delete_main_combination::test_authorized_action_delete_preserves_active_snapshot_and_legacy_guard",
+    "tests.test_job_inbox_http::test_jobs_templates_and_inbox_share_queue_without_consumption_or_permission_leak",
+    "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+    "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+    "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+    "tests.test_job_overlap::test_parallel_claim_bound_independent_jobs_and_terminal_cleanup",
+    "tests.test_job_overlap::test_queue_is_persistent_bounded_and_disable_cancels_waiting",
+    "tests.test_job_unified_contract::test_monitoring_without_signal_enters_restarting",
+    "tests.test_job_unified_http::test_unified_event_system_actions_legacy_and_production_ui",
+    "tests.test_legacy_job_transition_http::test_dual_job_tabs_and_old_lifecycle_over_real_http",
+    "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+    "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+    "tests.test_locker_independent_http::test_owned_notification_consumption_and_restart",
+    "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[unpinned_trigger]",
+    "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[pinned_action]",
+    "tests.test_locker_independent_review::test_fixed_choice_must_not_execute_changed_action[after_admission]",
+    "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+    "tests.test_locker_product_live::test_locker_messages_cards_real_service_browser_cli_restart",
+    "tests.test_locker_runtime_http::test_product_locker_login_choice_pause_restart",
+    "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[approval]",
+    "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[admission]",
+    "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[effect]",
+    "tests.test_locker_trusted_binding::test_fixed_meaning_barriers[revoked_effect]",
+    "tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[False]",
+    "tests.test_locker_trusted_binding::test_cold_queued_run_and_unknown_original_receipt[True]",
+    "tests.test_locker_trusted_binding::test_later_attempt_cannot_read_new_action",
+    "tests.test_mcp_handbook.TestDescriptionCallChain::test_every_tool_ends_with_pan_skill_pointer",
+    "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[standalone]",
+    "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[pan_native]",
+    "tests.test_plugin_events::test_real_external_fanout_action_and_shared_session_lifetime[gateway]",
+    "tests.test_plugin_events::test_external_rejections_disconnect_and_queue_restore",
+    "tests.test_plugin_events::test_slow_external_subscriber_isolated_and_bounded",
+    "tests.test_plugin_events::test_service_restart_restores_queued_only_after_actual_plugin_ready",
+    "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]",
+    "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]",
+    "tests.test_plugin_events::test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]",
+    "tests.test_plugin_events_http::test_real_http_plugin_lifecycle_and_restart",
+    "tests.test_scheduler_legacy_bridge::test_switched_task_flows_event_trigger_job_and_system_action_audit",
+    "tests.test_session_query::test_recovery_preserves_frozen_targets_and_never_requeries",
+    "tests.test_session_query::test_query_real_isolated_http_fakecli",
+    "tests.test_session_query::test_query_overflow_is_failed_run_without_effects",
+    "tests.test_system_fields_http::test_worker_error_persists_system_session_and_pauses_via_mapping",
+    "tests.test_user_cards_live::test_real_http_stdio_locker_roundtrip_and_restart"
+  ],
+  "summary": {
+    "baselineTestDefinitions": 126,
+    "actions": {
+      "rewrite": 85,
+      "retire": 22,
+      "keep": 19
+    },
+    "qaNewFailuresTotal": 156,
+    "qaNewFailuresCovered": 85,
+    "qaNewFailuresOutsideScope": 71
+  },
+  "verificationBoundary": "Successor HTTP uses TestClient/ASGI and owned temporary stores, not sockets/Node/Chromium/MCP. No remote CI, real profile migration, deployment, or human acceptance."
+}

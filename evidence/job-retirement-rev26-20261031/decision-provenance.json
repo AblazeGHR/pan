@@ -1,0 +1,8 @@
+{
+  "decision": "job-unknown-api-reject-approved-20261031",
+  "authority": "D:\\project\\Pan\\.workflow\\job-unification-review-20261028\\UNKNOWN_API_POLICY_AMENDMENT_20261031.md",
+  "authoritySha256": "525e185245128dd354e6f5d6060c895a9ffa028f711db68da08641eff8fd0c74",
+  "currentPolicyTestSha": "38b60e270c060a086705cbd5eb0b149f3d75441f",
+  "historicalRedPreserved": true,
+  "onlyCancelledBehavior": "unknown old action.api implicit assign fallback"
+}

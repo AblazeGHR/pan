@@ -1,0 +1,253 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="41" time="17.860" timestamp="2026-10-28T03:59:38.491575+08:00"><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-before-admit]" time="0.412" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-after-admit-before-cursor]" time="0.373" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-before-ack]" time="0.354" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-before-admit]" time="0.375" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-after-admit-before-cursor]" time="0.352" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-before-ack]" time="0.375" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_crash_reopen_recovers_each_committed_saga_boundary[before_event]" time="0.347" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_crash_reopen_recovers_each_committed_saga_boundary[after_event]" time="0.338" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_crash_reopen_recovers_each_committed_saga_boundary[after_cursor]" time="0.351" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_crash_reopen_recovers_each_committed_saga_boundary[after_legacy_pin]" time="0.353" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_crash_reopen_recovers_each_committed_saga_boundary[after_canonical_pin]" time="0.376" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_original_unknown_effects_and_receipts_are_never_replayed_or_marked_succeeded[after-admit-before-cursor]" time="0.336" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_original_unknown_effects_and_receipts_are_never_replayed_or_marked_succeeded[before-ack]" time="0.345" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_missing_original_commit_after_advance_stays_explicitly_uncertain" time="0.313" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_foreign_owner_and_changed_original_fact_are_refused" time="0.250" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_missing_proof_can_only_reconcile_by_original_committed_fact" time="0.378" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_adoption_rejects_shortcuts_and_identity_rebinding[advance]" time="0.270" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_adoption_rejects_shortcuts_and_identity_rebinding[ack]" time="0.276" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_adoption_rejects_shortcuts_and_identity_rebinding[changed_fact]" time="0.270" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_adoption_rejects_shortcuts_and_identity_rebinding[changed_timezone]" time="0.278" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_ack_has_durable_cursor_and_both_pin_release_proofs" time="0.319" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_runtime_internal_publish_and_ack_cannot_bypass_explicit_adoption" time="0.282" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-admit]" time="0.330"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_pending_adoption.py:340: in test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor
+    job = create_enabled("job", job_def(h), "job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_pending_adoption.py:337: in create_enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_pending_adoption" name="test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[after-admit-before-cursor]" time="0.429"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_pending_adoption.py:340: in test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor
+    job = create_enabled("job", job_def(h), "job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_pending_adoption.py:337: in create_enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_pending_adoption" name="test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor[before-ack]" time="0.462"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_pending_adoption.py:340: in test_only_explicit_unadmitted_identity_uses_existing_canonical_admission_and_executor
+    job = create_enabled("job", job_def(h), "job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_pending_adoption.py:337: in create_enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_pending_adoption" name="test_abrupt_process_exit_after_cursor_commit_cold_recovers_without_republication" time="0.752" /><testcase classname="tests.test_scheduler_pending_adoption" name="test_explicit_future_activation_uses_normal_canonical_drives_and_repeated_adopt_keeps_original_binding" time="0.445" /><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-admit]" time="0.352"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-after-admit-before-cursor]" time="0.436"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[False-before-ack]" time="0.490"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-admit]" time="0.453"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-after-admit-before-cursor]" time="0.474"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_explicit_host_adoption_continues_same_grid_and_effect_keys[True-before-ack]" time="0.482"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:71: in test_explicit_host_adoption_continues_same_grid_and_effect_keys
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication" time="0.453"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:138: in test_host_rechecks_successor_revision_and_cannot_activate_uncertain_publication
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_missing_original_commit_remains_uncertain_through_host_and_restart" time="0.486" /><testcase classname="tests.test_scheduler_source_migration" name="test_source_history_is_read_only_for_missing_and_pending_records" time="0.205" /><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-admit]" time="0.345"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:202: in test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[after-admit-before-cursor]" time="0.459"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:202: in test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary[before-ack]" time="0.396"><failure message="packages.jobs.final_contracts.ContractError: Session target does not exist">tests\test_scheduler_source_migration.py:202: in test_cold_creator_publication_and_canonical_admission_recover_before_effect_boundary
+    job, trigger = graph(service, cid)
+                   ^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:46: in graph
+    job = enabled(service, "job", job_def(SimpleNamespace(action=object_ref("action", action))), "successor-job")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_scheduler_source_migration.py:33: in enabled
+    item = service.write(kind, None, {"definition": value, "expectedRevision": 0, "requestKey": key}, actor=USER)["result"]["object"]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:384: in write
+    return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+packages\jobs\final_service.py:244: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:358: in mutate
+    self._references(db, kind, value["definition"], object_id=object_id)
+packages\jobs\final_service.py:190: in _references
+    self._check_literal_product_sessions(value, checked)
+packages\jobs\final_service.py:226: in _check_literal_product_sessions
+    raise fc.ContractError("invalid_schema", "Session target does not exist",
+E   packages.jobs.final_contracts.ContractError: Session target does not exist</failure></testcase><testcase classname="tests.test_scheduler_source_migration" name="test_canonical_retirement_keeps_original_identity_links_requests_and_event_history" time="0.531" /><testcase classname="tests.test_scheduler_source_migration" name="test_unrecognized_source_snapshot_is_preserved_without_auto_adoption" time="0.339" /></testsuite></testsuites>

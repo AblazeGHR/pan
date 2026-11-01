@@ -1,0 +1,45 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+..........FF.                                                            [100%]
+================================== FAILURES ===================================
+__________________ test_agent_authority_revocation_real_tcp ___________________
+tests\test_quota_native_admission.py:317: in test_agent_authority_revocation_real_tcp
+    job=h.policy.ensure_job(state,'once',now+10,actor=actor)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\quota_policy.py:566: in ensure_job
+    return self._ensure_job(state,purpose,at,account,wake_target,actor)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\quota_policy.py:570: in _ensure_job
+    return self.native.ensure(state,purpose,at,account,wake_target,actor)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\automation\quota_native.py:64: in ensure
+    result = self.service.admit_quota(self.key(state, purpose, actor), identity, at, actor=actor)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:321: in admit_quota
+    return self._operation(db, actor, "create", request_key, policy, "job", mutate)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:246: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:318: in mutate
+    refs = [object_ref(kind, self._object(db, kind, oid)) for kind, oid in objects]
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:174: in _object
+    return self._public(kind, item)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:168: in _public
+    return fc.validate_object(kind, copy.deepcopy(item))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2510: in validate_object
+    _validate_document(kind, value)
+packages\jobs\final_contracts.py:1863: in _validate_document
+    raise _validation_error(name, errors[0])
+E   packages.jobs.final_contracts.ContractError: event_creator: Additional properties are not allowed ('revision' was unexpected)
+_______ test_lost_admission_index_receipt_and_concurrent_duplicate_tcp ________
+tests\test_quota_native_admission.py:357: in test_lost_admission_index_receipt_and_concurrent_duplicate_tcp
+    agg=h.service.final.store.get(jid)['finalRuntime']
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'finalRuntime'
+=========================== short test summary info ===========================
+FAILED tests/test_quota_native_admission.py::test_agent_authority_revocation_real_tcp
+FAILED tests/test_quota_native_admission.py::test_lost_admission_index_receipt_and_concurrent_duplicate_tcp
+2 failed, 11 passed in 30.08s

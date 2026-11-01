@@ -1,0 +1,33 @@
+Isolated test child: inherited PAN_* removed; cwd=[USER_HOME]\AppData\Local\Temp\pan-r5-p4-baseline-md9_rdxf
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+_ test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:109: in test_runner_death_at_creation_edge_converges_without_survivors
+    assert legacy.reconcile_running(root)==1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = <function reconcile_running at 0x0000015EFF7C97A0>(WindowsPath('[USER_HOME]/AppData/Local/Temp/pytest-of-ablaze/pytest-5108/test_runner_death_at_creation_0/registry'))
+E    +    where <function reconcile_running at 0x0000015EFF7C97A0> = legacy.reconcile_running
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:109: in test_runner_death_at_creation_edge_converges_without_survivors
+    assert legacy.reconcile_running(root)==1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = <function reconcile_running at 0x0000015EFF7C97A0>(WindowsPath('[USER_HOME]/AppData/Local/Temp/pytest-of-ablaze/pytest-5108/test_runner_death_at_creation_1/registry'))
+E    +    where <function reconcile_running at 0x0000015EFF7C97A0> = legacy.reconcile_running
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:109: in test_runner_death_at_creation_edge_converges_without_survivors
+    assert legacy.reconcile_running(root)==1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = <function reconcile_running at 0x0000015EFF7C97A0>(WindowsPath('[USER_HOME]/AppData/Local/Temp/pytest-of-ablaze/pytest-5108/test_runner_death_at_creation_2/registry'))
+E    +    where <function reconcile_running at 0x0000015EFF7C97A0> = legacy.reconcile_running
+============================== warnings summary ===============================
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464
+  [USER_HOME]\AppData\Local\Programs\Python\Python314\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: timeout
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]
+3 failed, 19 deselected, 1 warning in 1.64s

@@ -8,7 +8,6 @@ import threading
 import uuid
 from contextlib import asynccontextmanager
 from multiprocessing.connection import Client, Listener
-from pathlib import Path
 
 from .runtime import Runtime, error
 
@@ -41,16 +40,23 @@ class Bridge:
         self.stopping = threading.Event()
         self.slots = threading.BoundedSemaphore(32)
         unique = uuid.uuid4().hex
+        self.endpoint = None
         if os.name == "nt":
             self.address = rf"\\.\pipe\pan-plugins-{os.getpid()}-{unique}"
         else:
-            # Keep the socket pathname short, while staying in the owning worktree.
-            path = Path(directory) / "plugin-ipc"
-            path.mkdir(parents=True, exist_ok=True)
-            self.address = str(path / f"{unique[:12]}.sock")
-        self.listener = Listener(self.address, family=_family(), authkey=None)
-        self.thread = threading.Thread(target=self._accept, name="pan-plugin-ipc", daemon=True)
-        self.thread.start()
+            from packages.core.platform.plugin_ipc import UnixEndpoint
+            self.endpoint = UnixEndpoint()
+            self.address = self.endpoint.address
+        try:
+            self.listener = Listener(self.address, family=_family(), authkey=None)
+            self.thread = threading.Thread(target=self._accept, name="pan-plugin-ipc", daemon=True)
+            self.thread.start()
+        except BaseException:
+            if hasattr(self, 'listener'):
+                self.listener.close()
+            if self.endpoint is not None:
+                self.endpoint.close()
+            raise
 
     def _accept(self):
         while not self.stopping.is_set():
@@ -99,17 +105,27 @@ class Bridge:
             self.listener.close()
             self.thread.join(3)
         await asyncio.to_thread(wake)
-        await self.runtime.close()
+        if self.thread.is_alive():
+            raise RuntimeError('Plugin IPC accept thread cleanup unconfirmed')
+        try:
+            await self.runtime.close()
+        finally:
+            if self.endpoint is not None:
+                self.endpoint.close()
 
 
 @asynccontextmanager
 async def plugin_lifespan(get_manifest, get_session, directory, on_native_change=None):
     runtime = Runtime(get_manifest, get_session, on_native_change, data_root=directory)
-    bridge = Bridge(runtime, directory)
+    try:
+        bridge = Bridge(runtime, directory)
+    except BaseException:
+        await runtime.close()
+        raise
     previous = os.environ.get(ENV)
     os.environ[ENV] = bridge.address
-    runtime.start()
     try:
+        runtime.start()
         yield runtime
     finally:
         if previous is None:

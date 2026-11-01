@@ -1,14 +1,22 @@
 // Production DOM/scroll geometry against the owned HTTP runtime; no interception.
 import {chromium, expect} from '@playwright/test';
 import fs from 'node:fs/promises';
+import {ReadCompletion} from './locker-read-completion.mjs';
 const [base,out,fixturePath] = process.argv.slice(2);
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(base) || /:(8767|8768)$/.test(base)) throw Error('Owned random port required');
 const f=JSON.parse(await fs.readFile(fixturePath,'utf8'));
 const browser=await chromium.launch({headless:true});
 const page=await browser.newPage({viewport:{width:1280,height:800}});
 const errors=[],writes=[],checks=[];
+const readCompletion=new ReadCompletion(f.ids);
+const bulkTimeoutMs=Math.min(120000,10000+f.ids.length*500);
+const bulkReadMetrics={timeoutMs:bulkTimeoutMs,elapsedMs:null,completion:null};
 page.on('pageerror',e=>errors.push(e.message));
 page.on('request',r=>{if(r.method()==='PUT'&&r.url().endsWith('/read'))writes.push(r.url());});
+page.on('request',r=>readCompletion.request(r));
+page.on('response',r=>readCompletion.response(r));
+page.on('requestfinished',r=>readCompletion.finished(r));
+page.on('requestfailed',r=>readCompletion.failed(r));
 const timeline=page.getByRole('region',{name:'Locker messages'});
 const rows=timeline.locator('article:visible');
 const geometry=()=>timeline.evaluate(n=>({top:n.scrollTop,height:n.scrollHeight,client:n.clientHeight}));
@@ -41,11 +49,23 @@ try {
   await expect.poll(async()=>timeline.locator(`[data-locker-entry="${f.ids[1]}"]`).evaluate(n=>Math.abs(n.getBoundingClientRect().top-n.parentElement.getBoundingClientRect().top))).toBeLessThan(3);
   expect(writes).toHaveLength(1);
   checks.push('explicit first-row read: source entry targets second chronological row and moves divider');
-  await page.getByTestId('locker-source-'+f.locker).getByRole('button',{name:'Read all',exact:true}).click();
-  await expect.poll(()=>writes.length).toBe(f.ids.length);
-  await expect(rows.getByRole('button',{name:'Mark read',exact:true})).toHaveCount(0);
-  await expect(rows.getByRole('button',{name:'Mark card as read',exact:true})).toHaveCount(0);
-  await expect(divider).toHaveCount(0);
+  const bulkStarted=performance.now();
+  const remaining=()=>Math.max(1,bulkTimeoutMs-(performance.now()-bulkStarted));
+  try {
+    await page.getByTestId('locker-source-'+f.locker).getByRole('button',{name:'Read all',exact:true}).click();
+    await expect.poll(()=>{const s=readCompletion.summary();return s.failures.length>0 || s.completed===s.expected;},
+      {timeout:remaining(),message:'all original read requests must complete successfully'}).toBe(true);
+    const completion=readCompletion.summary();
+    expect(completion.failures).toEqual([]);
+    expect(completion.completed).toBe(f.ids.length);
+    expect(writes).toHaveLength(f.ids.length);
+    await expect(rows.getByRole('button',{name:'Mark read',exact:true})).toHaveCount(0,{timeout:remaining()});
+    await expect(rows.getByRole('button',{name:'Mark card as read',exact:true})).toHaveCount(0,{timeout:remaining()});
+    await expect(divider).toHaveCount(0,{timeout:remaining()});
+  } finally {
+    bulkReadMetrics.elapsedMs=performance.now()-bulkStarted;
+    bulkReadMetrics.completion=readCompletion.summary();
+  }
   await page.locator('.locker-source-item.aggregate').click();
   await expect(rows).toHaveCount(50);
   await expect.poll(async()=>{const g=await geometry();return g.height-g.top-g.client;}).toBeLessThan(3);
@@ -99,4 +119,4 @@ try {
   checks.push('explicit user read survives browser reload and automatic Cookie session restoration without further writes');
   expect(errors).toEqual([]);
 } catch(e) {await page.screenshot({path:out+'/scroll-failure.png'});throw e;}
-finally {await fs.writeFile(out+'/scroll-browser.json',JSON.stringify({checks,errors,writes},null,2));await browser.close();}
+finally {await fs.writeFile(out+'/scroll-browser.json',JSON.stringify({checks,errors,writes,bulkReadMetrics},null,2));await browser.close();}

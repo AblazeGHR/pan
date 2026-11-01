@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="61.408" timestamp="2026-10-29T19:14:18.844869+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="14.410" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="14.000" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_edit_after_admission_keeps_actual_original_bot_target_text" time="4.922"><failure message="KeyError: 'plans'">tests\test_retirement_rev9_qq_http.py:125: in test_edit_after_admission_keeps_actual_original_bot_target_text
+    frozen = copy.deepcopy(q.h.service.final.get(item['id'])['plans'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'plans'</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]" time="13.749"><failure message="AssertionError: assert 'rejected' == 'unknown'&#10;  &#10;  - unknown&#10;  + rejected">tests\test_retirement_rev9_qq_http.py:148: in test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send
+    assert state['effects'][0]['receipt']['outcome'] == 'unknown'
+E   AssertionError: assert 'rejected' == 'unknown'
+E
+E     - unknown
+E     + rejected</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]" time="13.864"><failure message="AssertionError: assert 'succeeded' == 'unknown'&#10;  &#10;  - unknown&#10;  + succeeded">tests\test_retirement_rev9_qq_http.py:148: in test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send
+    assert state['effects'][0]['receipt']['outcome'] == 'unknown'
+E   AssertionError: assert 'succeeded' == 'unknown'
+E
+E     - unknown
+E     + succeeded</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,96 @@
+{
+  "port": 60966,
+  "launcher": "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\evidence\\quota-native\\production_http_server.py",
+  "generations": [
+    {
+      "pid": 20964,
+      "birthTime": 1793162495.7855155,
+      "listeners": [
+        {
+          "pid": 34580,
+          "birthTime": 1793162495.806932
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 20964,
+          "birthTime": 1793162495.7855155,
+          "retired": true
+        },
+        {
+          "pid": 2416,
+          "birthTime": 1793162495.7927594,
+          "retired": true
+        },
+        {
+          "pid": 34580,
+          "birthTime": 1793162495.806932,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    },
+    {
+      "pid": 38752,
+      "birthTime": 1793162504.1752267,
+      "listeners": [
+        {
+          "pid": 24192,
+          "birthTime": 1793162504.1951962
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 38752,
+          "birthTime": 1793162504.1752267,
+          "retired": true
+        },
+        {
+          "pid": 35820,
+          "birthTime": 1793162504.1818771,
+          "retired": true
+        },
+        {
+          "pid": 24192,
+          "birthTime": 1793162504.1951962,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    }
+  ],
+  "realAccountQueries": 0,
+  "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
+  "jobId": "job_346617e34ed0cfb148c3899e",
+  "runId": "run_6c996c7b34a146d4984fb0af",
+  "attemptId": "attempt_a764592b6b16406ca916f54a",
+  "effectKey": {
+    "operationOrdinal": 0,
+    "runId": "run_6c996c7b34a146d4984fb0af",
+    "stepId": "query",
+    "targetId": "system_quota_query_v1"
+  },
+  "adapterCalls": [
+    {
+      "method": "query",
+      "pid": 34580,
+      "at": 1793162499.4861562
+    },
+    {
+      "method": "query",
+      "pid": 34580,
+      "at": 1793162500.6334376
+    }
+  ],
+  "queryCalls": 2,
+  "onceExecutionQueries": 1,
+  "monitorBindingQueries": 1,
+  "wakeCalls": 0,
+  "effects": 1,
+  "attempts": 1,
+  "unknownPreserved": true,
+  "noResendAfterProcessRestart": true,
+  "allOwnedProcessesStopped": true
+}

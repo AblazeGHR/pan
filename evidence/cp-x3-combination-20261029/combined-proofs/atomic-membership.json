@@ -1,0 +1,14 @@
+{
+  "sourceSha": "e3fceb50fa1f059299b7fa179fee5cc069888c03",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "pid": 49672,
+  "birth": "134376874382869500",
+  "capturedBeforeResume": [
+    [
+      49672,
+      134376874382869500
+    ]
+  ],
+  "lateAssignForbidden": true
+}

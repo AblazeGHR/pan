@@ -1,0 +1,15 @@
+{
+  "authenticated": true,
+  "productionBundle": true,
+  "chromium": "153.0.8010.12",
+  "fakePanHostZone": "America/New_York",
+  "browserZone": "Asia/Tokyo",
+  "ordinaryLocalOnce": true,
+  "override": true,
+  "gapBlocked": true,
+  "foldTwoActualInstantsAndExplicitSecondChoice": true,
+  "fractionalAnchor": true,
+  "createdSources": 4,
+  "pageErrors": [],
+  "ownedChildWaitedInFinally": true
+}

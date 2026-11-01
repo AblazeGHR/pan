@@ -1,0 +1,11 @@
+{
+  "baseline": "ea0b71a888c9180401b2214ee517eca683ed98ac",
+  "comparison": "source lines, normalizing checkout CRLF; schema object equality",
+  "unchanged": {
+    "tests/test_interaction_questions.py": true,
+    "tests/test_locker_trusted_binding.py": true,
+    "tests/test_interaction_card_http.py": true,
+    "packages/automation/service.py": true,
+    "v1_schema_unchanged": true
+  }
+}

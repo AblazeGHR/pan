@@ -1,0 +1,54 @@
+{
+  "browserPort": 63003,
+  "tcpConnectableAfterTests": false,
+  "processes": "Real tests close all retained child handles/Job/desktop resources; original ownership assertions pass",
+  "dependencyJunction": "Earlier r14 link remains untouched; no retry of previously blocked cleanup",
+  "historicalProofsRestored": "Runner archived current outputs then restored historical tracked bytes",
+  "proofInventory": [
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+      "sha256": "d91202070751bda1a47d6933b711f5828d4823ca34e52b78ff5473b32c8685c2",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+      "sha256": "55a3a692b4cbc226af68b19032945c14fd9030677a60fbfcf45f277a9fd13bc5",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-base-direct.json",
+      "sha256": "57590e37023f9698975bc5b2a807cccdf9fc8a97e4115405b2081c480900f8b0",
+      "sourceSha": "87aa0f455fed0d486986821a3c2df21d18acc428"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-base.json",
+      "sha256": "6d483b650f7363c3efef5ff7fa7be98e87a2f07f14d92ead6b999c18056cb4dc",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-ancestor.json",
+      "sha256": "7f200a989216202987e58957a72c81b76f3013e0d6ac448b635032a630ece9dc",
+      "sourceSha": "87aa0f455fed0d486986821a3c2df21d18acc428"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv-direct.json",
+      "sha256": "8cee087e84e8c392799f4ec67d92d5de1b935598f07831d1dfd2f19bf39c3e7f",
+      "sourceSha": "87aa0f455fed0d486986821a3c2df21d18acc428"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/kill-tree-named-venv.json",
+      "sha256": "bff0c6bebfe6d8ac99e0152bf147e40caa2306c57dd0295e8fedf02ed75d8ffe",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/normal-exit.json",
+      "sha256": "76780c2f903b94c87e9fae778e2769087873129dc1c5b125e5432aa697ba1ca2",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    },
+    {
+      "path": "evidence/cp-x2-windows-hidden-20261028/proof/runner-hard-death.json",
+      "sha256": "cbdff9dceae4316894410651bec99a52820a4a514b85cf87800807b525a05b95",
+      "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5"
+    }
+  ]
+}

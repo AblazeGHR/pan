@@ -1,0 +1,36 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-source-receipt-20261029
+.FF...                                                                   [100%]
+================================== FAILURES ===================================
+__ test_cold_reopen_original_selection_and_config_change_never_resends[lost] __
+tests\test_session_resume_product.py:130: in test_cold_reopen_original_selection_and_config_change_never_resends
+    assert cold.final.query_original(calls[0]) or cold.final.query_original(h.owned['ses_a'].queue_pending[0]['id'])
+E   AssertionError: assert ([] or [])
+E    +  where [] = query_original('job-resume:75ce6941cbd3062cd03117131938b437ca057df57102db8d8bd7be3351e929d3')
+E    +    where query_original = <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F9867DF90>.query_original
+E    +      where <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F9867DF90> = <packages.jobs.final_service.FinalService object at 0x0000023F98636710>.final
+E    +  and   [] = query_original('q_094b7ca15b6b4a6d975f1dad17cb42e8')
+E    +    where query_original = <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F9867DF90>.query_original
+E    +      where <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F9867DF90> = <packages.jobs.final_service.FinalService object at 0x0000023F98636710>.final
+_ test_cold_reopen_original_selection_and_config_change_never_resends[crash] __
+tests\test_session_resume_product.py:130: in test_cold_reopen_original_selection_and_config_change_never_resends
+    assert cold.final.query_original(calls[0]) or cold.final.query_original(h.owned['ses_a'].queue_pending[0]['id'])
+E   AssertionError: assert ([] or [])
+E    +  where [] = query_original('job-resume:9a8bd4ffcb6fa625f912656c0d9cb12c7b517951ed27fe1f7d3f7ed15067675e')
+E    +    where query_original = <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F986F4FC0>.query_original
+E    +      where <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F986F4FC0> = <packages.jobs.final_service.FinalService object at 0x0000023F986F49D0>.final
+E    +  and   [] = query_original('q_8cd90998ac2b4a1186ca1c83bb99b232')
+E    +    where query_original = <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F986F4FC0>.query_original
+E    +      where <packages.jobs.final_runtime.coordinator.FinalRuntime object at 0x0000023F986F4FC0> = <packages.jobs.final_service.FinalService object at 0x0000023F986F49D0>.final
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_session_resume_product.py::test_cold_reopen_original_selection_and_config_change_never_resends[lost]
+FAILED tests/test_session_resume_product.py::test_cold_reopen_original_selection_and_config_change_never_resends[crash]

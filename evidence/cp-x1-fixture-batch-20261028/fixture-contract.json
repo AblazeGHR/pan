@@ -1,0 +1,22 @@
+{
+  "baseAfterMerge": "264af19d0c854039e16bda7b598dfeb281fea85b",
+  "originalAssertAstPreserved": {
+    "tests/support/agent_inbox_http_server.py": 1,
+    "tests/test_automation_canonical.py": 3,
+    "tests/test_quota_host_http.py": 36,
+    "tests/test_quota_policy_http.py": 36
+  },
+  "authorizedAssertSpellingOnly": "store.patreal_http -> store.path (two occurrences)",
+  "providerProbe": {
+    "statusSequence": [
+      "queued",
+      "unknown",
+      "rejected",
+      "queued"
+    ],
+    "sourceAndSourceSessionIdPreserved": true,
+    "effectKeysPreserved": true,
+    "calls": 4
+  },
+  "raw485EvidenceGitBlobsUnchanged": true
+}

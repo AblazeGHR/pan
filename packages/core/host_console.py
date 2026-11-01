@@ -143,7 +143,9 @@ class HostConsole:
         import msvcrt
         from .console_exit import ConsoleExit
         from .cli import request
-        console = ConsoleExit(lambda payload: request(port, "/api/main/exit", payload), strategy)
+        from .lifecycle_action import ACTION_ROUTE
+        console = ConsoleExit(lambda payload: request(
+            port, ACTION_ROUTE, {"operation": "exit", **payload}), strategy)
         def read():
             line = ""
             pause = threading.Event()

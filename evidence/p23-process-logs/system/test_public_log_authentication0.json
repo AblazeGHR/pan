@@ -1,0 +1,10 @@
+{
+  "originalFence": true,
+  "ownedTreeConfirmed": true,
+  "supervisorExited": true,
+  "invalidBearerRejected": true,
+  "revokedReadRejected": true,
+  "portReleased": true,
+  "supervisorsRemaining": [],
+  "interpreter": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
+}

@@ -1,0 +1,130 @@
+{
+  "clock": "monotonic_ns",
+  "events": [
+    {
+      "phase": "_read_stdout.enter",
+      "offset_ns": 4227100,
+      "thread": "main"
+    },
+    {
+      "phase": "_persist_terminal_state.enter",
+      "offset_ns": 8197500,
+      "thread": "main"
+    },
+    {
+      "phase": "_flush_history_now.enter",
+      "offset_ns": 9055100,
+      "thread": "main"
+    },
+    {
+      "phase": "_flush_history_now.exit",
+      "offset_ns": 10827500,
+      "thread": "main"
+    },
+    {
+      "phase": "_persist_terminal_state.exit",
+      "offset_ns": 10840700,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.worker.result.done",
+      "offset_ns": 10851400,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.queued",
+      "offset_ns": 10852200,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.worker.status.idle",
+      "offset_ns": 10857800,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.queued",
+      "offset_ns": 10858300,
+      "thread": "main"
+    },
+    {
+      "phase": "stdout.eof",
+      "offset_ns": 10879300,
+      "thread": "main"
+    },
+    {
+      "phase": "eof.handoff.queued",
+      "offset_ns": 10880100,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.delivered",
+      "offset_ns": 11336900,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.delivered",
+      "offset_ns": 11338800,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.enter",
+      "offset_ns": 11340300,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.dispatch",
+      "offset_ns": 11368400,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.handoff.queued",
+      "offset_ns": 11369200,
+      "thread": "main"
+    },
+    {
+      "phase": "eof.handoff.delivered",
+      "offset_ns": 11386200,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.handoff.delivered",
+      "offset_ns": 11393000,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.thread.enter",
+      "offset_ns": 11402900,
+      "thread": "worker"
+    },
+    {
+      "phase": "_read_stdout.exit",
+      "offset_ns": 44972000,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.enter",
+      "offset_ns": 44988800,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.thread.exit",
+      "offset_ns": 161548200,
+      "thread": "worker"
+    },
+    {
+      "phase": "enrich.await.return",
+      "offset_ns": 161767400,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.exit",
+      "offset_ns": 163656100,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.exit",
+      "offset_ns": 163665300,
+      "thread": "main"
+    }
+  ]
+}

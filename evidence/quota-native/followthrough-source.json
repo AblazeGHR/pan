@@ -1,0 +1,30 @@
+{
+  "requestedBase": "ea0b71a888c9180401b2214ee517eca683ed98ac",
+  "merge": "9cc715137a1fab92a2e7cdac835db1f4b20ea55d",
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "sha256": {
+    "tests/support/quota_host_http_server.py": "9abcb18587e1f3d78e51ef62cc4f5ddcb8a0a22552d797a88d3cc237f44bde9b",
+    "tests/test_quota_native_admission.py": "40ac9459fe9cea8be1f628163da317ada79aff8e9a8bcdd88ce99f63d8492691",
+    "packages/automation/quota_host.py": "fb1f8baddd4b10fe629be977127b573908a7fcf36d94d8634023ae856bc38caf",
+    "packages/automation/service.py": "174f29a60bd6d8276996c7b32d5d9e5099d7375410f58a14e90e4cefd57a5642",
+    "packages/automation/api.py": "04e64a8a040231c46daf6564634329734d12de4597e5fedcf92a00b6c05638f4",
+    "packages/jobs/final_service.py": "ffe630b8b8d029b7302250452f0a8e268b5a55fadb7b8ad6b288111691905c10",
+    "packages/actions/typed_executor.py": "43aece7616cadf35d306d34a4b8a7952f262b9a6ca517aea6157d9bd39bfecf5",
+    "tests/test_quota_host_http.py": "f463991f1b54f9dd8553967c20249c74b04c485c753e1e8e01d0857a593619c6",
+    "tests/test_quota_policy_http.py": "f674c137551586c62f8267bb98854d1cc428e46879a24e2c211e2a68434fba2c",
+    "tests/test_job_retirement_quota_transport.py": "b1805396aad0735c340a7cd2c09dce25212b788b0f908e0551301ab6160a7df3"
+  },
+  "regression": {
+    "result": "99 passed in 88.18s",
+    "exitCode": null,
+    "note": "terminal pytest summary persisted; original exec session no longer available after continuation"
+  },
+  "processCleanupVerified": true,
+  "commands": [
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_host_http.py::test_owned_host_configuration_read_projection_and_restart_real_http -q -o addopts= --tb=short -W ignore --basetemp=evidence/quota-native/host-owned-temp",
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_policy_http.py tests/test_job_retirement_quota_transport.py -q -o addopts= --tb=short -W ignore",
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_native_admission.py::test_unknown_production_process_restart_real_http -q -o addopts= --tb=short -W ignore",
+    "& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_quota_native_admission.py tests/test_quota_host.py tests/test_quota_provider_source.py -q -o addopts= --tb=short -W ignore"
+  ]
+}

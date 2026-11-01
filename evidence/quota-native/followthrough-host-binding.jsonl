@@ -1,0 +1,6 @@
+{"phase": "before-binding", "pid": 15504, "at": 1793172655.2911046, "adapter": "Adapter"}
+{"phase": "bound-readonly", "pid": 15504, "at": 1793172655.301452, "adapter": "HostAdapter", "mutationPorts": 0}
+{"phase": "sample-start", "pid": 15504, "at": 1793172658.3975356}
+{"phase": "sample-end", "pid": 15504, "at": 1793172658.7141764, "providerStatus": "known", "nativeStatus": "known"}
+{"phase": "before-binding", "pid": 37716, "at": 1793172661.9723642, "adapter": "Adapter"}
+{"phase": "bound-readonly", "pid": 37716, "at": 1793172661.9749541, "adapter": "HostAdapter", "mutationPorts": 0}

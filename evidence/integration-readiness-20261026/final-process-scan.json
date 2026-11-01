@@ -1,0 +1,4 @@
+{
+  "matchingTestProcesses": [],
+  "scope": "command-line owned-worktree test entrypoints only; not global process ownership proof"
+}

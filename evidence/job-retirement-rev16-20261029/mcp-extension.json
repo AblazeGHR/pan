@@ -1,0 +1,8 @@
+{
+  "mcpVersion": "1.28.1",
+  "file": "D:\\project\\Pan-main\\.venv\\Lib\\site-packages\\mcp\\server\\fastmcp\\server.py",
+  "sha256": "6feed1a5c112acf1cf3f35e887463b54920c695484bcfeea29f86b6f4c2e0127",
+  "extension": "Public FastMCP.call_tool override via subclass; base _setup_handlers binds self.call_tool",
+  "setupSource": "    def _setup_handlers(self) -> None:\n        \"\"\"Set up core MCP protocol handlers.\"\"\"\n        self._mcp_server.list_tools()(self.list_tools)\n        # Note: we disable the lowlevel server's input validation.\n        # FastMCP does ad hoc conversion of incoming data before validating -\n        # for now we preserve this for backwards compatibility.\n        self._mcp_server.call_tool(validate_input=False)(self.call_tool)\n        self._mcp_server.list_resources()(self.list_resources)\n        self._mcp_server.read_resource()(self.read_resource)\n        self._mcp_server.list_prompts()(self.list_prompts)\n        self._mcp_server.get_prompt()(self.get_prompt)\n        self._mcp_server.list_resource_templates()(self.list_resource_templates)\n",
+  "callSource": "    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Sequence[ContentBlock] | dict[str, Any]:\n        \"\"\"Call a tool by name with arguments.\"\"\"\n        context = self.get_context()\n        return await self._tool_manager.call_tool(name, arguments, context=context, convert_result=True)\n"
+}

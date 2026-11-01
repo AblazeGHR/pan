@@ -1,0 +1,83 @@
+{
+  "sourceSha": "021b4f603112e1af56aefaa7b49f4003b26f89f0",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "final": {
+    "argv": [
+      "python",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "python",
+      "-m",
+      "pytest",
+      "tests/test_job_final_independent_execution.py",
+      "tests/test_job_final_executors.py",
+      "tests/test_independent_job_service.py",
+      "tests/test_main_lifecycle_jobs.py",
+      "tests/test_job_system_actions.py",
+      "tests/test_job_cleanup_failures.py",
+      "tests/test_job_delete_safety.py",
+      "tests/test_hidden_job_token.py",
+      "tests/test_platform_process_contract.py",
+      "tests/test_platform_process_posix_unit.py",
+      "tests/test_platform_layer.py",
+      "tests/test_r5_p4_platform.py",
+      "tests/test_platform_import_chain.py",
+      "tests/test_platform_api.py",
+      "tests/test_independent_job_bridge.py",
+      "tests/test_independent_job_deployment.py",
+      "tests/test_independent_composition_observations.py",
+      "tests/test_job_final_runtime.py",
+      "tests/test_job_final_http_service.py",
+      "tests/test_job_delete_main_combination.py",
+      "tests/test_job_delete_http_owned.py",
+      "tests/test_job_lifecycle_prevention.py",
+      "-o",
+      "addopts=",
+      "-q",
+      "--tb=short",
+      "--junitxml=artifacts/r5-p4/final.xml"
+    ],
+    "exitCode": 1,
+    "passed": 369,
+    "failed": 4,
+    "skipped": 20
+  },
+  "collection": {
+    "argv": [
+      "python",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "python",
+      "artifacts/r5-p4/with_temp_deps.py",
+      "--deps",
+      "TEMP_TEST_DEPENDENCIES",
+      "tests/",
+      "--collect-only",
+      "-o",
+      "addopts=",
+      "-q",
+      "--junitxml=artifacts/r5-p4/collection.xml"
+    ],
+    "exitCode": 0,
+    "collected": 6573
+  },
+  "import": {
+    "argv": [
+      "python",
+      "scripts/run_tests_isolated.py",
+      "--",
+      "python",
+      "artifacts/r5-p4/with_temp_deps.py",
+      "--deps",
+      "TEMP_TEST_DEPENDENCIES",
+      "--import-server"
+    ],
+    "exitCode": 0
+  },
+  "notes": [
+    "TEMP_TEST_DEPENDENCIES was created via tempfile outside the repository.",
+    "pip install --target TEMP_TEST_DEPENDENCIES playwright pytest-timeout; no browser installed.",
+    "Only trailing whitespace in process_structs_win.py was normalized between final tests and the source commit.",
+    "Baseline comparison extracted git archive cb3b5bd1 packages tests scripts pytest.ini into a temporary directory, used the same interpreter and isolation runner, then deleted that temporary source directory."
+  ]
+}

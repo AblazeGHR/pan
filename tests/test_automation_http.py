@@ -9,6 +9,44 @@ import psutil
 
 from tests import test_real_queue_http_e2e as harness
 from tests.test_automation_core import action, trigger
+import asyncio
+from tests.test_automation_canonical import canonical, subscription, fact, deliver, run
+
+
+def test_core_event_admission_is_queryable_over_canonical_http(canonical):
+    h = canonical
+    job, target = subscription(h)
+    _, receipts = asyncio.run(deliver(h, fact(h)))
+    rid = receipts['trigger:' + target['id']]['runId']
+    response = h.client.get('/api/job-runs/' + rid)
+    assert response.status_code == 200 and response.json()['state'] == 'queued'
+    assert response.json()['cause'] == {'type':'event', 'eventId':'event', 'triggerId':target['id']}
+    assert h.provider.calls == []
+    asyncio.run(h.service.dispatch_once())
+    assert h.client.get('/api/job-runs/' + rid).json()['state'] == 'completed'
+    assert len(h.client.get('/api/jobs/' + job['id'] + '/runs').json()['items']) == 1
+    assert len(h.provider.calls) == 1
+
+
+def test_run_http_auth_revision_cancel_and_original_operation_lookup(canonical):
+    h = canonical
+    job, target = subscription(h)
+    _, receipts = asyncio.run(deliver(h, fact(h)))
+    rid = receipts['trigger:' + target['id']]['runId']
+    url = '/api/job-runs/' + rid + '/operations'
+    body = {'operation':'cancel', 'expectedStateRevision':run(h, rid)['stateRevision'], 'requestKey':'cancel'}
+    assert h.client.get('/api/job-runs/' + rid, headers={'Authorization':'Bearer invalid'}).status_code == 401
+    assert h.client.post(url, json=body, headers={'Authorization':'Bearer invalid'}).status_code == 401
+    assert h.client.post(url, json={**body, 'expectedStateRevision':999}).status_code == 409
+    response = h.client.post(url, json=body)
+    assert response.status_code == 202, response.text
+    cancellation = response.json()
+    asyncio.run(h.service.dispatch_once())
+    assert run(h, rid)['state'] == 'cancelled' and not h.provider.calls
+    op = h.client.get('/api/operations/' + cancellation['operationId']).json()
+    assert op['status'] == 'completed' and op['runId'] == rid
+    assert h.client.post(url, json={**body, 'requestKey':'after-finish',
+        'expectedStateRevision':run(h, rid)['stateRevision']}).status_code == 409
 
 
 def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=None):
@@ -119,7 +157,3 @@ def run_automation_http(tmp_path, monkeypatch, selector_mode='explicit', output=
         output.mkdir(parents=True, exist_ok=True)
         (output / 'http-evidence.json').write_text(json.dumps(evidence, indent=2), encoding='utf-8')
         (output / 'http-server.log').write_text((runtime.data_root / 'pan.log').read_text(encoding='utf-8', errors='replace'), encoding='utf-8')
-
-
-def test_real_running_event_pause_blocks_queue(tmp_path, monkeypatch):
-    run_automation_http(tmp_path, monkeypatch)

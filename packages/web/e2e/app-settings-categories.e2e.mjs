@@ -97,8 +97,11 @@ try {
     if (/:(8767|8768)(\/|$)/.test(url)) protectedRequests.push(url);
     const path = new URL(url).pathname;
     if (request.method() !== 'GET') writeRequests.push(`${request.method()} ${path}`);
-    if (path === '/api/main/restart') restartRequests.push(url);
-    if (path === '/api/main/exit') exitRequests.push(url);
+    if (path === '/api/system-actions/main-lifecycle') {
+      const operation = request.postDataJSON()?.operation;
+      if (operation === 'restart') restartRequests.push(url);
+      if (operation === 'exit') exitRequests.push(url);
+    }
     if (path === '/api/settings/session-lifecycle' && request.method() === 'PUT') {
       lifecycleWrites.push(request.postData() ?? '');
     }

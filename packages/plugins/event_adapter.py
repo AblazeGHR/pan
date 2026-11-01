@@ -62,6 +62,7 @@ class EventConnection:
         self.closed = False
         self.ready = False
         self.stderr = None
+        self.reader_awaiting_cleanup = False
         self.startup = None
         self.cleanup = None
         self.revocation = None
@@ -227,7 +228,15 @@ class EventConnection:
             for future in self.pending.values():
                 if not future.done():
                     future.set_exception(RuntimeError('Event connection disconnected'))
+            owns_cleanup = self.cleanup is None
+            if owns_cleanup:
+                self.reader_awaiting_cleanup = True
             self.retire(failed=not self.closed)
+            if owns_cleanup:
+                # A terminal reader owns retirement: observers awaiting it must
+                # see stderr and process teardown completed. _close must not
+                # await this reader while it is waiting on that same cleanup.
+                await asyncio.shield(self.cleanup)
 
     async def publish(self):
         while True:
@@ -289,7 +298,7 @@ class EventConnection:
             # Durable admission settles its off-loop commit on cancellation.
             # Join it before returning cleanup, even if disk exceeds pipe timeout.
             await asyncio.gather(self.publisher, return_exceptions=True)
-        tasks = [t for t in (self.reader, self.stderr) if t]
+        tasks = [t for t in (None if self.reader_awaiting_cleanup else self.reader, self.stderr) if t]
         for task in tasks:
             task.cancel()
         async with asyncio.timeout(TIMEOUT):

@@ -1,0 +1,14 @@
+{
+  "transport": "owned-loopback-HTTP",
+  "executor": "product-default-detached",
+  "pulse": "FinalService.start",
+  "coldReopen": true,
+  "originalCleanupComplete": true,
+  "originalSupervisorExited": true,
+  "runs": 1,
+  "attempts": 2,
+  "distinctEffects": 1,
+  "actualInvocations": 2,
+  "executorHistoryRows": 1,
+  "ownedPortReleased": true
+}

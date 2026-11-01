@@ -1,0 +1,18 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-r1-wp07-ui-20261025/packages/web/src
+
+ ✓ services/api.test.ts (30 tests) 33ms
+ ✓ services/api.legacyJobs.test.ts (5 tests) 9ms
+ ✓ services/canonicalJobs.test.ts (22 tests) 15ms
+ ✓ views/JobsView.schedule-shapes.test.tsx (5 tests) 480ms
+ ✓ views/CanonicalJobsView.test.tsx (18 tests) 1261ms
+ ✓ views/AutomationWorkspace.test.tsx (12 tests) 1548ms
+ ✓ views/AutomationView.test.tsx (14 tests) 1629ms
+ ✓ views/JobsView.bulk-search.test.tsx (25 tests) 2438ms
+
+ Test Files  8 passed (8)
+      Tests  131 passed (131)
+   Start at  03:04:42
+   Duration  4.63s (transform 637ms, setup 63ms, collect 2.87s, tests 7.41s, environment 5.23s, prepare 1.07s)
+
+JUNIT report written to D:/project/pan-worktrees/job-r1-wp07-ui-20261025/packages/artifacts/wp07-ui/vitest.xml

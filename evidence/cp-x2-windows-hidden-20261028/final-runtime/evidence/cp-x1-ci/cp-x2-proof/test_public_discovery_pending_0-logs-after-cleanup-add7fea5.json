@@ -1,0 +1,47 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_b82341ec4af90d349ea3594e29c2284276d824f30767deca4f09c82589e316bc",
+      "phase": "running",
+      "attempt": {
+        "attemptId": "attempt_e90231eda4e7440c981db792",
+        "leaseId": "lease_be8b97abb0164ec0a5703c4b",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": null,
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 41004,
+        "kind": "filetime",
+        "birth": "134376728604607217",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 40608,
+        "kind": "filetime",
+        "birth": "134376728602400916",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": null
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "publicDiscovery": true,
+    "pendingHrefReadable": true,
+    "discoveryColdReopenExit": 0,
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

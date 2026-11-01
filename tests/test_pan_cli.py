@@ -184,7 +184,7 @@ def test_lifecycle_http_guard_refuses_replaced_instance(monkeypatch):
     async def send(message):
         messages.append(message)
 
-    scope = {"type": "http", "method": "POST", "path": "/api/main/exit",
+    scope = {"type": "http", "method": "POST", "path": "/api/system-actions/main-lifecycle",
              "headers": [(b"x-pan-expected-pid", str(os.getpid()).encode()),
                          (b"x-pan-expected-created-at", b"11")]}
     asyncio.run(srv.CLIInstanceGuardMiddleware(next_call)(scope, None, send))

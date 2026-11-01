@@ -1,0 +1,101 @@
+{
+  "port": 61960,
+  "launcher": "D:\\project\\pan-worktrees\\xplat-worker-capability-20261027\\evidence\\quota-native\\production_http_server.py",
+  "generations": [
+    {
+      "pid": 15228,
+      "birthTime": 1793168734.656381,
+      "listeners": [
+        {
+          "pid": 14752,
+          "birthTime": 1793168734.6792324
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 15228,
+          "birthTime": 1793168734.656381,
+          "retired": true
+        },
+        {
+          "pid": 31028,
+          "birthTime": 1793168734.6620233,
+          "retired": true
+        },
+        {
+          "pid": 31028,
+          "birthTime": 1793168734.6620233,
+          "retired": true
+        },
+        {
+          "pid": 14752,
+          "birthTime": 1793168734.6792324,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    },
+    {
+      "pid": 3036,
+      "birthTime": 1793168743.518193,
+      "listeners": [
+        {
+          "pid": 24944,
+          "birthTime": 1793168743.546333
+        }
+      ],
+      "exitCode": 0,
+      "ownedProcesses": [
+        {
+          "pid": 3036,
+          "birthTime": 1793168743.518193,
+          "retired": true
+        },
+        {
+          "pid": 33836,
+          "birthTime": 1793168743.5313673,
+          "retired": true
+        },
+        {
+          "pid": 24944,
+          "birthTime": 1793168743.546333,
+          "retired": true
+        }
+      ],
+      "portReleased": true
+    }
+  ],
+  "realAccountQueries": 0,
+  "sourceCandidate": "a66edbaa94c1a12b22915267e22346a255f3740f",
+  "jobId": "job_5179a49dc353485a3b1c1973",
+  "runId": "run_67e5c666784f469cb4908a69",
+  "attemptId": "attempt_b6bed207ee504893aa196b77",
+  "effectKey": {
+    "operationOrdinal": 0,
+    "runId": "run_67e5c666784f469cb4908a69",
+    "stepId": "query",
+    "targetId": "system_quota_query_v1"
+  },
+  "adapterCalls": [
+    {
+      "method": "query",
+      "pid": 14752,
+      "at": 1793168738.109338
+    },
+    {
+      "method": "query",
+      "pid": 14752,
+      "at": 1793168739.5481303
+    }
+  ],
+  "queryCalls": 2,
+  "onceExecutionQueries": 1,
+  "monitorBindingQueries": 1,
+  "wakeCalls": 0,
+  "effects": 1,
+  "attempts": 1,
+  "unknownPreserved": true,
+  "noResendAfterProcessRestart": true,
+  "allOwnedProcessesStopped": true
+}

@@ -4,7 +4,7 @@ Background Jobs are durable records, not Workers. An Agent Worker may start and
 disappear while a process Runner or the Session-message scheduler continues.
 Process Jobs never use a shell. Session-message Jobs never interpret their
 `text` as a command: they call the same `worker.send_session` path as
-`agent_send`.
+`agent_send_to_queue`.
 
 ## Windows command window boundary
 
@@ -128,7 +128,7 @@ its `targetSessionId`.
 The following is agent-facing usage guidance for `agent_background_*` OS-process
 Jobs only — the ones that execute OS commands with terminal notices on an
 independent Runner. It does not apply to Session-message/broadcast Jobs
-(`agent_message_job_*`), Scheduler tasks, or ordinary `agent_assign`/`agent_send`
+(`agent_message_job_*`), Scheduler tasks, or ordinary `agent_assign`/`agent_send_to_queue`
 dispatch, and it changes no runtime mechanism. The read/cancel/retry tools stay
 available; this policy only defines when and how to use them.
 
@@ -180,7 +180,7 @@ delivery target, and a missing creator remains absent/null. The formatted
 Agent message starts with `////by pan system`, including when no creator is
 known. The existing `agent_notify` path has no `noticeKind` and continues to
 render its Agent source with the existing `@@@@by agent` format. Agent-created
-Session-message Jobs still use normal `agent_send` semantics and retain
+Session-message Jobs still use normal `agent_send_to_queue` semantics and retain
 `sourceSessionId` plus the `////by agent : <creatorSessionId> | <title>`
 message prefix.
 

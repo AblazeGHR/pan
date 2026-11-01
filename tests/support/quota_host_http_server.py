@@ -5,6 +5,7 @@ from pathlib import Path
 import runpy
 import subprocess
 import sys
+import time
 
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 from packages.automation import quota_host
@@ -25,7 +26,25 @@ def owned(store,worker,root):
         return json.loads(value.stdout)
     source=quota_host.ReadSource(data,bridge=type('FixtureBridge',(),{'runner':staticmethod(runner)})(),
         profile_resolver=lambda:profile,store_factory=lambda p:CodexQuotaStore(p,root=data/'quota-fixture'))
-    return quota_host.HostAdapter(store,source,quota_host.Bindings(worker))
+    adapter=quota_host.HostAdapter(store,source,quota_host.Bindings(worker))
+    diagnostic=data/'host-binding.jsonl'
+    def record(phase,**fields):
+        with diagnostic.open('a',encoding='utf-8') as stream:
+            stream.write(json.dumps({'phase':phase,'pid':os.getpid(),'at':time.time(),**fields})+'\n')
+    assert not adapter.ports
+    sample=adapter.sample
+    async def observed_sample():
+        record('sample-start')
+        try:
+            value=await sample()
+        except Exception as exc:
+            record('sample-error',errorType=type(exc).__name__)
+            raise
+        record('sample-end',providerStatus=value['provider']['status'],nativeStatus=value['native']['status'])
+        return value
+    adapter.sample=observed_sample
+    record('factory-constructed-readonly',adapter=type(adapter).__name__,mutationPorts=len(adapter.ports))
+    return adapter
 
 
 quota_host.production=owned

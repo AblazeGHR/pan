@@ -1,0 +1,28 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+FF.                                                                      [100%]
+================================== FAILURES ===================================
+___________ test_coverage_lists_lite_omissions_without_sqlite_open ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6307/test_coverage_lists_lite_omiss0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C97E92FA80>
+
+    def test_coverage_lists_lite_omissions_without_sqlite_open(tmp_path, monkeypatch):
+>       from scripts.job_final_migration.source_coverage import inventory_coverage
+E       ModuleNotFoundError: No module named 'scripts.job_final_migration.source_coverage'
+
+tests\test_job_migration_runtime_readiness.py:13: ModuleNotFoundError
+_______________ test_p9d_cli_exposes_explicit_synthetic_counts ________________
+
+    def test_p9d_cli_exposes_explicit_synthetic_counts():
+        p = subprocess.run([sys.executable, "-m", "scripts.job_final_migration.p9d_rehearsal", "run", "--help"],
+                           capture_output=True, text=True, timeout=20)
+        assert p.returncode == 0
+>       assert "--expected-simple" in p.stdout and "--expected-preserved" in p.stdout
+E       AssertionError: assert ('--expected-simple' in 'usage: python.exe -m scripts.job_final_migration.p9d_rehearsal run\n       [-h] --evidence EVIDENCE --packet PACKET -...n  --recorded-at RECORDED_AT\n  --original-root ORIGINAL_ROOT\n  --expected-manifest-sha256 EXPECTED_MANIFEST_SHA256\n')
+E        +  where 'usage: python.exe -m scripts.job_final_migration.p9d_rehearsal run\n       [-h] --evidence EVIDENCE --packet PACKET -...n  --recorded-at RECORDED_AT\n  --original-root ORIGINAL_ROOT\n  --expected-manifest-sha256 EXPECTED_MANIFEST_SHA256\n' = CompletedProcess(args=['D:\\project\\Pan-main\\.venv\\Scripts\\python.exe', '-m', 'scripts.job_final_migration.p9d_reh...d-at RECORDED_AT\n  --original-root ORIGINAL_ROOT\n  --expected-manifest-sha256 EXPECTED_MANIFEST_SHA256\n', stderr='').stdout
+
+tests\test_job_migration_runtime_readiness.py:36: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_runtime_readiness.py::test_coverage_lists_lite_omissions_without_sqlite_open
+FAILED tests/test_job_migration_runtime_readiness.py::test_p9d_cli_exposes_explicit_synthetic_counts
+2 failed, 1 passed in 2.49s

@@ -1,0 +1,22 @@
+diff --git a/tests/test_session_product_closure.py b/tests/test_session_product_closure.py
+index 95a16e65..1006392d 100644
+--- a/tests/test_session_product_closure.py
++++ b/tests/test_session_product_closure.py
+@@ -129,0 +130,2 @@ def test_product_missing_target_rejects_without_spawn(h):
++    sessions.save(sessions.Session(id="ses_missing", name="Owned admission target", queue_paused=True))
++    workers_before = set(worker.workers)
+@@ -131,0 +134,3 @@ def test_product_missing_target_rejects_without_spawn(h):
++    assert sessions.get("ses_missing", load_history=False) is not None
++    sessions.delete("ses_missing")
++    assert sessions.get("ses_missing", load_history=False) is None
+@@ -134,0 +140 @@ def test_product_missing_target_rejects_without_spawn(h):
++    assert set(worker.workers) == workers_before
+@@ -187,0 +194,2 @@ def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch
++    sessions.save(sessions.Session(id="ses_missing", name="Owned fanout admission target", queue_paused=True))
++    workers_before = set(worker.workers)
+@@ -197,0 +206,3 @@ def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch
++    assert sessions.get("ses_missing", load_history=False) is not None
++    sessions.delete("ses_missing")
++    assert sessions.get("ses_missing", load_history=False) is None
+@@ -208,0 +220 @@ def test_product_fanout_partial_unknown_cold_reopen_never_resends(h, monkeypatch
++        assert set(worker.workers) == workers_before

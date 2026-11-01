@@ -3,7 +3,7 @@
 契约来源：``data/workdirs/time_setting/PLAN_SCHEDULER.md`` §4（唯一契约源）。
 
 职责边界：本模块只做参数校验、camelCase 字段映射、统一响应包络与 WS 广播；
-持久化 / cron 求值 / 调度循环全部委托给内核（``store`` / ``cron`` / ``engine``）。
+历史读取委托给无副作用的 ``history``，预览使用 canonical TimeProvider，状态读取绑定的 FinalService。
 
 **禁止 import ``packages.web.server``**（会与 server.py 形成循环依赖）：WS 广播
 函数由 server.py 在启动时通过 :func:`bind` 注入。
@@ -13,19 +13,43 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from datetime import datetime
+import sqlite3
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request
-from packages.automation.authorization import may_read_jobs, require_job
+from fastapi import APIRouter, HTTPException, Request
+from packages.automation.authorization import may_read_jobs, principal, require_job
 
 from packages.core import session as sess
 from packages.core.config import load_config
 
-from . import cron as scheduler_cron
-from . import engine as scheduler_engine
-from . import store as scheduler_store
+from packages.jobs import cron as scheduler_cron
+from .providers import TimeProvider, timestamp
+from .history import History
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
+from .event_api import router as event_sources_router
+router.include_router(event_sources_router)
+
+
+RETIRED = {"code": "retired",
+           "message": "Legacy scheduler write entrypoint retired; use canonical event/job operations"}
+
+
+def retire(endpoint):
+    """Authenticate, then refuse a pre-canonical scheduler mutation.
+
+    Historical task reads and execution history stay served so existing
+    schedules remain inspectable until their owner is drained; create, update,
+    delete, pause/resume, run-now and event-source writes are not.
+    R6-C removed owner-switch entirely; its old address is not found.
+    """
+    async def retired_route(request: Request):
+        await principal(request)
+        raise HTTPException(status_code=410, detail=RETIRED)
+    retired_route.__name__ = endpoint.__name__
+    retired_route.__doc__ = endpoint.__doc__
+    retired_route.retirement_boundary = True
+    return retired_route
 
 
 DEFAULT_TIMEZONE = "Asia/Shanghai"
@@ -55,6 +79,11 @@ _RUN_RENAMES = {
     "session_id": "sessionId",
     "worker_id": "workerId",
 }
+
+
+def _compat(request):
+    return getattr(getattr(getattr(request, 'app', None), 'state', None), 'automation', None) if request is not None else None
+
 
 # 注入的 WS 广播函数（server.py → bind(broadcast=broadcast)）
 _state: dict = {"broadcast": None}
@@ -257,7 +286,7 @@ async def emit_strict(event: dict) -> bool:
 
 
 def on_event(event: dict) -> None:
-    """engine 的事件回调（server.py 用 ``start_loop(on_event=scheduler_api.on_event)`` 注入）。"""
+    """广播兼容事件；不注册或启动旧 scheduler host。"""
     if isinstance(event, dict) and event.get("type"):
         _emit(event)
 
@@ -275,209 +304,112 @@ def _emit_task(event_type: str, task: dict, **extra) -> None:
 # ── 路由 ──
 
 
+def _history(request):
+    service = getattr(getattr(getattr(request, 'app', None), 'state', None), 'job_final_service', None)
+    return History(getattr(service, 'root', None))
+
+
+async def _history_access(request):
+    # Preserve legacy task visibility, while rejecting unauthenticated reads.
+    if request is not None:
+        await principal(request)
+
+
+def _history_error(exc):
+    return _err("history_unavailable", str(exc))
+
+
 @router.get("/tasks")
-async def list_tasks(includeDisabled: bool = True, request: Request = None):
-    """列出全部定时任务（含 nextFireAt / lastFireAt / lastStatus）。"""
-    tasks = scheduler_store.list_tasks(include_disabled=includeDisabled)
-    if not await may_read_jobs(request):
-        from packages.jobs.action_runtime import is_action_job
-        tasks=[t for t in tasks if not is_action_job(scheduler_store._job_for_task(t['id']))]
-    return _ok(tasks=[_public(t) for t in tasks])
+async def list_tasks(includeDisabled: bool = True, request: Request = None,
+                     limit: int | None = None, offset: int = 0):
+    await _history_access(request)
+    if (limit is not None and not 1 <= limit <= 500) or offset < 0:
+        return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
+    try:
+        tasks = _history(request).tasks(includeDisabled)
+        if not await may_read_jobs(request):
+            from packages.jobs.action_runtime import is_action_job
+            tasks = [t for t in tasks if not is_action_job(t['history']['source'])
+                     or t['history']['source'].get('legacySchedulerCompat')]
+        return _ok(tasks=[_public(t) for t in tasks[offset:None if limit is None else offset + limit]], total=len(tasks))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.post("/tasks")
-async def create_task(data: dict):
-    """创建定时任务。Body: {name?, targetSessionId, text, schedule, enabled?, maxRuns?, misfirePolicy?}"""
-    if not isinstance(data, dict):
-        return _err("invalid_argument", "request body must be a JSON object")
-
-    text = data.get("text")
-    if not isinstance(text, str) or not text.strip():
-        return _err("invalid_argument", "text is required")
-
-    target = data.get("targetSessionId") or data.get("target_session_id")
-    if not isinstance(target, str) or not target.strip():
-        return _err("invalid_argument", "targetSessionId is required")
-    if not _session_exists(target):
-        return _err("session_not_found", f"Session {target} not found")
-
-    spec, why = _validate_schedule(data.get("schedule"))
-    if why:
-        return _err("invalid_schedule", why)
-
-    max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
-    if why:
-        return _err("invalid_argument", why)
-
-    policy = data.get("misfirePolicy", data.get("misfire_policy"))
-    if policy is None:
-        policy = "fire_now"
-    if policy not in _MISFIRE_POLICIES:
-        return _err("invalid_argument",
-                    f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
-
-    payload = {
-        "name": data.get("name") if isinstance(data.get("name"), str) else "",
-        "description": data.get("description") if isinstance(data.get("description"), str) else "",
-        "target_session_id": target,
-        "text": text,
-        "enabled": _as_bool(data.get("enabled"), True),
-        "paused": False,
-        "schedule": spec,
-        "max_runs": max_runs,
-        "misfire_policy": policy,
-    }
-    try:
-        task = scheduler_store.create_task(payload)
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    _emit_task("scheduler.task.created", task)
-    return _ok(task=_public(task))
+async def create_task(data: dict, request: Request = None):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str, request: Request = None):
-    """单个定时任务详情。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    await require_job(request, scheduler_store._job_for_task(task_id))
-    return _ok(task=_public(task))
+    await _history_access(request)
+    try:
+        history = _history(request)
+        task = history.get(task_id)
+        if task is None:
+            return _err("not_found", f"task {task_id} not found")
+        source = task['history']['source']
+        if not source.get('legacySchedulerCompat'):
+            await require_job(request, source)
+        return _ok(task=_public(task), **history.evidence(task))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.patch("/tasks/{task_id}")
-async def update_task(task_id: str, data: dict):
-    """局部更新：name / text / targetSessionId / schedule / enabled / paused / maxRuns / misfirePolicy。"""
-    if not isinstance(data, dict):
-        return _err("invalid_argument", "request body must be a JSON object")
-    if scheduler_store.get_task(task_id) is None:
-        return _err("not_found", f"task {task_id} not found")
-
-    patch: dict = {}
-    if "name" in data:
-        if not isinstance(data["name"], str):
-            return _err("invalid_argument", "name must be a string")
-        patch["name"] = data["name"]
-    if "description" in data:
-        if not isinstance(data["description"], str):
-            return _err("invalid_argument", "description must be a string")
-        patch["description"] = data["description"]
-    if "text" in data:
-        if not isinstance(data["text"], str) or not data["text"].strip():
-            return _err("invalid_argument", "text must be a non-empty string")
-        patch["text"] = data["text"]
-    if "targetSessionId" in data or "target_session_id" in data:
-        target = data.get("targetSessionId") or data.get("target_session_id")
-        if not isinstance(target, str) or not target.strip():
-            return _err("invalid_argument", "targetSessionId is required")
-        if not _session_exists(target):
-            return _err("session_not_found", f"Session {target} not found")
-        patch["target_session_id"] = target
-    if "schedule" in data:
-        spec, why = _validate_schedule(data["schedule"])
-        if why:
-            return _err("invalid_schedule", why)
-        patch["schedule"] = spec
-    if "enabled" in data:
-        patch["enabled"] = _as_bool(data["enabled"], False)
-    if "paused" in data:
-        patch["paused"] = _as_bool(data["paused"], False)
-    if "maxRuns" in data or "max_runs" in data:
-        max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
-        if why:
-            return _err("invalid_argument", why)
-        patch["max_runs"] = max_runs
-    if "misfirePolicy" in data or "misfire_policy" in data:
-        policy = data.get("misfirePolicy", data.get("misfire_policy"))
-        if policy not in _MISFIRE_POLICIES:
-            return _err("invalid_argument",
-                        f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
-        patch["misfire_policy"] = policy
-
-    try:
-        task = scheduler_store.update_task(task_id, patch)
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", task)
-    return _ok(task=_public(task))
+async def update_task(task_id: str, data: dict, request: Request = None):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.delete("/tasks/{task_id}")
-async def delete_task(task_id: str):
-    """删除定时任务。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    try:
-        scheduler_store.delete_task(task_id)
-    except ValueError as exc:
-        return _err("job_busy", str(exc))
-    _emit({"type": "scheduler.task.deleted", "taskId": task_id,
-           "sessionId": task.get("target_session_id")})
-    return _ok(deleted=True, taskId=task_id)
+async def delete_task(task_id: str, request: Request = None):
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/pause")
-async def pause_task(task_id: str):
-    """暂停（跳过触发，但 next_fire_at 仍按锚点推进，恢复后不爆发补跑）。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    updated = scheduler_store.update_task(task_id, {"paused": True})
-    if updated is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", updated)
-    return _ok(task=_public(updated))
+async def pause_task(task_id: str, request: Request = None):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/resume")
-async def resume_task(task_id: str):
-    """恢复暂停的任务。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    updated = scheduler_store.update_task(task_id, {"paused": False})
-    if updated is None:
-        return _err("not_found", f"task {task_id} not found")
-    _emit_task("scheduler.task.updated", updated)
-    return _ok(task=_public(updated))
+async def resume_task(task_id: str, request: Request = None):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.post("/tasks/{task_id}/run-now")
-async def run_task_now(task_id: str):
-    """立即触发一次（不影响 next_fire_at 的正常推进）。"""
-    task = scheduler_store.get_task(task_id)
-    if task is None:
-        return _err("not_found", f"task {task_id} not found")
-    try:
-        result = await scheduler_engine.run_now(task_id)
-    except RuntimeError as exc:
-        return _err("engine_not_running", str(exc))
-    except ValueError as exc:
-        return _err("invalid_schedule", str(exc))
-    if isinstance(result, dict) and result.get("error"):
-        error = result["error"]
-        if isinstance(error, dict):
-            return _err(str(error.get("code") or "engine_not_running"),
-                        str(error.get("message") or "run-now failed"))
-        return _err("engine_not_running", str(error))
-    current = scheduler_store.get_task(task_id) or task
-    _emit_task("scheduler.task.fired", current, run=result)
-    return _ok(run=result, task=_public(current))
+async def run_task_now(task_id: str, request: Request = None):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @router.get("/tasks/{task_id}/runs")
-async def task_runs(task_id: str, limit: int = 100, request: Request = None):
-    """某任务的执行历史（runs.jsonl，最新在前）。"""
-    if scheduler_store.get_task(task_id) is None:
-        return _err("not_found", f"task {task_id} not found")
-    if not isinstance(limit, int) or limit < 1 or limit > 500:
-        return _err("invalid_argument", "limit must be between 1 and 500")
-    await require_job(request, scheduler_store._job_for_task(task_id))
-    runs = scheduler_store.list_runs(task_id=task_id, limit=limit)
-    return _ok(runs=[_public_run(r) for r in runs])
+async def task_runs(task_id: str, limit: int = 100, request: Request = None, offset: int = 0):
+    await _history_access(request)
+    if not 1 <= limit <= 500 or offset < 0:
+        return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
+    try:
+        history = _history(request)
+        task = history.get(task_id)
+        if task is None:
+            return _err("not_found", f"task {task_id} not found")
+        source = task['history']['source']
+        if not source.get('legacySchedulerCompat'):
+            await require_job(request, source)
+        runs = history.runs(task)
+        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs))
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        return _history_error(exc)
 
 
 @router.get("/next")
@@ -485,23 +417,140 @@ async def next_preview(task_id: str | None = None, count: int = 5, request: Requ
     """下次触发时间预览（前端「下次运行」列用）。"""
     if not isinstance(count, int) or count < 1 or count > 20:
         return _err("invalid_argument", "count must be between 1 and 20")
-    if task_id and scheduler_store.get_task(task_id) is None:
+    await _history_access(request)
+    if task_id and _history(request).get(task_id) is None:
         return _err("not_found", f"task {task_id} not found")
     try:
-        items = await scheduler_engine.preview_next(task_id=task_id, count=count)
+        history = _history(request)
+        tasks = history.tasks()
         if not await may_read_jobs(request):
             from packages.jobs.action_runtime import is_action_job
-            items=[item for item in (items or []) if not is_action_job(scheduler_store._job_for_task(item.get('taskId', item.get('task_id'))))]
+            allowed = {t['id'] for t in tasks if not is_action_job(t['history']['source'])}
+        else:
+            allowed = {t['id'] for t in tasks}
+        items = _preview_next(history, task_id, count)
+        items = [item for item in items if item['taskId'] in allowed]
     except ValueError as exc:
         return _err("invalid_schedule", str(exc))
     return _ok(next=items or [])
 
 
+def _preview_next(history, task_id, count, *, at=None):
+    """Read-only historical projection using the canonical Creator calculator.
+
+    Legacy once/interval values are host-local instants; cron has its explicit
+    wall-clock zone. No Creator, cursor or publication is created or advanced.
+    """
+    provider = TimeProvider()
+    after = at or datetime.now().replace(microsecond=0)
+    boundary = timestamp(after.astimezone(timezone.utc))
+    tasks = [history.get(task_id)] if task_id else history.tasks(include_disabled=False)
+    result = []
+    for task in tasks:
+        if not task or not task.get('enabled'):
+            continue
+        spec = task.get('schedule') or {}
+        kind = spec.get('kind')
+        rule = {'ruleId': 'preview', 'type': kind}
+        local_wall = kind == 'cron' and not spec.get('timezone')
+        def legacy_instant(value):
+            point = scheduler_cron.parse_datetime(value)
+            if point is None:
+                raise ValueError('Historical schedule requires a valid instant')
+            return timestamp(point.astimezone(timezone.utc))
+        if kind == 'once':
+            rule['at'] = legacy_instant(spec.get('at'))
+        elif kind == 'interval':
+            rule.update(seconds=str(spec.get('interval_sec', spec.get('intervalSec'))),
+                        anchor=legacy_instant(spec.get('anchor') or task.get('createdAt', task.get('created_at'))),
+                        advanceMode='grid')
+        elif kind == 'cron':
+            rule.update(expression=spec.get('cron'),
+                        timezone=spec.get('timezone') or 'UTC',
+                        dstPolicy='gap-shift-fold-first')
+        provider.validate_config({'rules': [rule], 'misfirePolicy': 'skip',
+                                  'graceSeconds': '0', 'pausePolicy': 'advance'})
+        # A legacy cron without a zone uses naive local wall time. Evaluate
+        # that wall calendar in UTC, then return it unchanged as naive time.
+        cursor = timestamp(after.replace(tzinfo=timezone.utc)) if local_wall else boundary
+        for _ in range(count):
+            point = provider.next_after(rule, cursor)
+            if point is None:
+                break
+            cursor = point['at']
+            fire = datetime.fromisoformat(cursor.replace('Z', '+00:00'))
+            if not local_wall:
+                fire = fire.astimezone()
+            fire = fire.replace(tzinfo=None, microsecond=0)
+            result.append({'taskId': task['id'], 'fireAt': fire.isoformat()})
+    result.sort(key=lambda item: (item['fireAt'], item['taskId']))
+    return result[:count]
+
+
 @router.get("/status")
-async def engine_status():
-    """调度引擎健康状态（running / tickSec / dueScanned / lastTickAt）。"""
+async def engine_status(request: Request = None):
+    """Health of the canonical runtime bound to this application."""
+    service = getattr(getattr(getattr(request, 'app', None), 'state', None), 'job_final_service', None)
+    if service is None:
+        return _err('engine_not_running', 'Canonical runtime is not bound')
     try:
-        state = scheduler_engine.status()
-    except Exception as exc:  # 引擎不可用时不能让健康检查 500
-        return _err("engine_not_running", str(exc))
-    return _ok(status=state if isinstance(state, dict) else {})
+        task = service.task
+        runtime = service.creator_runtime
+        return _ok(status={'running': not service.closed and task is not None and not task.done(),
+                           'tickSec': 0.25, 'dueScanned': runtime.due_scanned,
+                           'lastTickAt': runtime.last_tick_at})
+    except Exception as exc:
+        return _err('engine_not_running', str(exc))
+
+
+# R5: retire the old scheduler mutations at the route table.  Handler bodies
+# remain for R6 source removal; task reads and run history stay available.
+RETIRED_ROUTES = {
+    ("POST", "/tasks"),
+    ("PATCH", "/tasks/{task_id}"),
+    ("DELETE", "/tasks/{task_id}"),
+    ("POST", "/tasks/{task_id}/pause"),
+    ("POST", "/tasks/{task_id}/resume"),
+    ("POST", "/tasks/{task_id}/run-now"),
+    ("POST", "/event-sources"),
+    ("PUT", "/event-sources/{sid}"),
+    ("DELETE", "/event-sources/{sid}"),
+}
+
+RETAINED_ROUTES = {
+    ("GET", "/tasks"),
+    ("GET", "/tasks/{task_id}"),
+    ("GET", "/tasks/{task_id}/runs"),
+    ("GET", "/next"),
+    ("GET", "/status"),
+    ("GET", "/event-sources"),
+}
+
+for _route in router.routes:
+    _path = getattr(_route, "path", None)
+    if _path is None:
+        # Included sub-router: retire the old event-source mutations on the
+        # sub-router itself so both mount points see the same boundary.
+        for _sub in _route.original_router.routes:
+            _retire = any((method, _sub.path) in RETIRED_ROUTES for method in _sub.methods)
+            _known = any((method, _sub.path) in RETIRED_ROUTES | RETAINED_ROUTES
+                         for method in _sub.methods)
+            if not _known:
+                raise RuntimeError(f"Unclassified scheduler route: {sorted(_sub.methods)} {_sub.path}")
+            if _retire:
+                _sub.endpoint = retire(_sub.endpoint)
+                _sub.deprecated = True
+                _sub.response_model = None
+        continue
+    _path = _path.removeprefix(router.prefix)
+    _retire = any((method, _path) in RETIRED_ROUTES for method in _route.methods)
+    _known = any((method, _path) in RETIRED_ROUTES | RETAINED_ROUTES
+                 for method in _route.methods)
+    if not _known:
+        raise RuntimeError(f"Unclassified scheduler route: {sorted(_route.methods)} {_route.path}")
+    if _retire:
+        _route.endpoint = retire(_route.endpoint)
+        _route.deprecated = True
+        # The retirement handler has its own signature; drop any response model
+        # FastAPI inferred for the replaced business handler.
+        _route.response_model = None

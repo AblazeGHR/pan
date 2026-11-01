@@ -1,0 +1,2 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-time-creator-line-20261029
+..                                                                       [100%]

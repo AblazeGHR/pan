@@ -5,11 +5,15 @@ from starlette.datastructures import MutableHeaders
 from urllib.parse import urlsplit
 from packages.core.system_fields import public_schema
 from .store import Conflict
+from packages.jobs import chains
+from packages.jobs.final_api import actor as canonical_actor
 from .authorization import require as object_require, require_write, authority
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
 
 
 def install(server):
+    from .job_link_api import router as job_link_router
+    server.app.include_router(job_link_router)
     router = APIRouter()
     cookie_name = 'pan_automation_session'
 
@@ -206,7 +210,11 @@ def install(server):
     async def view(request: Request):
         await require_permission(request, 'trigger', 'read')
         svc = service()
-        state = await svc.engine.io(svc.ledger.read)
+        state = chains.public(await svc.engine.io(svc.ledger.read))
+        pending_jobs={op['jobId'] for op in state.get('linkOperations',{}).values() if op.get('jobId') and op['status'] not in {'complete','cancelled'}}
+        for trigger in state['triggers'].values():
+            if trigger.get('ownerJobId') in pending_jobs:trigger.update(enabled=False,setupPending=True)
+        state.pop('linkOperations',None)
         return {**state, 'storage': {'events': await svc.engine.io(svc.events.stats) if svc.started else {'available': False}, 'runs': await svc.engine.io(svc.ledger.stats)}, 'definitions': list(svc.bus.definitions.values()), 'dependencies': {t['id']: {'available': svc.engine.available(t), 'unavailable': [e for e in t['eventTypes'] if not svc.bus.available(e)]} for t in state['triggers'].values()}, 'diagnostics': list(svc.bus.diagnostics) + list(svc.engine.diagnostics), 'limits': {'subscriberQueue': svc.bus.capacity, 'pendingRuns': svc.engine.max_pending, 'triggers': svc.engine.max_triggers}}
 
     @router.get('/api/automation/system-fields')
@@ -228,7 +236,7 @@ def install(server):
                                        'policyIdentityDomain':'cc-switch-provider:codex','maxOfficialProviders':32,
                                        'providerSampleBudgetSeconds':8,'workerLaunchBinding':'unavailable'},
                                'defaultAdapter':'unavailable','unknownReplayed':False},
-                'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
+                'chains': chains.SCHEMA, 'actionProperties': {'idempotent': {'type': 'boolean', 'default': False}},
                 'limits': {'maxConcurrency': MAX_CONCURRENCY, 'maxAttempts': MAX_ATTEMPTS,
                            'backoffSeconds': BACKOFF_SECONDS, 'backoffCapSeconds': BACKOFF_CAP_SECONDS}}
 
@@ -254,7 +262,7 @@ def install(server):
         try:
             result=await service().engine.io(policy.store.set_host,
                 {'enabled':data['enabled'],'sessionRoles':data['sessionRoles']},data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except Conflict as exc:raise HTTPException(409,str(exc)) from exc
         except ValueError as exc:raise HTTPException(400,str(exc)) from exc
@@ -269,7 +277,7 @@ def install(server):
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
         try:
             result=await service().engine.io(policy.store.set_disabled,data['disabledAccountIds'],data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except Conflict as exc:raise HTTPException(409,str(exc)) from exc
         except ValueError as exc:raise HTTPException(400,str(exc)) from exc
@@ -282,8 +290,8 @@ def install(server):
         policy=getattr(service(),'quota_policy',None)
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
         try:
-            result=await service().engine.io(policy.store.configure,data['mode'],data['maSessionId'],data['expectedRevision'])
-            await policy.cancel_obsolete_jobs()
+            result=await service().engine.io(policy.store.configure,data['mode'],data['maSessionId'],data['expectedRevision'],await canonical_actor(request))
+            await policy.cancel_obsolete_jobs(await canonical_actor(request))
             return result
         except ValueError as exc:raise HTTPException(409,str(exc)) from exc
         except OSError as exc:raise HTTPException(503,'Quota policy persistence failed') from exc
@@ -294,8 +302,9 @@ def install(server):
         if set(data)!={'kind','expectedRevision'}:raise HTTPException(400,'Expected kind/expectedRevision')
         policy=getattr(service(),'quota_policy',None)
         if policy is None:raise HTTPException(503,'Quota policy unavailable')
-        try:return {'job':await policy.create_monitor(data['kind'],data['expectedRevision'])}
+        try:return {'job':await policy.create_monitor(data['kind'],data['expectedRevision'],await canonical_actor(request))}
         except ValueError as exc:raise HTTPException(409,str(exc)) from exc
+        except RuntimeError as exc:raise HTTPException(503,str(exc)) from exc
         except OSError as exc:raise HTTPException(503,'Quota Job persistence failed; reload before retry') from exc
 
     @router.post('/api/automation/triggers')
@@ -361,8 +370,10 @@ def install(server):
         try:
             svc = service()
             run = await svc.engine.io(svc.ledger.cancel, rid, data['expectedRevision'])
+            task=getattr(svc.engine,'chain_tasks',{}).get(rid)
+            if run.get('cancellationRequested') and task:task.cancel()
             await svc.engine.kick()
-            return {'run': run}
+            return {'run': chains.public(run)}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:
@@ -377,16 +388,17 @@ def install(server):
             svc = service()
             run = await svc.engine.io(svc.ledger.confirm_uncertain, rid, data['expectedRevision'], svc.engine.max_pending, await authority(request))
             await svc.engine.kick()
-            return {'run': run}
+            return {'run': chains.public(run)}
         except Conflict as exc:
             raise HTTPException(409, str(exc)) from exc
         except KeyError as exc:
             raise HTTPException(404, 'Run not found') from exc
 
     @router.get('/api/automation/events')
-    async def events(after: int = 0, limit: int = 20):
+    async def events(request:Request,after: int = 0, limit: int = 20,includeExecution:bool=False):
+        if includeExecution:await require_permission(request,'trigger','read')
         try:
-            return {**await service().engine.io(service().events.page, after, limit),
+            return {**await service().event_page(after, limit,includeExecution),
                     'storage': await service().engine.io(service().events.stats)}
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc

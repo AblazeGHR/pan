@@ -1,0 +1,23 @@
+ae0c9bc51d91cb75ea98002c8360c0862189a46c
+100644 8f5a9e99cba5cd0854d3875960a4fe12a6708251 1	packages/web/src/services/api.ts
+100644 9aeac7e2d0272cea436d86fa1874f8ccaaa0f688 2	packages/web/src/services/api.ts
+100644 44860f55fcf035d6ed31a0016085870ea6357928 3	packages/web/src/services/api.ts
+100644 30460da02518264c53e9457481b47e46d2b3617c 1	packages/web/src/stores/automationStore.ts
+100644 228ff328b2ea14dc680f805f734e3562aeaa5230 2	packages/web/src/stores/automationStore.ts
+100644 36fb5afd3dd4584e983cd230d00053d3ba75b1fd 3	packages/web/src/stores/automationStore.ts
+100644 dda2ae263c2c6e0f4adc8688988f2c32818333fd 1	packages/web/src/views/AutomationView.tsx
+100644 9e7cf9f56f1610dbf9861a583e008699abcca87e 2	packages/web/src/views/AutomationView.tsx
+100644 927b5846a80063ae4e0c05dc68d1a2365ce3fe02 3	packages/web/src/views/AutomationView.tsx
+
+Auto-merging packages/automation/api.py
+Auto-merging packages/mcp/server.py
+Auto-merging packages/web/server.py
+Auto-merging packages/web/src/components/automation/RunList.tsx
+Auto-merging packages/web/src/components/automation/TriggerEditor.tsx
+Auto-merging packages/web/src/services/api.ts
+CONFLICT (content): Merge conflict in packages/web/src/services/api.ts
+Auto-merging packages/web/src/stores/automationStore.ts
+CONFLICT (content): Merge conflict in packages/web/src/stores/automationStore.ts
+Auto-merging packages/web/src/views/AutomationView.tsx
+CONFLICT (content): Merge conflict in packages/web/src/views/AutomationView.tsx
+Auto-merging tests/test_automation_core.py

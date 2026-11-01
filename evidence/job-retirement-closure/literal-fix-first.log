@@ -1,0 +1,70 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+.....FFFFFFFFF.......................................................... [ 45%]
+........................................................................ [ 90%]
+...............                                                          [100%]
+================================== FAILURES ===================================
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+__ test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq] __
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-message] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-broadcast] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-qq] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -message] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -broadcast] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -qq] _
+tests\test_job_retirement_literal_validation.py:54: in test_legal_literal_create_edit_cas_names_and_frozen_run
+    frozen = copy.deepcopy((state['runs'], state['plans']))
+                                           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-message]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-broadcast]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-qq]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -message]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -broadcast]
+FAILED tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -qq]

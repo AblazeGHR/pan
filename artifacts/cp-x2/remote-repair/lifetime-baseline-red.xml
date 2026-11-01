@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.325" timestamp="2026-10-28T15:12:31.956630+08:00" hostname="ablaze"><testcase classname="tests.test_platform_process_posix_unit" name="test_darwin_native_abi_layout_and_single_generation_copyout" time="0.013"><failure message="AssertionError: assert ('proc_uniqueid' == 'proc_uniqueid'&#10;  &#10;    proc_uniqueid and '9123456789:1...000000:123456' == 'lifetime-v1:...000000:123456'&#10;  &#10;  - lifetime-v1:9123456789:1700000000:123456&#10;  ? ------------&#10;  + 9123456789:19:1700000000:123456&#10;  ?          +++)">tests\test_platform_process_posix_unit.py:657: in test_darwin_native_abi_layout_and_single_generation_copyout
+    assert identity.kind == 'proc_uniqueid' and identity.birth == 'lifetime-v1:9123456789:1700000000:123456'
+E   AssertionError: assert ('proc_uniqueid' == 'proc_uniqueid'
+E
+E       proc_uniqueid and '9123456789:1...000000:123456' == 'lifetime-v1:...000000:123456'
+E
+E     - lifetime-v1:9123456789:1700000000:123456
+E     ? ------------
+E     + 9123456789:19:1700000000:123456
+E     ?          +++)</failure></testcase><testcase classname="tests.test_platform_process_posix_unit" name="test_darwin_same_lifetime_across_exec_preserves_exact_birth" time="0.003"><failure message="AssertionError: assert (False)&#10; +  where False = matches(ProcessIdentity(pid=4321, kind='proc_uniqueid', birth='9123456789:20:1700000000:123456', platform='posix', boot_id='a1234567-1234-1234-1234-123456789abc', pgid=4321, image=None))&#10; +    where matches = ProcessIdentity(pid=4321, kind='proc_uniqueid', birth='9123456789:19:1700000000:123456', platform='posix', boot_id='a1234567-1234-1234-1234-123456789abc', pgid=4321, image=None).matches">tests\test_platform_process_posix_unit.py:837: in test_darwin_same_lifetime_across_exec_preserves_exact_birth
+    assert first.matches(second) and first.birth.startswith('lifetime-v1:')
+E   AssertionError: assert (False)
+E    +  where False = matches(ProcessIdentity(pid=4321, kind='proc_uniqueid', birth='9123456789:20:1700000000:123456', platform='posix', boot_id='a1234567-1234-1234-1234-123456789abc', pgid=4321, image=None))
+E    +    where matches = ProcessIdentity(pid=4321, kind='proc_uniqueid', birth='9123456789:19:1700000000:123456', platform='posix', boot_id='a1234567-1234-1234-1234-123456789abc', pgid=4321, image=None).matches</failure></testcase></testsuite></testsuites>

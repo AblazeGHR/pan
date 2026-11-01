@@ -1,0 +1,41 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_session_validation.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\source-aware-validation.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 2.147,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-create]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-update]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-create]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-update]",
+      "status": "failure"
+    }
+  ],
+  "counts": {
+    "passed": 0,
+    "failure": 4,
+    "error": 0,
+    "skipped": 0
+  }
+}

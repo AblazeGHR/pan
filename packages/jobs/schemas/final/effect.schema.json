@@ -1,0 +1,81 @@
+{
+  "title": "Effect receipt",
+  "description": "Effect identity survives queries and retries for the same Run.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "effectKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "stepId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "operationOrdinal": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "runId",
+        "stepId",
+        "targetId",
+        "operationOrdinal"
+      ]
+    },
+    "attemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "outcome": {
+      "enum": [
+        "succeeded",
+        "rejected",
+        "unknown",
+        "partial"
+      ]
+    },
+    "receipt": {
+      "type": "object"
+    },
+    "targetSelection": {
+      "type": "object"
+    },
+    "cleanupProof": {
+      "type": "object"
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    }
+  },
+  "required": [
+    "effectKey",
+    "attemptId",
+    "outcome",
+    "receipt",
+    "createdAt"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/effect.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

@@ -1,0 +1,2 @@
+src/views/AutomationView.test.tsx(3,10): error TS6133: 'act' is declared but its value is never read.
+src/views/AutomationView.test.tsx(59,16): error TS6133: 'openNew' is declared but its value is never read.

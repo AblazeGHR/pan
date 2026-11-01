@@ -1,0 +1,116 @@
+{
+  "title": "Admission decision",
+  "description": "Persisted before queueing; each skip keeps an explicit reason.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "admissionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "profileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "cause": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "manual"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "event"
+            },
+            "eventId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            "triggerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "triggerId"
+          ]
+        }
+      ]
+    },
+    "authority": {
+      "$ref": "common.schema.json#/$defs/Principal"
+    },
+    "authorizationRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "enum": [
+        "admitted",
+        "skipped",
+        "rejected",
+        "blocked"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "overlap",
+        "paused",
+        "condition",
+        "capacity",
+        "retired",
+        "provider_unavailable"
+      ]
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "decidedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    }
+  },
+  "required": [
+    "admissionId",
+    "profileId",
+    "jobId",
+    "configRevision",
+    "cause",
+    "authority",
+    "state",
+    "createdAt"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/admission.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

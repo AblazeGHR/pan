@@ -1,0 +1,7 @@
+{
+  "initial-http.xml": {
+    "rawSha256": "04792cf911c68022f3dc40ded4be91eea966d32c6dfeb170aa93171dda598c96",
+    "viewSha256": "8254a1376f50b2697926a62df2d3ebb66d3b4f3d05f52be12c622481c9877e9f",
+    "change": "trailing whitespace only; exact raw XML retained in raw-artifacts.zip"
+  }
+}

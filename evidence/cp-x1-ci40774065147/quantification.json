@@ -1,0 +1,273 @@
+{
+  "run": 40774065147,
+  "head_sha": "57e111ebc8c4cdcdd03fb75bf7e10fd6e4c1ea74",
+  "note": "Completed observations only; unmatched outcomes remain unknown. Clock quantization affects 3.12.",
+  "versions": {
+    "3.12": {
+      "browser_counts": {
+        "issued": 113,
+        "responses": 100,
+        "finished": 100,
+        "failed": 0
+      },
+      "expected_ids": 113,
+      "server_ids": 109,
+      "db": {
+        "other": {
+          "whole": {
+            "count": 109,
+            "sum_ms": 264.0,
+            "median_ms": 0.0,
+            "max_ms": 16.0
+          },
+          "begin": {
+            "count": 109,
+            "sum_ms": 154.0,
+            "median_ms": 0.0,
+            "max_ms": 16.0
+          },
+          "body": {
+            "count": 109,
+            "sum_ms": 110.0,
+            "median_ms": 0.0,
+            "max_ms": 16.0
+          },
+          "exit_commit": {
+            "count": 109,
+            "sum_ms": 0.0,
+            "median_ms": 0.0,
+            "max_ms": 0.0
+          }
+        },
+        "mark_message_read": {
+          "whole": {
+            "count": 106,
+            "sum_ms": 5376.0,
+            "median_ms": 31.0,
+            "max_ms": 234.0
+          },
+          "begin": {
+            "count": 106,
+            "sum_ms": 47.0,
+            "median_ms": 0.0,
+            "max_ms": 16.0
+          },
+          "body": {
+            "count": 106,
+            "sum_ms": 482.0,
+            "median_ms": 0.0,
+            "max_ms": 63.0
+          },
+          "exit_commit": {
+            "count": 106,
+            "sum_ms": 4847.0,
+            "median_ms": 31.0,
+            "max_ms": 219.0
+          }
+        },
+        "mark_read": {
+          "whole": {
+            "count": 3,
+            "sum_ms": 234.0,
+            "median_ms": 78.0,
+            "max_ms": 125.0
+          },
+          "begin": {
+            "count": 3,
+            "sum_ms": 0.0,
+            "median_ms": 0.0,
+            "max_ms": 0.0
+          },
+          "body": {
+            "count": 3,
+            "sum_ms": 47.0,
+            "median_ms": 0.0,
+            "max_ms": 47.0
+          },
+          "exit_commit": {
+            "count": 3,
+            "sum_ms": 187.0,
+            "median_ms": 31.0,
+            "max_ms": 125.0
+          }
+        }
+      },
+      "asgi_to_first_db_auth_queue_dispatch": {
+        "count": 109,
+        "sum_ms": 29144.0,
+        "median_ms": 234.0,
+        "max_ms": 609.0
+      },
+      "response_to_observed_dom": {
+        "count": 99,
+        "sum_ms": 14131.25,
+        "median_ms": 107.317,
+        "max_ms": 327.883
+      },
+      "estimated_5s_window_db_overlap_ms": {
+        "other": 217.0,
+        "mark_message_read": 4452.888,
+        "mark_read": 224.969
+      },
+      "last_dom_samples": [
+        {
+          "ms": 9158.062,
+          "ordinary": 32,
+          "cards": 0
+        },
+        {
+          "ms": 9392.539,
+          "ordinary": 26,
+          "cards": 0
+        },
+        {
+          "ms": 9619.2,
+          "ordinary": 22,
+          "cards": 0
+        },
+        {
+          "ms": 9862.234,
+          "ordinary": 18,
+          "cards": 0
+        }
+      ],
+      "sha256": {
+        "browser": "717bbbd02708007a81e830ed9635c30c60745bf594a7b37faeb899ec91332042",
+        "server": "e7fba5b41496687fe41a9b20f322359ca16b44e31cdae36f3d7d7885e00de5f9"
+      }
+    },
+    "3.14": {
+      "browser_counts": {
+        "issued": 113,
+        "responses": 110,
+        "finished": 110,
+        "failed": 0
+      },
+      "expected_ids": 113,
+      "server_ids": 113,
+      "db": {
+        "other": {
+          "whole": {
+            "count": 113,
+            "sum_ms": 404.446,
+            "median_ms": 3.443,
+            "max_ms": 30.525
+          },
+          "begin": {
+            "count": 113,
+            "sum_ms": 166.564,
+            "median_ms": 0.947,
+            "max_ms": 29.891
+          },
+          "body": {
+            "count": 113,
+            "sum_ms": 208.865,
+            "median_ms": 1.324,
+            "max_ms": 9.031
+          },
+          "exit_commit": {
+            "count": 113,
+            "sum_ms": 29.017,
+            "median_ms": 0.12,
+            "max_ms": 2.546
+          }
+        },
+        "mark_message_read": {
+          "whole": {
+            "count": 110,
+            "sum_ms": 5117.459,
+            "median_ms": 40.436,
+            "max_ms": 114.134
+          },
+          "begin": {
+            "count": 110,
+            "sum_ms": 127.928,
+            "median_ms": 0.72,
+            "max_ms": 9.62
+          },
+          "body": {
+            "count": 110,
+            "sum_ms": 654.566,
+            "median_ms": 3.883,
+            "max_ms": 35.446
+          },
+          "exit_commit": {
+            "count": 110,
+            "sum_ms": 4334.966,
+            "median_ms": 34.507,
+            "max_ms": 104.517
+          }
+        },
+        "mark_read": {
+          "whole": {
+            "count": 3,
+            "sum_ms": 155.172,
+            "median_ms": 48.441,
+            "max_ms": 62.065
+          },
+          "begin": {
+            "count": 3,
+            "sum_ms": 2.572,
+            "median_ms": 0.866,
+            "max_ms": 1.194
+          },
+          "body": {
+            "count": 3,
+            "sum_ms": 18.853,
+            "median_ms": 4.535,
+            "max_ms": 10.7
+          },
+          "exit_commit": {
+            "count": 3,
+            "sum_ms": 133.746,
+            "median_ms": 40.536,
+            "max_ms": 56.664
+          }
+        }
+      },
+      "asgi_to_first_db_auth_queue_dispatch": {
+        "count": 113,
+        "sum_ms": 28204.411,
+        "median_ms": 248.8,
+        "max_ms": 338.099
+      },
+      "response_to_observed_dom": {
+        "count": 106,
+        "sum_ms": 29048.612,
+        "median_ms": 286.813,
+        "max_ms": 338.557
+      },
+      "estimated_5s_window_db_overlap_ms": {
+        "other": 362.421,
+        "mark_message_read": 4336.848,
+        "mark_read": 121.068
+      },
+      "last_dom_samples": [
+        {
+          "ms": 9416.278,
+          "ordinary": 26,
+          "cards": 0
+        },
+        {
+          "ms": 9722.795,
+          "ordinary": 20,
+          "cards": 0
+        },
+        {
+          "ms": 10005.52,
+          "ordinary": 15,
+          "cards": 0
+        },
+        {
+          "ms": 10162.796,
+          "ordinary": 13,
+          "cards": 0
+        }
+      ],
+      "sha256": {
+        "browser": "8512454fe3dcc4c75972da52c722f4bcda9660025e8fb6a80c9dcc303e733fa8",
+        "server": "de61ac75fa4b2a49d012336c90e39c2cfc081a282c302475b959bf46dcfaeb6e"
+      }
+    }
+  }
+}

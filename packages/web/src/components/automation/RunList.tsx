@@ -19,6 +19,7 @@ export function RunList({ snapshot }: { snapshot: AutomationSnapshot }) {
     {!runs.length && <p className={cardClass}>No matching Runs in this snapshot.</p>}
     {runs.map((run) => <article key={run.id} className={`${cardClass} space-y-3 break-words`}>
       <h3 className="break-all font-semibold">{run.status} · {run.id}</h3>
+      {run.targetJobId && <p className="break-words text-sm text-text-secondary">Job target: {run.targetJobId}. This Trigger result records admission; the Job records its own chain completion.</p>}
       <dl className="space-y-1 text-xs text-text-secondary"><div>Trigger: {snapshot.triggers[run.triggerId]?.name ?? 'Deleted Trigger'} · {run.triggerId} · revision {run.triggerRevision}</div><div>Event: {run.event.type} · {run.event.id}</div><div>Action: {run.action?.name ?? run.actionId} · {run.actionId}</div><div>Created: {run.createdAt} · Started: {run.startedAt ?? 'Not started'} · Finished: {run.finishedAt ?? 'Not finished'}</div></dl>
       {run.error && <p className="whitespace-pre-wrap break-all text-sm text-danger">{run.error}</p>}
       {run.status === 'uncertain' && <p className="text-sm text-danger">Effects may have occurred. Reconcile each target before taking any further action.</p>}

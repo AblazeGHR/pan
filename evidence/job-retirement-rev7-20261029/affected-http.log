@@ -1,0 +1,40 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+.......................................................F....F...         [100%]
+================================== FAILURES ===================================
+______________ test_product_missing_target_rejects_without_spawn ______________
+tests\test_session_product_closure.py:130: in test_product_missing_target_rejects_without_spawn
+    job = enabled(h, config(h, "assign", sessionId="ses_missing", text="body"))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:97: in enabled
+    item = create(h, value=value)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:86: in create
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 201
+E    +  where 400 = <Response [400 Bad Request]>.status_code
+________ test_product_fanout_partial_unknown_cold_reopen_never_resends ________
+tests\test_session_product_closure.py:196: in test_product_fanout_partial_unknown_cold_reopen_never_resends
+    job = enabled(h, config(h, "session-broadcast", sessionIds=["ses_a", "ses_b", "ses_missing", "ses_a"], text="body"))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:97: in enabled
+    item = create(h, value=value)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:86: in create
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 201
+E    +  where 400 = <Response [400 Bad Request]>.status_code
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_session_product_closure.py::test_product_missing_target_rejects_without_spawn
+FAILED tests/test_session_product_closure.py::test_product_fanout_partial_unknown_cold_reopen_never_resends

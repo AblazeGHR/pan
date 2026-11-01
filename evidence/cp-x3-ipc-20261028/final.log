@@ -1,0 +1,55 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-worker-capability-20261027
+.F.....................................                                  [100%]
+================================== FAILURES ===================================
+_______________ test_long_temp_root_uses_short_private_endpoint _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001F79B067230>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5765/test_long_temp_root_uses_short0')
+
+    def test_long_temp_root_uses_short_private_endpoint(monkeypatch, tmp_path):
+        from packages.core.platform import plugin_ipc
+        long_temp = tmp_path / ('t' * 110)
+        long_temp.mkdir()
+        monkeypatch.setattr(plugin_ipc.tempfile, 'gettempdir', lambda: str(long_temp))
+        if os.name == 'nt':
+            # Pure policy test on Windows: redirect only the POSIX /tmp allocation
+            # to an owned short root, never claim a real Unix bind succeeded.
+            original = plugin_ipc.tempfile.mkdtemp
+            monkeypatch.setattr(plugin_ipc.tempfile, 'mkdtemp',
+                lambda **kwargs: original(**{**kwargs, 'dir': str(tmp_path)}) if kwargs['dir'] == '/tmp' else original(**kwargs))
+>       endpoint = plugin_ipc.UnixEndpoint()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_plugin_ipc_endpoint.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <packages.core.platform.plugin_ipc.UnixEndpoint object at 0x000001F79B070980>
+
+    def __init__(self):
+        self.directory = None
+        self.identity = None
+        for base in dict.fromkeys((tempfile.gettempdir(), '/tmp')):
+            # Reserve suffix/name room without creating anything in a long root.
+            if len(os.fsencode(str(Path(base).resolve()))) + 32 >= 104:
+                continue
+            directory = Path(tempfile.mkdtemp(prefix='pan-ipc-', dir=base))
+            try:
+                os.chmod(directory, 0o700)
+                info = directory.lstat()
+                address = str(directory / 'bridge.sock')
+                if len(os.fsencode(address)) >= 104:
+                    directory.rmdir()
+                    continue
+                self.directory = directory
+                self.identity = (info.st_dev, info.st_ino)
+                self.address = address
+                return
+            except BaseException:
+                directory.rmdir()
+                raise
+>       raise OSError('No short private Unix plugin socket path available')
+E       OSError: No short private Unix plugin socket path available
+
+packages\core\platform\plugin_ipc.py:41: OSError
+=========================== short test summary info ===========================
+FAILED tests/test_plugin_ipc_endpoint.py::test_long_temp_root_uses_short_private_endpoint

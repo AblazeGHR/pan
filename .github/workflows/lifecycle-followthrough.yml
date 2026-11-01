@@ -1,0 +1,55 @@
+name: Lifecycle repair validation
+on:
+  push:
+    branches: ["diagnostics/lifecycle-followthrough-20261029"]
+jobs:
+  lifecycle:
+    name: lifecycle (${{ matrix.os }}, Python ${{ matrix.python }})
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            python: "3.12"
+          - os: windows-latest
+            python: "3.14"
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: macos-latest
+            python: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install existing gate dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+      - name: Import, full collection and platform contracts
+        run: python scripts/platform_fast_gate.py --output "${{ runner.temp }}/lifecycle-validation/platform"
+      - name: Original lifecycle and plugin regressions
+        if: ${{ !cancelled() }}
+        env:
+          CPX1_LIFECYCLE_EVIDENCE_ROOT: ${{ runner.temp }}/lifecycle-validation/owned
+        run: >
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_cpx1_genuine_restart.py tests/test_cpx1_canonical_tree_exit.py
+          tests/test_cpx1_console_encoding.py
+          tests/test_plugin_event_lifecycle.py tests/test_plugin_events.py
+          tests/test_job_automatic_recovery.py tests/test_automation_retry_parallel.py
+          tests/test_job_final_http_service.py
+          tests/test_retirement_rev7_write_validation.py
+          tests/test_retirement_rev6_session_validation.py
+          tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin
+          tests/test_job_retirement_literal_validation.py tests/test_job_retirement_name_scope.py
+          tests/test_session_product_closure.py tests/test_scheduler_time_templates.py
+          -q -ra --tb=short
+          --junitxml=${{ runner.temp }}/lifecycle-validation/focused.xml
+      - name: Upload fresh logs, diagnostics and platform skips
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifecycle-${{ matrix.os }}-py${{ matrix.python }}
+          path: ${{ runner.temp }}/lifecycle-validation/
+          if-no-files-found: warn

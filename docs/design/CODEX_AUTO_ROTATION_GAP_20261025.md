@@ -43,7 +43,7 @@ MCP 侧实际是：
 
 - `agent_spawn`（内部 `POST /api/spawn`；已有 worker 会先 kill）[mcp/server.py:1756-1780](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)
 - `agent_restart_delayed`（只重启存活 worker，不启动离线 Session）[mcp/server.py:2767-2791](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)
-- `agent_send` / `agent_send_force` [mcp/server.py:1844-1933](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)
+- `agent_send_to_queue` / `agent_send` [mcp/server.py:1844-1933](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)
 - `session_update` 只改 Session 设置，不是换号/重启编排工具 [mcp/server.py:1267-1283](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)
 
 `session_spawn` 不是当前工具名；`worker_spawn` 是 `agent_spawn` 的 deprecated alias。
@@ -72,7 +72,7 @@ sequenceDiagram
         W-->>BJ: 进程 exit 0
         BJ-->>MA: 终止通知（无活 worker 时 auto-spawn）
         Note over MA: 当前由 MA 读取 trigger、排序候选、判断是否收尾；冻结清单可代码枚举
-        MA->>TA: agent_send_force("立刻停止一切操作…")
+        MA->>TA: agent_send("立刻停止一切操作…")
         TA-->>MA: 自然收尾 / idle（人工确认）
         MA->>B: switch / auto_switch(expectedCurrentId)
         B->>Q: provider switch
@@ -111,7 +111,7 @@ sequenceDiagram
 | 3 | 通知 MA / 唤醒 MA | 已自动化 | [job_10bb43426127c46e46b8c83f.json](D:/project/Pan/data/background_jobs/jobs/job_10bb43426127c46e46b8c83f.json)、[worker.py:6861-6863](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/core/worker.py)、[6962](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/core/worker.py) | 后台 Job 终止通知；目标无活 worker 时 `enqueue_notice` 会 `auto_spawn=True`。通知是 Job 终态，额度明细需另读 trigger/日志。 |
 | 4 | 读取 trigger、判断候选/收尾 | 必须人工 | [model-policy-current.md:27-31](D:/project/Pan/data/workdirs/PAN_SMA/.workflow/model-policy-current.md) | 读文件可脚本化，但“选谁、是否已自然收尾”目前只在 MA 的判断里。冻结清单本身见第 5 行，不需要人。 |
 | 5 | 枚举/弱冻结当前 live Codex Worker | 有代码可自动 | [server.py:2604-2670](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py)、[server.py:5919-5925](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py)、[server.py:13218-13231](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py)、[server.py:9015-9045](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py) | `GET /api/list` 取 live worker 的 `sessionId/workerId/status/generation`；`GET /api/sessions?summary=1` 按 `sessionId` join 出 `adapter/workerTaskId/workerTaskSeq/workerExecutionSeq`；过滤 `adapter=codex` + `status=running` 即可。`PATCH /api/sessions/{id}/queue/paused` 可冻结新队列项。用 `(sessionId, workerId, generation, workerTaskId, executionSeq)` 做弱冻结。严格身份（process birth token/provider/显式 role）只在内部 `Bindings` 需要，外部 orchestrator 不必需。 |
-| 6 | Force 停止消息 | 有代码可自动 | [mcp/server.py:1905-1933](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)、[server.py:12290-12333](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py) | `agent_send_force` 或 `/api/send force=true`；无二次确认。当前没有代码在阈值事件后自动发。 |
+| 6 | Force 停止消息 | 有代码可自动 | [mcp/server.py:1905-1933](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)、[server.py:12290-12333](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py) | `agent_send` 或 `/api/send force=true`；无二次确认。当前没有代码在阈值事件后自动发。 |
 | 7 | 自然收尾确认 | 必须人工 | [model-policy-current.md:30](D:/project/Pan/data/workdirs/PAN_SMA/.workflow/model-policy-current.md)、[codex-rotation-current.json:18](D:/project/Pan/data/workdirs/PAN_SMA/.workflow/codex-rotation-current.json) | 策略要求“自然收尾、不直接 kill”；没有超时/放弃/升级的代码策略。轮转记录里 `settleObserved: "idle (natural)"` 是人工观察。 |
 | 8 | 重新核实额度 | 有代码可自动 | [codex-quota-watch.py:14-24](D:/project/Pan/data/workdirs/PAN_SMA/.workflow/codex-quota-watch.py)、[quota_provider.py:55-89](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/automation/quota_provider.py) | 可重跑 `--check` 或直接调 bridge。注意 all-or-nothing：任一 official 账号 quota 未知，整个 snapshot 变 `unknown`（[quota_provider.py:76-80](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/automation/quota_provider.py)）。 |
 | 9 | 候选排序/选择 | 有代码可自动 | [quota_policy.py:86-89](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/automation/quota_policy.py)、[codex-auto-state.json:4-7](D:/project/Pan/data/workdirs/PAN_SMA/.workflow/codex-auto-state.json) | `rank()` 已实现“周重置最近 → 周使用率低 → 五小时使用率低”；但 active watcher 不调用它，实际候选由 MA 选。两套状态源（`codex-auto-state.json` vs `quota-policy.json`）未合并。 |
@@ -361,7 +361,7 @@ for row in freeze:
 
 1. `GET /api/list` + `GET /api/sessions?summary=1`：冻结**全部 live Codex**（`sessionId/workerId/generation/workerTaskId/executionSeq`），并标记 `running_unfinished` 子集。
 2. `PATCH /api/sessions/{id}/queue/paused {"paused": true}`：冻结新队列项；记录原有 paused 状态，避免恢复时误解除用户暂停 [server.py:9015-9045](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/web/server.py)。
-3. `agent_send_force("立刻停止一切操作，等待我说继续再继续")`：只发 `running`；**不要用 `agent_send`**，它是延迟队列，不会停当前 turn [mcp/server.py:1844-1853](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)。
+3. `agent_send("立刻停止一切操作，等待我说继续再继续")`：只发 `running`；**不要用 `agent_send_to_queue`**，它是延迟队列，不会停当前 turn [mcp/server.py:1844-1853](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)。
 4. `cc-switch-bridge.switch` / `auto_switch`（带 `expectedCurrentId`）：先换号，再下 delayrestart；否则 idle worker 可能立刻用旧 provider 重启 [provider.py:373-403](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/cc_switch_bridge/provider.py)。
 5. `agent_restart_delayed`：对**全部 live Codex**下延迟重启（不是只对 running）。它会在 valid idle boundary 才真正重启，所以不需要额外的“收尾确认”等待；running 的 worker 会先完成当前 turn [mcp/server.py:2767-2791](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)。
 6. 轮询 `agent_restart_delayed_status` 直到**全部**目标进入 `completed/failed/cancelled`；不要只等“最后一个成功”。失败集合要单独记录；超时要有 kill/abort/告警分支 [mcp/server.py:2794-2813](D:/project/pan-worktrees/codex-auto-rotation-20261025/packages/mcp/server.py)。`completed` 只代表 replacement 已创建，还要用 `GET /api/list` 确认新 worker 没立刻进入 `error`；否则不算成功。
@@ -426,7 +426,7 @@ python scripts/codex_auto_rotate.py --watch --execute --retry-on-failure
 
 1. `GET /api/list` + `GET /api/sessions?summary=1` + `GET /api/sessions/{id}?view=metadata` 冻结全部 live Codex。
 2. `PATCH /api/sessions/{id}/queue/paused` 暂停队列；记录原状态，只恢复自己暂停的。
-3. `agent_send_force` 等价的 `POST /api/send force=true` 固定停止消息。
+3. `agent_send` 等价的 `POST /api/send force=true` 固定停止消息。
 4. `cc-switch-bridge.auto_switch` + `expectedCurrentId` 换号并核验 target。
 5. `POST .../worker/delayed-restart?existing_worker_only=true` 对全部 live Codex 下延迟重启；`error/done/cancelled` 走 `/api/worker/{id}/restart`；offline 跳过。
 6. 轮询 delayed status 到全部 terminal；超时/失败/新 worker error 都记录；不把“最后一个成功”当全部成功。

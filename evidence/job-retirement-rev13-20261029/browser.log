@@ -1,0 +1,3 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+[BABEL] Note: The code generator has deoptimised the styling of D:\project\pan-worktrees\job-retirement-closure-20261027\packages\web\test-results\retirement-r13\vite-cache\deps\react-dom_client.js?v=43023fc6 as it exceeds the max of 500KB.
+{"checks":["assign multiline raw text/reference/passive save","process argv boundaries/passive save","no-Creator unsupported/default disabled/no fallback"],"passed":3,"writes":["/api/jobs","/api/jobs","/api/job-templates/passive/instantiate"],"pageErrors":[],"port":56903,"chromium":"153.0.8010.12","layer":"Chromium + Vite + fixture HTTP; no provider execution"}

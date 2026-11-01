@@ -1,0 +1,13 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+F                                                                        [100%]
+================================== FAILURES ===================================
+______________ test_unknown_production_process_restart_real_http ______________
+tests\test_quota_native_admission.py:529: in test_unknown_production_process_restart_real_http
+    assert client.put(URL+'/disabled-accounts',json=body).status_code==401
+E   AssertionError: assert 403 == 401
+E    +  where 403 = <Response [403 Forbidden]>.status_code
+E    +    where <Response [403 Forbidden]> = put(('/api/automation/quota-policy' + '/disabled-accounts'), json={'disabledAccountIds': ['owned-disabled-account'], 'expectedRevision': 0})
+E    +      where put = <httpx.Client object at 0x000001A3B79DF530>.put
+=========================== short test summary info ===========================
+FAILED tests/test_quota_native_admission.py::test_unknown_production_process_restart_real_http
+1 failed in 7.80s

@@ -202,7 +202,7 @@ def test_terminal_snapshot_gates_only_automatic_report(monkeypatch):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize('alias', ['agent_assign', 'worker_assign', 'agent_send', 'worker_send', 'agent_send_force', 'worker_send_force'])
+@pytest.mark.parametrize('alias', ['agent_assign', 'worker_assign', 'agent_send_to_queue', 'worker_send', 'agent_send', 'worker_send_force'])
 def test_mcp_identity_reaches_same_http_classification(monkeypatch, alias):
     from packages.mcp import server as mcp
     manager = session('manager'); sender = session('sender', manager.id)

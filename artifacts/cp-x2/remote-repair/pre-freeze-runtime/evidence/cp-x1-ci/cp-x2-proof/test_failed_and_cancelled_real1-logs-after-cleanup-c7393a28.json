@@ -1,0 +1,95 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_f604fa93b108225f40bb9324771015d945b360b8279e964145340839e93913b6",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_41441ae4fb254443b6dbde51",
+        "leaseId": "lease_77eaad8b9fa348e8a8cdb95a",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 21176,
+        "kind": "filetime",
+        "birth": "134376452096537920",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 17512,
+        "kind": "filetime",
+        "birth": "134376452094394096",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            19376,
+            20728,
+            21176
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 21176,
+            "kind": "filetime",
+            "birth": "134376452096537920",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          },
+          "observed": {
+            "pid": 21176,
+            "kind": "filetime",
+            "birth": "134376452096537920",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            19376,
+            20728,
+            21176
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true,
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

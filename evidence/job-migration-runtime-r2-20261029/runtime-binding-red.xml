@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="11" time="0.821" timestamp="2026-10-31T13:48:59.657027+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[assign]" time="0.031"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_inventor0')
+kind = 'assign'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+&gt;       item, = inventory["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:186: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[send_session]" time="0.005"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_inventor1')
+kind = 'send_session'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+&gt;       item, = inventory["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:186: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[legacy-assign]" time="0.006"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_inventor2')
+kind = 'legacy-assign'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[message]" time="0.005"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_inventor3')
+kind = 'message'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+&gt;       item, = inventory["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:186: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[broadcast]" time="0.005"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_inventor4')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+&gt;       item, = inventory["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:186: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard" time="0.026"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_stale_si0')
+
+    def test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard(tmp_path):
+        from scripts.job_final_migration.inventory import build_inventory, SIMPLE
+        from scripts.job_final_migration.mapping import Mapper, ApplyError
+        from tests.test_job_final_migration_apply import context_for
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+&gt;       item, = build_inventory(root)["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:211: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids" time="0.134"><failure message="scripts.job_final_migration.mapping.ApplyError: no simple records to migrate">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_partial_0')
+
+    def test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids(tmp_path):
+        import base64
+        from scripts.job_final_migration.inventory import build_inventory
+        from tests.test_job_final_migration import _background_job, _write_json
+        from tests.test_job_final_migration_apply import context_for
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, "send_session")
+        original = path.read_bytes()
+        _write_json(root / "background_jobs/jobs/process.json", _background_job(root))
+        before = hashes(root)
+        context = {**context_for(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
+        target = tmp_path / "offline-bundle.json"
+&gt;       report = migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
+            expected_digest=migration.plan_digest(build_inventory(root), context))
+
+tests\test_job_migration_runtime_readiness.py:231: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\apply.py:216: in migrate
+    require(bool(entries), "no simple records to migrate")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = False, message = 'no simple records to migrate'
+
+    def require(condition: bool, message: str) -&gt; None:
+        if not condition:
+&gt;           raise ApplyError(message)
+E           scripts.job_final_migration.mapping.ApplyError: no simple records to migrate
+
+scripts\job_final_migration\mapping.py:27: ApplyError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[missing-target]" time="0.005"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_guard_ke0')
+state = 'missing-target'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+&gt;       item, = build_inventory(root)["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:257: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[pending-backlog]" time="0.005"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_guard_ke1')
+state = 'pending-backlog'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+&gt;       item, = build_inventory(root)["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:257: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[unknown]" time="0.004"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_guard_ke2')
+state = 'unknown'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+&gt;       item, = build_inventory(root)["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:257: ValueError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[partial]" time="0.004"><failure message="ValueError: not enough values to unpack (expected 1, got 0)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6403/test_runtime_delivery_guard_ke3')
+state = 'partial'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+&gt;       item, = build_inventory(root)["instances"]
+        ^^^^^
+E       ValueError: not enough values to unpack (expected 1, got 0)
+
+tests\test_job_migration_runtime_readiness.py:257: ValueError</failure></testcase></testsuite></testsuites>

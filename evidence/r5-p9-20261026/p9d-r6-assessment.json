@@ -1,0 +1,54 @@
+{
+  "schema": "pan.r5-p9d.r6-assessment/v1",
+  "scope": "P9D snapshot-based isolated rehearsal; no R6 source deletion performed",
+  "simpleImported": 51,
+  "unrecognizedRetained": 60,
+  "businessPolicy": "user resolved all 21 prior decision items and 4 message plans as unrecognized retention; no per-ID business approval queue remains",
+  "canProceedInR6": [
+    {
+      "action": "Integrate P9D audit, transactional import, original-ID read and manual deletion evidence",
+      "condition": "review candidate ancestry/diff and run combined integration checks",
+      "replacement": "user audit receipt, canonical disabled definitions, migration_history/receipt/unrecognized"
+    },
+    {
+      "action": "Remove retired legacy write/execution leaves after callers are removed",
+      "paths": [
+        "packages/core/background_jobs.py:run_due_message_jobs/run_due_scheduled_tasks/recover_notifications/_recovery_loop",
+        "packages/jobs/system_actions.py:invoke legacy execution rejection path",
+        "legacy create/update/retry producers and old scheduler/automation execution wiring"
+      ],
+      "condition": "zero surviving production callers; retain explicit retired boundary and successor negative tests; production owner/resource gates assessed separately",
+      "replacement": "FinalService/FinalRuntime/CreatorRuntime, typed executor and canonical outbox"
+    },
+    {
+      "action": "Separate nonexecuting read adapters from the old host before whole-module removal",
+      "condition": "preserve original ID/hash/raw/log/receipt queries, pins/retention/handoff and the manual deletion prerequisites",
+      "replacement": "packages/jobs/migration_history.py plus immutable raw/log/ledger archives"
+    }
+  ],
+  "mustKeepReadPathsOrAcceptedReplacements": [
+    "60 unrecognized source JSON identities and original bytes; never auto-delete or feed them to a writer",
+    "background_jobs.py:get/list_jobs read facade until unrecognized reads are wired to an accepted transport/UI replacement; _root currently creates directories",
+    "raw logs and original log-path provenance; original-key migration_history/migration_receipt queries",
+    "background_jobs.py:list_run_records -> final_runtime/coordinator.py:read_legacy_history and runs.jsonl archive",
+    "Session history/pins/retention/handoff/notification references and Locker links",
+    "automation/scheduler Event/Run historical read paths and external independent histories not imported by this 51-record batch"
+  ],
+  "notExecutableFromThisEvidence": [
+    "wholesale deletion of core/background_jobs.py, coordinator.py, automation/scheduler store modules or their data",
+    "delete real legacy records, cascade-delete shared files, or automatically execute the manual deletion text",
+    "remove inspection/cancel/resource ownership paths for unrecognized/live/partial objects without proven successors",
+    "remove independent service/execution host/typed receipt/locks because they may serve retained histories or canonical execution",
+    "remove runtime owner fencing or startup recovery/import guards before actual rollout and restart acceptance",
+    "treat all legacy identities as cleared, unknown effects as settled, or this isolated profile as production cutover proof"
+  ],
+  "remainingTechnicalGates": [
+    "candidate integration and remote/cross-platform validation",
+    "unrecognized read transport/UI acceptance before deleting old GET/read facade",
+    "real owner/cohort/independent roots and live resource proof outside this isolated copy",
+    "application-wide snapshot consistency and other historical stores not covered by the 51 Job import",
+    "real deployment/provider/HTTP/browser/manual deletion acceptance remains unverified"
+  ],
+  "productionR6Released": false,
+  "allLegacyZeroProven": false
+}

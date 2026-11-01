@@ -1,0 +1,14 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pip",
+    "install",
+    "tzlocal>=5.3,<6",
+    "--report",
+    "evidence\\job-retirement-rev7-20261029\\pip-report.json"
+  ],
+  "exit": 0,
+  "stdout": "Collecting tzlocal<6,>=5.3\n  Using cached tzlocal-5.4.5-py3-none-any.whl.metadata (7.7 kB)\nRequirement already satisfied: tzdata in D:\\project\\Pan-main\\.venv\\Lib\\site-packages (from tzlocal<6,>=5.3) (2026.5)\nUsing cached tzlocal-5.4.5-py3-none-any.whl (18 kB)\nInstalling collected packages: tzlocal\nSuccessfully installed tzlocal-5.4.5\n",
+  "stderr": "\n[notice] A new release of pip is available: 26.2.1 -> 26.2.2\n[notice] To update, run: D:\\project\\Pan-main\\.venv\\Scripts\\python.exe -m pip install --upgrade pip\n"
+}

@@ -1,0 +1,47 @@
+Isolated test child: inherited PAN_* removed; cwd=C:\Users\14709\AppData\Local\Temp\pan-r6i-baseline-jvf3oyhj
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+__ test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent ___
+tests\test_job_delete_safety.py:226: in test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent
+    jobs._reconcile_scheduled_processes(jobs._root())
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _reconcile_scheduled_processes retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+___________________ test_real_owned_tree_delete_http[False] ___________________
+tests\test_job_delete_http_owned.py:44: in test_real_owned_tree_delete_http
+    job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+        ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+___________________ test_real_owned_tree_delete_http[True] ____________________
+tests\test_job_delete_http_owned.py:44: in test_real_owned_tree_delete_http
+    job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
+        ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+============================== warnings summary ===============================
+tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[False]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[False]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_delete_safety.py::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent
+FAILED tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[False]
+FAILED tests/test_job_delete_http_owned.py::test_real_owned_tree_delete_http[True]

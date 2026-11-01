@@ -1,0 +1,160 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "D:\project\Pan-main\.venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 1281, in handle
+    await super().handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 280, in handle
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev25_browser.py", line 64, in duplicate
+    await server._send_final_notice(copy.deepcopy(row))
+  File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\server.py", line 495, in _send_final_notice
+    await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                                                     ~~~^^^^^^^^^
+KeyError: 'jobId'
+F
+================================== FAILURES ===================================
+_ test_fresh_browser_original_partial_outbox_ws_duplicate_and_runtime_form_http _
+tests\test_retirement_rev25_browser.py:72: in test_fresh_browser_original_partial_outbox_ws_duplicate_and_runtime_form_http
+    assert result.returncode == 0, result.stdout + result.stderr
+E   AssertionError: node:internal/modules/run_main:107
+E         triggerUncaughtException(
+E         ^
+E     
+E     AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+E     
+E       assert.ok(terminal.length >= 2)
+E     
+E         at file:///D:/project/pan-worktrees/job-entry-notification-closure-20261029/packages/web/e2e/retirement-r25-ws.mjs:50:12 {
+E       generatedMessage: true,
+E       code: 'ERR_ASSERTION',
+E       actual: false,
+E       expected: true,
+E       operator: '==',
+E       diff: 'simple'
+E     }
+E     
+E     Node.js v24.22.1
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['node', 'D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\packages\\web\\e2...: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.22.1\n").returncode
+------------------------------ Captured log call ------------------------------
+ERROR    uvicorn.error:httptools_impl.py:427 Exception in ASGI application
+Traceback (most recent call last):
+  File "D:\project\Pan-main\.venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 422, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\applications.py", line 1163, in __call__
+    await super().__call__(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\errors.py", line 186, in __call__
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 1281, in handle
+    await super().handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 280, in handle
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_retirement_rev25_browser.py", line 64, in duplicate
+    await server._send_final_notice(copy.deepcopy(row))
+  File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\server.py", line 495, in _send_final_notice
+    await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                                                     ~~~^^^^^^^^^
+KeyError: 'jobId'
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev25_browser.py::test_fresh_browser_original_partial_outbox_ws_duplicate_and_runtime_form_http

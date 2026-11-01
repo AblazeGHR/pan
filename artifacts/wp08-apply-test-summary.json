@@ -1,0 +1,16 @@
+{
+  "baseline": "da4551dcb085246097aae1bcab3f0d0d38438a74",
+  "branch": "r1/wp08-migration-apply-20261025",
+  "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_migration_apply.py tests/test_job_final_migration.py tests/test_job_final_contracts.py -q -o addopts= --tb=short --junitxml=artifacts/wp08-apply-tests.xml",
+  "exitCode": 0,
+  "tests": 176,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "byFile": {
+    "tests.test_job_final_migration_apply": 31,
+    "tests.test_job_final_migration": 16,
+    "tests.test_job_final_contracts": 129
+  },
+  "warning": "Existing pytest timeout option is unknown in this environment; warning retained."
+}

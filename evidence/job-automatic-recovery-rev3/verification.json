@@ -1,0 +1,1577 @@
+{
+  "sourceSHA": "15e34ba63fcb92dcf77ff0ff563dcb886fdf9730",
+  "proposalBaseSHA": "353bb52af7806bf7373563c3baae7dd5b66c166c",
+  "acceptedAncestorSHA": "aa76b83e16ac580d8a548752011b7c81636c6519",
+  "interpreter": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "wrapper": "scripts/run_tests_isolated.py",
+  "platformVerified": "Windows only",
+  "sourceFiles": {
+    "packages/actions/typed_executor.py": {
+      "gitBlob": "2f175fdfe82aa84636411279e5307fbfde1d8350",
+      "sha256GitBytes": "fa708bf6ee2d21159ef729515613d9df20a140b1e3051fab5c203b4ace63889a",
+      "symbols": {
+        "SessionProvider": {
+          "start": 38,
+          "end": 54
+        },
+        "SessionProvider.send_session": {
+          "start": 46,
+          "end": 54
+        },
+        "AssignProvider": {
+          "start": 57,
+          "end": 67
+        },
+        "AssignProvider.assign": {
+          "start": 58,
+          "end": 67
+        },
+        "ChannelProvider": {
+          "start": 70,
+          "end": 81
+        },
+        "ChannelProvider.send": {
+          "start": 73,
+          "end": 81
+        },
+        "ReceiptStore": {
+          "start": 84,
+          "end": 89
+        },
+        "ReceiptStore.get": {
+          "start": 87,
+          "end": 87
+        },
+        "ReceiptStore.put": {
+          "start": 89,
+          "end": 89
+        },
+        "InMemoryReceiptStore": {
+          "start": 92,
+          "end": 108
+        },
+        "InMemoryReceiptStore.__init__": {
+          "start": 100,
+          "end": 101
+        },
+        "InMemoryReceiptStore.get": {
+          "start": 103,
+          "end": 105
+        },
+        "InMemoryReceiptStore.put": {
+          "start": 107,
+          "end": 108
+        },
+        "WorkerSessionProvider": {
+          "start": 111,
+          "end": 146
+        },
+        "WorkerSessionProvider.wake_session": {
+          "start": 120,
+          "end": 125
+        },
+        "WorkerSessionProvider.send_session": {
+          "start": 127,
+          "end": 146
+        },
+        "WorkerAssignProvider": {
+          "start": 149,
+          "end": 171
+        },
+        "WorkerAssignProvider.assign": {
+          "start": 152,
+          "end": 171
+        },
+        "_original_queue_receipt": {
+          "start": 174,
+          "end": 183
+        },
+        "EffectReceipt": {
+          "start": 187,
+          "end": 210
+        },
+        "EffectReceipt.as_dict": {
+          "start": 196,
+          "end": 210
+        },
+        "_mapping": {
+          "start": 213,
+          "end": 216
+        },
+        "_non_empty_string": {
+          "start": 219,
+          "end": 222
+        },
+        "_effect_key": {
+          "start": 225,
+          "end": 236
+        },
+        "_callable_result": {
+          "start": 239,
+          "end": 242
+        },
+        "_invoke": {
+          "start": 245,
+          "end": 251
+        },
+        "_status": {
+          "start": 254,
+          "end": 272
+        },
+        "_provider_error": {
+          "start": 275,
+          "end": 281
+        },
+        "TypedExecutor": {
+          "start": 284,
+          "end": 652
+        },
+        "TypedExecutor.__init__": {
+          "start": 287,
+          "end": 310
+        },
+        "TypedExecutor._stored": {
+          "start": 312,
+          "end": 317
+        },
+        "TypedExecutor._store": {
+          "start": 319,
+          "end": 324
+        },
+        "TypedExecutor.execute": {
+          "start": 326,
+          "end": 419
+        },
+        "TypedExecutor._process": {
+          "start": 421,
+          "end": 506
+        },
+        "TypedExecutor._session_message": {
+          "start": 508,
+          "end": 526
+        },
+        "TypedExecutor._assign": {
+          "start": 528,
+          "end": 555
+        },
+        "TypedExecutor._session_args": {
+          "start": 558,
+          "end": 560
+        },
+        "TypedExecutor._session_broadcast": {
+          "start": 562,
+          "end": 590
+        },
+        "TypedExecutor._session_resume": {
+          "start": 592,
+          "end": 615
+        },
+        "TypedExecutor._channel": {
+          "start": 617,
+          "end": 652
+        },
+        "_invoke_provider": {
+          "start": 655,
+          "end": 663
+        }
+      }
+    },
+    "packages/jobs/final_contracts.py": {
+      "gitBlob": "4a472f45ac22229929612fc36f1069579982c6cf",
+      "sha256GitBytes": "a28b79752a1976df3251f75f12d2190c4549eb43bfdfe1eaf7ee00519317f046",
+      "symbols": {
+        "ContractError": {
+          "start": 260,
+          "end": 289
+        },
+        "ContractError.__init__": {
+          "start": 263,
+          "end": 277
+        },
+        "ContractError.status": {
+          "start": 280,
+          "end": 281
+        },
+        "ContractError.as_dict": {
+          "start": 283,
+          "end": 289
+        },
+        "_DuplicateKey": {
+          "start": 304,
+          "end": 305
+        },
+        "_reject_constant": {
+          "start": 308,
+          "end": 309
+        },
+        "_no_duplicate_keys": {
+          "start": 312,
+          "end": 318
+        },
+        "loads": {
+          "start": 321,
+          "end": 336
+        },
+        "canonical_json": {
+          "start": 339,
+          "end": 351
+        },
+        "digest": {
+          "start": 354,
+          "end": 356
+        },
+        "definition_bytes": {
+          "start": 359,
+          "end": 360
+        },
+        "check_timestamp": {
+          "start": 363,
+          "end": 388
+        },
+        "check_duration": {
+          "start": 391,
+          "end": 408
+        },
+        "check_request_key": {
+          "start": 411,
+          "end": 424
+        },
+        "check_schema_version": {
+          "start": 427,
+          "end": 435
+        },
+        "next_revision": {
+          "start": 438,
+          "end": 443
+        },
+        "_integer": {
+          "start": 446,
+          "end": 454
+        },
+        "check_revision": {
+          "start": 460,
+          "end": 476
+        },
+        "check_definition_operation": {
+          "start": 677,
+          "end": 712
+        },
+        "check_transition": {
+          "start": 715,
+          "end": 750
+        },
+        "check_operation": {
+          "start": 753,
+          "end": 773
+        },
+        "_check_principal": {
+          "start": 779,
+          "end": 793
+        },
+        "idempotency_scope": {
+          "start": 796,
+          "end": 809
+        },
+        "request_digest": {
+          "start": 812,
+          "end": 813
+        },
+        "idempotency_outcome": {
+          "start": 816,
+          "end": 840
+        },
+        "idempotency_purgeable": {
+          "start": 843,
+          "end": 845
+        },
+        "ReferenceResolver": {
+          "start": 851,
+          "end": 860
+        },
+        "ReferenceResolver.__call__": {
+          "start": 860,
+          "end": 860
+        },
+        "_ref": {
+          "start": 893,
+          "end": 894
+        },
+        "_obj": {
+          "start": 897,
+          "end": 905
+        },
+        "_arr": {
+          "start": 908,
+          "end": 922
+        },
+        "_string_array": {
+          "start": 925,
+          "end": 931
+        },
+        "_common_defs": {
+          "start": 934,
+          "end": 980
+        },
+        "_action_definition": {
+          "start": 983,
+          "end": 1038
+        },
+        "_trigger_definition": {
+          "start": 1041,
+          "end": 1072
+        },
+        "_job_step_defs": {
+          "start": 1075,
+          "end": 1121
+        },
+        "_job_definition": {
+          "start": 1124,
+          "end": 1146
+        },
+        "_event_creator_definition": {
+          "start": 1149,
+          "end": 1173
+        },
+        "_template_definition": {
+          "start": 1176,
+          "end": 1227
+        },
+        "_event_publish": {
+          "start": 1230,
+          "end": 1259
+        },
+        "_event_record": {
+          "start": 1262,
+          "end": 1284
+        },
+        "_scheduler_config": {
+          "start": 1287,
+          "end": 1352
+        },
+        "_envelope": {
+          "start": 1355,
+          "end": 1387
+        },
+        "_object_document": {
+          "start": 1390,
+          "end": 1405
+        },
+        "_definition_document": {
+          "start": 1408,
+          "end": 1416
+        },
+        "_admission_record": {
+          "start": 1419,
+          "end": 1454
+        },
+        "_run_record": {
+          "start": 1457,
+          "end": 1499
+        },
+        "_step_record": {
+          "start": 1502,
+          "end": 1519
+        },
+        "_attempt_record": {
+          "start": 1522,
+          "end": 1542
+        },
+        "_effect_record": {
+          "start": 1545,
+          "end": 1570
+        },
+        "_operation_record": {
+          "start": 1573,
+          "end": 1616
+        },
+        "_artifacts": {
+          "start": 1620,
+          "end": 1655
+        },
+        "schema_artifacts": {
+          "start": 1658,
+          "end": 1660
+        },
+        "_sorted_transitions": {
+          "start": 1663,
+          "end": 1664
+        },
+        "_manifest": {
+          "start": 1667,
+          "end": 1742
+        },
+        "_authorization_proposal": {
+          "start": 1745,
+          "end": 1762
+        },
+        "write_schema_artifacts": {
+          "start": 1765,
+          "end": 1778
+        },
+        "check_schema_artifacts": {
+          "start": 1781,
+          "end": 1793
+        },
+        "_registry": {
+          "start": 1800,
+          "end": 1805
+        },
+        "_validators": {
+          "start": 1809,
+          "end": 1817
+        },
+        "_validation_error": {
+          "start": 1820,
+          "end": 1854
+        },
+        "_validate_document": {
+          "start": 1857,
+          "end": 1864
+        },
+        "_validate_name_semantics": {
+          "start": 1867,
+          "end": 1893
+        },
+        "_validate_condition": {
+          "start": 1896,
+          "end": 1948
+        },
+        "_check_json_schema": {
+          "start": 1951,
+          "end": 1962
+        },
+        "_validate_instance": {
+          "start": 1965,
+          "end": 1975
+        },
+        "_check_binding": {
+          "start": 1978,
+          "end": 2026
+        },
+        "_check_step_bindings": {
+          "start": 2029,
+          "end": 2047
+        },
+        "_check_job_definition": {
+          "start": 2050,
+          "end": 2107
+        },
+        "_check_action_definition": {
+          "start": 2110,
+          "end": 2145
+        },
+        "_check_trigger_definition": {
+          "start": 2148,
+          "end": 2159
+        },
+        "_check_event_creator_definition": {
+          "start": 2162,
+          "end": 2173
+        },
+        "_check_template_definition": {
+          "start": 2176,
+          "end": 2222
+        },
+        "normalize_definition": {
+          "start": 2225,
+          "end": 2258
+        },
+        "_normalize_job": {
+          "start": 2261,
+          "end": 2290
+        },
+        "_reject_legacy_fields": {
+          "start": 2293,
+          "end": 2302
+        },
+        "_reject_server_fields": {
+          "start": 2305,
+          "end": 2313
+        },
+        "_iter_step_arguments": {
+          "start": 2316,
+          "end": 2321
+        },
+        "_iter_bindings": {
+          "start": 2324,
+          "end": 2341
+        },
+        "_precheck_bindings": {
+          "start": 2344,
+          "end": 2353
+        },
+        "_precheck_condition": {
+          "start": 2356,
+          "end": 2359
+        },
+        "validate_definition": {
+          "start": 2362,
+          "end": 2419
+        },
+        "validate_write": {
+          "start": 2422,
+          "end": 2482
+        },
+        "validate_object": {
+          "start": 2485,
+          "end": 2515
+        },
+        "event_fact_digest": {
+          "start": 2534,
+          "end": 2535
+        },
+        "event_receipt_outcome": {
+          "start": 2538,
+          "end": 2561
+        },
+        "validate_record": {
+          "start": 2564,
+          "end": 2575
+        },
+        "validate_event_publish": {
+          "start": 2578,
+          "end": 2608
+        },
+        "_resolve": {
+          "start": 2614,
+          "end": 2623
+        },
+        "_check_action_ref": {
+          "start": 2626,
+          "end": 2691
+        },
+        "_check_job_references": {
+          "start": 2694,
+          "end": 2741
+        },
+        "validate_references": {
+          "start": 2744,
+          "end": 2822
+        },
+        "validate_scheduler_config": {
+          "start": 2825,
+          "end": 2846
+        },
+        "validate_operation_result": {
+          "start": 2849,
+          "end": 2876
+        },
+        "main": {
+          "start": 2879,
+          "end": 2894
+        }
+      }
+    },
+    "packages/jobs/final_service.py": {
+      "gitBlob": "ebedfd439ab3a73a6a996f2c0edc25ff87c63802",
+      "sha256GitBytes": "a6782666f3ae599c7f4121254cb41c72ec888a71c9c1ad702dab7843f4283f4e",
+      "symbols": {
+        "error": {
+          "start": 36,
+          "end": 37
+        },
+        "definition": {
+          "start": 40,
+          "end": 42
+        },
+        "object_ref": {
+          "start": 45,
+          "end": 47
+        },
+        "AggregateStore": {
+          "start": 50,
+          "end": 64
+        },
+        "AggregateStore.__init__": {
+          "start": 52,
+          "end": 53
+        },
+        "AggregateStore.get": {
+          "start": 55,
+          "end": 57
+        },
+        "AggregateStore.mutate": {
+          "start": 59,
+          "end": 64
+        },
+        "TriggerAdmission": {
+          "start": 67,
+          "end": 73
+        },
+        "TriggerAdmission.__init__": {
+          "start": 69,
+          "end": 70
+        },
+        "TriggerAdmission.admit": {
+          "start": 72,
+          "end": 73
+        },
+        "FinalService": {
+          "start": 76,
+          "end": 1893
+        },
+        "FinalService.__init__": {
+          "start": 77,
+          "end": 111
+        },
+        "FinalService._initialize_schema": {
+          "start": 113,
+          "end": 119
+        },
+        "FinalService.transaction": {
+          "start": 122,
+          "end": 128
+        },
+        "FinalService._get": {
+          "start": 131,
+          "end": 135
+        },
+        "FinalService._save": {
+          "start": 138,
+          "end": 139
+        },
+        "FinalService._all": {
+          "start": 142,
+          "end": 143
+        },
+        "FinalService._permit": {
+          "start": 145,
+          "end": 153
+        },
+        "FinalService._envelope": {
+          "start": 155,
+          "end": 162
+        },
+        "FinalService._public": {
+          "start": 164,
+          "end": 170
+        },
+        "FinalService._object": {
+          "start": 172,
+          "end": 176
+        },
+        "FinalService._resolver": {
+          "start": 178,
+          "end": 187
+        },
+        "FinalService._resolver.resolve": {
+          "start": 179,
+          "end": 186
+        },
+        "FinalService._references": {
+          "start": 189,
+          "end": 207
+        },
+        "FinalService._check_literal_product_sessions": {
+          "start": 210,
+          "end": 237
+        },
+        "FinalService._scope": {
+          "start": 239,
+          "end": 240
+        },
+        "FinalService._operation": {
+          "start": 242,
+          "end": 263
+        },
+        "FinalService._page": {
+          "start": 265,
+          "end": 283
+        },
+        "FinalService.list": {
+          "start": 285,
+          "end": 289
+        },
+        "FinalService.get": {
+          "start": 291,
+          "end": 294
+        },
+        "FinalService.creator_providers": {
+          "start": 296,
+          "end": 302
+        },
+        "FinalService.admit_quota": {
+          "start": 304,
+          "end": 331
+        },
+        "FinalService.admit_quota.mutate": {
+          "start": 312,
+          "end": 330
+        },
+        "FinalService.instantiate_time_template": {
+          "start": 333,
+          "end": 392
+        },
+        "FinalService.instantiate_time_template.mutate": {
+          "start": 348,
+          "end": 390
+        },
+        "FinalService.resolve_time_input": {
+          "start": 394,
+          "end": 399
+        },
+        "FinalService._creator_references": {
+          "start": 401,
+          "end": 419
+        },
+        "FinalService.creator_references": {
+          "start": 421,
+          "end": 426
+        },
+        "FinalService._check_creator_references": {
+          "start": 428,
+          "end": 430
+        },
+        "FinalService.write": {
+          "start": 432,
+          "end": 491
+        },
+        "FinalService.write.mutate": {
+          "start": 447,
+          "end": 489
+        },
+        "FinalService.control": {
+          "start": 493,
+          "end": 536
+        },
+        "FinalService.control.mutate": {
+          "start": 497,
+          "end": 535
+        },
+        "FinalService.retire": {
+          "start": 538,
+          "end": 539
+        },
+        "FinalService._admit": {
+          "start": 541,
+          "end": 588
+        },
+        "FinalService.create_run": {
+          "start": 590,
+          "end": 599
+        },
+        "FinalService.create_run.mutate": {
+          "start": 595,
+          "end": 598
+        },
+        "FinalService._find_run": {
+          "start": 601,
+          "end": 605
+        },
+        "FinalService.get_run": {
+          "start": 607,
+          "end": 610
+        },
+        "FinalService._process_log_records": {
+          "start": 612,
+          "end": 627
+        },
+        "FinalService.process_log_references": {
+          "start": 629,
+          "end": 671
+        },
+        "FinalService.read_process_log": {
+          "start": 673,
+          "end": 698
+        },
+        "FinalService.runs": {
+          "start": 700,
+          "end": 702
+        },
+        "FinalService._retry_boundary": {
+          "start": 704,
+          "end": 724
+        },
+        "FinalService.control_run": {
+          "start": 726,
+          "end": 810
+        },
+        "FinalService.control_run.mutate": {
+          "start": 732,
+          "end": 809
+        },
+        "FinalService._external_adapter": {
+          "start": 812,
+          "end": 817
+        },
+        "FinalService._external_targets": {
+          "start": 819,
+          "end": 825
+        },
+        "FinalService.control_run_postcommit": {
+          "start": 827,
+          "end": 865
+        },
+        "FinalService._cancel_status": {
+          "start": 867,
+          "end": 882
+        },
+        "FinalService._cancel_boundary": {
+          "start": 884,
+          "end": 893
+        },
+        "FinalService.operation": {
+          "start": 895,
+          "end": 904
+        },
+        "FinalService.operation_for_key": {
+          "start": 906,
+          "end": 911
+        },
+        "FinalService.create_disabled": {
+          "start": 914,
+          "end": 925
+        },
+        "FinalService.verify_links": {
+          "start": 927,
+          "end": 932
+        },
+        "FinalService.commit_activation": {
+          "start": 934,
+          "end": 938
+        },
+        "FinalService.activate": {
+          "start": 940,
+          "end": 950
+        },
+        "FinalService.complete": {
+          "start": 952,
+          "end": 953
+        },
+        "FinalService.cancel": {
+          "start": 955,
+          "end": 956
+        },
+        "FinalService.publish_action": {
+          "start": 958,
+          "end": 973
+        },
+        "FinalService._install_product_actions": {
+          "start": 975,
+          "end": 1044
+        },
+        "FinalService._session_source": {
+          "start": 1047,
+          "end": 1059
+        },
+        "FinalService.actions": {
+          "start": 1061,
+          "end": 1066
+        },
+        "FinalService._guard_effect": {
+          "start": 1068,
+          "end": 1088
+        },
+        "FinalService._recovery_time": {
+          "start": 1091,
+          "end": 1094
+        },
+        "FinalService._automatic_policy": {
+          "start": 1097,
+          "end": 1100
+        },
+        "FinalService._automatic_due": {
+          "start": 1102,
+          "end": 1109
+        },
+        "FinalService._validate_process_document": {
+          "start": 1111,
+          "end": 1132
+        },
+        "FinalService._process_retry_reason": {
+          "start": 1135,
+          "end": 1145
+        },
+        "FinalService._schedule_automatic": {
+          "start": 1147,
+          "end": 1176
+        },
+        "FinalService._automatic_original": {
+          "start": 1178,
+          "end": 1198
+        },
+        "FinalService._claim_automatic": {
+          "start": 1200,
+          "end": 1224
+        },
+        "FinalService.dispatch_once": {
+          "start": 1226,
+          "end": 1246
+        },
+        "FinalService._drive_run": {
+          "start": 1248,
+          "end": 1373
+        },
+        "FinalService._complete_boundary_controls": {
+          "start": 1376,
+          "end": 1381
+        },
+        "FinalService._settle": {
+          "start": 1383,
+          "end": 1404
+        },
+        "FinalService.recover": {
+          "start": 1406,
+          "end": 1439
+        },
+        "FinalService._cleanup_complete": {
+          "start": 1442,
+          "end": 1453
+        },
+        "FinalService._apply_original_receipt": {
+          "start": 1455,
+          "end": 1479
+        },
+        "FinalService.recover_external_receipts": {
+          "start": 1481,
+          "end": 1588
+        },
+        "FinalService.recover_session_receipts": {
+          "start": 1590,
+          "end": 1684
+        },
+        "FinalService.recover_session_receipts.lookup": {
+          "start": 1637,
+          "end": 1655
+        },
+        "FinalService.targets": {
+          "start": 1686,
+          "end": 1689
+        },
+        "FinalService.admit_event": {
+          "start": 1691,
+          "end": 1696
+        },
+        "FinalService._admit_event": {
+          "start": 1698,
+          "end": 1753
+        },
+        "FinalService._admit_event.mutate": {
+          "start": 1744,
+          "end": 1748
+        },
+        "FinalService.admit_event_async": {
+          "start": 1755,
+          "end": 1760
+        },
+        "FinalService.refresh_subscriptions": {
+          "start": 1762,
+          "end": 1765
+        },
+        "FinalService.scheduler_migration": {
+          "start": 1767,
+          "end": 1770
+        },
+        "FinalService.tick": {
+          "start": 1772,
+          "end": 1789
+        },
+        "FinalService.deliver_outbox": {
+          "start": 1791,
+          "end": 1827
+        },
+        "FinalService._guard_creator": {
+          "start": 1829,
+          "end": 1836
+        },
+        "FinalService.start": {
+          "start": 1838,
+          "end": 1878
+        },
+        "FinalService.start.loop": {
+          "start": 1868,
+          "end": 1877
+        },
+        "FinalService._has_activation": {
+          "start": 1880,
+          "end": 1882
+        },
+        "FinalService.close": {
+          "start": 1884,
+          "end": 1893
+        },
+        "bind": {
+          "start": 1896,
+          "end": 1912
+        }
+      }
+    },
+    "packages/jobs/schemas/final/job.schema.json": {
+      "gitBlob": "21cb325a85cba347b8726b0d9a5a73360d1721d4",
+      "sha256GitBytes": "94e71549b4d20f533daecb429b0e219a86946881d65f9ed51ebed20c609e6219"
+    },
+    "packages/jobs/schemas/final/job_definition.schema.json": {
+      "gitBlob": "220121190f9f12a4c5d6ebcf33fbf56e12bc3d70",
+      "sha256GitBytes": "6688f6271826288ff9066b3e9e9133e7021cb9866abc59b7d0c6797434ff6783"
+    },
+    "tests/test_job_automatic_recovery.py": {
+      "gitBlob": "1bc9d2b20bd69dadd3e04a203c2fcbf8f4ef339e",
+      "sha256GitBytes": "542f021cdb79c906d6c377b0432c8d2a9f8a84fb67c066cafe1de01633126f4f",
+      "symbols": {
+        "env": {
+          "start": 29,
+          "end": 57
+        },
+        "policy": {
+          "start": 60,
+          "end": 62
+        },
+        "job_definition": {
+          "start": 65,
+          "end": 73
+        },
+        "create": {
+          "start": 76,
+          "end": 87
+        },
+        "state": {
+          "start": 90,
+          "end": 91
+        },
+        "seed": {
+          "start": 94,
+          "end": 127
+        },
+        "seed.Original": {
+          "start": 118,
+          "end": 124
+        },
+        "seed.Original.lookup_execution": {
+          "start": 120,
+          "end": 121
+        },
+        "seed.Original.execute": {
+          "start": 122,
+          "end": 124
+        },
+        "observe": {
+          "start": 130,
+          "end": 131
+        },
+        "marker": {
+          "start": 134,
+          "end": 135
+        },
+        "test_unsupported_or_malformed_before_write": {
+          "start": 146,
+          "end": 151
+        },
+        "test_reason_filter_and_no_generic_failure_fallback": {
+          "start": 156,
+          "end": 161
+        },
+        "test_extra_retry_conversion_and_first_attempt_budget": {
+          "start": 165,
+          "end": 170
+        },
+        "test_timeout_requires_full_original_proof": {
+          "start": 173,
+          "end": 176
+        },
+        "test_missing_cleanup_or_supervisor_proof_holds": {
+          "start": 180,
+          "end": 189
+        },
+        "test_real_unknown_or_partial_loses_pending_eligibility": {
+          "start": 193,
+          "end": 202
+        },
+        "test_wrong_original_fence_never_admits": {
+          "start": 206,
+          "end": 212
+        },
+        "test_decimal_deadline_frozen_policy_and_args": {
+          "start": 215,
+          "end": 245
+        },
+        "test_wait_control_keeps_count_and_deadline": {
+          "start": 249,
+          "end": 267
+        },
+        "test_transaction_rollback_before_marker_and_before_admission": {
+          "start": 270,
+          "end": 293
+        },
+        "test_transaction_rollback_before_marker_and_before_admission.fail_marker": {
+          "start": 273,
+          "end": 276
+        },
+        "test_transaction_rollback_before_marker_and_before_admission.fail_attempt": {
+          "start": 285,
+          "end": 288
+        },
+        "test_concurrent_pulses_claim_once_and_late_original_is_inert": {
+          "start": 296,
+          "end": 304
+        },
+        "test_concurrent_pulses_claim_once_and_late_original_is_inert.both": {
+          "start": 298,
+          "end": 299
+        },
+        "test_last_backoff_manual_attempts_and_per_step_budget": {
+          "start": 307,
+          "end": 348
+        },
+        "test_early_revoke_does_not_schedule_or_consume": {
+          "start": 351,
+          "end": 360
+        },
+        "test_action_disable_and_cancel_during_proof_lookup": {
+          "start": 363,
+          "end": 377
+        },
+        "test_action_disable_and_cancel_during_proof_lookup.cancel_during_lookup": {
+          "start": 368,
+          "end": 372
+        },
+        "test_live_action_or_job_disable_blocks_waiting_attempt": {
+          "start": 381,
+          "end": 396
+        },
+        "test_due_filter_does_not_starve_ready_tail": {
+          "start": 399,
+          "end": 408
+        },
+        "test_cold_pending_lookup_and_actual_host_loss_are_distinct": {
+          "start": 411,
+          "end": 424
+        },
+        "test_malformed_marker_never_becomes_due": {
+          "start": 428,
+          "end": 436
+        },
+        "test_legacy_definition_and_old_frozen_plan_stay_disabled": {
+          "start": 439,
+          "end": 448
+        },
+        "test_missing_original_receipt_is_not_permission": {
+          "start": 451,
+          "end": 458
+        },
+        "test_pause_resume_uses_original_deadline": {
+          "start": 461,
+          "end": 473
+        },
+        "test_complete_step_is_not_repeated_when_later_step_retries": {
+          "start": 476,
+          "end": 489
+        },
+        "test_actual_retained_owner_timeout_adds_verified_facts": {
+          "start": 492,
+          "end": 502
+        },
+        "drive_until": {
+          "start": 505,
+          "end": 513
+        },
+        "test_default_detached_process_budget_exhaustion": {
+          "start": 517,
+          "end": 527
+        },
+        "test_owned_http_default_process_cold_reopen_and_pulse": {
+          "start": 530,
+          "end": 606
+        },
+        "test_owned_http_default_process_cold_reopen_and_pulse.run": {
+          "start": 550,
+          "end": 590
+        }
+      }
+    },
+    "tests/test_job_final_contracts.py": {
+      "gitBlob": "9d2e3b215b2fdef0ff853e49e11ece7459f55549",
+      "sha256GitBytes": "c3c0578a7c7678d38f349777a66df30754214c19dc43108f050515f344ab64d2",
+      "symbols": {
+        "process_contract": {
+          "start": 29,
+          "end": 34
+        },
+        "action_definition": {
+          "start": 37,
+          "end": 59
+        },
+        "step": {
+          "start": 62,
+          "end": 70
+        },
+        "job_definition": {
+          "start": 73,
+          "end": 87
+        },
+        "trigger_definition": {
+          "start": 90,
+          "end": 98
+        },
+        "creator_definition": {
+          "start": 101,
+          "end": 116
+        },
+        "template_definition": {
+          "start": 119,
+          "end": 136
+        },
+        "event_envelope": {
+          "start": 139,
+          "end": 152
+        },
+        "object_document": {
+          "start": 164,
+          "end": 184
+        },
+        "action_record": {
+          "start": 187,
+          "end": 211
+        },
+        "Resolver": {
+          "start": 214,
+          "end": 221
+        },
+        "Resolver.__init__": {
+          "start": 217,
+          "end": 218
+        },
+        "Resolver.__call__": {
+          "start": 220,
+          "end": 221
+        },
+        "expect_error": {
+          "start": 224,
+          "end": 233
+        },
+        "test_fc01_each_definition_object_accepts_a_minimal_valid_definition": {
+          "start": 240,
+          "end": 256
+        },
+        "test_fc01_event_publish_envelope_is_valid_and_has_no_editable_definition": {
+          "start": 259,
+          "end": 269
+        },
+        "test_fc01_missing_required_field_is_rejected": {
+          "start": 282,
+          "end": 285
+        },
+        "test_fc01_unknown_field_is_rejected": {
+          "start": 289,
+          "end": 295
+        },
+        "_set_path": {
+          "start": 298,
+          "end": 307
+        },
+        "test_fc01_invalid_enum_or_type_is_rejected": {
+          "start": 324,
+          "end": 328
+        },
+        "test_fc01_invalid_variant_is_rejected": {
+          "start": 343,
+          "end": 347
+        },
+        "test_fc01_condition_errors_use_the_condition_error_code": {
+          "start": 350,
+          "end": 360
+        },
+        "test_fc01_server_fields_are_read_only": {
+          "start": 365,
+          "end": 371
+        },
+        "test_fc01_write_body_accepts_only_definition_revision_and_request_key": {
+          "start": 375,
+          "end": 386
+        },
+        "test_fc01_object_envelopes_validate_for_all_six_objects": {
+          "start": 389,
+          "end": 414
+        },
+        "test_fc01_runtime_records_use_the_declared_state_vocabulary": {
+          "start": 417,
+          "end": 510
+        },
+        "test_fc01_capacity_limits_are_explicit": {
+          "start": 512,
+          "end": 544
+        },
+        "test_fc01_committed_schema_artifacts_match_the_generator": {
+          "start": 547,
+          "end": 563
+        },
+        "test_fc01_design_document_job_example_parses_and_validates": {
+          "start": 566,
+          "end": 586
+        },
+        "test_fc01_json_input_rejects_duplicate_keys_and_non_finite_numbers": {
+          "start": 589,
+          "end": 592
+        },
+        "test_fc02_schema_version_must_be_exactly_two": {
+          "start": 599,
+          "end": 604
+        },
+        "test_fc02_expected_revision_rules_for_create_and_update": {
+          "start": 607,
+          "end": 616
+        },
+        "test_fc02_revision_conflict_reports_current_revision": {
+          "start": 619,
+          "end": 623
+        },
+        "test_fc02_content_and_publish_increment_revision_state_ops_do_not": {
+          "start": 626,
+          "end": 634
+        },
+        "test_fc02_idempotent_replay_for_same_key_and_content": {
+          "start": 637,
+          "end": 642
+        },
+        "test_fc02_idempotency_conflict_for_same_key_different_content": {
+          "start": 645,
+          "end": 653
+        },
+        "test_fc02_idempotency_scope_is_per_principal_and_pending_records_are_not_purged": {
+          "start": 656,
+          "end": 670
+        },
+        "test_fc02_request_key_bounds": {
+          "start": 682,
+          "end": 684
+        },
+        "test_fc02_event_receipts_replay_or_conflict_on_the_fact_digest": {
+          "start": 687,
+          "end": 700
+        },
+        "_binding_job": {
+          "start": 706,
+          "end": 724
+        },
+        "test_fc03_binding_tagged_union_accepts_the_five_declared_forms": {
+          "start": 727,
+          "end": 735
+        },
+        "test_fc03_binding_rejects_forward_and_malformed_references": {
+          "start": 746,
+          "end": 753
+        },
+        "test_fc03_binding_rejects_self_reference": {
+          "start": 756,
+          "end": 762
+        },
+        "test_fc03_binding_rejects_undeclared_input_paths_and_unknown_system_fields": {
+          "start": 765,
+          "end": 782
+        },
+        "test_fc03_trigger_bindings_reject_step_and_input_sources": {
+          "start": 792,
+          "end": 798
+        },
+        "test_fc03_action_reference_requires_published_exact_revision_and_digest": {
+          "start": 801,
+          "end": 828
+        },
+        "test_fc03_disabled_action_blocks_admission_but_not_definition_editing": {
+          "start": 831,
+          "end": 839
+        },
+        "test_fc03_step_completion_contract_must_be_declared_and_parameters_validated": {
+          "start": 842,
+          "end": 858
+        },
+        "test_fc03_template_composition_requires_unique_and_resolvable_local_keys": {
+          "start": 861,
+          "end": 893
+        },
+        "test_fc03_template_cannot_embed_trigger_links_or_unfilled_parameter_holes": {
+          "start": 896,
+          "end": 916
+        },
+        "test_fc03_trigger_target_and_job_links_must_stay_consistent": {
+          "start": 919,
+          "end": 946
+        },
+        "test_fc04_supported_object_operations_are_accepted": {
+          "start": 953,
+          "end": 955
+        },
+        "test_fc04_unsupported_operations_return_explicit_errors": {
+          "start": 978,
+          "end": 983
+        },
+        "test_fc04_definition_transition_violations_are_explicit": {
+          "start": 986,
+          "end": 1004
+        },
+        "test_fc04_run_layer_transitions_require_the_declared_operation": {
+          "start": 1007,
+          "end": 1036
+        },
+        "test_fc04_legacy_fields_are_rejected_without_fallback": {
+          "start": 1056,
+          "end": 1062
+        },
+        "test_fc04_legacy_event_wire_names_are_rejected": {
+          "start": 1065,
+          "end": 1074
+        },
+        "test_fc04_error_codes_are_a_closed_set_with_http_mapping": {
+          "start": 1077,
+          "end": 1092
+        },
+        "test_fc04_operation_result_requires_the_documented_envelope": {
+          "start": 1095,
+          "end": 1118
+        }
+      }
+    }
+  },
+  "unchangedBoundaries": [
+    "packages/jobs/final_runtime/ledger.py",
+    "packages/jobs/final_runtime/coordinator.py",
+    "packages/jobs/independent_executor.py",
+    "tests/test_background_job_retry_if.py",
+    "tests/test_authorization_runtime.py",
+    "tests/automation_retirement.json"
+  ],
+  "finalSourceUniquePassed": 349,
+  "junitResults": {
+    "candidate-focused.xml": {
+      "tests": 57,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 57,
+      "failedNodes": [],
+      "sha256": "4decd1587bf4e375fdffc8a577af32b4df57d63707a7583f90b366e280ef61c3"
+    },
+    "contracts-regression.xml": {
+      "tests": 199,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 199,
+      "failedNodes": [],
+      "sha256": "deab8cbf6129e8020eb8932c3428d685a5a174234e5c8a58694abf1d8a44eded"
+    },
+    "executor-cancel-logs-regression.xml": {
+      "tests": 86,
+      "failedOrError": 0,
+      "skipped": [
+        {
+          "classname": "tests.test_job_process_logs",
+          "name": "test_large_unicode_log_leader_loss_remains_unknown_and_original_queryable",
+          "time": "0.000",
+          "reason": "POSIX lost-leader process log/owned subtree boundary"
+        }
+      ],
+      "passed": 85,
+      "failedNodes": [],
+      "sha256": "fcbe0096c8408b40dfd2ed37325f718ce09ff13b51eed3c949a5c3eeb2770962"
+    },
+    "first-focused-red.xml": {
+      "tests": 41,
+      "failedOrError": 6,
+      "skipped": [],
+      "passed": 35,
+      "failedNodes": [
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery6-invalid_schema]",
+          "time": "0.272"
+        },
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery7-invalid_schema]",
+          "time": "0.349"
+        },
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery8-invalid_schema]",
+          "time": "0.399"
+        },
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery9-invalid_schema]",
+          "time": "0.441"
+        },
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_unsupported_or_malformed_before_write[recovery10-invalid_schema]",
+          "time": "0.382"
+        },
+        {
+          "classname": "tests.test_job_automatic_recovery",
+          "name": "test_decimal_deadline_frozen_policy_and_args",
+          "time": "0.625"
+        }
+      ],
+      "sha256": "88678ef570b7f8d1f0f2eb3efc04567bbef8df5a97ce5bb84111b30c5b632108"
+    },
+    "focused-expanded.xml": {
+      "tests": 53,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 53,
+      "failedNodes": [],
+      "sha256": "592a410a6380774ef88f087938fc5655bc04131938c532b128a8001ea4594d02"
+    },
+    "focused-final.xml": {
+      "tests": 57,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 57,
+      "failedNodes": [],
+      "sha256": "5b7b15e5ac09c4e8a6a5c117f0bc8cae5b19b19ef32e1f9ef0946a86b85a08a4"
+    },
+    "focused.xml": {
+      "tests": 41,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 41,
+      "failedNodes": [],
+      "sha256": "7a02f6a36b3747effd8e475c33a6341b9531744d6d327141190968ce19d2a2cf"
+    },
+    "source-15e34ba6-focused-contract-manual.xml": {
+      "tests": 284,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 284,
+      "failedNodes": [],
+      "sha256": "38578b628928547cec71d61efc23269410faab33a5afef2a44b31a1d8f4462e8"
+    },
+    "source-15e34ba6-independent-cancel.xml": {
+      "tests": 65,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 65,
+      "failedNodes": [],
+      "sha256": "606d346c0af9cbb0ccd70c71c6c867aef6937cbc5c63b1f7bdf3bbe41168acb5"
+    },
+    "typed-regression.xml": {
+      "tests": 28,
+      "failedOrError": 0,
+      "skipped": [],
+      "passed": 28,
+      "failedNodes": [],
+      "sha256": "05276d292bbefdf489e84a4c7f0407926ed86cd004cc1b43dbb605f178790138"
+    }
+  },
+  "defaultDetached": {
+    "transport": "owned-loopback-HTTP",
+    "executor": "product-default-detached",
+    "pulse": "FinalService.start",
+    "coldReopen": true,
+    "originalCleanupComplete": true,
+    "originalSupervisorExited": true,
+    "runs": 1,
+    "attempts": 2,
+    "distinctEffects": 1,
+    "actualInvocations": 2,
+    "executorHistoryRows": 1,
+    "ownedPortReleased": true
+  },
+  "unverified": [
+    "Linux/macOS runtime",
+    "remote CI",
+    "full suite",
+    "browser",
+    "real provider/data migration",
+    "deployment",
+    "24-hour detached timeout (retained-owner timeout proof was tested directly)"
+  ],
+  "oldReds": "Original 65 retired retryIf tests unchanged and not rerun; not declared passing or closed."
+}

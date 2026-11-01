@@ -1,0 +1,8 @@
+{
+  "executorPort": 62901,
+  "canonicalPort": 62902,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 0
+}

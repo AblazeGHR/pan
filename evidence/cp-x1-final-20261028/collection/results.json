@@ -1,0 +1,27 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "results": [
+    {
+      "phase": "collect",
+      "exitCode": 0,
+      "seconds": 10.267,
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/",
+        "packages/qq/",
+        "packages/wechat/",
+        "--collect-only",
+        "-q",
+        "-ra",
+        "--junitxml=D:\\project\\pan-worktrees\\xplat-job-fast-gates-20261027\\evidence\\cp-x1-final-20261028\\collection\\collect.xml"
+      ],
+      "log": "collect.log"
+    }
+  ]
+}

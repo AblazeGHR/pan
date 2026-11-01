@@ -1,0 +1,34 @@
+{
+  "sourceSha": "f5f05ca5be51e3dbcd1bc4b4cd5b29ebe0ab1597",
+  "gate": "qq-fences",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev25_qq_runtime.py",
+    "-k",
+    "current_gate or cold_corrupt or invalid_runtime",
+    "-q",
+    "--tb=short",
+    "-o",
+    "junit_logging=all",
+    "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev25-20261031\\qq-fences.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029",
+  "exit": 0,
+  "elapsedSeconds": 56.10262680053711,
+  "log": "qq-fences.log",
+  "logSha256": "818feb615932329f546e640ba69b4b852be1715e9b67255fa67e85c3b90aeae5",
+  "counts": {
+    "tests": 9,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 9
+  },
+  "junit": "qq-fences.xml",
+  "junitSha256": "ba6df071f1b2831d7fa066cbf105b27c9fc5bfc953dc132677ec66a1797a16ba"
+}

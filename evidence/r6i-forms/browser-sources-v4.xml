@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="12.240" timestamp="2026-10-27T10:57:05.767871+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]" time="3.812"><failure message="AssertionError: assert 1 == 2&#10; +  where 1 = len({'interval'})&#10; +    where {'interval'} = set(['interval'])">tests\test_scheduler_structured_browser.py:149: in test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown
+    assert len(set(stable_rules))==2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = len({'interval'})
+E    +    where {'interval'} = set(['interval'])</failure></testcase><testcase classname="tests.test_scheduler_management_browser" name="test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser" time="7.962" /></testsuite></testsuites>

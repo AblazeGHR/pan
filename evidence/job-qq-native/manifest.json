@@ -1,0 +1,13 @@
+{
+  "baseline": "0f1cab10ca62b046a721efe701b40dec0744c2b8",
+  "parentCandidate": "7814dea6fede86298df2fc7ada8a3be99fe23ab2",
+  "scope": "v2 thin Action adapter plus one host injection",
+  "changedFiles": ["packages/actions/qq_channel_provider.py", "packages/web/server.py", "tests/test_job_qq_native_provider.py"],
+  "sharedEntry": "_bind_qq_channel_provider(final_jobs) called immediately after final_service.bind; custom executors remain untouched",
+  "testCommand": "python scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -m pytest tests/test_job_qq_native_provider.py -q -o addopts=",
+  "testResult": "8 passed",
+  "compile": "python -m py_compile packages/actions/qq_channel_provider.py packages/web/server.py tests/test_job_qq_native_provider.py",
+  "integration": "owned ephemeral HTTP -> _send_scheduled_qq -> plugin.py -> OneBotChannel; final gateway fake",
+  "unverified": ["MA merge/combination tests", "real QQ/OneBot gateway", "remote CI", "deployment", "production backlog/run-now acceptance"],
+  "excluded": ["new transport", "remote query", "retry protocol", "ledger", "SQLite", "executor operation rewrite"]
+}

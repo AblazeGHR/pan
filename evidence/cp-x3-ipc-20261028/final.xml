@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="39" time="3.959" timestamp="2026-10-28T15:10:16.341753+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_ipc_endpoint" name="test_long_caller_path_concurrent_bridges_roundtrip_and_cleanup" time="0.016" /><testcase classname="tests.test_plugin_ipc_endpoint" name="test_long_temp_root_uses_short_private_endpoint" time="0.008"><failure message="OSError: No short private Unix plugin socket path available">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F79B067230&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5765/test_long_temp_root_uses_short0')
+
+    def test_long_temp_root_uses_short_private_endpoint(monkeypatch, tmp_path):
+        from packages.core.platform import plugin_ipc
+        long_temp = tmp_path / ('t' * 110)
+        long_temp.mkdir()
+        monkeypatch.setattr(plugin_ipc.tempfile, 'gettempdir', lambda: str(long_temp))
+        if os.name == 'nt':
+            # Pure policy test on Windows: redirect only the POSIX /tmp allocation
+            # to an owned short root, never claim a real Unix bind succeeded.
+            original = plugin_ipc.tempfile.mkdtemp
+            monkeypatch.setattr(plugin_ipc.tempfile, 'mkdtemp',
+                lambda **kwargs: original(**{**kwargs, 'dir': str(tmp_path)}) if kwargs['dir'] == '/tmp' else original(**kwargs))
+&gt;       endpoint = plugin_ipc.UnixEndpoint()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_plugin_ipc_endpoint.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.core.platform.plugin_ipc.UnixEndpoint object at 0x000001F79B070980&gt;
+
+    def __init__(self):
+        self.directory = None
+        self.identity = None
+        for base in dict.fromkeys((tempfile.gettempdir(), '/tmp')):
+            # Reserve suffix/name room without creating anything in a long root.
+            if len(os.fsencode(str(Path(base).resolve()))) + 32 &gt;= 104:
+                continue
+            directory = Path(tempfile.mkdtemp(prefix='pan-ipc-', dir=base))
+            try:
+                os.chmod(directory, 0o700)
+                info = directory.lstat()
+                address = str(directory / 'bridge.sock')
+                if len(os.fsencode(address)) &gt;= 104:
+                    directory.rmdir()
+                    continue
+                self.directory = directory
+                self.identity = (info.st_dev, info.st_ino)
+                self.address = address
+                return
+            except BaseException:
+                directory.rmdir()
+                raise
+&gt;       raise OSError('No short private Unix plugin socket path available')
+E       OSError: No short private Unix plugin socket path available
+
+packages\core\platform\plugin_ipc.py:41: OSError</failure></testcase><testcase classname="tests.test_plugin_ipc_endpoint" name="test_listener_failure_cleans_only_its_endpoint" time="0.005" /><testcase classname="tests.test_plugin_ipc_endpoint" name="test_private_endpoint_refuses_recursive_cleanup_of_unknown_entries" time="0.004" /><testcase classname="tests.test_plugin_ipc_endpoint" name="test_start_exception_restores_environment_and_retires_bridge" time="0.004" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[False-codex]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[False-cbc]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[False-kimi]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[True-codex]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[True-cbc]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_start_rejected_before_recovery_or_spawn[True-kimi]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_direct_spawn_rejects_native_before_adapter_or_plugin_io" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_stream_spawn_preserves_literal_cwd_and_argv" time="0.007" /><testcase classname="tests.test_worker_platform_admission" name="test_worker_spawn_options_isolate_host_signals[linux]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_worker_spawn_options_isolate_host_signals[darwin]" time="0.002" /><testcase classname="tests.test_worker_platform_admission" name="test_worker_spawn_options_preserve_windows_policy" time="0.002" /><testcase classname="tests.test_worker_platform_admission" name="test_native_restart_rejects_before_stopping_existing_runtime[_restart_worker_unlocked]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_native_restart_rejects_before_stopping_existing_runtime[_respawn_worker_unlocked]" time="0.003" /><testcase classname="tests.test_worker_platform_admission" name="test_unknown_capability_probe_is_not_reported_as_unsupported" time="0.002" /><testcase classname="tests.test_native_control_api" name="test_explicit_platform_denial_precedes_configuration_side_effects" time="0.007" /><testcase classname="tests.test_native_control_api" name="test_passthrough_saved_offline_and_strict_codex_only" time="0.012" /><testcase classname="tests.test_native_control_api" name="test_passthrough_lost_receipt_is_pending_then_same_worker_retry" time="0.008" /><testcase classname="tests.test_native_control_api" name="test_passthrough_persistence_failure_never_sends_to_kernel" time="0.006" /><testcase classname="tests.test_native_control_api" name="test_default_and_other_adapters_reject_without_spawning" time="0.007" /><testcase classname="tests.test_native_control_api" name="test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate[codex]" time="0.006" /><testcase classname="tests.test_native_control_api" name="test_pan_recovery_during_pending_upgrade_does_not_spawn_or_mutate[cbc]" time="0.007" /><testcase classname="tests.test_native_control_api" name="test_invalid_modes_do_not_call_worker[body0]" time="0.006" /><testcase classname="tests.test_native_control_api" name="test_invalid_modes_do_not_call_worker[body1]" time="0.006" /><testcase classname="tests.test_native_control_api" name="test_invalid_modes_do_not_call_worker[body2]" time="0.007" /><testcase classname="tests.test_native_control_api" name="test_output_offsets_gap_and_no_private_transport[codex]" time="0.012" /><testcase classname="tests.test_native_control_api" name="test_output_offsets_gap_and_no_private_transport[cbc]" time="0.022" /><testcase classname="tests.test_native_control_api" name="test_write_requires_current_worker_and_real_ack[codex]" time="0.011" /><testcase classname="tests.test_native_control_api" name="test_write_requires_current_worker_and_real_ack[cbc]" time="0.028" /><testcase classname="tests.test_native_control_api" name="test_native_spawn_fences_queue_before_consumer_is_created[codex]" time="0.006" /><testcase classname="tests.test_native_control_api" name="test_native_spawn_fences_queue_before_consumer_is_created[cbc]" time="0.005" /><testcase classname="tests.test_native_control_api" name="test_origin_gate_runs_before_session_lookup" time="0.005" /><testcase classname="tests.test_native_control_api" name="test_invalid_unicode_input_is_rejected_without_worker_write[codex]" time="0.005" /><testcase classname="tests.test_native_control_api" name="test_invalid_unicode_input_is_rejected_without_worker_write[cbc]" time="0.007" /><testcase classname="tests.test_native_control_api" name="test_creation_is_explicit_native_adapter_and_old_session_data_stays_unchanged" time="2.826" /></testsuite></testsuites>

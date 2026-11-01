@@ -1,0 +1,9 @@
+{
+  "port": 49181,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5779\\test_owned_host_configuration_0\\host-http",
+  "realProviderCalls": 0,
+  "realEffects": 0,
+  "serverPid": 36156,
+  "portReleased": true,
+  "ownedServerStopped": true
+}

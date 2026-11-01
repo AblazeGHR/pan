@@ -1,0 +1,110 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+{
+  "source": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "baseline": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "syntheticOnly": true,
+  "p9d": {
+    "simpleImported": 2,
+    "unrecognizedPreserved": 5,
+    "manualDeletionEntries": 5,
+    "canonicalRows": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "historyReadable": 2,
+    "logsReadable": 2,
+    "originalKeyReceiptsAdopted": 2,
+    "receiptBasis": "source-stated delivered; not a new or externally verified delivery",
+    "effectsExecuted": 0,
+    "newRuns": 0,
+    "newOutbox": 0,
+    "unknownSettled": 0,
+    "activeIds": [],
+    "activeLegacyMigratedSet": 0,
+    "legacyZeroScope": "imported set in isolated profile",
+    "remainingLegacyIdentities": 5,
+    "allLegacyZeroProven": false,
+    "sourceFilesUnchanged": 18,
+    "offlineReplayWrites": 0,
+    "restartCountsUnchanged": true,
+    "ownerEpochBeforeRestart": 4,
+    "ownerEpochAfterRestart": 5,
+    "authorizationReceiptDigest": "f17202acc0d986fa7aecae26ca6336f7143e878570d158f5d810acd3a57d77fd",
+    "packetDigest": "aa5fc9d56768a9395a0fea14ba0b440bb1d00569030edfb7531b41ae8d87f999",
+    "bundleDigest": "6baf0e163d0f151696f532c6fc05b7c41f79ef03e7fd020d6624e25fdda28614",
+    "planDigest": "cadc2540dda60bcbe3e17e36e458549f0b1b22c5731757b47534151f08b1b83e",
+    "runtimeImported": true,
+    "productionMigrated": false,
+    "manualDeletionExecuted": false,
+    "realSourceOpened": false,
+    "sourceCoverageDigest": "869a8cd336fb3fc39f3e221ffed1e90df2550e11e769f56d8a11b2df0fc437ac",
+    "wholeProfileMigrationComplete": false,
+    "unmappedSourcePaths": [
+      "background_jobs/logs/job_r2_0.log",
+      "background_jobs/logs/job_r2_1.log",
+      "background_jobs/logs/job_r2_2.log",
+      "background_jobs/logs/job_r2_3.log",
+      "background_jobs/logs/job_r2_4.log",
+      "background_jobs/pins.json",
+      "independent/outbox.sqlite3",
+      "scheduler/drive-cursor.json",
+      "scheduler/time-events.sqlite3",
+      "sessions/queue-pending.json",
+      "unknown-profile/blob.bin"
+    ]
+  },
+  "coldProcess": {
+    "pid": 41960,
+    "counts": {
+      "job": 2,
+      "migration_history": 2,
+      "migration_receipt": 2,
+      "migration_unrecognized": 5,
+      "runtime_activation": 1
+    },
+    "objects": [
+      {
+        "id": "job_c96e42e08960a7a7330db67d",
+        "state": "disabled",
+        "schemaVersion": 2
+      },
+      {
+        "id": "job_f84c6dca34681546313d609f",
+        "state": "disabled",
+        "schemaVersion": 2
+      }
+    ],
+    "owner": {
+      "epoch": 6,
+      "nonce": "08b27db3604d4d5b98fe2bd3d0c7476e",
+      "state": "active"
+    },
+    "effects": 0,
+    "legacyWriterRejected": true
+  },
+  "ownerBeforeRelease": {
+    "epoch": 7,
+    "nonce": "1dc45c77e17441659cf1781ebc74f50d",
+    "state": "active"
+  },
+  "staleEpochRejected": true,
+  "concurrentOwnerRejected": true,
+  "oldWriterRejected": true,
+  "offlineRollbackRemovedRuntimeRows": false,
+  "runtimeRowsUnchangedAcrossOfflineRollback": true,
+  "sourceUnchanged": true,
+  "copiedOriginalsUnchanged": true,
+  "coverageDigest": "365d7b79c4a9991b75d878e1216e9b89f717e2b9a1637e20be797360f605762c",
+  "wholeProfileMigrationComplete": false,
+  "resourceCleanup": {
+    "childExit": 0,
+    "runtimeTaskClosed": true,
+    "ownerLockReleased": true,
+    "ownerState": "closed",
+    "portsOpened": [],
+    "temporaryFiles": []
+  }
+}

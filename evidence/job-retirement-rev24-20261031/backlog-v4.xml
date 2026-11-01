@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.509" timestamp="2026-10-31T19:57:46.472677+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev24_backlog" name="test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note" time="0.088"><failure message="KeyError: 'jobId'">tests\test_retirement_rev24_backlog.py:30: in test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note
+    saved = jobs.get(created['jobId'], registry_root=scheduler_store.data_root())
+                     ^^^^^^^^^^^^^^^^
+E   KeyError: 'jobId'</failure></testcase></testsuite></testsuites>

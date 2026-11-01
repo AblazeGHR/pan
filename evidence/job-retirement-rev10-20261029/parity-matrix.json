@@ -1,0 +1,1363 @@
+{
+  "schema": "pan.retirement.qq-parity/revision10",
+  "acceptedBaseline": "f04011d1691fe0aa2982c772b3d338866ed65b5d",
+  "testedSourceSha": "8b2aa0cfcfd1209037545c52e2b1ac868667fe47",
+  "changedFiles": [
+    "packages/actions/qq_channel_provider.py",
+    "packages/actions/typed_executor.py",
+    "packages/jobs/final_service.py",
+    "packages/qq/channels/onebot.py",
+    "packages/qq/plugin.py",
+    "packages/web/server.py",
+    "tests/test_retirement_rev10_qq_retry.py"
+  ],
+  "groups": {
+    "final-retry": {
+      "exit": 0,
+      "counts": {
+        "passed": 8,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "elapsedSeconds": 99.686
+    },
+    "final-qq-native": {
+      "exit": 0,
+      "counts": {
+        "passed": 96,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "elapsedSeconds": 16.257
+    },
+    "final-canonical": {
+      "exit": 0,
+      "counts": {
+        "passed": 47,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "elapsedSeconds": 125.776
+    },
+    "final-recovery": {
+      "exit": 0,
+      "counts": {
+        "passed": 166,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "elapsedSeconds": 103.582
+    }
+  },
+  "uniqueCounts": {
+    "passed": 317,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "nodes": {
+    "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[None]": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_original_receipt_binding_corruption_and_unknown_partial_never_retry": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_current_authorization_revoked_before_manual_retry_no_write_or_send": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_custom_product_like_action_cannot_use_trusted_retry_exception": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_call_api_entered_channel_not_connected_is_ambiguous_no_proof": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_retirement_rev10_qq_retry.py::test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance": {
+      "status": "passed",
+      "command": "final-retry"
+    },
+    "tests/test_job_qq_native_provider.py::test_existing_chain_maps_action_and_preserves_raw_success": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_optional_bot_and_group_are_forwarded_to_existing_route": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_existing_plugin_rejection_is_returned_unchanged": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[private-123456-hello]": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[user-bad-hello]": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[user-123456-]": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_unknown_original_failure_is_not_reclassified_as_success": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_job_qq_native_provider.py::test_host_injection_binds_existing_sender_once": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_resolve_channel_name_defaults_and_fallback": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_create_channel_returns_correct_type": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_spec_defaults": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_spec_config_override": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_spec_env_precedence": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_specs_single_channel_compat": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_specs_multi_channel": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_specs_entry_fallbacks": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_build_channel_specs_env_ignored_in_multi": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_create_channel_alias_name": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_multi_channel_registry": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_filters_by_bot_uin": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_bot_connect_filters_by_bot_uin": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_plugin_get_channel_by_uin_and_reply_routing": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_api_send_with_bot_uin_routes_and_persists": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_history_path_legacy_and_bot_isolation": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_api_read_default_bot_fallback": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_send_private_routes_to_send_private_msg": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_send_group_routes_to_send_group_msg": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_send_validation_errors": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_send_bot_not_connected": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_upload_file_private": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_upload_file_group": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_upload_file_name_autoderive": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_upload_file_validation_errors": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_recent_contacts_merges": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_channel_recent_contacts_bot_not_connected": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_private_builds_qqmessage": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_group_requires_at_bot": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_empty_text_dropped": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_rich_media_appended_to_text": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_pure_media_not_dropped": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_file_segment_described": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_mface_described": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_mface_downloaded_to_local_path": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_safe_filename_rules": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_download_writes_file_and_ext_from_content_type": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_download_failure_returns_none": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_media_downloaded_to_local_path": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_on_message_media_download_failure_keeps_url": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_is_connected_toggles": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_napcat_llonebot_isolation": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_plugin_get_channel_uses_configured_channel": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_channels.py::test_plugin_channel_send_goes_through_active_channel": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_private_routes_to_send_private_msg": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_group_routes_to_send_group_msg": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_string_numeric_target_id": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_invalid_target_type": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_invalid_target_id": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_empty_text": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_bot_not_connected": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_api_failure": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_history_empty": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_append_and_read_roundtrip": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_history_limit_takes_newest": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_history_sanitizes_target_id": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_send_records_outgoing_assistant_message": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_merges_full_lists": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_missing_name_falls_back_to_uin": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_recent_fails_still_lists": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_unsupported": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_mode_default_mirror": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_mode_selective_and_invalid": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_selective_writes_inbox_and_history_no_reply": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_selective_group_at_message_goes_inbox": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_inbox_consume_deletes_all": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_inbox_consume_partial_keeps_rest": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_inbox_clear": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_selective_command_route_still_executes": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_mirror_mode_behavior_unchanged": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_mcp_qq_read_inbox_consume": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_mcp_qq_read_inbox_defaults": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_format_report_batch_qq_branch": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_format_report_batch_agent_branch_unchanged": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_bind_missing_identity": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_unbind_missing_identity": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_bind_invalid_target_type": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_qq_bind_passes_identity_to_pan_core": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_session_qq_subscriptions_roundtrip": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_enqueue_qq_reminder_delivers_to_subscribers": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_enqueue_qq_reminder_bot_scoped_subscription": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_format_report_batch_qq_header_with_bot": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_bot_uin_routes_to_channel": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_unknown_bot_uin": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_recent_contacts_default_channel_when_no_bot_uin": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_api_channels_lists_registry": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_api_channels_active_fallback": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "packages/qq/test_qq_api.py::test_shared_locker_scope_instance_and_native_parts": {
+      "status": "passed",
+      "command": "final-qq-native"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[None]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[222222]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_edit_after_admission_keeps_actual_original_bot_target_text": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_fe02_cross_host_lookup_keeps_run_and_effect_identity": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m03_source_metadata_reaches_original_session_provider": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m03_missing_provider_status_stays_unknown": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m04_broadcast_uses_per_target_provider_receipts_without_extra_store_rows": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m04_broadcast_target_effect_keys_are_stable_and_parent_scoped": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m05_assign_reuses_task_and_source_identity": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m05_assign_reuses_effect_derived_task_id_on_replay": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m05_assign_preserves_rejection_and_unknown[error-rejected]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m05_assign_preserves_rejection_and_unknown[unknown-unknown]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_m05_assign_missing_session_is_rejected_by_original_worker_boundary": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_invalid_qq_identity_is_rejected_before_provider_call": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining0-False]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_root_exit_without_owned_tree_proof_is_unknown[remaining1-False]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_cleanup_close_failure_cannot_be_success_or_retry": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes0]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes1]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes2]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_invalid_process_plan_is_refused_before_spawn[changes3]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses0-unknown]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_system_typed_port_reuses_unknown_partial_receipts[statuses1-partial]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_terminal_persistence_crash_retains_unknown_intent_without_resend": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_failed_intent_persistence_prevents_provider_call": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_final_executors.py::test_r5_unrelated_receipt_host_cannot_authorize_ephemeral_message_executor": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[session-message]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[assign]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_product_http_real_queue_source_and_cold_original_query[session-broadcast]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_product_missing_target_rejects_without_spawn": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-message]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[assign]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-broadcast]": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_assign_connection_failure_cold_query_stays_unknown": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_product_fanout_partial_unknown_cold_reopen_never_resends": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_payload_source_cannot_authenticate_http_or_delegate_identity": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_handoff_only_declared_targets_preserves_nested_payload_and_frozen_run": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_session_product_closure.py::test_process_log_publication_additive_immutable_idempotent": {
+      "status": "passed",
+      "command": "final-canonical"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery0-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery1-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery2-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery3-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery4-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery5-capability_unsupported]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery6-invalid_schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery7-invalid_schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery8-invalid_schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery9-invalid_schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_unsupported_or_malformed_before_write[recovery10-invalid_schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_reason_filter_and_no_generic_failure_fallback[failed-True]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_reason_filter_and_no_generic_failure_fallback[timeout-False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_reason_filter_and_no_generic_failure_fallback[cancelled_before_effect-False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_reason_filter_and_no_generic_failure_fallback[provider_unavailable-False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_reason_filter_and_no_generic_failure_fallback[process_exception-False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_extra_retry_conversion_and_first_attempt_budget[0-False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_extra_retry_conversion_and_first_attempt_budget[1-True]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_extra_retry_conversion_and_first_attempt_budget[9-True]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_timeout_requires_full_original_proof": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_cleanup_or_supervisor_proof_holds[identityVerified]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_cleanup_or_supervisor_proof_holds[treeTerminated]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_cleanup_or_supervisor_proof_holds[ownedTree]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_cleanup_or_supervisor_proof_holds[confirmed]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_cleanup_or_supervisor_proof_holds[supervisor]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_real_unknown_or_partial_loses_pending_eligibility[unknown]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_real_unknown_or_partial_loses_pending_eligibility[partial]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wrong_original_fence_never_admits[effectKey]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wrong_original_fence_never_admits[attempt]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wrong_original_fence_never_admits[planDigest]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wrong_original_fence_never_admits[frozenPlan]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wrong_original_fence_never_admits[jobId]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_decimal_deadline_frozen_policy_and_args": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wait_control_keeps_count_and_deadline[pause]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wait_control_keeps_count_and_deadline[cancel]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_wait_control_keeps_count_and_deadline[revoke]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_transaction_rollback_before_marker_and_before_admission": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_concurrent_pulses_claim_once_and_late_original_is_inert": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_last_backoff_manual_attempts_and_per_step_budget": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_early_revoke_does_not_schedule_or_consume": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_action_disable_and_cancel_during_proof_lookup": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_live_action_or_job_disable_blocks_waiting_attempt[action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_live_action_or_job_disable_blocks_waiting_attempt[job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_due_filter_does_not_starve_ready_tail": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_cold_pending_lookup_and_actual_host_loss_are_distinct": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_malformed_marker_never_becomes_due[None]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_malformed_marker_never_becomes_due[NaN]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_malformed_marker_never_becomes_due[-1]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_malformed_marker_never_becomes_due[True]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_legacy_definition_and_old_frozen_plan_stay_disabled": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_missing_original_receipt_is_not_permission": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_pause_resume_uses_original_deadline": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_complete_step_is_not_repeated_when_later_step_retries": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_actual_retained_owner_timeout_adds_verified_facts": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_default_detached_process_budget_exhaustion[0]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_default_detached_process_budget_exhaustion[1]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_automatic_recovery.py::test_owned_http_default_process_cold_reopen_and_pulse": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[assign]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_assign_original_fixed_target_write_contract_has_no_write_or_spawn[create]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_assign_original_fixed_target_write_contract_has_no_write_or_spawn[update]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-None]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-10000]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -None]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -10000]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[targetId-123]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[botUin-123]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_known_qq_target_literal_checked_when_text_is_dynamic[targetType-friend]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[targetId]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[targetType]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[botUin]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_qq_binding_is_preserved_and_existing_resolution_still_validates[text]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[session_message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[session_broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_dynamic_session_target_is_deferred_but_fixed_target_with_dynamic_text_is_checked[assign]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_custom_action_argument_names_do_not_acquire_product_business_rules[channel]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_custom_action_argument_names_do_not_acquire_product_business_rules[session-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[id]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[system]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[operation]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_retirement_rev7_write_validation.py::test_qq_pure_helper_requires_resolved_product_identity_not_just_channel_shape[provider]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[\\u5408\\u6cd5\\u4e2d\\u6587-qq]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -qq]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[create-qq]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_invalid_literal_transaction_has_no_definition_operation_revision_or_spawn[update-qq]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[None]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[invalid1]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fully_literal_schema_rejects_wrong_target_types_before_storage[123]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[input]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_mixed_bindings_defer_complete_schema_validation_until_resolution[event]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_session_is_checked_even_when_text_is_dynamic_and_cold_store_is_used[broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_custom_session_parameter_name_does_not_acquire_product_business_validation": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_resolved_immutable_action_schema_is_used_after_reference_checks": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[botUin-untrusted]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[text-]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[endpoint-http://untrusted]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_literal_qq_schema_rejects_invalid_or_undeclared_fields[sessionId-untrusted]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_empty_literal_object_is_validated_against_required_action_fields": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_dynamic_session_target_is_not_looked_up_as_a_literal[broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[None-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[None-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[123-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[123-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[invalid2-message]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_fixed_session_target_type_in_mixed_mapping_uses_its_schema[invalid2-broadcast]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_real_session_validation_keeps_system_grant_and_high_risk_fences": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_business_payload_name_uses_immutable_action_schema_through_http[False]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_business_payload_name_uses_immutable_action_schema_through_http[True]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_literal_validation.py::test_high_risk_custom_action_remains_fenced_after_literal_validation": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[arguments]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[literal]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[schema-default]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-config]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-schema]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[creator-config]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_event_payload_business_name_is_not_a_canonical_name": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-event_creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[English name-template]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-event_creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[\\u4e2d\\u6587\\u540d\\u79f0-template]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -event_creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_keep_legal_original_text[  \\u4e2d English  -template]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -event_creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[ -template]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-action]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-event_creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-job]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_canonical_definition_and_document_names_still_reject_blank[\\t\\n-template]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -jobDefinition]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[ -trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-jobDefinition]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[\\t\\n-trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -jobDefinition]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -creator]": {
+      "status": "passed",
+      "command": "final-recovery"
+    },
+    "tests/test_job_retirement_name_scope.py::test_template_embedded_canonical_names_have_the_same_scope[  \\u5408\\u6cd5 template  -trigger]": {
+      "status": "passed",
+      "command": "final-recovery"
+    }
+  },
+  "oldRedMapping": {
+    "r9-default-selected-no-send": {
+      "old": "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap",
+      "new": [
+        "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[None]",
+        "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]",
+        "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]"
+      ],
+      "status": "closed-with-trusted-pre-send-phase"
+    },
+    "r9-unknown-ambiguous": {
+      "new": [
+        "tests/test_retirement_rev10_qq_retry.py::test_call_api_entered_channel_not_connected_is_ambiguous_no_proof",
+        "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]",
+        "tests/test_retirement_rev9_qq_http.py::test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]"
+      ],
+      "status": "preserved-unknown-reconciliation-required"
+    }
+  },
+  "manualRetryOnly": true,
+  "automaticChannelRetry": false,
+  "publicationChanged": false,
+  "newTransportOrLedger": false,
+  "remainingGaps": [
+    "default assign/shell wrappers",
+    "MCP compatibility",
+    "monitoring/stable-reset",
+    "unknown fallback/clear-target decisions",
+    "real gateway/account delivery",
+    "remote CI/deployment/real migration"
+  ]
+}

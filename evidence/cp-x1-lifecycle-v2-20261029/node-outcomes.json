@@ -1,0 +1,99 @@
+{
+  "original15": [
+    {
+      "node": "test_main_service_exit.py::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+      "result": "failed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_exit_schedules_worker_shutdown_and_python_supervisor",
+      "result": "failed"
+    },
+    {
+      "node": "test_main_service_exit.py::test_duplicate_exit_is_rejected_without_second_request",
+      "result": "failed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_returns_scheduled_before_python_supervisor_finishes",
+      "result": "failed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+      "result": "passed"
+    },
+    {
+      "node": "test_main_service_restart.py::test_persisted_duplicate_restart_is_rejected_without_spawn",
+      "result": "failed"
+    }
+  ],
+  "genuineHost": [
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+      "result": "passed"
+    },
+    {
+      "node": "test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+      "result": "passed"
+    }
+  ],
+  "controllerScope": {
+    "test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]": "partial canonical after-submit-return tree proof; original Job cancellation/desktop contract open",
+    "test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]": "open; no base-runtime crash-before-supervisor-publication proof",
+    "test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]": "open; before-submit-return is not before supervisor PID publication"
+  }
+}

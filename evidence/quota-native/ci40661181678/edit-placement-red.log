@@ -1,0 +1,10 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+....................F                                                    [100%]
+================================== FAILURES ===================================
+___ test_owned_rebind_probe_rejects_listener_and_accepts_closed_connection ____
+tests\test_quota_native_admission.py:759: in test_owned_rebind_probe_rejects_listener_and_accepts_closed_connection
+    ???
+E   NameError: name 'root' is not defined
+=========================== short test summary info ===========================
+FAILED tests/test_quota_native_admission.py::test_owned_rebind_probe_rejects_listener_and_accepts_closed_connection
+1 failed, 20 passed in 90.93s (0:01:30)

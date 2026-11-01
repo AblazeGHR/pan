@@ -1,0 +1,29 @@
+{
+  "base": "fbe93bd338d460b23d44b776307b8916c9184d2a",
+  "python": "3.14.5",
+  "build_exit": 0,
+  "diagnostic": {
+    "pytest_passed": 7,
+    "node_passed": 2,
+    "exit": 0,
+    "bulk": {
+      "timeoutMs": 66500,
+      "elapsedMs": 2937.1553999999996,
+      "completion": {
+        "completed": 113,
+        "expected": 113,
+        "failures": []
+      }
+    },
+    "port_released": true
+  },
+  "final_node_contract": {
+    "passed": 2,
+    "exit": 0
+  },
+  "full_red_source": {
+    "run": 40760691765,
+    "head": "542be56e3b2097bd3a3d61ee153202c696b65a60",
+    "current_full_not_rerun": true
+  }
+}

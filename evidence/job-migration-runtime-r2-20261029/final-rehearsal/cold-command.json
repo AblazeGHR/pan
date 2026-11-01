@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\tests\\support\\job_migration_runtime_rehearsal.py",
+    "cold",
+    "--profile",
+    "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-r2\\final-74d19f86\\p9d-runtime\\profile",
+    "--spec",
+    "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-r2\\final-74d19f86\\p9d-runtime\\activation-spec.json",
+    "--out",
+    "D:\\project\\pan-worktrees\\job-migration-readiness-20261029\\.validation\\job-migration-runtime-r2\\final-74d19f86\\cold-process.json"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}

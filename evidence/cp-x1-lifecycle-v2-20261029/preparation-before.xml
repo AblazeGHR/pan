@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="7" time="0.860" timestamp="2026-10-28T20:18:14.804863+08:00" hostname="windows-local"><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_ask_without_choice_rejects_before_admission_or_worker_gate[exit]" time="0.041"><failure message="Failed: DID NOT RAISE HTTPException">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_ask_without_choice_rej...cf34be9dd5a299a10d84ad9fb3120c2ee900f9b')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBC515B0&gt;)
+operation = 'exit'
+
+    @pytest.mark.parametrize("operation", ["exit", "restart"])
+    def test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, operation):
+&gt;       with pytest.raises(server.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_lifecycle_canonical_preparation.py:46: Failed</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_ask_without_choice_rejects_before_admission_or_worker_gate[restart]" time="0.035"><failure message="Failed: DID NOT RAISE HTTPException">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_ask_without_choice_rej...d382b51ccfb7e2a7f1237e8fead6a3168cc3b28')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBC51480&gt;)
+operation = 'restart'
+
+    @pytest.mark.parametrize("operation", ["exit", "restart"])
+    def test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, operation):
+&gt;       with pytest.raises(server.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_lifecycle_canonical_preparation.py:46: Failed</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-True-True]" time="0.031"><failure message="AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']&#10;  &#10;  At index 0 diff: 'launch' != 'gate'&#10;  Right contains 2 more items, first extra item: 'shutdown'&#10;  Use -v to get more diff">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_freeze_before_gate_and...85d3d990d1d36d7c4e7fa83aa28e42f95871b11')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBD04CB0&gt;)
+operation = 'exit', strategy = 'ask', choice = True, mark = True
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+&gt;       assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']
+E         
+E         At index 0 diff: 'launch' != 'gate'
+E         Right contains 2 more items, first extra item: 'shutdown'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:62: AssertionError</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-ask-False-False]" time="0.030"><failure message="AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']&#10;  &#10;  At index 0 diff: 'launch' != 'gate'&#10;  Right contains 2 more items, first extra item: 'shutdown'&#10;  Use -v to get more diff">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_freeze_before_gate_and...f286a2cc5aa2c1d7e73b7a0d477b0c8382a01ea')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBC7F460&gt;)
+operation = 'exit', strategy = 'ask', choice = False, mark = False
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+&gt;       assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']
+E         
+E         At index 0 diff: 'launch' != 'gate'
+E         Right contains 2 more items, first extra item: 'shutdown'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:62: AssertionError</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_freeze_before_gate_and_worker_shutdown_before_supervisor[exit-offline-False-True]" time="0.057"><failure message="AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']&#10;  &#10;  At index 0 diff: 'launch' != 'gate'&#10;  Right contains 2 more items, first extra item: 'shutdown'&#10;  Use -v to get more diff">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_freeze_before_gate_and...5498092673136656827efcbe0f68dada97edcd9')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBC7F570&gt;)
+operation = 'exit', strategy = 'offline', choice = False, mark = True
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+&gt;       assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']
+E         
+E         At index 0 diff: 'launch' != 'gate'
+E         Right contains 2 more items, first extra item: 'shutdown'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:62: AssertionError</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_freeze_before_gate_and_worker_shutdown_before_supervisor[restart-preserve-running-True-False]" time="0.031"><failure message="AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']&#10;  &#10;  At index 0 diff: 'launch' != 'gate'&#10;  Right contains 2 more items, first extra item: 'shutdown'&#10;  Use -v to get more diff">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_freeze_before_gate_and...ab3c4f412683f2016d5174c1fc320b7d4a3bc9b')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBCF5750&gt;)
+operation = 'restart', strategy = 'preserve-running', choice = True
+mark = False
+
+    @pytest.mark.parametrize("operation,strategy,choice,mark", [
+        ("exit", "ask", True, True), ("exit", "ask", False, False),
+        ("exit", "offline", False, True), ("restart", "preserve-running", True, False),
+    ])
+    def test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, operation, strategy, choice, mark):
+        prepared.monkeypatch.setattr(server, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask"})
+        result = asyncio.run(server.api_system_main_lifecycle({"operation": operation,
+            "options": {"markRunningSessionsOffline": choice}}))
+        assert result["accepted"]
+&gt;       assert [event[0] for event in prepared.events] == ["gate", "shutdown", "launch"]
+E       AssertionError: assert ['launch'] == ['gate', 'shutdown', 'launch']
+E         
+E         At index 0 diff: 'launch' != 'gate'
+E         Right contains 2 more items, first extra item: 'shutdown'
+E         Use -v to get more diff
+
+tests\test_lifecycle_canonical_preparation.py:62: AssertionError</failure></testcase><testcase classname="tests.test_lifecycle_canonical_preparation" name="test_duplicate_and_cross_operation_reject_while_original_effect_queryable" time="0.038"><failure message="assert (True and not True)">prepared = namespace(root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5831/test_duplicate_and_cross_op...b6b75e8809b5a8650b8ac2c55a6c9c7d352d085')], monkeypatch=&lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000226BBCF5F50&gt;)
+
+    def test_duplicate_and_cross_operation_reject_while_original_effect_queryable(prepared):
+        async def exercise():
+            first = await server.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": True}})
+            duplicate = await server.api_system_main_lifecycle({"operation": "exit", "options": {"markRunningSessionsOffline": False}})
+            other = await server.api_system_main_lifecycle({"operation": "restart", "options": {"markRunningSessionsOffline": True}})
+            return first, duplicate, other
+        first, duplicate, other = asyncio.run(exercise())
+&gt;       assert first["accepted"] and not duplicate["ok"] and duplicate["status"] == "busy"
+E       assert (True and not True)
+
+tests\test_lifecycle_canonical_preparation.py:80: AssertionError</failure></testcase></testsuite></testsuites>

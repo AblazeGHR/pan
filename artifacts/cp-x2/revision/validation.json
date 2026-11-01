@@ -1,0 +1,67 @@
+{
+  "sourceSha": "42b413240ae8ec54e91bca65eafa7f1c44f932fe",
+  "rejectedCandidate": "43765dbbec4baee7c6d24007b16255a76f496b93",
+  "reports": {
+    "pan-main-final.xml": {
+      "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "exit": 0,
+      "tests": 156,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28,
+      "passed": 128
+    },
+    "p23-private-focused-final.xml": {
+      "interpreter": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+      "exit": 0,
+      "tests": 89,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 9,
+      "passed": 80
+    },
+    "rejected-candidate-red.xml": {
+      "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "exit": 1,
+      "tests": 4,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 0
+    },
+    "unit-first.xml": {
+      "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "exit": 1,
+      "tests": 44,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 41
+    }
+  },
+  "collection": {
+    "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "exit": 0,
+    "nodes": 130
+  },
+  "sharedImports": {
+    "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "exit": 0,
+    "platform": "Windows"
+  },
+  "sourceUnchanged": true,
+  "originalSharedContractOnlyKindWhitelistChanged": true,
+  "processPyExecutableAstUnchanged": true,
+  "cleanup": {
+    "ownedInstanceDocuments": 13,
+    "allPortsReleased": true,
+    "capturedProcessesRemaining": [],
+    "supervisorsReaped": 10
+  },
+  "targetLinux": "NOT RUN",
+  "targetMacOS": "NOT RUN",
+  "appleNativeABI": "NOT RUN",
+  "remoteCI": "NOT RUN",
+  "installedEnvironments": false,
+  "startedWslDistributions": false
+}

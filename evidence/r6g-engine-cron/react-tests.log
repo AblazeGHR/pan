@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p19-r6-engine-cron-20261025/packages/web/src
+
+ ✓ services/canonicalJobs.test.ts (22 tests) 20ms
+ ✓ router.retirement.test.tsx (1 test) 51ms
+ ✓ views/CanonicalJobsView.test.tsx (18 tests) 1280ms
+
+ Test Files  3 passed (3)
+      Tests  41 passed (41)
+   Start at  22:36:40
+   Duration  3.46s (transform 169ms, setup 14ms, collect 796ms, tests 1.35s, environment 1.91s, prepare 382ms)

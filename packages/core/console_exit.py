@@ -9,13 +9,25 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 
+def _console_output(value):
+    """Write to the host's existing stream, escaping unsupported glyphs only."""
+    stream = sys.stdout if sys.stdout is not None else sys.stderr
+    if stream is None:
+        raise OSError("no console output stream")
+    text = str(value)
+    encoding = getattr(stream, "encoding", None)
+    if encoding:
+        text = text.encode(encoding, errors="backslashreplace").decode(encoding)
+    print(text, file=stream)
+
+
 class ConsoleExit:
     """Three q commands within two seconds override configuration to preserve Illegal.
 
     The first command waits for that window before submitting anything, so a
     rapid override cannot race an already accepted safe-exit request.
     """
-    def __init__(self, submit, strategy, output=print, *, clock=time.monotonic):
+    def __init__(self, submit, strategy, output=_console_output, *, clock=time.monotonic):
         self.submit, self.strategy, self.output, self.clock = submit, strategy, output, clock
         self.lock = threading.Lock()
         self.pending = False
@@ -58,10 +70,11 @@ class ConsoleExit:
     def _send(self, payload):
         try:
             result = self.submit(payload)
-            self.accepted = bool(result.get("accepted") or result.get("ok"))
-            self.output(f"Pan Exit API: {result}")
         except Exception as exc:
             self.output(f"Pan Exit API failed; service remains active: {exc}")
+            return
+        self.accepted = bool(result.get("accepted") or result.get("ok"))
+        self.output(f"Pan Exit API: {result}")
 
 
 def start_console_exit(port, strategy, *, stream=None):
@@ -69,8 +82,9 @@ def start_console_exit(port, strategy, *, stream=None):
     if stream is None or not stream.isatty():
         return None
     def submit(payload):
-        request = Request(f"http://127.0.0.1:{port}/api/main/exit",
-                          data=json.dumps(payload).encode(),
+        from .lifecycle_action import ACTION_ROUTE
+        request = Request(f"http://127.0.0.1:{port}{ACTION_ROUTE}",
+                          data=json.dumps({"operation": "exit", **payload}).encode(),
                           headers={"Content-Type": "application/json"}, method="POST")
         try:
             with urlopen(request, timeout=10) as response:
@@ -78,7 +92,7 @@ def start_console_exit(port, strategy, *, stream=None):
         except HTTPError as exc:
             return {"ok": False, "error": exc.read().decode(errors="replace")}
     console = ConsoleExit(submit, strategy)
-    print("Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。")
+    _console_output("Pan: 输入 q 后回车按配置退出；2 秒内三次 q（或 qqq 回车）保留 running 为 Illegal。Ctrl+C 为非法退出。")
     stop = threading.Event()
     def read():
         try:

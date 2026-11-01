@@ -1,0 +1,35 @@
+{
+  "chromium": "153.0.8010.12",
+  "pageErrors": [],
+  "writes": [
+    "/api/job-templates",
+    "/api/job-templates/template_e5723485ee9c4d2f84aaaa8b/operations",
+    "/api/job-templates/template_e5723485ee9c4d2f84aaaa8b/instantiate",
+    "/api/job-templates",
+    "/api/job-templates/template_87e70067e1a244fb8240c39a/operations",
+    "/api/job-templates/template_87e70067e1a244fb8240c39a/instantiate"
+  ],
+  "instances": [
+    {
+      "kind": "assign",
+      "operationId": "op_38e23d44b1d84962ab7daad0",
+      "job": "job_77e0207929f6ae18c1efd6da",
+      "creators": {},
+      "triggers": {}
+    },
+    {
+      "kind": "shell",
+      "operationId": "op_edf24fa3ea624ede8452bafc",
+      "job": "job_3116287b7673330ba096a17e",
+      "creators": {},
+      "triggers": {}
+    }
+  ],
+  "layer": "fresh Vite production bundle + real owned canonical HTTP, no intercepted API replies",
+  "port": 63003,
+  "realEffects": 2,
+  "queueRows": 1,
+  "shellLines": 1,
+  "coldLookup": true,
+  "noDuplicate": true
+}

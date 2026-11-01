@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="10" time="20.393" timestamp="2026-10-31T13:32:42.654912+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev16_behavior" name="test_partial_failure_terminal_notice_identifies_actual_failed_target" time="1.513"><failure message="AssertionError: assert {'failedTarge...rror'}, ...}]} == {'runId': 'ru...: 'uncertain'}&#10;  &#10;  Omitting 2 identical items, use -vv to show&#10;  Left contains 2 more items:&#10;  {'failedTargets': ['ses_b'],&#10;   'targetResults': [{'effectKey': {'operationOrdinal': 0,&#10;                                    'runId': 'run_ebb3eac9d4e9461aab6679e3',&#10;                                    'stepId': 'send',...&#10;  &#10;  ...Full output truncated (23 lines hidden), use '-vv' to show">tests\test_retirement_rev16_behavior.py:263: in test_partial_failure_terminal_notice_identifies_actual_failed_target
+    targets, emitted = partial(h)
+                       ^^^^^^^^^^
+tests\test_retirement_rev16_behavior.py:244: in partial
+    assert json.loads(notices[0]['result']) == {'runId': admitted['runId'], 'status': 'uncertain'}
+E   AssertionError: assert {'failedTarge...rror'}, ...}]} == {'runId': 'ru...: 'uncertain'}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Left contains 2 more items:
+E     {'failedTargets': ['ses_b'],
+E      'targetResults': [{'effectKey': {'operationOrdinal': 0,
+E                                       'runId': 'run_ebb3eac9d4e9461aab6679e3',
+E                                       'stepId': 'send',...
+E     
+E     ...Full output truncated (23 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_cold_retarget_preserves_original_identity_exactly_once" time="2.543" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_event_pause_does_not_consume_original_backlog" time="2.312" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_job_disabled_pending_event_remains_then_resume_delivers" time="2.473" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_retarget_after_event_admission_never_changes_frozen_effect" time="2.113" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_pending_backlog_authority_revoked_no_admission_or_send" time="2.266" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers" time="2.221" /><testcase classname="tests.test_retirement_rev17_backlog" name="test_notice_enqueued_response_lost_is_unknown_cold_never_resends" time="2.225" /><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_cold_original_notice_exact_once" time="1.083"><failure message="AssertionError: assert {'exitCode': ...: 'completed'} == {'runId': 'ru...: 'completed'}&#10;  &#10;  Omitting 2 identical items, use -vv to show&#10;  Left contains 2 more items:&#10;  {'exitCode': 0,&#10;   'logRef': {'attempt': {'attemptId': 'attempt_9759496f87514209b361836c',&#10;                          'generation': 1,&#10;                          'leaseId': 'lease_2d4ab64acbe24023a54140d1',...&#10;  &#10;  ...Full output truncated (15 lines hidden), use '-vv' to show">tests\test_retirement_rev17_process_notice.py:53: in test_actual_detached_completion_cold_original_notice_exact_once
+    assert json.loads(notices[0]['result']) == {'runId': rid, 'status': 'completed'}
+E   AssertionError: assert {'exitCode': ...: 'completed'} == {'runId': 'ru...: 'completed'}
+E     
+E     Omitting 2 identical items, use -vv to show
+E     Left contains 2 more items:
+E     {'exitCode': 0,
+E      'logRef': {'attempt': {'attemptId': 'attempt_9759496f87514209b361836c',
+E                             'generation': 1,
+E                             'leaseId': 'lease_2d4ab64acbe24023a54140d1',...
+E     
+E     ...Full output truncated (15 lines hidden), use '-vv' to show</failure></testcase><testcase classname="tests.test_retirement_rev17_process_notice" name="test_actual_detached_completion_notice_retains_original_exit_log_details" time="0.879" /></testsuite></testsuites>

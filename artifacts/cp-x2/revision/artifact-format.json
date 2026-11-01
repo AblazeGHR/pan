@@ -1,0 +1,7 @@
+{
+  "file": "rejected-candidate-red.xml",
+  "rawBytesArchive": "rejected-candidate-red.raw.zip",
+  "rawSha256": "b2a3f1ef7c8c277089cf475f46b386273c2f6bdbccca0229293ac0a346f51345",
+  "readableCopySha256": "3b066a3ec3611331366dcda227c89ec0f6a169f05498f8f03ccc0ee5e9fb0980",
+  "reason": "Exact pytest bytes retained in zip; readable XML normalizes CRLF and strips trailing horizontal whitespace inside failure text only; results unchanged"
+}

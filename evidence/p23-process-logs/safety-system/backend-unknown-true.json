@@ -1,0 +1,21 @@
+{
+  "executorPort": 55902,
+  "label": "backend-unknown-true",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 3,
+  "launcherIsSupervisor": true,
+  "ownershipRootIsScript": true,
+  "pidReuseStaleBirthRefused": true,
+  "coldRecoveryExit": 0,
+  "firstUnknown": true,
+  "cleanupStatus": "confirmed",
+  "treeMemberCount": 3,
+  "cleanupCalls": 1,
+  "effects": 1,
+  "cleanupRevision": 2,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1,
+  "interpreter": "native"
+}

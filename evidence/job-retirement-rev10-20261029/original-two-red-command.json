@@ -1,0 +1,42 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev10-20261029\\original-two-red.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "testedSourceSha": "f04011d1691fe0aa2982c772b3d338866ed65b5d",
+  "boundFileSha256": {
+    "packages/actions/qq_channel_provider.py": "341ebed70a0b67b4d1b13e8ea60b3795e6e05731714ca4fb16b376369fb92fdb",
+    "packages/actions/typed_executor.py": "f12ad157590202420ea090ea175f8e536c7125a0f4bb7404d8498a2e545282fe",
+    "packages/jobs/final_service.py": "81acb99947f7457dd6459fe561e1b0d66ff01a22a05fe85fbe18db5b18c26dc2",
+    "tests/test_retirement_rev9_qq_http.py": "ed337d1a0e0784d79d3c090bcb577ad5a6a5b3ce1ca13cca9b7f89290345610c"
+  },
+  "sourceStable": true,
+  "productFileSha256": "81acb99947f7457dd6459fe561e1b0d66ff01a22a05fe85fbe18db5b18c26dc2",
+  "elapsedSeconds": 29.776,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev9_qq_http.py::test_local_disconnected_no_send_manual_retry_retained_gap[222222]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 2,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

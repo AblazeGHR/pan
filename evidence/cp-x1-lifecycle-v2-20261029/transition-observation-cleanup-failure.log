@@ -1,0 +1,46 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+Traceback (most recent call last):
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\shutil.py", line 701, in _rmtree_unsafe
+    os.unlink(fullname)
+    ~~~~~~~~~^^^^^^^^^^
+PermissionError: [WinError 32] ��һ����������ʹ�ô��ļ��������޷����ʡ�: 'C:\\Users\\14709\\AppData\\Local\\Temp\\cpx1-lifecycle-observe-hhstp94t\\0\\data\\lifecycle-executions\\executions.sqlite3'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\tests\support\lifecycle_transition_probe.py", line 78, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\tests\support\lifecycle_transition_probe.py", line 65, in main
+    with tempfile.TemporaryDirectory(prefix="cpx1-lifecycle-observe-") as path:
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\tempfile.py", line 971, in __exit__
+    self.cleanup()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\tempfile.py", line 975, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\tempfile.py", line 955, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\shutil.py", line 705, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\tempfile.py", line 930, in onexc
+    _os.unlink(path)
+    ~~~~~~~~~~^^^^^^
+PermissionError: [WinError 32] ��һ����������ʹ�ô��ļ��������޷����ʡ�: 'C:\\Users\\14709\\AppData\\Local\\Temp\\cpx1-lifecycle-observe-hhstp94t\\0\\data\\lifecycle-executions\\executions.sqlite3'

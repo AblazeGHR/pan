@@ -1,0 +1,19 @@
+{
+  "baseline": "1553e47b2e6adab22c2261eaacfbcceba6800ee0",
+  "changed_symbols": {
+    "packages/actions/typed_executor.py": [
+      "WorkerSessionProvider.wake_session",
+      "TypedExecutor.execute",
+      "TypedExecutor._session_resume"
+    ],
+    "packages/jobs/final_service.py": [
+      "FinalService._install_product_actions",
+      "FinalService._drive_run",
+      "FinalService.recover_session_receipts"
+    ],
+    "packages/jobs/final_runtime/coordinator.py": [
+      "FinalRuntime.query_original"
+    ]
+  },
+  "original_jobs_api_tests_unchanged": true
+}

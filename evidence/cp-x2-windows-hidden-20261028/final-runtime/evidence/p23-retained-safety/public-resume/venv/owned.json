@@ -1,0 +1,9 @@
+{
+  "executorPort": 55108,
+  "canonicalPort": 55109,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 0,
+  "interpreter": "venv"
+}

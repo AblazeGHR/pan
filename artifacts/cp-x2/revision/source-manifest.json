@@ -1,0 +1,32 @@
+{
+  "sourceSha": "42b413240ae8ec54e91bca65eafa7f1c44f932fe",
+  "parentCandidate": "43765dbbec4baee7c6d24007b16255a76f496b93",
+  "interpreters": [
+    {
+      "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+      "prefix": "D:\\project\\Pan-main\\.venv",
+      "basePrefix": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314"
+    },
+    {
+      "executable": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv\\Scripts\\python.exe",
+      "version": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+      "prefix": "D:\\project\\pan-worktrees\\job-p23-retained-safety-20261027\\.validation\\p23-venv",
+      "basePrefix": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314"
+    }
+  ],
+  "files": {
+    "docs/reports/CP_X2_CAPABILITIES_20261027.md": "cc1fc5992d6dfec648d3af05d72da768bc38633324dfc6d48a85d32802ddf1c1",
+    "packages/core/platform/process.py": "f29e2e13ba3cf38520d30e30538c265526841999d27ba587c4332037d4a16423",
+    "packages/core/platform/process_darwin.py": "d21943436bfe8a5176f94e1ed066ff1860b682c5f605333ec32325d2c04ccaa4",
+    "packages/core/platform/process_posix.py": "72005d1a2513c6d9ae2a3147680d993090d5314667e3fe4c8fecb446b1267701",
+    "tests/job_posix_fixture.py": "47e2d76c9b5e1d238e842b531f4d985f209ffaeaff1dc56510383fefd9300272",
+    "tests/test_job_posix_safety.py": "bfff558be3bf2852fe25143d9ae9efa880f948c0746ff2aeef5b8b393b5ca5dc",
+    "tests/test_platform_process_contract.py": "8ee6f4f3f60f160a830e565bd49111bb82d7322f7ce04c8d9c5b926563de29dc",
+    "tests/test_platform_process_posix_unit.py": "308d99192caae974989039aca117417d4f032306cdac58f44b8ea64547f37fe7"
+  },
+  "targetLinux": "NOT RUN",
+  "targetMacOS": "NOT RUN",
+  "startedWslDistributions": false,
+  "installedEnvironment": false
+}

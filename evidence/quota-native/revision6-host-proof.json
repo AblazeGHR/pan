@@ -1,0 +1,223 @@
+{
+  "port": 49735,
+  "realProviderCalls": 0,
+  "realEffects": 0,
+  "serverPid": 38576,
+  "restartedServerPid": 36740,
+  "policy": {
+    "version": 2,
+    "revision": 6,
+    "epoch": 3,
+    "mode": "automatic",
+    "maSessionId": "fixture-ma",
+    "seen": {},
+    "cases": {},
+    "excluded": [],
+    "capacityRetried": [],
+    "commands": {},
+    "quota": {
+      "status": "known",
+      "observedAt": 1793173280.536147,
+      "currentAccountId": "provider-a",
+      "accounts": [
+        {
+          "id": "provider-a",
+          "fiveHour": {
+            "usedPercent": 25,
+            "resetsAt": 1793175080.0
+          },
+          "week": {
+            "usedPercent": 70,
+            "resetsAt": 1793259680.0
+          }
+        },
+        {
+          "id": "provider-b",
+          "fiveHour": {
+            "usedPercent": 25,
+            "resetsAt": 1793175080.0
+          },
+          "week": {
+            "usedPercent": 70,
+            "resetsAt": 1793259680.0
+          }
+        }
+      ],
+      "identityDomain": "cc-switch-provider:codex"
+    },
+    "jobs": {
+      "once": "job_37886b16b62616df6c660673"
+    },
+    "disabledAccountIds": [],
+    "accountConfigRevision": 0,
+    "host": {
+      "enabled": false,
+      "sessionRoles": {
+        "explicit-target": "ta"
+      }
+    },
+    "nativeAuthority": {
+      "type": "user",
+      "id": "local"
+    },
+    "nativeJobs": {
+      "job_37886b16b62616df6c660673": "quota-compose:e822bceea5e94556df09d81f37aa4da214846f1a1ecb006816c7d373897455a8"
+    },
+    "hostObservation": {
+      "observedAt": 1793173280.6013322,
+      "managed": {
+        "status": "known",
+        "defaultAccountId": "managed-a",
+        "accountIds": [
+          "managed-a",
+          "managed-b"
+        ]
+      },
+      "native": {
+        "status": "known",
+        "accountId": "native-fixture",
+        "profileKey": "fixture-profile",
+        "windows": {
+          "fiveHour": {
+            "usedPercent": 25,
+            "resetsAt": 1793175075.0,
+            "durationSeconds": 18000,
+            "providerKey": "primary"
+          },
+          "week": {
+            "usedPercent": 70,
+            "resetsAt": 1793259675.0,
+            "durationSeconds": 604800,
+            "providerKey": "secondary"
+          }
+        },
+        "observedAt": 1793173275.0,
+        "receivedAt": 1793173275.0,
+        "source": "app-server-push",
+        "providerUpdatedAt": null,
+        "timestampMeaning": "local Pan observation/receipt, not provider update"
+      },
+      "provider": {
+        "identityDomain": "cc-switch-provider:codex",
+        "status": "known",
+        "currentProviderId": "provider-a",
+        "providers": [
+          {
+            "id": "provider-a",
+            "status": "known",
+            "queriedAt": 1793173280.0,
+            "queriedAtMillis": 1793173280000.0,
+            "receivedAt": 1793173280.4135246,
+            "source": "cc-switch-provider-quota",
+            "providerUpdatedAt": null,
+            "fiveHour": {
+              "usedPercent": 25,
+              "resetsAt": 1793175080.0,
+              "tier": "five_hour"
+            },
+            "week": {
+              "usedPercent": 70,
+              "resetsAt": 1793259680.0,
+              "tier": "seven_day"
+            }
+          },
+          {
+            "id": "provider-b",
+            "status": "known",
+            "queriedAt": 1793173280.0,
+            "queriedAtMillis": 1793173280000.0,
+            "receivedAt": 1793173280.4745328,
+            "source": "cc-switch-provider-quota",
+            "providerUpdatedAt": null,
+            "fiveHour": {
+              "usedPercent": 25,
+              "resetsAt": 1793175080.0,
+              "tier": "five_hour"
+            },
+            "week": {
+              "usedPercent": 70,
+              "resetsAt": 1793259680.0,
+              "tier": "seven_day"
+            }
+          }
+        ],
+        "observedAt": 1793173280.536147,
+        "reason": null,
+        "stable": true,
+        "catalogDigest": "a99d8177e0169070d551745527a273e94a0359ab2f1763478ca8edd04ac37419"
+      },
+      "identityDomains": {
+        "provider": "cc-switch-provider:codex",
+        "native": "codex-native",
+        "managed": "cc-switch-managed:codex"
+      },
+      "binding": "unknown",
+      "reason": "worker_provider_launch_binding_unavailable"
+    },
+    "rankedAccounts": [
+      {
+        "id": "provider-a",
+        "fiveHour": {
+          "usedPercent": 25,
+          "resetsAt": 1793175080.0
+        },
+        "week": {
+          "usedPercent": 70,
+          "resetsAt": 1793259680.0
+        }
+      },
+      {
+        "id": "provider-b",
+        "fiveHour": {
+          "usedPercent": 25,
+          "resetsAt": 1793175080.0
+        },
+        "week": {
+          "usedPercent": 70,
+          "resetsAt": 1793259680.0
+        }
+      }
+    ],
+    "adapter": "unavailable",
+    "diagnostics": []
+  },
+  "cliCommands": [
+    [
+      "--app",
+      "codex",
+      "provider",
+      "list",
+      "--json"
+    ],
+    [
+      "--app",
+      "codex",
+      "provider",
+      "quota",
+      "provider-a",
+      "--json"
+    ],
+    [
+      "--app",
+      "codex",
+      "provider",
+      "quota",
+      "provider-b",
+      "--json"
+    ],
+    [
+      "--app",
+      "codex",
+      "provider",
+      "list",
+      "--json"
+    ],
+    [
+      "auth",
+      "status",
+      "--json"
+    ]
+  ],
+  "portReleased": true,
+  "ownedServerStopped": true
+}

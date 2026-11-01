@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/xplat-worker-capability-20261027/packages/web/src
+
+ ✓ components/layout/viewEntries.capability.test.ts (5 tests) 2ms
+ ✓ stores/platformStore.test.ts (8 tests) 3ms
+ ✓ views/TerminalPanel.capability.test.tsx (3 tests) 30ms
+ ✓ components/session/NewSessionModal.test.tsx (32 tests | 1 skipped) 2128ms
+
+ Test Files  4 passed (4)
+      Tests  47 passed | 1 skipped (48)
+   Start at  02:57:58
+   Duration  5.19s (transform 562ms, setup 25ms, collect 1.60s, tests 2.16s, environment 3.36s, prepare 580ms)
+

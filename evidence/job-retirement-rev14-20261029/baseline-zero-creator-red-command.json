@@ -1,0 +1,20 @@
+{
+  "baseline": "aad8dd82eaa137a5e456a3c49696dd7387545249",
+  "sourceFiles": [
+    "packages/jobs/final_service.py",
+    "packages/jobs/final_api.py"
+  ],
+  "command": [
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev14_templates.py::test_zero_creator_complete_template_default_disabled_same_key_cold_reopen",
+    "-q",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev14-20261029\\baseline-zero-creator-red.xml"
+  ],
+  "exit": 1,
+  "note": "Actual baseline service/API temporarily loaded; owned current edits restored byte-for-byte in finally."
+}

@@ -1,0 +1,16 @@
+{
+  "sourceSha": "78a337b6855be4ab60f8b9039a26ea3e1e9d6ac1",
+  "portAllowed": true,
+  "childOutputEncoding": "cp1252:strict",
+  "restrictedConsolePromptObserved": true,
+  "effectId": "effect_1e089debe7202ec7c179194a4defd26f0a2c8a21372ae02a53631539745820fe",
+  "requestId": "request_6d6e86597a7285d2ad111b7f",
+  "oldPid": 5344,
+  "newPid": 22400,
+  "oldBirth": 1793263531.9417162,
+  "newBirth": 1793263537.4792361,
+  "outcome": "succeeded",
+  "offline": true,
+  "ready": true,
+  "portReleased": true
+}

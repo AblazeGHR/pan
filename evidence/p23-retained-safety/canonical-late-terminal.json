@@ -1,0 +1,19 @@
+{
+  "executorPort": 56170,
+  "label": "canonical-late-terminal",
+  "originalIdentityVerified": true,
+  "identityKind": "filetime",
+  "ownedProcessCount": 3,
+  "parentState": "retired",
+  "lateTerminalRunState": "completed",
+  "parentUnchanged": true,
+  "noReplacementParent": true,
+  "effects": 1,
+  "cleanupCalls": 1,
+  "newAdmissionRejected": true,
+  "canonicalPort": 56171,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1
+}

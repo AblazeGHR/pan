@@ -31,10 +31,24 @@ class IndependentJobClient:
             raise RuntimeError("Job service unavailable") from None
 
     def health(self): return self._request("GET", "/health")
-    def start(self, job): return self._request("POST", "/jobs", job)
+    def submit_execution(self, request): return self._request("POST", "/executions", request)
+    def get_execution(self, effect_id): return self._request("GET", "/executions/" + quote(effect_id, safe=""))
+    def read_execution_log(self, effect_id, attempt, *, offset=0, limit=65536):
+        return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/log",
+                             {"attempt": attempt, "offset": offset, "limit": limit})
+    def cancel_execution(self, effect_id, attempt):
+        return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/cancel", {"attempt": attempt})
+    def cleanup_execution(self, effect_id, attempt):
+        return self._request("POST", "/executions/" + quote(effect_id, safe="") + "/cleanup", {"attempt": attempt})
+    def execution_events(self): return self._request("GET", "/execution-events")
+    def ack_execution(self, event_id):
+        return self._request("POST", "/execution-events/" + quote(event_id, safe="") + "/ack", {})
+    def start(self, job):
+        raise RuntimeError("410 legacy job creation retired; use submit_execution")
     def get(self, job_id): return self._request("GET", "/jobs/" + quote(job_id, safe=""))
     def list(self): return self._request("GET", "/jobs")
     def cancel(self, job_id): return self._request("POST", "/jobs/" + quote(job_id, safe="") + "/cancel", {})
-    def retry(self, job_id): return self._request("POST", "/jobs/" + quote(job_id, safe="") + "/retry", {})
+    def retry(self, job_id):
+        raise RuntimeError("410 legacy job retry retired; query the original execution")
     def events(self): return self._request("GET", "/events")
     def ack(self, event_id): return self._request("POST", "/events/" + quote(event_id, safe="") + "/ack", {})

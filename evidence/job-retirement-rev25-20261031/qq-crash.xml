@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="4" time="46.740" timestamp="2026-10-31T20:45:39.915476+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-reservation-completed-1]" time="12.496"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 20:45:40 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:45:40 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-invoke-uncertain-0]" time="8.322"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-qq-uncertain-1]" time="13.024"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-receipt-completed-1]" time="12.587"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

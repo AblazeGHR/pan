@@ -1,0 +1,207 @@
+{
+  "sourceSha": "ee629b3c2c4303325c26ea7b855592de9ffb29f5",
+  "baseline": "4b577633d2d9ffcdc5bf8a44b12836724c18804e",
+  "python": "Python 3.14.5",
+  "checks": [
+    {
+      "name": "r17-mcp",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev16_mcp_stdio.py",
+        "tests/test_retirement_rev12_mcp.py",
+        "tests/test_authorization_mcp.py",
+        "-q",
+        "-s",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\r17-mcp.xml"
+      ],
+      "exit": 0,
+      "seconds": 9.289,
+      "total": 17,
+      "counts": {
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      "nodes": [
+        {
+          "node": "tests/test_retirement_rev16_mcp_stdio.py::test_retired_names_actual_stdio_boundary_and_authorized_canonical_path",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_removed_mcp_job_tools_have_structured_unsupported_dispositions",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_compatibility_disposition_is_pure_and_unknown_shape_fails_closed",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_canonical_tools_and_retained_read_cancel_tools_remain_discoverable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[core]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[native]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_legacy_four_object_write_tool_keeps_only_retained_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_object_path_allowlist_is_canonical_plus_retained_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[read-GET-/api/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[create-POST-/api/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[updateConfig-PUT-/api/jobs/job_x]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[delete-DELETE-/api/jobs/job_x]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[read-GET-/api/triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[create-POST-/api/triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[jobTemplate-read-GET-/api/job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[eventCreator-read-GET-/api/event-creators]",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "name": "r17-behavior",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev16_behavior.py",
+        "tests/test_retirement_rev17_backlog.py",
+        "tests/test_retirement_rev17_process_notice.py",
+        "-q",
+        "-s",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\r17-behavior.xml"
+      ],
+      "exit": 1,
+      "seconds": 41.599,
+      "total": 19,
+      "counts": {
+        "passed": 15,
+        "failed": 4,
+        "skipped": 0
+      },
+      "nodes": [
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_schedule_replacement_removes_old_rule_and_fires_only_new_real_event",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[disable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[retire]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_creator_disable_stops_future_events_and_effects",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_schedule_create_rejected_without_operation_creator_or_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_actual_missing_notification_target_unknown_receipt_cold_no_resend",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_partial_fanout_real_results_notice_receipt_once_and_cold_no_replay",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_partial_failure_terminal_notice_identifies_actual_failed_target",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_pending_event_cold_retarget_preserves_original_identity_exactly_once",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_pending_event_pause_does_not_consume_original_backlog",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_job_disabled_pending_event_remains_then_resume_delivers",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_retarget_after_event_admission_never_changes_frozen_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_pending_backlog_authority_revoked_no_admission_or_send",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_known_missing_notice_target_retains_pending_then_cold_restoration_delivers",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_backlog.py::test_notice_enqueued_response_lost_is_unknown_cold_never_resends",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_cold_original_notice_exact_once",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev17_process_notice.py::test_actual_detached_completion_notice_retains_original_exit_log_details",
+          "status": "failed"
+        }
+      ]
+    }
+  ]
+}

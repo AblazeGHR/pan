@@ -1,0 +1,14 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-c",
+    "import importlib.util; from packages.core.platform.timezones import host_zone_name; print(\"tzlocalInstalled\", importlib.util.find_spec(\"tzlocal\") is not None); print(host_zone_name())"
+  ],
+  "exit": 1,
+  "stdout": "Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\ntzlocalInstalled False\n",
+  "stderr": "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import importlib.util; from packages.core.platform.timezones import host_zone_name; print(\"tzlocalInstalled\", importlib.util.find_spec(\"tzlocal\") is not None); print(host_zone_name())\n                                                                                                                                                                          ~~~~~~~~~~~~~~^^\n  File \"D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\packages\\core\\platform\\timezones.py\", line 12, in host_zone_name\n    from tzlocal import reload_localzone\nModuleNotFoundError: No module named 'tzlocal'\n",
+  "environmentChanged": false
+}

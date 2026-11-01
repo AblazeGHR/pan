@@ -1,0 +1,22 @@
+{
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_runtime_registry.py::test_atomic_replace_fault_preserves_bytes_and_cleans_temp",
+    "tests/test_job_runtime_registry.py::test_json_writers_and_pins_are_fenced_but_old_bytes_remain_readable",
+    "tests/test_job_runtime_registry.py::test_legacy_retention_obeys_pin_and_corrupt_metadata",
+    "tests/test_job_runtime_registry.py::test_canonical_metadata_cas_uses_owner_transaction",
+    "tests/test_job_runtime_registry.py::test_deletion_gate_is_kind_independent",
+    "tests/test_job_runtime_registry.py::test_retention_rechecks_pins_and_activity_even_when_config_revision_unchanged",
+    "tests/test_job_runtime_registry.py::test_log_retention_cannot_collect_pinned_resources",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-p24-retained-history-20261027\\evidence\\p24-canonical-pin-repair\\safety.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-p24-retained-history-20261027",
+  "exit": 0
+}

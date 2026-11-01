@@ -1,0 +1,46 @@
+name: Two original regression diagnostics
+on:
+  push:
+    branches: ["diagnostics/two-node-20261029"]
+jobs:
+  diagnostic:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.7.0"
+      - name: Install original dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+      - name: Build current production UI
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm build
+      - name: Install owned Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python -m playwright install --only-shell chromium
+      - name: Run original nodes with bounded diagnostics
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python scripts/cpx1_two_node_diagnostic.py --output "${{ runner.temp }}/cpx1-two-node"
+      - name: Upload diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpx1-two-node-py${{ matrix.python-version }}
+          path: ${{ runner.temp }}/cpx1-two-node/
+          if-no-files-found: warn

@@ -1,0 +1,27 @@
+{
+  "bundlePublishFailureTargetAbsent": true,
+  "historyWriteFailure": "failed",
+  "afterWriteFailure": {
+    "job": 0,
+    "migration_history": 0,
+    "migration_receipt": 0,
+    "migration_unrecognized": 0,
+    "runtime_activation": 0
+  },
+  "legacyStillFenced": true,
+  "effectCallsAfterWriteFailure": 0,
+  "crashExit": 77,
+  "afterCrash": {
+    "job": 0,
+    "migration_history": 0,
+    "migration_receipt": 0,
+    "migration_unrecognized": 0,
+    "runtime_activation": 0
+  },
+  "afterCrashOwner": {
+    "epoch": 3,
+    "nonce": "f4e0535587ed4d009c4cdc79a82fa3fa",
+    "state": "activating"
+  },
+  "afterCrashLegacyFenced": true
+}

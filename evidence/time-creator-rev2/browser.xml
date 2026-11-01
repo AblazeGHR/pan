@@ -1,0 +1,2 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="4.785" timestamp="2026-10-28T04:06:31.064672+08:00"><testcase classname="tests.test_scheduler_time_revision2_browser" name="test_native_time_inputs_persist_host_override_once_and_passive_template" time="4.664" /></testsuite></testsuites>

@@ -1,0 +1,21 @@
+{
+  "sourceSha": "b4740d27da4ef610fabd22e695af4ca52f4a0424",
+  "baseline": "036fe85f23b689195207d6794db0a70d78d87fc2",
+  "remoteCodeSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "remoteRun": 40637381532,
+  "interpreter": "D:/project/Pan-main/.venv/Scripts/python.exe",
+  "python": "3.14.5",
+  "files": {
+    "docs/reports/CP_X2_CAPABILITIES_20261027.md": "1204df9bc40b2bc59c99b8e7f1022e2c9023e612d35c8a971b443ce32c0f420d",
+    "packages/core/platform/process_darwin.py": "84c3b049f88dc159ec1c18c604d33afd278584382c893730df2eeb2674efcea8",
+    "packages/core/platform/process_posix.py": "a913242970b7685949f7d89bca42ff7f3e888b78a7def618dbba014d4c215ddc",
+    "tests/job_posix_diagnostics.py": "29097216d6f1e0267defb6195abc3c7bcb5683321a1a181a5ab27e6ce8f9bdf3",
+    "tests/job_posix_fixture.py": "d641cfe1dbc8e000387be4948ce3401eae0b418a95c6d1a11f50e586fe0a724e",
+    "tests/test_job_posix_safety.py": "17d7a0cf7147d5d09003d266cc0200cc75b5eea4bc6766d13ea561bc90881d34",
+    "tests/test_job_process_logs.py": "c71de742996525b565831d9e0f20df375bbdb417ce098a54290806c3d4accb01",
+    "tests/test_platform_process_contract.py": "147cae12485d9d5f636b9167a4aaf4a0470e785cff32ee8ab8e819fbb02180ef",
+    "tests/test_platform_process_posix_unit.py": "40028f910c87afbd33a21924b84edea4fffa16b22187cd33999b6c8618564196"
+  },
+  "targetRerun": "NOT RUN",
+  "CIUploadProofPath": "evidence/cp-x1-ci/cp-x2-proof/"
+}

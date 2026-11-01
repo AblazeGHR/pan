@@ -1,0 +1,72 @@
+{
+  "schema": "pan.retirement.mcp-compatibility/revision12",
+  "acceptedBaseline": "4a86a3ce275159b203ef883f4072931ce7125bee",
+  "testedSourceSha": "f7116a898469bfd6334ad0d781338b86a1c7bfdf",
+  "changedFiles": [
+    "packages/mcp/server.py",
+    "tests/test_retirement_rev12_mcp.py"
+  ],
+  "command": {
+    "exit": 0,
+    "counts": {
+      "passed": 16,
+      "failure": 0,
+      "error": 0,
+      "skipped": 0
+    },
+    "elapsedSeconds": 7.692
+  },
+  "oldToCanonical": {
+    "canonical-already-mapped": {
+      "tools": [
+        "job_*",
+        "trigger_*",
+        "event_creator_*",
+        "job_template_*",
+        "job_run_*",
+        "job_operation_*"
+      ],
+      "status": "verified-existing-canonical-tools"
+    },
+    "removed-background-start-retry": {
+      "status": "capability_unsupported",
+      "reason": "old Runner owner/retry identity cannot be represented without restoring legacy lifecycle or inventing a protocol"
+    },
+    "removed-message-job-create-update": {
+      "status": "capability_unsupported",
+      "reason": "old backlog/schedule envelope lacks Creator/Trigger/source admission and immutable CAS mapping"
+    },
+    "removed-scheduler-writes": {
+      "status": "capability_unsupported",
+      "reason": "old cursor mutation lacks canonical Creator/Trigger/Job references and Event identity"
+    },
+    "retained-read-cancel": {
+      "tools": [
+        "agent_background_get",
+        "agent_background_list",
+        "agent_background_cancel",
+        "agent_message_job_get",
+        "agent_message_job_list",
+        "agent_message_job_cancel",
+        "scheduler_list",
+        "scheduler_get",
+        "scheduler_runs"
+      ],
+      "status": "verified-discoverable"
+    }
+  },
+  "counts": {
+    "passed": 16,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "noTransportFallback": true,
+  "remaining": [
+    "frontend form caller wiring",
+    "no-Creator Template decision",
+    "monitoring/stable-reset",
+    "unknown fallback/clear-target",
+    "real migration/deployment"
+  ]
+}

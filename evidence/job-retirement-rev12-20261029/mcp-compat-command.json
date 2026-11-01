@@ -1,0 +1,99 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev12_mcp.py",
+    "tests/test_authorization_mcp.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev12-20261029\\mcp-compat.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "testedSourceSha": "4a86a3ce275159b203ef883f4072931ce7125bee",
+  "boundFileSha256": {
+    "packages/actions/qq_channel_provider.py": "341ebed70a0b67b4d1b13e8ea60b3795e6e05731714ca4fb16b376369fb92fdb",
+    "packages/actions/typed_executor.py": "f12ad157590202420ea090ea175f8e536c7125a0f4bb7404d8498a2e545282fe",
+    "packages/jobs/final_service.py": "889154fb7623bab8350c40de44e5b26cfea0b2388210da0f83cb675aeeb3bb0d",
+    "tests/test_retirement_rev9_qq_http.py": "ed337d1a0e0784d79d3c090bcb577ad5a6a5b3ce1ca13cca9b7f89290345610c"
+  },
+  "sourceStable": true,
+  "productFileSha256": "889154fb7623bab8350c40de44e5b26cfea0b2388210da0f83cb675aeeb3bb0d",
+  "elapsedSeconds": 8.075,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev12_mcp.py::test_removed_mcp_job_tools_have_structured_unsupported_dispositions",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev12_mcp.py::test_compatibility_disposition_is_pure_and_unknown_shape_fails_closed",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev12_mcp.py::test_canonical_tools_and_retained_read_cancel_tools_remain_discoverable",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[core]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[native]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_legacy_four_object_write_tool_keeps_only_retained_reads",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_object_path_allowlist_is_canonical_plus_retained_reads",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[read-GET-/api/jobs]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[create-POST-/api/jobs]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[updateConfig-PUT-/api/jobs/job_x]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[delete-DELETE-/api/jobs/job_x]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[read-GET-/api/triggers]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[create-POST-/api/triggers]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[jobTemplate-read-GET-/api/job-templates]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[eventCreator-read-GET-/api/event-creators]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 16,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

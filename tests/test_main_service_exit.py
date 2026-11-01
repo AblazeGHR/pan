@@ -52,7 +52,7 @@ def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch
         coro.close()
 
     monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
-    result = asyncio.run(srv.api_main_exit({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": False},
     }))
 
@@ -79,7 +79,7 @@ def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(monkeypatch
     monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
 
     with pytest.raises(srv.HTTPException) as caught:
-        asyncio.run(srv.api_main_exit())
+        asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
 
     assert caught.value.status_code == 400
     assert caught.value.detail["code"] == "lifecycle_choice_required"
@@ -152,7 +152,7 @@ def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
     ])
     monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
 
-    result = asyncio.run(srv.api_main_exit({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": legacy_choice},
     }))
     job = background_jobs.find_service_job(
@@ -191,7 +191,7 @@ def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
 
     monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
     monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
-    result = asyncio.run(srv.api_main_exit({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
         "options": {"markRunningSessionsOffline": True},
     }))
     asyncio.run(asyncio.sleep(0))
@@ -214,7 +214,7 @@ def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
         pytest.skip("detached Windows supervisor contract")
     monkeypatch.setattr(srv, "_main_exit_pending", True)
     monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
-    result = asyncio.run(srv.api_main_exit())
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
     assert result["ok"] is False
     assert result["status"] == "busy"
     assert result["requestId"] == "already-exiting"

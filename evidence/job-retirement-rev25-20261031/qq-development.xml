@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="21.362" timestamp="2026-10-31T20:18:24.016233+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[None]" time="5.726"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 202&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_retirement_rev25_qq_runtime.py:41: in test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text
+    item, rid = admit(q, bot)
+                ^^^^^^^^^^^^^
+tests\test_retirement_rev25_qq_runtime.py:31: in admit
+    run = launch(q.h, item)
+          ^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:106: in launch
+    assert response.status_code == 202, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 202
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]" time="5.298"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 202&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_retirement_rev25_qq_runtime.py:41: in test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text
+    item, rid = admit(q, bot)
+                ^^^^^^^^^^^^^
+tests\test_retirement_rev25_qq_runtime.py:31: in admit
+    run = launch(q.h, item)
+          ^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:106: in launch
+    assert response.status_code == 202, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 202
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[lost-response]" time="4.913"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 202&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_retirement_rev25_qq_runtime.py:84: in test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt
+    item, rid = admit(q)
+                ^^^^^^^^
+tests\test_retirement_rev25_qq_runtime.py:31: in admit
+    run = launch(q.h, item)
+          ^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:106: in launch
+    assert response.status_code == 202, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 202
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[missing-id]" time="4.970"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;}}&#10;assert 400 == 202&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">tests\test_retirement_rev25_qq_runtime.py:84: in test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt
+    item, rid = admit(q)
+                ^^^^^^^^
+tests\test_retirement_rev25_qq_runtime.py:31: in admit
+    run = launch(q.h, item)
+          ^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:106: in launch
+    assert response.status_code == 202, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 202
+E    +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code</failure></testcase></testsuite></testsuites>

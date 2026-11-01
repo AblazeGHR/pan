@@ -1,0 +1,177 @@
+{
+  "schema": "pan.r6d.scheduler-host-retirement/v1",
+  "status": "partial-host-deletion-blocked",
+  "baseHead": "81ad358d8cf26465d405ddd29827c1e8d38387b5",
+  "branch": "r5/p16-r6-scheduler-host-20261025",
+  "initialWorktreeClean": true,
+  "candidateSourceSha256": {
+    "packages/web/src/services/api.ts": "988cf4c9d832f040985e4c47fc20f61e68d453fc698f90ff976c798956d2adaf",
+    "packages/web/src/services/schedulerRetirement.test.ts": "dec520d9b6c0538799e42980ce0352754e14246bd94373118b73d59792990d31",
+    "scripts/audit_scheduler_surface.py": "edba3bb2dd970a38c483e7763cbf0852180d93c548286d745654412505e6d2b2",
+    "tests/test_scheduler_host_retirement.py": "5036335317acf0f8d5bb4111cae74b8c4feca17d8985e9591081043feda0a0b0",
+    "docs/reports/R6_D_SCHEDULER_HOST_20261026.md": "5dc96da8da499eb48cda0201481f323e0ee6e524c17c7c0c8d40c1327d4f9c27"
+  },
+  "removedFiles": [
+    "packages/web/src/stores/scheduleStore.ts"
+  ],
+  "removedExports": {
+    "packages/web/src/services/api.ts": [
+      "fetchScheduledTasks",
+      "createScheduledTask",
+      "updateScheduledTask",
+      "deleteScheduledTask",
+      "pauseScheduledTask",
+      "resumeScheduledTask",
+      "runScheduledTaskNow",
+      "fetchTaskRuns",
+      "fetchSchedulerNext",
+      "fetchSchedulerStatus"
+    ]
+  },
+  "blockedOrRetained": [
+    {
+      "ids": [
+        "S04",
+        "U08",
+        "U09"
+      ],
+      "path": "packages/scheduler/store.py",
+      "status": "blocked",
+      "reason": "Live canonical root/handoff, quota/calculator and historical list/get/runs dependencies; no accepted public history replacement"
+    },
+    {
+      "ids": [
+        "S05"
+      ],
+      "path": "packages/scheduler/engine.py",
+      "status": "blocked",
+      "reason": "Server shutdown and API status/config/preview consumers remain; startup/tick/dispatch leaves already removed by R6-A"
+    },
+    {
+      "ids": [
+        "S06"
+      ],
+      "path": "packages/scheduler/legacy_bridge.py",
+      "status": "blocked",
+      "reason": "Existing migration/bridge tests and unproven final cursor/receipt settlement; no real-profile owner zero proof"
+    },
+    {
+      "ids": [
+        "S06"
+      ],
+      "path": "packages/scheduler/time_events.py",
+      "status": "blocked",
+      "reason": "Automation Event registration, source reads and migration snapshot/pending/link/cursor dependencies remain"
+    },
+    {
+      "ids": [
+        "U10"
+      ],
+      "path": "packages/scheduler/cron.py",
+      "status": "blocked",
+      "reason": "API and existing test imports remain; canonical calculator exists but consumers have not all migrated"
+    },
+    {
+      "ids": [
+        "E06"
+      ],
+      "path": "packages/scheduler/api.py",
+      "status": "blocked",
+      "reason": "Nine authenticated 410 mutation boundaries and six GET routes retained; history list/get/runs replacement not connected or accepted"
+    },
+    {
+      "ids": [
+        "E12"
+      ],
+      "path": "packages/web/src/stores/automationWorkspace.ts",
+      "status": "retained",
+      "reason": "Live event-source GET and EventRegister POST/PUT/DELETE consumers; preserve and report under user exception"
+    }
+  ],
+  "historyReplacement": {
+    "originalIdFunctions": "packages/jobs/migration_history.py",
+    "schedulerSourceSnapshot": "packages/scheduler/creators.py:legacy_history",
+    "acceptedAssessment": "docs/reports/R5_P9D_USER_AUTHORIZED_IMPORT_20261026.md",
+    "publicSchedulerListRunsReplacementAccepted": false
+  },
+  "reverseReferences": {
+    "artifact": "reverse-references.json",
+    "scannedTextFiles": 6328,
+    "hostStaticImportStatements": 57,
+    "hostStaticImportsByModule": {
+      "packages.scheduler.store": 33,
+      "packages.scheduler.legacy_bridge": 3,
+      "packages.scheduler.time_events": 9,
+      "packages.scheduler.cron": 5,
+      "packages.scheduler.engine": 7
+    },
+    "pythonDynamicImportCandidates": 25,
+    "frontendDynamicImportCandidates": 196,
+    "pythonParseErrors": [],
+    "zeroHostReferenceClaim": false,
+    "limits": "Tracked/unignored repository text, Python AST and lexical JS/TS imports; dynamic imports require review. No proof about external plugins, deployed agents or real data."
+  },
+  "routeTools": {
+    "artifact": "routes-tools.json",
+    "schedulerRoutes": 15,
+    "readRoutes": 6,
+    "retiredMutationRoutes": 9,
+    "allTools": 118,
+    "schedulerTools": [
+      "scheduler_get",
+      "scheduler_list",
+      "scheduler_runs"
+    ],
+    "unchangedFromAcceptedFixture": true
+  },
+  "verification": {
+    "pytest": {
+      "exitCode": 0,
+      "tests": 157,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "newTests": 29,
+      "junit": "pytest.xml",
+      "log": "pytest.log",
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_host_retirement.py tests/test_scheduler_api.py tests/test_scheduler_mcp.py tests/test_scheduler_surface_retirement.py tests/test_scheduler_canonical_migration.py tests/test_job_final_creators.py tests/test_job_runtime_owner.py -o addopts= -q --junitxml=evidence/r6d-scheduler-host/pytest.xml"
+    },
+    "react": {
+      "exitCode": 0,
+      "files": 4,
+      "tests": 32,
+      "log": "vitest.log",
+      "command": "pnpm exec vitest run src/services/schedulerRetirement.test.ts src/router.retirement.test.tsx src/views/AutomationWorkspace.test.tsx src/views/CanonicalJobsView.test.tsx"
+    },
+    "typescript": {
+      "exitCode": 0,
+      "log": "typescript.log",
+      "command": "pnpm exec tsc -b --pretty false"
+    },
+    "dependencies": {
+      "exitCode": 0,
+      "log": "pnpm-install.log",
+      "command": "pnpm install --frozen-lockfile"
+    },
+    "productionAppImport": true,
+    "applicationLifespanStarted": false,
+    "asgiNoListener": true,
+    "realMcpStdio": true
+  },
+  "unverified": [
+    "real HTTP socket/browser",
+    "full startup/shutdown",
+    "full R6 combination",
+    "POSIX/remote CI",
+    "real profile migration or owner/cohort census",
+    "deployment",
+    "human acceptance"
+  ],
+  "boundaries": {
+    "pushed": false,
+    "serviceStartedOrStopped": false,
+    "protected8767Or8768Used": false,
+    "releaseBuild": false,
+    "realDataReadOrWritten": false
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "pan.job-final-migration.runtime-matrix-followup/v1",
+  "baseline": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "reviewedPreFixSource": "74d19f86b7b5b9babc9921acd7c85a6de4fc152a",
+  "approvedMatrix": {
+    "targetSessionId": {"owner": "Creator/Delivery Manager", "phase": "event-published-before-queue-or-external-acceptance"},
+    "targetSessionIds": {"owner": "Creator/Delivery Manager", "phase": "event-published-before-queue-or-external-acceptance"},
+    "text": {"owner": "Creator/Delivery Manager", "phase": "event-published-before-queue-or-external-acceptance", "requires": "runtimeBeforeAcceptance"}
+  },
+  "existingInputBindingReusable": true,
+  "canonicalBindingAdditionalProperties": false,
+  "proposedInputPaths": ["delivery.sessionId", "delivery.sessionIds", "delivery.text"],
+  "pendingReservedAcceptanceContractWiredInBaseline": false,
+  "preFixMapperRisk": "clean scheduled records freeze target/text as literal before acceptance phase is proven",
+  "safeDisposition": "preserve-and-report",
+  "eventBacklogPresent": true,
+  "missingFeature": "migration representation of pre-acceptance runtime target/text state",
+  "productChanges": [],
+  "requiresNewUserDecision": false,
+  "requiredFutureProductContract": ["runtimeBeforeAcceptance declaration", "owner", "phase", "runtimeRevision/CAS fence", "per-target receipt", "text revision", "unknown handling"]
+}

@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="11" time="0.912" timestamp="2026-10-31T13:49:10.340818+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[assign]" time="0.013"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_inventor0')
+kind = 'assign'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[send_session]" time="0.006"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_inventor1')
+kind = 'send_session'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[legacy-assign]" time="0.006"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_inventor2')
+kind = 'legacy-assign'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[message]" time="0.005"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_inventor3')
+kind = 'message'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_inventory_preserves_instead_of_freezing_literal[broadcast]" time="0.006"><failure message="AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'&#10;  &#10;  - incompatible-preserved&#10;  + simple-script-migratable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_inventor4')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize("kind", ["assign", "send_session", "legacy-assign", "message", "broadcast"])
+    def test_runtime_delivery_inventory_preserves_instead_of_freezing_literal(tmp_path, kind):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, kind)
+        before = hashes(root)
+        inventory = build_inventory(root)
+        item, = inventory["instances"]
+&gt;       assert item["classification"] == "incompatible-preserved"
+E       AssertionError: assert 'simple-script-migratable' == 'incompatible-preserved'
+E         
+E         - incompatible-preserved
+E         + simple-script-migratable
+
+tests\test_job_migration_runtime_readiness.py:187: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard" time="0.157"><failure message="Failed: DID NOT RAISE ApplyError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_stale_si0')
+
+    def test_runtime_delivery_stale_simple_item_cannot_bypass_mapper_guard(tmp_path):
+        from scripts.job_final_migration.inventory import build_inventory, SIMPLE
+        from scripts.job_final_migration.mapping import Mapper, ApplyError
+        from tests.test_job_final_migration_apply import context_for
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+        item, = build_inventory(root)["instances"]
+        item["classification"] = SIMPLE  # stale pre-amendment classification is not proof
+        mapper = Mapper(context_for(root))
+&gt;       with pytest.raises(ApplyError, match="runtime_binding_unavailable"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ApplyError
+
+tests\test_job_migration_runtime_readiness.py:214: Failed</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids" time="0.222"><failure message="AssertionError: assert (2 == 1)&#10; +  where 2 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr... '2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'system_owned', 'classification': 'simple-script-migratable', ...}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_partial_0')
+
+    def test_runtime_delivery_partial_bundle_keeps_original_bytes_and_no_target_ids(tmp_path):
+        import base64
+        from scripts.job_final_migration.inventory import build_inventory
+        from tests.test_job_final_migration import _background_job, _write_json
+        from tests.test_job_final_migration_apply import context_for
+        root = tmp_path / "synthetic-source"
+        path, _ = _runtime_delivery_source(root, "send_session")
+        original = path.read_bytes()
+        _write_json(root / "background_jobs/jobs/job_process.json", _background_job(root))
+        before = hashes(root)
+        context = {**context_for(root), "partialPolicy": {"version": 1, "mode": "preserve-incompatible"}}
+        target = tmp_path / "offline-bundle.json"
+        report = migration.migrate(root, target, context, apply=True, preserve_incompatible=True,
+            expected_digest=migration.plan_digest(build_inventory(root), context))
+        bundle = migration.read_bundle(target)
+&gt;       assert len(bundle["entries"]) == 1 and bundle["entries"][0]["type"] == "MIG-BG"
+E       AssertionError: assert (2 == 1)
+E        +  where 2 = len([{'activeEffectHandles': [], 'attestation': {'authorizationEvidence': 'synthetic fixture: explicit fixture grant', 'cr... '2026-10-25T00:00:00+00:00', ...}, 'authEvidence': 'system_owned', 'classification': 'simple-script-migratable', ...}])
+
+tests\test_job_migration_runtime_readiness.py:234: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[missing-target]" time="0.006"><failure message="AssertionError: assert 'runtime_binding_unavailable' in ['target_missing']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_guard_ke0')
+state = 'missing-target'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+        item, = build_inventory(root)["instances"]
+        assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
+&gt;       assert "runtime_binding_unavailable" in item["reasonCodes"]
+E       AssertionError: assert 'runtime_binding_unavailable' in ['target_missing']
+
+tests\test_job_migration_runtime_readiness.py:259: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[pending-backlog]" time="0.007"><failure message="AssertionError: assert 'runtime_binding_unavailable' in ['pending_notice']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_guard_ke1')
+state = 'pending-backlog'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+        item, = build_inventory(root)["instances"]
+        assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
+&gt;       assert "runtime_binding_unavailable" in item["reasonCodes"]
+E       AssertionError: assert 'runtime_binding_unavailable' in ['pending_notice']
+
+tests\test_job_migration_runtime_readiness.py:259: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[unknown]" time="0.006"><failure message="AssertionError: assert 'runtime_binding_unavailable' in ['uncertain_effect']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_guard_ke2')
+state = 'unknown'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+        item, = build_inventory(root)["instances"]
+        assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
+&gt;       assert "runtime_binding_unavailable" in item["reasonCodes"]
+E       AssertionError: assert 'runtime_binding_unavailable' in ['uncertain_effect']
+
+tests\test_job_migration_runtime_readiness.py:259: AssertionError</failure></testcase><testcase classname="tests.test_job_migration_runtime_readiness" name="test_runtime_delivery_guard_keeps_original_state_evidence[partial]" time="0.007"><failure message="AssertionError: assert 'runtime_binding_unavailable' in ['uncertain_effect']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6404/test_runtime_delivery_guard_ke3')
+state = 'partial'
+
+    @pytest.mark.parametrize("state", ["missing-target", "pending-backlog", "unknown", "partial"])
+    def test_runtime_delivery_guard_keeps_original_state_evidence(tmp_path, state):
+        from scripts.job_final_migration.inventory import build_inventory
+        root = tmp_path / "synthetic-source"
+        path, source = _runtime_delivery_source(root, "send_session")
+        if state == "missing-target":
+            source["targetSessionId"] = None
+        elif state == "pending-backlog":
+            source["undeliveredFires"] = [{"dispatchKey": "original-dispatch", "outcome": "known-no-attempt"}]
+        else:
+            source["lastDelivery"] = {"outcome": state, "receiptId": "original-receipt"}
+        path.write_text(json.dumps(source), encoding="utf-8")
+        before = path.read_bytes()
+        item, = build_inventory(root)["instances"]
+        assert item["classification"] == "incompatible-preserved" and item["targetIds"] == []
+&gt;       assert "runtime_binding_unavailable" in item["reasonCodes"]
+E       AssertionError: assert 'runtime_binding_unavailable' in ['uncertain_effect']
+
+tests\test_job_migration_runtime_readiness.py:259: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,58 @@
+{
+  "baseline": "d350efaf87e6ae60a5a60f037a4d736b52a2243b",
+  "verifiedSource": "c89866f9db23d3833994511353c51cd18fe3cf6c",
+  "changedPaths": [
+    "scripts/job_final_migration/READINESS_RUNBOOK_20261029.md",
+    "scripts/job_final_migration/apply.py",
+    "scripts/job_final_migration/cli.py",
+    "scripts/job_final_migration/inventory.py",
+    "scripts/job_final_migration/mapping.py",
+    "tests/support/job_migration_readiness_rehearsal.py",
+    "tests/test_job_migration_readiness.py"
+  ],
+  "packagesDiffEmpty": true,
+  "oldTestsAndGlobalFixtureDiffEmpty": true,
+  "scriptTree": "29bddaa9b80bfed99460d1022d7da70d936861da",
+  "ownedFileSha256": {
+    "scripts/job_final_migration/READINESS_RUNBOOK_20261029.md": "71dad971f8645ba1fbd83877e07fad9bef7342c7d3a2b63a97f0df78a3c82b29",
+    "scripts/job_final_migration/apply.py": "5055b5a8110f05bc152cb03de1d18eecc4816f08dfcfe98120cdb0b70fa0c842",
+    "scripts/job_final_migration/cli.py": "3996c1c77b3a0f5e01c7e8f9722e158c4f80ca139f81c8f16a6d6f8b5e575f16",
+    "scripts/job_final_migration/inventory.py": "668ab5ab950bdf200e12ff6a4fc5d1aaa8e2268fe069c2182abc61e9c059cbfe",
+    "scripts/job_final_migration/mapping.py": "a14b385c4446c0dc7e5cf308be33d340387b7597b48b20461d9c0e4c311b2fbb",
+    "tests/support/job_migration_readiness_rehearsal.py": "1f4f73456b7fe854e06725a72348f344dcf7337354f2160658aad3c1cc1bff58",
+    "tests/test_job_migration_readiness.py": "0c642e8850ad7c5ef8e02dc6f39e62a7c9e22b3bb444b90b9b3d0efc459e944a"
+  },
+  "protectedRefs": {
+    "main": "9b4506c94ac67a39093961b218b2f01d387d1049",
+    "practical": "86e421555f366133b25a4069e8575c0a1310ea60",
+    "xplat/minimal-ci-20261029": "a6cc7f19f253d236c94ca141558888a44daa7077"
+  },
+  "testCommand": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_migration_readiness.py",
+    "tests/test_job_final_migration.py",
+    "tests/test_job_final_migration_apply.py",
+    "tests/test_job_final_migration_review_packet.py",
+    "tests/test_job_final_contracts.py",
+    "-q",
+    "-o",
+    "addopts=",
+    "--junitxml=evidence/job-migration-readiness-20261029/verified-regression.xml"
+  ],
+  "testExit": 0,
+  "rehearsalExit": 0,
+  "runtimeImportedOrActivated": false,
+  "localPlatform": "Windows / designated venv Python 3.14.5",
+  "remoteCi": false,
+  "originalR14ShellRed": "tests/test_retirement_rev14_templates.py::test_production_shell_form_real_process_exit_and_original_lookup",
+  "originalR14Evidence": "evidence/job-retirement-rev14-20261029/product.xml",
+  "preservedOriginalTreeObservations": {
+    "D:/project/pan-worktrees/xplat-worker-capability-20261027": "",
+    "D:/project/pan-worktrees/xplat-minimal-release-20261029": " M evidence/cp-x3-minimal-20261029/pipe-worker.json\n M evidence/cp-x3-minimal-20261029/preexisting-profile.json\n"
+  }
+}

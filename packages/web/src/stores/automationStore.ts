@@ -29,7 +29,7 @@ export async function restoreAutomationSession() {
 }
 export async function automationRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const auth = useAutomationAuth.getState();
-  const protectedPath = path.startsWith('automation') || path.startsWith('jobs/action-jobs') || path.startsWith('jobs/job-templates') || path.startsWith('actions');
+  const protectedPath = path.startsWith('automation') || path.startsWith('jobs/action-jobs') || path.startsWith('jobs/job-templates') || path.startsWith('actions') || path.startsWith('scheduler/event-sources');
   const token = protectedPath ? useAutomationAuth.getState().token : null;
   const response = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: {
     ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),

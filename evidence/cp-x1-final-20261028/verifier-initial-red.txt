@@ -1,0 +1,11 @@
+Local structural verifier first attempt, exit 1:
+Traceback (most recent call last):
+  File "evidence/cp-x1-final-20261028/validate_ci.py", line 81, in <module>
+    main()
+  File "evidence/cp-x1-final-20261028/validate_ci.py", line 69, in main
+    assert data == baseline(path), path
+AssertionError: tests/test_quota_policy_http.py
+
+Cause: compared Windows working-tree CRLF bytes directly with git show LF bytes.
+Verifier corrected to compare git hash-object --path against the baseline blob.
+No protected test, assertion, red log or product file changed.

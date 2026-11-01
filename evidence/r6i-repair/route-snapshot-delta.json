@@ -1,0 +1,38 @@
+{
+  "added": [
+    {
+      "path": "/api/event-creators/providers",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.creator_providers",
+      "deprecated": false
+    },
+    {
+      "path": "/api/event-creators/{creator_id}/references",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.creator_references",
+      "deprecated": false
+    },
+    {
+      "path": "/api/final/event-creators/providers",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.creator_providers",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/{creator_id}/references",
+      "methods": [
+        "GET"
+      ],
+      "handler": "packages.jobs.final_api.creator_references",
+      "deprecated": true
+    }
+  ],
+  "removed": [],
+  "methodPathConflicts": []
+}

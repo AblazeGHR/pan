@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="6" time="1.171" timestamp="2026-10-31T15:10:52.566536+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[assign]" time="0.130"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run0')
+kind = 'assign'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run0/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[send_session]" time="0.113"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run1')
+kind = 'send_session'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run1/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[legacy-assign]" time="0.115"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run2')
+kind = 'legacy-assign'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run2/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[message]" time="0.118"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run3')
+kind = 'message'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run3/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[broadcast]" time="0.115"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run4')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize('kind', ['assign','send_session','legacy-assign','message','broadcast'])
+    def test_rev7_opt_in_maps_real_runtime_release_input_owner_phase(tmp_path, kind):
+        root = tmp_path/'source'
+        _runtime_delivery_source(root, kind)
+&gt;       context = runtime_context(root)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_opt_in_maps_real_run4/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_old_release_does_not_gain_runtime_from_opt_in" time="0.118"><failure message="AttributeError: 'TimeProvider' object has no attribute 'ref'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_old_release_does_not0')
+
+    def test_rev7_old_release_does_not_gain_runtime_from_opt_in(tmp_path):
+        root=tmp_path/'source'
+        _runtime_delivery_source(root,'assign')
+&gt;       context=runtime_context(root)
+                ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_migration_runtime_contract.py:82: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6465/test_rev7_old_release_does_not0/source')
+
+    def runtime_context(root):
+        context = context_for(root)
+        inventory = build_inventory(root, runtime_delivery=True)
+        # Reuse the original context factory on each eligible shape without changing
+        # its global/default behavior; synthetic authority is explicit below.
+        from tests.test_job_final_migration_apply import context_for as original_context
+        from tests.test_job_final_contracts import object_document
+        from packages.jobs.final_service import FinalService
+        from types import SimpleNamespace
+        from contextlib import nullcontext
+        class Collector:
+            executor = SimpleNamespace(channel_provider=object())
+            def __init__(self): self.actions = {}
+            def publish_action(self, key, definition):
+                self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+            def transaction(self, **kwargs): return nullcontext(None)
+            def _get(self, db, kind, key): return self.actions[key]
+        collector = Collector()
+        FinalService._install_product_actions(collector)
+        actions = current_actions()
+        for key, product in RUNTIME_PRODUCTS.items():
+            obj = collector.actions[product]
+            definition = {k:v for k,v in obj.items() if k in fc.schema_artifacts()['action_definition.schema.json']['properties']}
+            actions[key] = {'object': obj, 'ref': {'id': product, 'revision': obj['revision'], 'digest': fc.digest(definition)},
+                            'completions': {'ordinary': {'contract': obj['defaultCompletion']}}}
+        from packages.scheduler.providers import TimeProvider
+        provider = TimeProvider()
+        for item in inventory['instances']:
+            if item['classificationDetail'] != 'simple': continue
+            context['records'].setdefault(item['migrationId'], {
+                'originalDigest': item['originalDigest'], 'principal': {'type':'user','id':'local'},
+                'owner': {'type':'user','id':'local'}, 'oldOwnerStopped':True,'oldOwnerEpoch':1,
+                'fenceEvidence':'synthetic source has no running manager',
+                'authorizationEvidence':'explicit synthetic test input only', 'importedAt':'2026-10-31T00:00:00+00:00',
+                'policies': {'overlap':{'mode':'forbid','maxActive':1,'maxPending':0},
+                    'recovery':{'automatic':False,'maxAttempts':1,'backoffSeconds':[],'stableResetSeconds':'0'},
+                    'notification':{'on':[],'recipients':[]},'retention':{'policyRef':'synthetic'}},
+                'scheduler': {'advanceMode':'grid','dstPolicy':'gap-skip-fold-first','graceSeconds':'60',
+&gt;                   'pausePolicy':'advance','providerRef':provider.ref,'configSchemaRef':provider.config_schema_ref,
+                                                          ^^^^^^^^^^^^
+                    'requiredCapabilities':list(provider.capabilities)}})
+E           AttributeError: 'TimeProvider' object has no attribute 'ref'
+
+tests\test_job_migration_runtime_contract.py:52: AttributeError</failure></testcase></testsuite></testsuites>

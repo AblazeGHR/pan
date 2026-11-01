@@ -1,0 +1,93 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_bb4adfc89049f33ddc70a9e12042d4e0028893a3458a93a5d65de9aef5adb451",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_7c6b3753f857440cae8d0c82",
+        "leaseId": "lease_de2802698fc34fb0b943d3d7",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 29376,
+        "kind": "filetime",
+        "birth": "134377592496929567",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 41012,
+        "kind": "filetime",
+        "birth": "134377592494499655",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            18504,
+            29376,
+            36576
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 29376,
+            "kind": "filetime",
+            "birth": "134377592496929567",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          },
+          "observed": {
+            "pid": 29376,
+            "kind": "filetime",
+            "birth": "134377592496929567",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            18504,
+            29376,
+            36576
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true
+  }
+}

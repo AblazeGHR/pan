@@ -1,0 +1,30 @@
+{
+  "testExits": [
+    0,
+    0
+  ],
+  "orchestratorExit": 1,
+  "reason": "Final all-tree invariant saw fixed-path diagnostics, not source changes",
+  "preservedAndRestored": [
+    {
+      "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/atomic-membership.json",
+      "archivedNewSha256": "479adc96e6823f1e678b867431340a9942e81460d94cbfc064b2d281fd642996",
+      "restoredHistoricalSha256": "d91202070751bda1a47d6933b711f5828d4823ca34e52b78ff5473b32c8685c2"
+    },
+    {
+      "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/creation-edge-hard-death.json",
+      "archivedNewSha256": "d593afcf231cf69c3aaa4b3b961b65f93e4dda90d44aa00ffbd5d3f405bba8cd",
+      "restoredHistoricalSha256": "55a3a692b4cbc226af68b19032945c14fd9030677a60fbfcf45f277a9fd13bc5"
+    },
+    {
+      "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/normal-exit.json",
+      "archivedNewSha256": "687e9dc052b75b12bd21f3c255d45a340fb5978fe37d308eba4948538df9f725",
+      "restoredHistoricalSha256": "76780c2f903b94c87e9fae778e2769087873129dc1c5b125e5432aa697ba1ca2"
+    },
+    {
+      "originalPath": "evidence/cp-x2-windows-hidden-20261028/proof/runner-hard-death.json",
+      "archivedNewSha256": "42793a88d3fcb3c58a658c673e5dc0585d8579c17fb135167b499b948b565aa0",
+      "restoredHistoricalSha256": "cbdff9dceae4316894410651bec99a52820a4a514b85cf87800807b525a05b95"
+    }
+  ]
+}

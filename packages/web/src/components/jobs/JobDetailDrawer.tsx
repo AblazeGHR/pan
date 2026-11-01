@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
-import { LegacyJobDetails } from './LegacyJobDetails';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -348,7 +347,7 @@ export function JobDetailDrawer({
               )}
             </div>
 
-            {(!job.unified || job.unified.compatibility) && <LegacyJobDetails job={job} />}
+            
             {job.unified && !job.unified.compatibility && <Section title="Unified execution">
               <KV label="Action reference">{job.unified.config.actionId}</KV>
               <KV label="Configuration revision">{job.configRevision ?? 'legacy adapter'}</KV>
@@ -655,3 +654,4 @@ export function JobDetailDrawer({
     document.body,
   );
 }
+

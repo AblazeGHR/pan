@@ -1,0 +1,58 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_241ea7a3a0fb771e5b7179d5c5df7ab2983dd57e109808423b495afa0753a1f9",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_b589756e7ca74834b27eb85e",
+        "leaseId": "lease_ea0e35aea654459f9d38182e",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 13284,
+        "kind": "filetime",
+        "birth": "134376452911726338",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 11188,
+        "kind": "filetime",
+        "birth": "134376452909497591",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            12348
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "invalidBearerRejected": true,
+    "revokedReadRejected": true
+  }
+}

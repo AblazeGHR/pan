@@ -1,0 +1,32 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+F....F..                                                                 [100%]
+================================== FAILURES ===================================
+_ test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once _
+tests\test_retirement_rev25_qq_runtime.py:68: in test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once
+    assert len(before['runs']) == len(before['attempts']) == 2 and not before['effects'] and not q.rows
+E   AssertionError: assert (1 == 2)
+E    +  where 1 = len({'attempt_ab81e1f6ada64ebda7ba8409': {'attemptId': 'attempt_ab81e1f6ada64ebda7ba8409', 'generation': 1, 'leaseId': 'lease_d71f8f370636451d8f6510ee', 'ownerEpoch': 1, ...}})
+---------------------------- Captured stdout setup ----------------------------
+10-31 20:20:39 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:20:39 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+_ test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222] _
+tests\test_retirement_rev25_qq_runtime.py:156: in test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text
+    assert after['runs'][rid]['state'] == 'completed'
+E   AssertionError: assert 'uncertain' == 'completed'
+E     
+E     - completed
+E     + uncertain
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev25_qq_runtime.py::test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once
+FAILED tests/test_retirement_rev25_qq_runtime.py::test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]

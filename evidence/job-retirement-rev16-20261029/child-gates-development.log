@@ -1,0 +1,22 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-entry-notification-closure-20261029
+.....F..........                                                         [100%]
+================================== FAILURES ===================================
+_ test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[cancel] _
+tests\test_retirement_session_runtime.py:129: in test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt
+    assert provider.calls == ['ses_a']
+E   AssertionError: assert ['ses_a', 'ses_b'] == ['ses_a']
+E     
+E     Left contains one more item: 'ses_b'
+E     Use -v to get more diff
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_session_runtime.py::test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[cancel]

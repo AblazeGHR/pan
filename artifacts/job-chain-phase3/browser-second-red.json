@@ -1,0 +1,204 @@
+{
+  "origin": "http://pan-phase3.test",
+  "transport": "Playwright route.fulfill / routeWebSocket; no TCP listener",
+  "screenshots": [
+    "job-1440.png",
+    "trigger-1440.png",
+    "event-register-1440.png",
+    "source-impact-1440.png"
+  ],
+  "overflows": [
+    {
+      "width": 1440,
+      "name": "job",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "width": 1440,
+      "name": "trigger",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "width": 1440,
+      "name": "event-register",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "width": 1440,
+      "name": "source-impact",
+      "viewport": 1440,
+      "document": 1440,
+      "panel": 1160
+    }
+  ],
+  "pageErrors": [],
+  "requests": [
+    {
+      "width": 1440,
+      "path": "/api/settings/ui",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/workspaces",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/cli/status",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/plugins/panels",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/list",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapters",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/adapter/config",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/actions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/login",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/jobs/action-jobs",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/scheduler/event-sources",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation/job-edits",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/automation",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/sessions",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery",
+      "method": "GET"
+    },
+    {
+      "width": 1440,
+      "path": "/api/main/startup-recovery/claim",
+      "method": "POST"
+    }
+  ],
+  "legacyEntry": false
+}

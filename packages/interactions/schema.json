@@ -494,6 +494,42 @@
       }
     },
     "ExecutionBinding": {
+      "oneOf": [
+        { "$ref": "#/$defs/ExecutionBindingV1" },
+        { "$ref": "#/$defs/ExecutionBindingV2" }
+      ]
+    },
+    "ExecutionBindingV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": { "const": 2 },
+        "triggerId": { "$ref": "#/$defs/Id" },
+        "triggerRevision": { "type": "integer", "minimum": 1 },
+        "triggerDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "jobId": { "$ref": "#/$defs/Id" },
+        "jobRevision": { "type": "integer", "minimum": 1, "description": "Canonical Job configRevision" },
+        "jobDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "actions": {
+          "type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/$defs/Id" },
+              "revision": { "type": "integer", "minimum": 1 },
+              "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            },
+            "required": ["id", "revision", "digest"]
+          }
+        },
+        "authorityDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "authorization": { "type": "object" },
+        "targetIds": { "type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/$defs/Id" } },
+        "summary": { "type": "string" }
+      },
+      "required": ["version", "triggerId", "triggerRevision", "triggerDigest", "jobId", "jobRevision", "jobDigest", "actions", "authorityDigest", "authorization", "targetIds", "summary"]
+    },
+    "ExecutionBindingV1": {
       "type": "object",
       "additionalProperties": false,
       "properties": {

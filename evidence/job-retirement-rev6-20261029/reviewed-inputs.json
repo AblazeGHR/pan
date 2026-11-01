@@ -1,0 +1,34 @@
+[
+  {
+    "path": "D:/project/Pan/.workflow/job-unification-review-20261028/REVISED_MIGRATION_PLAN_V2.md",
+    "sha256": "fc5e4ea09ed75a5bdcfd6e8a6eb69941e207443a64c7dce7b5d977078433124f"
+  },
+  {
+    "path": "D:/project/Pan-main/docs/design/job-unification/JOB_ACTION_CHAIN_SCHEDULER_EVENT_DESIGN_20261024.md",
+    "sha256": "c4e29ca41a83e31e26605f53f520b728c149795fba70c2bd81dc3ab8775e379a"
+  },
+  {
+    "path": "D:/project/Pan/.workflow/job-unification-review-20261028/JOB_UNIFICATION_DESIGN_AND_DELTA.md",
+    "sha256": "d2d7392b7f0097898d476a204a1499b80240c742071d6e8885cf6616812a92ce"
+  },
+  {
+    "path": "D:/project/Pan/.workflow/job-unification-review-20261028/RECOVERY_REV3_REMOTE_ACCEPTANCE.md",
+    "sha256": "e601dcfbb226c7ff58189197fe48a300b5926bcdbaa32cebb88adb2e0d463eaf"
+  },
+  {
+    "path": "D:/project/pan-worktrees/xplat-job-fast-gates-20261027/evidence/cp-x1-full-red-closure-20261029/per-node-disposition.json",
+    "sha256": "f8b9840fa9d55d49eacb8632a5f5679ce0d5c7b43201800af7dbd77054b6f0b9"
+  },
+  {
+    "path": "D:/project/pan-worktrees/xplat-job-fast-gates-20261027/docs/reports/CP_X1_JOBAPI_FULL_RED_CLOSURE_20261029.md",
+    "sha256": "1a8e3211fb7934d13f66fc88e97981adac72fb6598470a86223ba89d6a7e5347"
+  },
+  {
+    "path": "evidence/job-retirement-closure/successors.json",
+    "sha256": "67a28374f45d56ac9a515f1a9f1862b33d811800e29aa1104b396e8c66bddac4"
+  },
+  {
+    "path": "evidence/job-retirement-closure/remaining-nine-review-20261028.md",
+    "sha256": "ebdd55cc2d20478022a284ae383efaf1b615de7e0d87a6b907015edc01b205ab"
+  }
+]

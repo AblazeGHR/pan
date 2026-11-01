@@ -57,7 +57,7 @@ def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch
     monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
         "supervisor must wait for Worker shutdown",
     ))
-    result = asyncio.run(srv.api_main_restart({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
         "options": {"markRunningSessionsOffline": False},
     }))
     assert result["ok"] is True
@@ -92,7 +92,7 @@ def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch
     monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
 
     with pytest.raises(srv.HTTPException) as caught:
-        asyncio.run(srv.api_main_restart())
+        asyncio.run(srv.api_system_main_lifecycle({"operation": "restart"}))
 
     assert caught.value.status_code == 400
     assert caught.value.detail["code"] == "lifecycle_choice_required"
@@ -128,7 +128,7 @@ def test_restart_freezes_configured_policy_and_running_snapshot(
     monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
     monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
 
-    result = asyncio.run(srv.api_main_restart({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
         "options": {"markRunningSessionsOffline": choice},
     }))
     job = background_jobs.find_service_job(
@@ -312,7 +312,7 @@ def test_persisted_duplicate_restart_is_rejected_without_spawn(monkeypatch):
     monkeypatch.setattr(srv, "_main_restart_pending", True)
     monkeypatch.setattr(srv, "_main_restart_request_id", "already-running")
     monkeypatch.setattr(srv.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
-    result = asyncio.run(srv.api_main_restart({
+    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
         "options": {"markRunningSessionsOffline": True},
     }))
     assert result["status"] == "busy"

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.479" timestamp="2026-10-29T23:46:48.807092+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_readiness" name="test_authority_classification_cannot_be_overridden_by_lite_directory" time="0.084"><failure message="AssertionError: assert 'background_jobs/jobs/job-runtime-owner.json' in []">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6320/test_authority_classification_0')
+
+    def test_authority_classification_cannot_be_overridden_by_lite_directory(tmp_path):
+        from scripts.job_final_migration.source_coverage import inventory_coverage
+        _, root, _, _ = evidence_for(tmp_path, n_simple=2, n_complex=2)
+        relative = "background_jobs/jobs/job-runtime-owner.json"
+        (root / relative).write_text('{}', encoding="utf-8")
+        result = inventory_coverage(root)
+&gt;       assert relative in result["blockingAuthorityPaths"]
+E       AssertionError: assert 'background_jobs/jobs/job-runtime-owner.json' in []
+
+tests\test_job_migration_runtime_readiness.py:152: AssertionError</failure></testcase></testsuite></testsuites>

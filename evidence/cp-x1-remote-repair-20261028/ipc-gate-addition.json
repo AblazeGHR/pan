@@ -1,0 +1,15 @@
+{
+  "priorCandidate": "1b319ed28abdc203f7fdf1cf025e4f936c44730b",
+  "preservedGateEntries": 24,
+  "newGateEntries": 25,
+  "soleAddition": "tests/test_plugin_ipc_endpoint.py",
+  "reviewedOwnerFileSha256": "97c452b1ebd85c3554efc2de6aa5a2e325b8be175d13d35272b39043818df7af",
+  "ownerCandidate": "99e51f1f",
+  "ownerProduct": "cf7510f5",
+  "ownerFileMergedOrCopied": false,
+  "filePresentInThisTaskTree": false,
+  "helperExit": 0,
+  "helperPassed": 6,
+  "endpointExecutionInCombinedTree": "pending MA combined validation",
+  "freshHistoryBrowser": "MA reports CP-X3 fresh build unchanged test 1 passed; not this task rerun or Ubuntu CI"
+}

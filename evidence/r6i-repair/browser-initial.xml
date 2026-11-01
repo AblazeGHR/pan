@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.580" timestamp="2026-10-27T01:07:03.453522+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_management_browser" name="test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser" time="2.321"><failure message="AssertionError: assert 0 != 0&#10; +  where 0 = &lt;built-in method connect_ex of socket object at 0x0000023DC8C8CCD0&gt;(('127.0.0.1', 53591))&#10; +    where &lt;built-in method connect_ex of socket object at 0x0000023DC8C8CCD0&gt; = &lt;socket.socket fd=636, family=2, type=1, proto=0, laddr=('127.0.0.1', 53601), raddr=('127.0.0.1', 53591)&gt;.connect_ex">tests\test_scheduler_management_browser.py:38: in test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser
+    key=(root/'automation/user.key').read_text(encoding='utf-8').strip()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:787: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py:771: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5399\\test_authenticated_native_sour0\\profile\\automation\\user.key'
+
+During handling of the above exception, another exception occurred:
+tests\test_scheduler_management_browser.py:124: in test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser
+    assert check.connect_ex(('127.0.0.1',port))!=0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = &lt;built-in method connect_ex of socket object at 0x0000023DC8C8CCD0&gt;(('127.0.0.1', 53591))
+E    +    where &lt;built-in method connect_ex of socket object at 0x0000023DC8C8CCD0&gt; = &lt;socket.socket fd=636, family=2, type=1, proto=0, laddr=('127.0.0.1', 53601), raddr=('127.0.0.1', 53591)&gt;.connect_ex</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.058" timestamp="2026-10-27T01:22:56.718230+08:00" hostname="ablaze"><testcase classname="tests.test_authorization_runtime" name="test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt" time="0.132"><failure message="AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'">packages\jobs\system_actions.py:209: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint execute retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+The above exception was the direct cause of the following exception:
+tests\test_authorization_runtime.py:136: in test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt
+    monkeypatch.setattr('packages.jobs.system_actions.execute',no_signal)
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:109: in derive_importpath
+    annotated_getattr(target, attr, ann=module)
+..\..\Programs\Python\Python314\Lib\site-packages\_pytest\monkeypatch.py:97: in annotated_getattr
+    raise AttributeError(
+E   AttributeError: 'module' object at packages.jobs.system_actions has no attribute 'execute'</failure></testcase><testcase classname="tests.test_quota_policy_http" name="test_quota_policy_owned_http_default_unavailable_is_unknown_real_http" time="0.002"><failure message="NameError: name 'monkeypatcreal_http' is not defined">tests\test_quota_policy_http.py:45: in test_quota_policy_owned_http_default_unavailable_is_unknown_real_http
+    monkeypatcreal_http.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+    ^^^^^^^^^^^^^^^^^^^
+E   NameError: name 'monkeypatcreal_http' is not defined</failure></testcase></testsuite></testsuites>

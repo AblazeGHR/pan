@@ -140,6 +140,7 @@ def test_unified_gui_reads_remote_and_refuses_local_metadata_mutation(monkeypatc
 
 
 def test_real_service_outbox_reaches_durable_pan_queue(monkeypatch, tmp_path):
+    import json
     import sys
     import threading
     import time
@@ -152,6 +153,10 @@ def test_real_service_outbox_reaches_durable_pan_queue(monkeypatch, tmp_path):
     monkeypatch.setattr(worker, "_shutdown_started", False)
     monkeypatch.setattr(worker, "_wake_worker", lambda *a, **k: asyncio.sleep(0))
     target = sessions.create("independent-real-outbox", workdir=str(tmp_path))
+    # R5 only drains a pre-existing terminal event through this compatibility
+    # bridge. Canonical execution events use their independent consumer port.
+    from tests.test_independent_job_service import _historical
+    identity = _historical(tmp_path / "host", status="completed")
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.store = JobStore(str(tmp_path / "host"))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -159,11 +164,14 @@ def test_real_service_outbox_reaches_durable_pan_queue(monkeypatch, tmp_path):
     client = IndependentJobClient(f"http://127.0.0.1:{server.server_port}")
     monkeypatch.setattr(bridge, "configured_client", lambda: client)
     try:
-        result = asyncio.run(api.create_job({
-            "kind": "background-process", "argv": [sys.executable, "-c", "print('real-outbox')"],
-            "cwd": str(tmp_path), "target": {"sessionId": target.id}}))
-        assert result["ok"] is True
-        job = result["job"]
+        with pytest.raises(RuntimeError, match="410"):
+            client.start({"argv": [sys.executable], "cwd": str(tmp_path)})
+        job = client.get(identity)
+        with server.store.connect() as db:
+            row = db.execute("SELECT payload FROM outbox").fetchone()
+            event = {**json.loads(row["payload"]), "targetSessionId": target.id,
+                     "creatorSessionId": None, "exitCode": 0, "logPath": job["logPath"]}
+            db.execute("UPDATE outbox SET payload=?", (json.dumps(event),))
         assert job["executionOwner"] == "independent-job-service"
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and not client.events()["events"]:
@@ -214,11 +222,10 @@ def test_duplicate_runner_claim_launches_command_only_once(monkeypatch, tmp_path
     from packages.jobs import independent_service as service, independent_runner as runner
     store = service.JobStore(str(tmp_path / "host"))
     marker = tmp_path / "once.txt"
-    with monkeypatch.context() as patch:
-        patch.setattr(service.subprocess, "Popen", lambda *a, **k: None)
-        job = store.create({"name": "Validate concurrent runner", "argv": [sys.executable, "-c",
+    from tests.helpers.legacy_process_fixture import historical_process
+    job = historical_process(store.root, [sys.executable, "-c",
             "from pathlib import Path; p=Path(" + repr(str(marker)) + "); p.write_text('once')"],
-            "cwd": str(tmp_path), "targetSessionId": "owned-test"})
+            tmp_path, launch=False)
     results = []
     start = threading.Barrier(2)
     def invoke():

@@ -1,0 +1,35 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+FFF..                                                                    [100%]
+================================== FAILURES ===================================
+____ test_qq_untrusted_literal_must_be_rejected_before_committing[create] _____
+tests\test_job_retirement_provider_boundaries.py:55: in test_qq_untrusted_literal_must_be_rejected_before_committing
+    assert response.status_code == 400, response.text
+E   AssertionError: {"operationId":"op_ebcf8694476a4cec8828dc98","requestKey":"invalid-qq-create","status":"completed","objectRefs":[{"id":"job_c73ec2101c5a43768124c92b","revision":1,"digest":"10519a5710be6daf39847dbaa45ed4b9b458fece8dbec0609aff418d3fe6202d"}],"result":{"object":{"name":"owned QQ job","steps":[{"stepId":"send","actionRef":{"id":"owned_channel_boundary","revision":1,"digest":"95e255f527a1b3c89c6ef613a957ff3c5fa05f191696b37e487254738b8635fd"},"arguments":{"targetType":{"from":"literal","value":"user"},"targetId":{"from":"literal","value":"not-a-qq-id"},"botUin":{"from":"literal","value":"987654"},"text":{"from":"literal","value":"hello QQ"}},"completion":{"contract":"provider-receipt"}}],"retention":{"policyRef":"test","pinned":false},"description":"","inputSchema":{"type":"object"},"arguments":{},"triggerLinks":[],"overlap":{"mode":"forbid","maxActive":1,"maxPending":0},"recovery":{"automatic":false,"maxAttempts":3,"backoffSeconds":["5","15","60"],"stableResetSeconds":"300"},"notification":{"on":[],"recipients":[]},"schemaVersion":2,"id":"job_c73ec2101c5a43768124c92b","profileId":"profile_dd0d95bd293094d73c0611ac","createdBy":{"type":"user","id":"local"},"owner":{"type":"user","id":"local"},"createdAt":"2026-10-27T16:01:26.757425Z","updatedAt":"2026-10-27T16:01:26.757431Z","state":"draft","stateRevision":0,"configRevision":1}},"links":{"self":"/api/operations/op_ebcf8694476a4cec8828dc98"}}
+E   assert 201 == 400
+E    +  where 201 = <Response [201 Created]>.status_code
+____ test_qq_untrusted_literal_must_be_rejected_before_committing[update] _____
+tests\test_job_retirement_provider_boundaries.py:55: in test_qq_untrusted_literal_must_be_rejected_before_committing
+    assert response.status_code == 400, response.text
+E   AssertionError: {"operationId":"op_d51f832b25cd429bacd345c7","requestKey":"invalid-qq-update","status":"completed","objectRefs":[{"id":"job_b5d8c98debca4f57a5f1b912","revision":2,"digest":"10519a5710be6daf39847dbaa45ed4b9b458fece8dbec0609aff418d3fe6202d"}],"result":{"object":{"name":"owned QQ job","steps":[{"stepId":"send","actionRef":{"id":"owned_channel_boundary","revision":1,"digest":"95e255f527a1b3c89c6ef613a957ff3c5fa05f191696b37e487254738b8635fd"},"arguments":{"targetType":{"from":"literal","value":"user"},"targetId":{"from":"literal","value":"not-a-qq-id"},"botUin":{"from":"literal","value":"987654"},"text":{"from":"literal","value":"hello QQ"}},"completion":{"contract":"provider-receipt"}}],"retention":{"policyRef":"test","pinned":false},"description":"","inputSchema":{"type":"object"},"arguments":{},"triggerLinks":[],"overlap":{"mode":"forbid","maxActive":1,"maxPending":0},"recovery":{"automatic":false,"maxAttempts":3,"backoffSeconds":["5","15","60"],"stableResetSeconds":"300"},"notification":{"on":[],"recipients":[]},"createdAt":"2026-10-27T16:01:27.115282Z","state":"draft","schemaVersion":2,"profileId":"profile_f863d9834589b594fae7e479","updatedAt":"2026-10-27T16:01:27.156953Z","owner":{"id":"local","type":"user"},"configRevision":2,"stateRevision":0,"id":"job_b5d8c98debca4f57a5f1b912","createdBy":{"id":"local","type":"user"}}},"links":{"self":"/api/operations/op_d51f832b25cd429bacd345c7"}}
+E   assert 200 == 400
+E    +  where 200 = <Response [200 OK]>.status_code
+_____ test_missing_session_must_be_rejected_before_job_definition_commit ______
+tests\test_job_retirement_provider_boundaries.py:69: in test_missing_session_must_be_rejected_before_job_definition_commit
+    assert response.status_code == 400, response.text
+E   AssertionError: {"operationId":"op_47aecf9dc3b74e35833581b0","requestKey":"missing-session","status":"completed","objectRefs":[{"id":"job_47f166e1f6964bb6b62f62d6","revision":1,"digest":"86e4bfda298b9bc2157130dfee17363ec4c5a2aad34f39bc2f5b3479cc9540fd"}],"result":{"object":{"name":"job","steps":[{"stepId":"s0","actionRef":{"id":"test_message","revision":1,"digest":"42d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8"},"arguments":{"sessionId":{"from":"literal","value":"ses_owned_missing"},"text":{"from":"literal","value":"0"}},"completion":{"contract":"durable-queue-accepted"}}],"retention":{"policyRef":"test","pinned":false},"description":"","inputSchema":{"type":"object"},"arguments":{},"triggerLinks":[],"overlap":{"mode":"forbid","maxActive":1,"maxPending":0},"recovery":{"automatic":false,"maxAttempts":3,"backoffSeconds":["5","15","60"],"stableResetSeconds":"300"},"notification":{"on":[],"recipients":[]},"schemaVersion":2,"id":"job_47f166e1f6964bb6b62f62d6","profileId":"profile_52e588b04ad01898821dcbc1","createdBy":{"type":"user","id":"local"},"owner":{"type":"user","id":"local"},"createdAt":"2026-10-27T16:01:27.353940Z","updatedAt":"2026-10-27T16:01:27.353946Z","state":"draft","stateRevision":0,"configRevision":1}},"links":{"self":"/api/operations/op_47aecf9dc3b74e35833581b0"}}
+E   assert 201 == 400
+E    +  where 201 = <Response [201 Created]>.status_code
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]
+FAILED tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]
+FAILED tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit

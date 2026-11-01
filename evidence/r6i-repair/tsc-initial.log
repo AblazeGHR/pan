@@ -1,0 +1,14 @@
+src/views/AutomationView.tsx(62,332): error TS2322: Type 'CanonicalObject[]' is not assignable to type 'ActionJob[]'.
+  Type 'CanonicalObject' is missing the following properties from type 'ActionJob': jobId, config, enabled, status
+src/views/AutomationView.tsx(62,354): error TS2322: Type 'EventCreator[]' is not assignable to type 'SchedulerSource[]'.
+  Type 'EventCreator' is not assignable to type 'SchedulerSource'.
+    Type 'EventCreator' is missing the following properties from type 'SchedulerConfig': schedule, enabled, misfirePolicy, graceSec
+src/views/AutomationView.tsx(62,404): error TS2339: Property 'operations' does not exist on type '{ error: string; loading: boolean; refresh: () => Promise<void>; jobs: CanonicalObject[]; triggers: CanonicalObject[]; sources: EventCreator[]; references: Record<...>; providers: SchedulerProvider[]; }'.
+src/views/AutomationView.tsx(63,261): error TS2322: Type '{ sources: EventCreator[]; schema: any; definitions: { type: string; available: boolean; schema: unknown; source: unknown; schemaVersion: number; }[]; jobs: CanonicalObject[]; focusId: string | undefined; refresh: () => Promise<...>; jump: (name: "Job" | ... 1 more ... | "Event Register", id?: string) => void; }' is not assignable to type 'IntrinsicAttributes & { sources: EventCreator[]; providers: SchedulerProvider[]; references: Record<string, CreatorReferences>; focusId?: string | undefined; refresh: () => Promise<...>; jump: (tab: "Job" | ... 1 more ... | "Event Register", id: string) => void; }'.
+  Property 'schema' does not exist on type 'IntrinsicAttributes & { sources: EventCreator[]; providers: SchedulerProvider[]; references: Record<string, CreatorReferences>; focusId?: string | undefined; refresh: () => Promise<...>; jump: (tab: "Job" | ... 1 more ... | "Event Register", id: string) => void; }'.
+src/views/AutomationView.tsx(63,279): error TS2339: Property 'schema' does not exist on type '{ error: string; loading: boolean; refresh: () => Promise<void>; jobs: CanonicalObject[]; triggers: CanonicalObject[]; sources: EventCreator[]; references: Record<...>; providers: SchedulerProvider[]; }'.
+src/views/AutomationView.tsx(69,89): error TS2322: Type 'CanonicalObject[]' is not assignable to type 'ActionJob[]'.
+  Type 'CanonicalObject' is missing the following properties from type 'ActionJob': jobId, config, enabled, status
+src/views/AutomationView.tsx(69,111): error TS2322: Type 'EventCreator[]' is not assignable to type 'SchedulerSource[]'.
+  Type 'EventCreator' is not assignable to type 'SchedulerSource'.
+    Type 'EventCreator' is missing the following properties from type 'SchedulerConfig': schedule, enabled, misfirePolicy, graceSec

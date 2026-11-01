@@ -1,0 +1,10 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p21-r6-time-events-20261025
+ImportError while loading conftest 'D:\project\pan-worktrees\job-p21-r6-time-events-20261025\tests\conftest.py'.
+tests\conftest.py:28: in <module>
+    from packages.scheduler import store as _scheduler
+packages\scheduler\store.py:102: in <module>
+    from packages.jobs.scheduled_records import task_from_job as _task_from_job
+E     File "D:\project\pan-worktrees\job-p21-r6-time-events-20261025\packages\jobs\scheduled_records.py", line 132
+E       @legacy_writer(lambda task_id, *, root=None: (Path(root) if root is not None else data_root()).resolve().parent, reservation=True)
+E       ^
+E   IndentationError: expected an indented block after function definition on line 129

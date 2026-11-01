@@ -1,0 +1,14 @@
+{
+  "sourceSha": "75315801ded6275dcabdad0cbc3b1627a4b9ac74",
+  "portAllowed": true,
+  "effectId": "effect_e4718b26a7b85f84faa67231f59ea6f6b6d9d3ff807e407171a8d05294b0532b",
+  "requestId": "request_e54bd530042a8e85b85afe70",
+  "oldPid": 37072,
+  "newPid": 14200,
+  "oldBirth": 1793245346.2610016,
+  "newBirth": 1793245351.6227317,
+  "outcome": "succeeded",
+  "offline": true,
+  "ready": true,
+  "portReleased": true
+}

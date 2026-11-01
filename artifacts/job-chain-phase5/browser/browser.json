@@ -1,0 +1,82 @@
+{
+  "base": "http://127.0.0.1:64645",
+  "transport": "real HTTP and WebSocket; no routes or response mocks",
+  "screenshots": [
+    "chain-editor-1440.png",
+    "existing-scheduler-flow-1440.png",
+    "job-1440.png",
+    "trigger-1440.png",
+    "event-register-1440.png",
+    "job-390.png",
+    "trigger-390.png",
+    "event-register-390.png",
+    "chain-editor-390.png",
+    "existing-scheduler-flow-390.png"
+  ],
+  "geometry": [
+    {
+      "name": "chain-editor",
+      "width": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "name": "existing-scheduler-flow",
+      "width": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "name": "job",
+      "width": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "name": "trigger",
+      "width": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "name": "event-register",
+      "width": 1440,
+      "document": 1440,
+      "panel": 1160
+    },
+    {
+      "name": "job",
+      "width": 390,
+      "document": 390,
+      "panel": 390
+    },
+    {
+      "name": "trigger",
+      "width": 390,
+      "document": 390,
+      "panel": 390
+    },
+    {
+      "name": "event-register",
+      "width": 390,
+      "document": 390,
+      "panel": 390
+    },
+    {
+      "name": "chain-editor",
+      "width": 390,
+      "document": 390,
+      "panel": 390
+    },
+    {
+      "name": "existing-scheduler-flow",
+      "width": 390,
+      "document": 390,
+      "panel": 390
+    }
+  ],
+  "errors": [],
+  "jobId": "job_37711d4b7f493fc3a27a0deb",
+  "ok": true,
+  "browserVersion": "156.0.4314.42"
+}

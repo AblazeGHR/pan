@@ -1,0 +1,27 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+Exception in thread Thread-1 (_readerthread):
+Traceback (most recent call last):
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\threading.py", line 1082, in _bootstrap_inner
+    self._context.run(self.run)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\threading.py", line 1024, in run
+    self._target(*self._args, **self._kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\subprocess.py", line 1614, in _readerthread
+    buffer.append(fh.read())
+                  ~~~~~~~^^
+  File "<frozen codecs>", line 325, in decode
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa1 in position 22522: invalid start byte
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\tests\support\job_migration_readiness_rehearsal.py", line 236, in <module>
+    print(json.dumps(run(parser.parse_args().output), indent=2))
+                     ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\tests\support\job_migration_readiness_rehearsal.py", line 150, in run
+    inventory = cli(output, "01-inventory", root)
+  File "D:\project\pan-worktrees\job-migration-readiness-20261029\tests\support\job_migration_readiness_rehearsal.py", line 136, in cli
+    (output / f"{label}.stdout.json").write_text(process.stdout, encoding="utf-8")
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\pathlib\__init__.py", line 807, in write_text
+    raise TypeError('data must be str, not %s' %
+                    data.__class__.__name__)
+TypeError: data must be str, not NoneType

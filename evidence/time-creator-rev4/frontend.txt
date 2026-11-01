@@ -1,0 +1,12 @@
+ RUN  v2.1.9 D:/project/pan-worktrees/job-time-creator-line-20261029/packages/web/src
+
+ ✓ services/canonicalJobs.test.ts (23 tests) 23ms
+ ✓ components/automation/SchedulerInstantInput.test.tsx (6 tests) 137ms
+ ✓ components/automation/CanonicalForms.test.tsx (12 tests) 462ms
+ ✓ views/CanonicalJobsView.test.tsx (19 tests) 1579ms
+ ✓ views/AutomationWorkspace.test.tsx (21 tests) 2140ms
+
+ Test Files  5 passed (5)
+      Tests  81 passed (81)
+   Start at  04:27:31
+   Duration  4.36s (transform 400ms, setup 20ms, collect 1.63s, tests 4.34s, environment 3.18s, prepare 670ms)

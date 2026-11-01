@@ -1,0 +1,45 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p23-retained-safety-20261027
+........................................................................ [ 12%]
+........................................................................ [ 25%]
+........................................................................ [ 38%]
+...........................................................F............ [ 51%]
+........................................................................ [ 64%]
+........................................................................ [ 76%]
+...............F.................................ssssssssssssssssss..s.. [ 89%]
+..........................................................               [100%]
+================================== FAILURES ===================================
+_ test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes __
+tests\test_job_final_transports.py:289: in test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes
+    assert len(canonical) == 35
+E   AssertionError: assert 36 == 35
+E    +  where 36 = len([_EffectiveRouteContext(original_route=ContractRoute(path='/jobs/actions', name='action_catalog', methods=['GET']), st...i/jobs', scope='function'), _embed_body_fields=False, body_field=None, is_sse_stream=False, is_json_stream=False), ...])
+___________ test_production_route_snapshot_and_same_handler_aliases ___________
+tests\test_job_path_flip.py:55: in test_production_route_snapshot_and_same_handler_aliases
+    assert snapshot == json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+E   AssertionError: assert {'methodPathC...: True}, ...]} == {'methodPathC...: True}, ...]}
+E
+E     Omitting 1 identical items, use -vv to show
+E     Differing items:
+E     {'routes': [{'path': '/api/legacy/jobs/action-jobs', 'methods': ['GET'], 'handler': 'packages.jobs.action_api.list_job...bs/{job_id}', 'methods': ['PUT'], 'handler': 'packages.jobs.final_api.retired_legacy_write', 'deprecated': True}, ...]} != {'routes': [{'path': '/api/legacy/jobs/action-jobs', 'methods': ['GET'], 'handler': 'packages.jobs.action_api.list_job...bs/{job_id}', 'methods': ['PUT'], 'handler': 'packages.jobs.final_api.retired_legacy_write', 'deprecated': True}, ...]}
+E     Use -v to get more diff
+============================== warnings summary ===============================
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\pydantic_settings\sources\utils.py:47: IncompleteFieldDefinitionWarning: Field 'lifespan' has an incomplete definition: its annotation contains an unresolved forward reference, so settings sources may fail to correctly resolve its value. Call `model_rebuild()` on the model where the field is defined, once all the referenced types are defined.
+    warnings.warn(
+
+tests/test_job_process_logs.py::test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_process_logs.py::test_default_real_large_unicode_combined_log_cold_reopen_and_archive
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_final_transports.py::test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes
+FAILED tests/test_job_path_flip.py::test_production_route_snapshot_and_same_handler_aliases

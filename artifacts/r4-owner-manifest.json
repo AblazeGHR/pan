@@ -1,0 +1,227 @@
+{
+  "workPackageId": "R4-runtime-owner",
+  "stage": "R4-fixture-candidate",
+  "sourceSha": "e9eb213ac470df00ca04cd79a5a707552ce4a08d",
+  "baselineSha": "43d0977f0c783f0bd69da5c4611d6bdfe8236a67",
+  "branch": "r4/owner-switch-20261025",
+  "result": "fixture candidate passed; production stage not accepted",
+  "pathsAdded": [
+    "docs/design/job-unification/R4_RUNTIME_OWNER.md",
+    "packages/core/platform/runtime_lock.py",
+    "packages/jobs/runtime_activation.py",
+    "packages/jobs/runtime_owner.py",
+    "tests/test_job_runtime_owner.py"
+  ],
+  "pathsChanged": [
+    "docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md",
+    "packages/automation/engine.py",
+    "packages/automation/event_store.py",
+    "packages/automation/service.py",
+    "packages/automation/store.py",
+    "packages/core/background_jobs.py",
+    "packages/core/background_runner.py",
+    "packages/core/platform/README.md",
+    "packages/core/platform/__init__.py",
+    "packages/jobs/final_runtime/ledger.py",
+    "packages/jobs/final_service.py",
+    "packages/jobs/independent_executor.py",
+    "packages/jobs/independent_runner.py",
+    "packages/jobs/independent_service.py",
+    "packages/jobs/pan_bridge.py",
+    "packages/scheduler/creators.py",
+    "packages/web/server.py",
+    "tests/test_background_jobs.py",
+    "tests/test_job_final_http_service.py",
+    "tests/test_platform_layer.py"
+  ],
+  "pathsDeleted": [],
+  "removedEntrypoints": [],
+  "disconnectedStartupCalls": [
+    "background_jobs.register_scheduled_tasks",
+    "background_jobs.start_recovery_loop",
+    "scheduler_engine.start_loop",
+    "_recover_interrupted_main_restart_jobs"
+  ],
+  "contractVersions": {
+    "canonicalSchema": 2,
+    "offlineBundle": "pan.job-final-migration.bundle/v1",
+    "mappingVersion": "1",
+    "ownerProtocol": "local OS lifetime lock + durable epoch/nonce CAS"
+  },
+  "matrixRows": [
+    "R4 single owner / old writer fence",
+    "FM05 offline activation",
+    "FR02 Attempt/Effect recovery",
+    "FR05 canonical notification outbox",
+    "job.runtimeOwner platform capability"
+  ],
+  "testIds": [
+    "R4 owner/activation/recovery tests (28 parameterized cases)",
+    "existing job_final regression (416 cases)"
+  ],
+  "testNodes": [
+    "tests/test_job_runtime_owner.py::test_owner_epoch_cas_competition_and_stale_writers",
+    "tests/test_job_runtime_owner.py::test_process_crash_releases_lock_but_advances_durable_epoch",
+    "tests/test_job_runtime_owner.py::test_pass_in_flight_and_abandoned_reservation_fail_closed",
+    "tests/test_job_runtime_owner.py::test_old_stores_are_readable_and_all_new_writes_refused",
+    "tests/test_job_runtime_owner.py::test_offline_bundle_activation_explicit_states_and_idempotent_restart",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[hash]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[plan]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[bundle]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[profile]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[references]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[active]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[readonly]",
+    "tests/test_job_runtime_owner.py::test_bad_activation_rolls_back_graph_and_never_reopens_legacy[cursor]",
+    "tests/test_job_runtime_owner.py::test_activation_adopts_reviewed_next_fire_without_historical_replay[interval]",
+    "tests/test_job_runtime_owner.py::test_activation_adopts_reviewed_next_fire_without_historical_replay[cron]",
+    "tests/test_job_runtime_owner.py::test_single_execution_single_outbox_delivery_and_restart_no_replay",
+    "tests/test_job_runtime_owner.py::test_restart_lost_attempt_and_notification_remain_uncertain_without_replay",
+    "tests/test_job_runtime_owner.py::test_dual_runtime_start_only_one_enters_active",
+    "tests/test_job_runtime_owner.py::test_creator_event_single_admission_execution_notification_and_restart",
+    "tests/test_job_runtime_owner.py::test_failed_activation_cannot_be_bypassed_by_omitting_bundle",
+    "tests/test_job_runtime_owner.py::test_canonical_automation_admission_keeps_old_trigger_runs_byte_identical",
+    "tests/test_job_runtime_owner.py::test_restart_queries_wp05b_original_effect_and_never_resubmits",
+    "tests/test_job_runtime_owner.py::test_abandoned_legacy_runner_reservation_blocks_takeover",
+    "tests/test_job_runtime_owner.py::test_old_canonical_store_handles_cannot_write_after_restart",
+    "tests/test_job_runtime_owner.py::test_override_store_in_another_profile_is_fail_closed",
+    "tests/test_job_runtime_owner.py::test_bound_automation_starts_admission_only_and_preserves_old_runs",
+    "tests/test_job_runtime_owner.py::test_notification_unknown_is_never_sent_again",
+    "tests/test_job_runtime_owner.py::test_lifespan_fences_before_any_startup_and_adopts_same_epoch"
+  ],
+  "regressionSelection": [
+    "tests/test_automation_core.py",
+    "tests/test_background_jobs.py",
+    "tests/test_independent_job_bridge.py",
+    "tests/test_independent_job_service.py",
+    "tests/test_job_final_admission.py",
+    "tests/test_job_final_clients.py",
+    "tests/test_job_final_contracts.py",
+    "tests/test_job_final_creators.py",
+    "tests/test_job_final_executors.py",
+    "tests/test_job_final_http_service.py",
+    "tests/test_job_final_independent_execution.py",
+    "tests/test_job_final_migration.py",
+    "tests/test_job_final_migration_apply.py",
+    "tests/test_job_final_runtime.py",
+    "tests/test_job_final_transports.py",
+    "tests/test_job_path_flip.py",
+    "tests/test_job_runtime_owner.py",
+    "tests/test_job_system_actions.py",
+    "tests/test_platform_import_chain.py",
+    "tests/test_platform_layer.py",
+    "tests/test_scheduler_cron.py",
+    "tests/test_scheduler_dispatch.py",
+    "tests/test_scheduler_engine.py",
+    "tests/test_scheduler_time_events.py"
+  ],
+  "commands": [
+    {
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest <regressionSelection> -q -o addopts= -o faulthandler_timeout=60 --tb=short --durations=15 --junitxml=artifacts/r4-regression-tests.xml",
+      "exitCode": 0
+    },
+    {
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_runtime_owner.py -q -o addopts= --tb=short --junitxml=artifacts/r4-owner-tests.xml",
+      "exitCode": 0
+    },
+    {
+      "command": "python scripts/run_tests_isolated.py -- python artifacts/r4_baseline_probe.py",
+      "exitCode": 1
+    },
+    {
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_automation_concurrency.py::test_empty_snapshot_then_match_cannot_lose_wakeup tests/test_automation_concurrency.py::test_disable_between_claim_and_dependency_deferral_cancels tests/test_automation_retry_parallel.py::test_uncertain_confirmation_keeps_run_and_new_attempt -q -o addopts= --tb=short --junitxml=artifacts/r4-candidate-legacy-red.xml",
+      "exitCode": 1
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    },
+    {
+      "command": "python scripts/run_tests_isolated.py -- python -c \"import packages.web.server; print('server import OK; no lifespan started')\"",
+      "exitCode": 0
+    }
+  ],
+  "counts": {
+    "r4-owner-tests.xml": {
+      "tests": 28,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 28,
+      "seconds": 14.027,
+      "exitCode": 0
+    },
+    "r4-regression-tests.xml": {
+      "tests": 706,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 706,
+      "seconds": 155.309,
+      "exitCode": 0
+    },
+    "r4-baseline-legacy-red.xml": {
+      "tests": 3,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 0,
+      "seconds": 3.32,
+      "exitCode": 1
+    },
+    "r4-candidate-legacy-red.xml": {
+      "tests": 3,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 0,
+      "seconds": 2.757,
+      "exitCode": 1
+    }
+  },
+  "skipReasons": [],
+  "warningsNotSuppressed": true,
+  "baselineFailures": [
+    {
+      "node": "test_automation_concurrency.py::test_empty_snapshot_then_match_cannot_lose_wakeup",
+      "reason": "TimeoutError: retired engine.tasks synchronization barrier"
+    },
+    {
+      "node": "test_automation_concurrency.py::test_disable_between_claim_and_dependency_deferral_cancels",
+      "reason": "Ledger.claim missing at baseline and candidate"
+    },
+    {
+      "node": "test_automation_retry_parallel.py::test_uncertain_confirmation_keeps_run_and_new_attempt",
+      "reason": "Ledger.claim missing at baseline and candidate"
+    }
+  ],
+  "fullBackend": "not passed/claimed; broader legacy automation run also hung on test_kick_read_inflight_at_close_cannot_reopen_a_run_or_leave_timer",
+  "production": {
+    "simpleFinalized": null,
+    "complexPreserved": null,
+    "activeLegacy": null,
+    "legacyExecutableRecord": null,
+    "unknownOwnership": null,
+    "profileAccessed": false,
+    "runtimeActivated": false
+  },
+  "unverifiedLayers": [
+    "real Ubuntu/macOS runtime and remote CI",
+    "full production lifespan",
+    "production profile migration/crash/rollback and all-profile conservation",
+    "external independent root cohort and older deployed binaries",
+    "live provider/session/QQ notification acceptance",
+    "NFS/multihost and physical power loss",
+    "frontend build/browser/human acceptance",
+    "deployment"
+  ],
+  "artifactDigests": {
+    "artifacts/r4-owner-tests.xml": "1282cbdfcbce717e72f1769a453c64e36f1cb3a96cafe7a3518d31e7eca4c752",
+    "artifacts/r4-regression-tests.xml": "417e3c8e1a335f5895e6b749d9bae99aabbef21bea396ac8a7cbe5f88e9b11db",
+    "artifacts/r4-baseline-legacy-red.xml": "160dd767105cee8bd89092729be56b0851c139bb2fa3d5b3051a7f7afbd964f2",
+    "artifacts/r4-candidate-legacy-red.xml": "2e519c898da72d929f47a19a69a3e17f52d439d0dc65f44fcba8f2bd6fb183e1",
+    "artifacts/r4_baseline_probe.py": "1e5098b8b7770711650e7d5244ea15d964d5e6016bef975b6fe51a94f64eaf07"
+  },
+  "sanitization": "JUnit hostname removed; local user/install and workspace paths replaced; fixture data only",
+  "reviewer": "local source and fixture review; no separate human production acceptance"
+}

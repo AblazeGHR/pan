@@ -1,0 +1,95 @@
+{
+  "sourceSha": "b4740d27da4ef610fabd22e695af4ca52f4a0424",
+  "sourceHashesUnchanged": true,
+  "baseline": "036fe85f23b689195207d6794db0a70d78d87fc2",
+  "actualRemoteRed": {
+    "runId": 40637381532,
+    "codeSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+    "macOwnedRecords": 14,
+    "linuxOwnedRecords": 1
+  },
+  "localReports": {
+    "windows-process-final.xml": {
+      "exit": 0,
+      "tests": 197,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 29,
+      "passed": 168,
+      "seconds": 121.936
+    },
+    "windows-logs-final.xml": {
+      "exit": 0,
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 20,
+      "seconds": 107.786
+    },
+    "lifetime-baseline-red.xml": {
+      "exit": 1,
+      "tests": 2,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 0,
+      "seconds": 0.325
+    },
+    "logs-first.xml": {
+      "exit": 0,
+      "tests": 113,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 112,
+      "seconds": 107.987
+    },
+    "process-pre-freeze.xml": {
+      "exit": 0,
+      "tests": 143,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 29,
+      "passed": 114,
+      "seconds": 2.089
+    }
+  },
+  "collection": {
+    "exit": 0,
+    "nodes": 164
+  },
+  "imports": {
+    "exit": 0,
+    "interpreter": "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "python": "3.14.5",
+    "platform": "Windows"
+  },
+  "resourceEvidence": {
+    "p23Instances": 13,
+    "logInstances": 14,
+    "sanitizedProofFiles": 28,
+    "allOwnedPortsReleased": true,
+    "p23CapturedRemaining": [],
+    "logSupervisorsRemaining": [],
+    "logStatisticsNote": "Tracked JSON contents were byte-identical to baseline and therefore absent from git diff; copied explicitly after successful final fixture run. Current sanitized proof files independently attest this run."
+  },
+  "targetGreenAfterRepair": "NOT RUN",
+  "remoteDispatch": false,
+  "push": false,
+  "protectedServiceOperations": false,
+  "sharedExecutionHostChanged": false,
+  "preservedAssertions": {
+    "tests/test_platform_process_contract.py": {
+      "allOriginalAssertionsPreserved": true,
+      "allOriginalNodesPreserved": true,
+      "allOriginalDecoratorsPreserved": true
+    },
+    "tests/test_job_process_logs.py": {
+      "allOriginalAssertionsPreserved": true,
+      "allOriginalNodesPreserved": true,
+      "allOriginalDecoratorsPreserved": true
+    },
+    "originalPublicLeaderLostNegativeUnchanged": true
+  }
+}

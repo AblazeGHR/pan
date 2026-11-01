@@ -6,6 +6,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useAdapterStore } from '@/stores/adapterStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { usePlatformStore } from '@/stores/platformStore';
 import { DEFAULT_SETTINGS, useAppSettingsStore } from '@/stores/appSettingsStore';
 import type { CliDiagnostic } from '@/types';
 
@@ -63,6 +64,7 @@ async function renderReady() {
 describe('New Session directory input', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    usePlatformStore.setState({ platform: null, capabilities: null });
     apiMock.fetchSessionTemplates.mockResolvedValue([]);
     apiMock.fetchSessionTemplateTargets.mockResolvedValue([]);
     apiMock.fetchMcpServers.mockResolvedValue([]);
@@ -81,6 +83,18 @@ describe('New Session directory input', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it.each([false, true, null])('gates native creation only on explicit false (%s)', async (supported) => {
+    useAdapterStore.setState({
+      adapters: [{ name: 'codex', defaultModel: '', supportsResume: true, supportsFork: false }],
+      cliStatus: { adapters: [{ ...cliStatus(), name: 'codex' }], available: ['codex'], hasAvailable: true },
+    });
+    usePlatformStore.setState({ platform: 'linux', capabilities: supported === null ? null : { 'terminal.native': supported } });
+    await renderReady();
+    const checkbox = screen.getByRole('checkbox', { name: /Enable native Terminal TUI/ }) as HTMLInputElement;
+    expect(checkbox.disabled).toBe(supported === false);
+    expect((screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('shows the complete shared form on Basic and Advanced, with advanced controls only on Advanced', async () => {

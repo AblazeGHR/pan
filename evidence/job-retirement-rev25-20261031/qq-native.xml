@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="10" time="109.360" timestamp="2026-10-31T20:40:20.297002+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once" time="17.411"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+10-31 20:40:21 [SUCCESS] nonebot | NoneBot is initializing...
+10-31 20:40:21 [INFO] nonebot | Current Env: prod
+[QQ Bridge] QQ HTTP API mounted on driver server_app
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[None]" time="11.491"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_real_qq_no_send_cold_pulse_same_attempt_effect_current_target_text[222222]" time="11.444"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[lost-response]" time="11.464"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_runtime_actual_accepted_unknown_never_resends_or_creates_attempt[missing-id]" time="11.382"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_unknown_selected_bot_pending_then_current_bot_switch_with_cas_and_no_manual_retry[222222]" time="11.178"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_unknown_selected_bot_pending_then_current_bot_switch_with_cas_and_no_manual_retry[None]" time="11.223"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[None-bot_not_connected]" time="7.708"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[222222-bot_not_connected]" time="7.903"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_qq_runtime" name="test_original_targetless_manual_qq_error_matches_actual_plugin_and_has_no_session_effect[333333-unknown_bot_uin]" time="7.783"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

@@ -1,0 +1,29 @@
+{
+  "pid": 43976,
+  "counts": {
+    "job": 2,
+    "migration_history": 2,
+    "migration_receipt": 2,
+    "migration_unrecognized": 5,
+    "runtime_activation": 1
+  },
+  "objects": [
+    {
+      "id": "job_c96e42e08960a7a7330db67d",
+      "state": "disabled",
+      "schemaVersion": 2
+    },
+    {
+      "id": "job_f84c6dca34681546313d609f",
+      "state": "disabled",
+      "schemaVersion": 2
+    }
+  ],
+  "owner": {
+    "epoch": 6,
+    "nonce": "a1b43c8a4f534268bacc8cc492ef91c7",
+    "state": "active"
+  },
+  "effects": 0,
+  "legacyWriterRejected": true
+}

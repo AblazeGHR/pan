@@ -1,0 +1,29 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_schedule.py::test_one_actual_time_event_independently_admits_two_original_worker_effects",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\event-broadcast.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 2.566,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_schedule.py::test_one_actual_time_event_independently_admits_two_original_worker_effects",
+      "status": "failure"
+    }
+  ],
+  "counts": {
+    "passed": 0,
+    "failure": 1,
+    "error": 0,
+    "skipped": 0
+  }
+}

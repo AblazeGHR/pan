@@ -1,6 +1,7 @@
 """T-041 terminal persistence/broadcast and eventual usage tests."""
 
 import asyncio
+import contextlib
 import json
 import sys
 import threading
@@ -70,6 +71,7 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
     enrich_started = []
     save_timings = []
     event_timings = []
+    idle_published = asyncio.Event()
 
     original_save = _sess._save_body
 
@@ -86,6 +88,8 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
         events.append(value)
         event_timings.append((value.get("type"), time.monotonic()))
         timeline.append(("broadcast", value.get("type"), value.get("status")))
+        if value.get("type") == "worker.status" and value.get("status") == "idle":
+            idle_published.set()
 
     def slow_enrich(_session):
         enrich_started.append(time.monotonic())
@@ -95,7 +99,15 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
     monkeypatch.setattr(_sess, "_save_body", save)
     monkeypatch.setattr(w.adapter, "enrich_after_result", slow_enrich)
     worker.set_broadcaster(broadcast)
-    w.process = _Process([
+    class OpenProcess(_Process):
+        async def read(self, size=65536):
+            if self._chunks:
+                return await super().read(size)
+            # A stream worker remains open after a turn. EOF is an unrelated
+            # process-lifecycle event, not the terminal publication boundary.
+            await asyncio.Event().wait()
+
+    w.process = OpenProcess([
         _line({"type": "system", "subtype": "init", "session_id": "cli-t041"}),
         _line({"type": "assistant", "message": {"content": [
             {"type": "text", "text": "answer"},
@@ -105,8 +117,15 @@ def test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich(mo
 
     async def scenario():
         started = time.monotonic()
-        await worker._read_stdout(w)
-        elapsed = time.monotonic() - started
+        reader = asyncio.create_task(worker._read_stdout(w))
+        try:
+            await asyncio.wait_for(idle_published.wait(), timeout=5)
+            elapsed = time.monotonic() - started
+            assert not reader.done(), "the fake stream must remain open after idle"
+        finally:
+            reader.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reader
         result_index = next(i for i, e in enumerate(events)
                             if e.get("type") == "worker.result")
         idle_index = next(i for i, e in enumerate(events)

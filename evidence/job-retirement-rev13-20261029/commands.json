@@ -1,0 +1,65 @@
+{
+  "sourceSha": "d3e2e9cf33d78624c4b5631152b872014da369ba",
+  "python": "Python 3.14.5",
+  "node": "v24.22.1",
+  "pnpm": "9.7.0",
+  "checks": [
+    {
+      "name": "react",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "exec",
+        "vitest",
+        "run",
+        "src/views/CanonicalJobsView.retirement-r13.test.tsx",
+        "src/views/CanonicalJobsView.test.tsx",
+        "src/components/automation/CanonicalForms.test.tsx",
+        "src/components/jobs/JobTemplateEditor.test.tsx",
+        "src/components/jobs/UnifiedJobForm.test.tsx",
+        "src/components/jobs/NewJobForm.window.test.tsx",
+        "src/components/session/SelectedSessionActions.test.tsx",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev13-20261029\\react.xml"
+      ],
+      "exit": 0,
+      "seconds": 4.3,
+      "counts": {
+        "tests": 59,
+        "failures": 0,
+        "errors": 0
+      },
+      "skipped": 0
+    },
+    {
+      "name": "build",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 22.499
+    },
+    {
+      "name": "browser",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "node",
+        "packages/web/e2e/retirement-r13-callers.mjs"
+      ],
+      "exit": 0,
+      "seconds": 2.894
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "remoteCodeSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "runId": 40637381532,
+  "allOriginalInputsUnmodified": true,
+  "files": [
+    {
+      "sourceRelativePath": "run.json",
+      "bytes": 14876,
+      "sha256": "101e14387731020ce075d5f2c9285454d9d53c368d2731bc42549aea135d97f4"
+    },
+    {
+      "sourceRelativePath": "failure-inventory.json",
+      "bytes": 1285979,
+      "sha256": "589ab13c5288496e80c612ccadf276e2be96be145e59b6c7db8064b4a6c783d6"
+    },
+    {
+      "sourceRelativePath": "failed-steps.log",
+      "bytes": 2418583,
+      "sha256": "b1152ddd9cb116952071368280f99e659c46b38a272a600d7879dd04f31fb73a"
+    },
+    {
+      "sourceRelativePath": "artifacts\\platform-fast-macos-latest-py312\\fast.xml",
+      "bytes": 112497,
+      "sha256": "56603f6b934ead018d1c53d138e3b509e10e55ed9bdef95db408a23b75729fbd"
+    },
+    {
+      "sourceRelativePath": "artifacts\\platform-fast-macos-latest-py312\\results.json",
+      "bytes": 3764,
+      "sha256": "8827969eeef04b86277e49e5d46d0fab067718a56d80ea7c1491bb7c835629e0"
+    },
+    {
+      "sourceRelativePath": "artifacts\\platform-fast-ubuntu-latest-py312\\fast.xml",
+      "bytes": 66367,
+      "sha256": "567784b2fccf87491648ec8a7f018c678d9f01b2b6438c978ac94810fc576c95"
+    },
+    {
+      "sourceRelativePath": "artifacts\\platform-fast-ubuntu-latest-py312\\results.json",
+      "bytes": 3691,
+      "sha256": "696308ff6e4ecb590f940fbfe5cb983f14236060e97fb3467d41b1e09be03c47"
+    }
+  ]
+}

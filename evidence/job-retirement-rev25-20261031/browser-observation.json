@@ -1,0 +1,184 @@
+{
+  "chromium": "153.0.8010.12",
+  "frames": [
+    {
+      "type": "job.updated",
+      "jobId": "job_c4567fb997d84baf90140f61",
+      "outboxId": "outbox_36d999358187f084b40192125f1bb41aec526d57",
+      "creator": {
+        "id": "local",
+        "type": "user"
+      },
+      "failedTargets": [
+        "ses_b"
+      ],
+      "runId": "run_3701e9ffe6b245ac80356df5",
+      "status": "uncertain",
+      "targetResults": [
+        {
+          "effectKey": {
+            "operationOrdinal": 0,
+            "runId": "run_3701e9ffe6b245ac80356df5",
+            "stepId": "send",
+            "targetId": "ses_a"
+          },
+          "ok": true,
+          "outcome": "succeeded",
+          "receipt": {
+            "consumption": "unconfirmed",
+            "pendingSpawn": false,
+            "queueItemId": "q_bd3c5029eea54465aefa431a9bd02c03",
+            "queuePaused": true,
+            "sessionId": "ses_a",
+            "status": "queued",
+            "workerId": null
+          },
+          "status": "succeeded",
+          "targetSelection": {
+            "sessionIds": [
+              "ses_a"
+            ]
+          }
+        },
+        {
+          "effectKey": {
+            "operationOrdinal": 0,
+            "runId": "run_3701e9ffe6b245ac80356df5",
+            "stepId": "send",
+            "targetId": "ses_b"
+          },
+          "ok": false,
+          "outcome": "rejected",
+          "receipt": {
+            "result": "Session ses_b not found",
+            "status": "error"
+          },
+          "status": "rejected",
+          "targetSelection": {
+            "sessionIds": [
+              "ses_b"
+            ]
+          }
+        }
+      ],
+      "eventEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "eventSeq": 2,
+      "serverEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "sourceCursorStart": 2,
+      "sourceCursorEnd": 2,
+      "deliveryEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "deliverySeq": 1
+    },
+    {
+      "type": "job.updated",
+      "jobId": "job_c4567fb997d84baf90140f61",
+      "outboxId": "outbox_36d999358187f084b40192125f1bb41aec526d57",
+      "creator": {
+        "id": "local",
+        "type": "user"
+      },
+      "failedTargets": [
+        "ses_b"
+      ],
+      "runId": "run_3701e9ffe6b245ac80356df5",
+      "status": "uncertain",
+      "targetResults": [
+        {
+          "effectKey": {
+            "operationOrdinal": 0,
+            "runId": "run_3701e9ffe6b245ac80356df5",
+            "stepId": "send",
+            "targetId": "ses_a"
+          },
+          "ok": true,
+          "outcome": "succeeded",
+          "receipt": {
+            "consumption": "unconfirmed",
+            "pendingSpawn": false,
+            "queueItemId": "q_bd3c5029eea54465aefa431a9bd02c03",
+            "queuePaused": true,
+            "sessionId": "ses_a",
+            "status": "queued",
+            "workerId": null
+          },
+          "status": "succeeded",
+          "targetSelection": {
+            "sessionIds": [
+              "ses_a"
+            ]
+          }
+        },
+        {
+          "effectKey": {
+            "operationOrdinal": 0,
+            "runId": "run_3701e9ffe6b245ac80356df5",
+            "stepId": "send",
+            "targetId": "ses_b"
+          },
+          "ok": false,
+          "outcome": "rejected",
+          "receipt": {
+            "result": "Session ses_b not found",
+            "status": "error"
+          },
+          "status": "rejected",
+          "targetSelection": {
+            "sessionIds": [
+              "ses_b"
+            ]
+          }
+        }
+      ],
+      "eventEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "eventSeq": 3,
+      "serverEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "sourceCursorStart": 3,
+      "sourceCursorEnd": 3,
+      "deliveryEpoch": "c1578d2e0ea54642a43c6cf9b06d7c9b",
+      "deliverySeq": 2
+    }
+  ],
+  "templateWrites": [
+    {
+      "definition": {
+        "name": "Runtime browser Template",
+        "jobDefinition": {
+          "name": "Runtime browser Template",
+          "steps": [
+            {
+              "stepId": "effect",
+              "actionRef": {
+                "id": "product_assign_runtime_v1",
+                "revision": 1,
+                "digest": "f31f94f1c5a6be938790ab7d0a9a924bdad7853bbd83258be55aa557f3552ee5"
+              },
+              "arguments": {},
+              "completion": {
+                "contract": "durable-queue-accepted"
+              }
+            }
+          ],
+          "retention": {
+            "policyRef": "default"
+          }
+        },
+        "composition": {
+          "creators": [],
+          "triggers": []
+        }
+      },
+      "form": {
+        "kind": "assign",
+        "fields": {
+          "sessionId": "ses_a",
+          "text": "  runtime browser\nraw  ",
+          "runtime": true
+        }
+      },
+      "expectedRevision": 0,
+      "requestKey": "operation_785082ded39c41fea8a51a42d581e5d3"
+    }
+  ],
+  "pageErrors": [],
+  "layer": "fresh production React+real HTTP+original server.broadcast real WS"
+}

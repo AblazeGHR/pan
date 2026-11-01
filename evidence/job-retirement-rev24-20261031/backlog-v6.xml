@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.567" timestamp="2026-10-31T19:58:47.344047+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev24_backlog" name="test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note" time="0.125"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _redeliver_undelivered retired; use canonical FinalService/FinalRuntime/CreatorRuntime">tests\test_retirement_rev24_backlog.py:36: in test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note
+    assert asyncio.run(jobs._redeliver_undelivered(saved, scheduler_store.data_root())) == 1
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _redeliver_undelivered retired; use canonical FinalService/FinalRuntime/CreatorRuntime</failure></testcase></testsuite></testsuites>

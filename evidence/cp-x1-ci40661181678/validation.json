@@ -1,0 +1,49 @@
+{
+  "baseline": "87c444ce896e768a75bc74fde1af834952f4875c",
+  "codeSha": "442c0d59ea296815bc8fb717ab660791249e4aea",
+  "platform": "win32",
+  "python": "3.14.5",
+  "originalAssertCount": 156,
+  "originalTestFunctionCount": 27,
+  "assertAstEqual": true,
+  "allOriginalTestFunctionsAstEqual": true,
+  "providerProbe": {
+    "forwardedStatusSequence": [
+      "queued",
+      "unknown",
+      "rejected",
+      "queued"
+    ],
+    "sourceSessionIdsPreserved": true,
+    "effectKeysPreserved": true
+  },
+  "checks": {
+    "baseline": {
+      "suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "2",
+        "skipped": "0",
+        "tests": "3",
+        "time": "3.657",
+        "timestamp": "2026-10-28T18:08:10.213991+08:00",
+        "hostname": "windows-local"
+      },
+      "exitCode": 1
+    },
+    "fixture-regression": {
+      "suite": {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "45",
+        "time": "21.155",
+        "timestamp": "2026-10-28T18:09:04.475375+08:00",
+        "hostname": "windows-local"
+      },
+      "exitCode": 0
+    }
+  },
+  "newRemoteRun": false
+}

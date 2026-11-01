@@ -1,0 +1,176 @@
+{
+  "title": "trigger object",
+  "description": "Server envelope plus definition. Writes send only the definition.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/Id"
+    },
+    "profileId": {
+      "$ref": "common.schema.json#/$defs/Id"
+    },
+    "createdBy": {
+      "$ref": "common.schema.json#/$defs/Principal"
+    },
+    "owner": {
+      "$ref": "common.schema.json#/$defs/Owner"
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "state": {
+      "enum": [
+        "draft",
+        "enabled",
+        "paused",
+        "disabled",
+        "retired"
+      ]
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string"
+    },
+    "eventTypes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "creatorSelector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "ids"
+            },
+            "ids": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "mode",
+            "ids"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "registeredType"
+            },
+            "providerType": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "mode",
+            "providerType"
+          ]
+        }
+      ]
+    },
+    "eventFilter": {
+      "type": "object",
+      "maxProperties": 16,
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/Condition"
+        }
+      ]
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "common.schema.json#/$defs/Binding"
+      }
+    },
+    "targetJobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "managedByComposition": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "profileId",
+    "createdBy",
+    "owner",
+    "createdAt",
+    "updatedAt",
+    "state",
+    "stateRevision",
+    "revision",
+    "name",
+    "eventTypes",
+    "creatorSelector",
+    "targetJobId"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/trigger.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

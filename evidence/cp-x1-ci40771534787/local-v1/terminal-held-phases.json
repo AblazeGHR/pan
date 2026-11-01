@@ -1,0 +1,105 @@
+{
+  "clock": "monotonic_ns",
+  "events": [
+    {
+      "phase": "_read_stdout.enter",
+      "offset_ns": 1171700,
+      "thread": "main"
+    },
+    {
+      "phase": "_persist_terminal_state.enter",
+      "offset_ns": 5699700,
+      "thread": "main"
+    },
+    {
+      "phase": "_flush_history_now.enter",
+      "offset_ns": 5799200,
+      "thread": "main"
+    },
+    {
+      "phase": "_flush_history_now.exit",
+      "offset_ns": 7614300,
+      "thread": "main"
+    },
+    {
+      "phase": "_persist_terminal_state.exit",
+      "offset_ns": 7632500,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.worker.result.done",
+      "offset_ns": 7644100,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.queued",
+      "offset_ns": 7645000,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.worker.status.idle",
+      "offset_ns": 7650600,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.queued",
+      "offset_ns": 7651100,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.delivered",
+      "offset_ns": 7684000,
+      "thread": "main"
+    },
+    {
+      "phase": "broadcast.handoff.delivered",
+      "offset_ns": 7684800,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.enter",
+      "offset_ns": 7864700,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.dispatch",
+      "offset_ns": 7885800,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.handoff.queued",
+      "offset_ns": 7886500,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.thread.enter",
+      "offset_ns": 7965300,
+      "thread": "worker"
+    },
+    {
+      "phase": "enrich.handoff.delivered",
+      "offset_ns": 7998900,
+      "thread": "main"
+    },
+    {
+      "phase": "enrich.thread.exit",
+      "offset_ns": 8057900,
+      "thread": "worker"
+    },
+    {
+      "phase": "enrich.await.return",
+      "offset_ns": 8088500,
+      "thread": "main"
+    },
+    {
+      "phase": "_run_usage_enrichment.exit",
+      "offset_ns": 9518600,
+      "thread": "main"
+    },
+    {
+      "phase": "_read_stdout.exit",
+      "offset_ns": 9546200,
+      "thread": "main"
+    }
+  ]
+}

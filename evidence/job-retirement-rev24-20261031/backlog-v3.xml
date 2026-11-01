@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.405" timestamp="2026-10-31T19:56:40.831474+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev24_backlog" name="test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note" time="0.028"><failure message="AssertionError: {'detail': {'code': 'provider_unavailable', 'message': 'provider unavailable'}}&#10;assert None is True&#10; +  where None = &lt;built-in method get of dict object at 0x0000020CE6331500&gt;('ok')&#10; +    where &lt;built-in method get of dict object at 0x0000020CE6331500&gt; = {'detail': {'code': 'provider_unavailable', 'message': 'provider unavailable'}}.get">tests\test_retirement_rev24_backlog.py:26: in test_qq_known_no_send_backlog_cold_retarget_and_unknown_never_drops_note
+    assert created.get('ok') is True, created
+E   AssertionError: {'detail': {'code': 'provider_unavailable', 'message': 'provider unavailable'}}
+E   assert None is True
+E    +  where None = &lt;built-in method get of dict object at 0x0000020CE6331500&gt;('ok')
+E    +    where &lt;built-in method get of dict object at 0x0000020CE6331500&gt; = {'detail': {'code': 'provider_unavailable', 'message': 'provider unavailable'}}.get</failure></testcase></testsuite></testsuites>

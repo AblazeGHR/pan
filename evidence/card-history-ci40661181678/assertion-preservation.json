@@ -1,0 +1,11 @@
+{
+  "baseline": "87c444ce896e768a75bc74fde1af834952f4875c",
+  "original_historical_assertions": 7,
+  "current_assertions": 10,
+  "removed_original_assertions": 0,
+  "unchanged_source_lines": {
+    "tests/test_interaction_questions.py": true,
+    "tests/test_locker_trusted_binding.py": true,
+    "packages/automation/service.py": true
+  }
+}

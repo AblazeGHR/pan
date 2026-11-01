@@ -1,0 +1,7 @@
+{
+  "executorPort": 56757,
+  "label": "backend-partial-ack",
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1
+}

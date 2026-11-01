@@ -59,7 +59,7 @@ adapter lacks Steer. A task already handed off remains active until its
 terminal persistence/publication and queue-unit cleanup complete. The
 existing per-Session spawn lock coalesces delayed and automatic starts.
 
-MCP `agent_send_force` and the `worker_send_force` alias delegate to the
+MCP `agent_send` and the `worker_send_force` alias delegate to the
 backend's same capability router. An active capable stream immediately
 attempts native Steer; idle capable runtimes use ordinary queue handoff;
 only incapable runtimes use the existing restart/send fallback. Force input

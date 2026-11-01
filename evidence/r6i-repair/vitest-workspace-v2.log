@@ -1,0 +1,43 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p21-r6-time-events-20261025/packages/web/src
+
+ ✓ views/AutomationView.test.tsx > deduplicates refresh and rejects an old read after mutation invalidation
+ ✓ views/AutomationView.test.tsx > sends Bearer for cancel and never retries rejected effects
+ ✓ views/AutomationView.test.tsx > creates the Event target template as a normal Action using the registry revision
+ ✓ views/AutomationView.test.tsx > a late unauthorized response cannot clear a newer login
+ ✓ views/AutomationView.test.tsx > shares Action loads, adopts template mutation without extra reads, and fences late registry replies
+ ✓ views/AutomationWorkspace.test.tsx > navigates exactly three tabs and follows canonical Job/Trigger/source references
+ × views/AutomationWorkspace.test.tsx > round trips every rule, fraction, timezone, DST, anchor, limit and provider identity
+   → expected { …(2) } to have property "Authorization" with value 'Bearer owner-token'
+ ✓ views/AutomationWorkspace.test.tsx > reviews shared source impact and preserves a conflicting local draft
+ ✓ views/AutomationWorkspace.test.tsx > explicitly rebases changed references and requires impact review again
+ ✓ views/AutomationWorkspace.test.tsx > disables only the source through lifecycle CAS and blocks deleting a shared source
+ ✓ views/AutomationWorkspace.test.tsx > retires only unreferenced disabled sources and preserves history semantics
+ ✓ views/AutomationWorkspace.test.tsx > creates a separate Creator with server-supplied provider metadata and explicit enable
+ ✓ views/AutomationWorkspace.test.tsx > queries an unconfirmed original key and never automatically resends
+ ✓ views/AutomationWorkspace.test.tsx > keeps multiple rule JSON intact on denial and does not send enabled state in definitions
+ ✓ views/AutomationWorkspace.test.tsx > rejects invalid JSON locally without losing the draft or sending a write
+ ✓ views/AutomationWorkspace.test.tsx > selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger
+ ✓ views/AutomationWorkspace.test.tsx > preserves simultaneous Job and source drafts behind one navigation guard
+ ✓ views/AutomationWorkspace.test.tsx > keeps stable random request IDs without randomUUID on remote HTTP contexts
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  views/AutomationWorkspace.test.tsx > round trips every rule, fraction, timezone, DST, anchor, limit and provider identity
+AssertionError: expected { …(2) } to have property "Authorization" with value 'Bearer owner-token'
+
+- Expected:
+"Bearer owner-token"
+
++ Received:
+undefined
+
+ ❯ views/AutomationWorkspace.test.tsx:74:30
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 17 passed (18)
+   Start at  01:01:43
+   Duration  2.74s (transform 236ms, setup 19ms, collect 881ms, tests 869ms, environment 917ms, prepare 212ms)

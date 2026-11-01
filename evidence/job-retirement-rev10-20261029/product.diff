@@ -1,0 +1,192 @@
+diff --git a/packages/actions/qq_channel_provider.py b/packages/actions/qq_channel_provider.py
+index 1b4e9484..ac7d8ad5 100644
+--- a/packages/actions/qq_channel_provider.py
++++ b/packages/actions/qq_channel_provider.py
+@@ -9,0 +10 @@ from __future__ import annotations
++import copy
+@@ -14,0 +16,26 @@ from packages.jobs.actions import normalize_scheduled_qq_action
++class QQSendResponse(dict):
++    """Local host association for a 2xx original send POST, never a wire token."""
++
++    def __init__(self, raw, arguments):
++        super().__init__(raw)
++        self.arguments = copy.deepcopy(arguments)
++
++
++class QQChannelReceipt(dict):
++    """Original raw mapping plus locally verified pre-send evidence."""
++
++    no_send = None
++
++
++def is_pre_send_phase(phase, wire):
++    """Validate producer phase shape; provenance comes from the original POST."""
++    return (isinstance(phase, dict) and set(phase) == {"producer", "stage", "reason", "arguments"}
++            and phase["arguments"] == wire
++            and (phase["producer"], phase["stage"], phase["reason"]) in (
++                ("onebot.send", "before-call-api", "invalid-target-type"),
++                ("onebot.send", "before-call-api", "invalid-target-id"),
++                ("onebot.send", "before-call-api", "empty-text"),
++                ("onebot.send", "before-call-api", "resolve-not-connected"),
++                ("plugin.api_send", "before-channel-send", "unknown-selected-bot")))
++
++
+@@ -61 +88,13 @@ class QQChannelProvider:
+-        return dict(raw)
++        result = QQChannelReceipt(raw)
++        from packages.web import server
++        wire = {"target_type": "private" if target_type == "user" else "group",
++                "target_id": target_id, "text": text}
++        if bot_uin is not None:
++            wire["bot_uin"] = bot_uin
++        phase = raw.get("qqSendPhase")
++        if (self._sender is server._send_scheduled_qq and type(raw) is QQSendResponse
++                and raw.arguments == wire and raw.get("ok") is False
++                and is_pre_send_phase(phase, wire)):
++            result.no_send = {"phase": copy.deepcopy(phase), "effectKey": dict(effect_key),
++                              "arguments": {**args, "text": text}}
++        return result
+diff --git a/packages/actions/typed_executor.py b/packages/actions/typed_executor.py
+index 00c05b8d..39e939e1 100644
+--- a/packages/actions/typed_executor.py
++++ b/packages/actions/typed_executor.py
+@@ -392 +392 @@ class TypedExecutor:
+-                result = await self._channel(key, plan)
++                result = await self._channel(key, plan, attempt=attempt_map)
+@@ -402 +402 @@ class TypedExecutor:
+-                result = await self._channel(key, plan)
++                result = await self._channel(key, plan, attempt=attempt_map)
+@@ -617 +617 @@ class TypedExecutor:
+-    async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any]) -> Mapping[str, Any]:
++    async def _channel(self, key: Mapping[str, Any], plan: Mapping[str, Any], *, attempt=None) -> Mapping[str, Any]:
+@@ -648 +648,2 @@ class TypedExecutor:
+-            from packages.actions.qq_channel_provider import QQChannelProvider
++            from packages.actions.qq_channel_provider import QQChannelProvider, QQChannelReceipt
++            proof = None
+@@ -651 +652,9 @@ class TypedExecutor:
+-            return EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"targetType": target_type, "targetId": target_id}).as_dict()
++                if type(result) is QQChannelReceipt and result.no_send and attempt:
++                    proof = {**copy.deepcopy(result.no_send), "attempt": {field: attempt.get(field)
++                        for field in ("attemptId", "runId", "stepId", "ownerEpoch", "generation", "leaseId")}}
++                elif outcome == "rejected":
++                    outcome = "unknown"  # A copied error code is not a known pre-send rejection.
++            receipt = EffectReceipt(dict(key), outcome, dict(result) if isinstance(result, Mapping) else {"value": result}, target_selection={"targetType": target_type, "targetId": target_id}).as_dict()
++            if proof is not None and outcome == "rejected":
++                receipt["qqNoSend"] = proof
++            return receipt
+diff --git a/packages/jobs/final_service.py b/packages/jobs/final_service.py
+index f0fe0376..8d19afbb 100644
+--- a/packages/jobs/final_service.py
++++ b/packages/jobs/final_service.py
+@@ -737 +737,38 @@ class FinalService:
+-    def _retry_boundary(self, job, run_id, step_id=None):
++    @staticmethod
++    def _qq_manual_retry_proven(state, frozen, step, prior):
++        """Only an original trusted QQ pre-send receipt replaces cleanup proof."""
++        from packages.actions.qq_channel_provider import is_pre_send_phase
++        try:
++            action = frozen["actions"][step["actionRef"]["id"]]
++            config = action["definition"]
++            if (action["id"] != "product_channel" or config.get("system") is not True
++                    or config.get("execution") != {"operation": "channel", "config": {}}
++                    or config.get("providerRef") != {"id": "pan.typed", "releaseDigest": fc.digest("pan.typed.v2"), "generation": 1}
++                    or step["actionRef"] != {"id": action["id"], "revision": action["revision"], "digest": fc.digest(config)}
++                    or action["digest"] != fc.digest(config)
++                    or any(binding.get("from") != "literal" for binding in step["arguments"].values())):
++                return False
++            arguments = {name: binding["value"] for name, binding in step["arguments"].items()}
++            wire = {"target_type": "private" if arguments["targetType"] == "user" else "group",
++                    "target_id": arguments["targetId"], "text": arguments["text"]}
++            if "botUin" in arguments:
++                wire["bot_uin"] = arguments["botUin"]
++            effect = prior[-1]
++            receipt = effect["receipt"]
++            proof = receipt["qqNoSend"]
++            attempt = state["attempts"][effect["attemptId"]]
++            key = {"runId": attempt["runId"], "stepId": step["stepId"], "targetId": action["id"], "operationOrdinal": 0}
++            return (effect["outcome"] == receipt["outcome"] == "rejected" and attempt["state"] == "failed"
++                    and attempt["stepId"] == step["stepId"]
++                    and state["steps"][attempt["runId"]][step["stepId"]]["attemptCount"] == attempt["generation"]
++                    and proof["attempt"] == {field: attempt[field] for field in (
++                        "attemptId", "runId", "stepId", "ownerEpoch", "generation", "leaseId")}
++                    and effect["effectKey"] == receipt["effectKey"] == proof["effectKey"] == key
++                    and proof["arguments"] == arguments
++                    and receipt["receipt"].get("ok") is False
++                    and proof["phase"] == receipt["receipt"].get("qqSendPhase")
++                    and is_pre_send_phase(proof["phase"], wire))
++        except (KeyError, TypeError, ValueError, IndexError):
++            return False
++
++    def _retry_boundary(self, job, run_id, step_id=None, *, manual=False):
+@@ -753,0 +791 @@ class FinalService:
++        qq_proven = manual and prior and self._qq_manual_retry_proven(state, frozen, step, prior)
+@@ -755 +793 @@ class FinalService:
+-                      (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed"))):
++                      (policy["requiresProof"] and not prior[-1]["receipt"].get("cleanupProof", {}).get("confirmed") and not qq_proven)):
+@@ -797 +835 @@ class FinalService:
+-                    self._retry_boundary(job, run_id, body.get("stepId"))
++                    self._retry_boundary(job, run_id, body.get("stepId"), manual=True)
+diff --git a/packages/qq/channels/onebot.py b/packages/qq/channels/onebot.py
+index d204159d..b50fac06 100644
+--- a/packages/qq/channels/onebot.py
++++ b/packages/qq/channels/onebot.py
+@@ -384,0 +385,4 @@ class OneBotChannel(QQChannel):
++        def before_send(code, message, reason):
++            return {"ok": False, "error": {"code": code, "message": message},
++                    "qqSendPhase": {"producer": "onebot.send", "stage": "before-call-api", "reason": reason}}
++
+@@ -386,3 +390 @@ class OneBotChannel(QQChannel):
+-            return {"ok": False, "error": {
+-                "code": "invalid_target_type",
+-                "message": "target_type 必须是 'private' 或 'group'"}}
++            return before_send("invalid_target_type", "target_type 必须是 'private' 或 'group'", "invalid-target-type")
+@@ -392,3 +394 @@ class OneBotChannel(QQChannel):
+-            return {"ok": False, "error": {
+-                "code": "invalid_target_id",
+-                "message": f"target_id 必须是 QQ 号/群号，got {target_id!r}"}}
++            return before_send("invalid_target_id", f"target_id 必须是 QQ 号/群号，got {target_id!r}", "invalid-target-id")
+@@ -396,2 +396 @@ class OneBotChannel(QQChannel):
+-            return {"ok": False, "error": {
+-                "code": "empty_text", "message": "text 不能为空"}}
++            return before_send("empty_text", "text 不能为空", "empty-text")
+@@ -399,0 +399,6 @@ class OneBotChannel(QQChannel):
++        except ChannelNotConnected as e:
++            return before_send("bot_not_connected", str(e), "resolve-not-connected")
++        except Exception as e:  # noqa: BLE001
++            return {"ok": False, "error": {
++                "code": "send_failed", "message": f"{type(e).__name__}: {e}"}}
++        try:
+diff --git a/packages/qq/plugin.py b/packages/qq/plugin.py
+index 1346321b..937b44ca 100644
+--- a/packages/qq/plugin.py
++++ b/packages/qq/plugin.py
+@@ -981,0 +982,3 @@ async def api_send(
++    arguments = {"target_type": target_type, "target_id": target_id, "text": text}
++    if bot_uin:
++        arguments["bot_uin"] = bot_uin
+@@ -987 +990,3 @@ async def api_send(
+-                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"}}
++                "message": f"未注册的 bot_uin: {bot_uin}（通道未配置或未连接）"},
++                "qqSendPhase": {"producer": "plugin.api_send", "stage": "before-channel-send",
++                                "reason": "unknown-selected-bot", "arguments": arguments}}
+@@ -988,0 +994,12 @@ async def api_send(
++    # Only the original OneBot implementation's own pre-send returns carry
++    # this evidence. Custom channels cannot acquire it by copying error codes.
++    from packages.qq.channels.onebot import OneBotChannel
++    phase = result.get("qqSendPhase")
++    if (type(ch).send is OneBotChannel.send and getattr(ch.send, "__func__", None) is OneBotChannel.send
++            and isinstance(phase, dict)
++            and phase.get("producer") == "onebot.send" and phase.get("stage") == "before-call-api"
++            and phase.get("reason") in {"invalid-target-type", "invalid-target-id", "empty-text", "resolve-not-connected"}
++            and result.get("ok") is False):
++        result = {**result, "qqSendPhase": {**phase, "arguments": arguments}}
++    elif "qqSendPhase" in result:
++        result = {key: value for key, value in result.items() if key != "qqSendPhase"}
+diff --git a/packages/web/server.py b/packages/web/server.py
+index cc34e6b0..78b9fe9b 100644
+--- a/packages/web/server.py
++++ b/packages/web/server.py
+@@ -13241,0 +13242,3 @@ async def _qq_plugin_post(path: str, body: dict) -> dict:
++        if path == "/api/qq/send" and isinstance(payload, dict):
++            from packages.actions.qq_channel_provider import QQSendResponse
++            return QQSendResponse(payload, body)

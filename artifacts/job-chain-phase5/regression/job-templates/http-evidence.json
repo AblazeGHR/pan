@@ -1,0 +1,3962 @@
+{
+  "port": 63678,
+  "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile",
+  "processes": [
+    {
+      "pid": 32504,
+      "created": 1792923003.5436993,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 46952,
+      "created": 1792923003.560563,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 700,
+      "created": 1792923003.5753963,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 39824,
+      "created": 1792923004.7646737,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 55268,
+      "created": 1792923004.822964,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 39224,
+      "created": 1792923013.4646957,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 20812,
+      "created": 1792923013.473281,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 36320,
+      "created": 1792923013.4934783,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 48340,
+      "created": 1792923013.5722651,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 42216,
+      "created": 1792923013.578357,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 54764,
+      "created": 1792923013.5928988,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 39676,
+      "created": 1792923004.827798,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49268,
+      "created": 1792923004.8428946,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 36896,
+      "created": 1792923004.7746196,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40540,
+      "created": 1792923004.790534,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 32504,
+      "created": 1792923003.5436993,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 46952,
+      "created": 1792923003.560563,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 700,
+      "created": 1792923003.5753963,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 39824,
+      "created": 1792923004.7646737,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 55268,
+      "created": 1792923004.822964,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 10808,
+      "created": 1792923014.065667,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 48740,
+      "created": 1792923014.071969,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 39376,
+      "created": 1792923014.0856392,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 37016,
+      "created": 1792923014.1582012,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 21972,
+      "created": 1792923014.1647532,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 37264,
+      "created": 1792923014.1792955,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 39676,
+      "created": 1792923004.827798,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49268,
+      "created": 1792923004.8428946,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 36896,
+      "created": 1792923004.7746196,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40540,
+      "created": 1792923004.790534,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 32504,
+      "created": 1792923003.5436993,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 46952,
+      "created": 1792923003.560563,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 700,
+      "created": 1792923003.5753963,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 39824,
+      "created": 1792923004.7646737,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 55268,
+      "created": 1792923004.822964,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 41088,
+      "created": 1792923014.504204,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 45004,
+      "created": 1792923014.5094626,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 46516,
+      "created": 1792923014.527126,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "packages.actions.command_runner"
+      ]
+    },
+    {
+      "pid": 47956,
+      "created": 1792923014.612574,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 51956,
+      "created": 1792923014.627051,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 9448,
+      "created": 1792923014.644802,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\job_action_cli.py",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-command",
+        "original"
+      ]
+    },
+    {
+      "pid": 39676,
+      "created": 1792923004.827798,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 49268,
+      "created": 1792923004.8428946,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 36896,
+      "created": 1792923004.7746196,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 40540,
+      "created": 1792923004.790534,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\fake_stream_cli.py",
+        "-p",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "-y",
+        "--model",
+        "deepseek-v4-flash",
+        "--permission-mode",
+        "bypassPermissions",
+        "--settings",
+        "{\"alwaysThinkingEnabled\": false}"
+      ]
+    },
+    {
+      "pid": 25944,
+      "created": 1792923017.0945528,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 27888,
+      "created": 1792923017.105745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 9896,
+      "created": 1792923017.1230843,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 25944,
+      "created": 1792923017.0945528,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    },
+    {
+      "pid": 27888,
+      "created": 1792923017.105745,
+      "command": [
+        "\\??\\C:\\Windows\\system32\\conhost.exe",
+        "0x4"
+      ]
+    },
+    {
+      "pid": 9896,
+      "created": 1792923017.1230843,
+      "command": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-chain-phase1-20261025\\tests\\support\\automation_http_server.py",
+        "--port",
+        "63678",
+        "--data-root",
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4663\\test_complete_template_referen0\\owned-job-profile"
+      ]
+    }
+  ],
+  "cleanupActions": [],
+  "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+  "pauseExecution": {
+    "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+    "runId": "run_352b8352d56b444b86e9941f",
+    "attemptId": "attempt_8446819b473a4c05a8088fec",
+    "authorization": {
+      "type": "user"
+    },
+    "executionKind": "session_operation",
+    "status": "completed",
+    "notificationPolicy": {
+      "on": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown",
+        "uncertain",
+        "cleaning"
+      ],
+      "target": "job"
+    },
+    "actionId": "pause",
+    "actionRevision": 1,
+    "registryRevision": 2,
+    "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+    "targetIds": [
+      "ses_d94d1d5b3cad25c8"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_d94d1d5b3cad25c8",
+        "ok": true
+      }
+    ],
+    "matched": 1,
+    "succeeded": 1,
+    "failed": 0
+  },
+  "capabilityRun": {
+    "id": "run_a415720620814fc9a9ea2ab962fb87da",
+    "triggerId": "t",
+    "triggerRevision": 1,
+    "actionId": "instantiate",
+    "event": {
+      "id": "evt_bcf4946889b242149a75e83231bea259",
+      "type": "workers.all_idle",
+      "schemaVersion": 1,
+      "source": {
+        "type": "core",
+        "id": "workers"
+      },
+      "occurredAt": "2026-10-25T10:10:11.322746+00:00",
+      "payload": {
+        "runningCount": 0
+      }
+    },
+    "createdAt": "2026-10-25T10:10:11.358227+00:00",
+    "status": "succeeded",
+    "admitted": true,
+    "arguments": {},
+    "state": {},
+    "authorization": {
+      "type": "user"
+    },
+    "revision": 5,
+    "attempts": [
+      {
+        "id": "att_69f680b5ed33447fb67b248137b2190a",
+        "number": 1,
+        "status": "succeeded",
+        "startedAt": "2026-10-25T10:10:11.373769+00:00",
+        "finishedAt": "2026-10-25T10:10:11.426595+00:00",
+        "result": {
+          "ok": true,
+          "jobId": "job_1d9f2df8926ef5086ff32a69",
+          "created": true,
+          "jobCompleted": false,
+          "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+          "templateRevision": 1
+        }
+      }
+    ],
+    "attemptCount": 1,
+    "retryPolicy": {
+      "enabled": false,
+      "maxAttempts": 3
+    },
+    "startedAt": "2026-10-25T10:10:11.373769+00:00",
+    "authorizationRevision": null,
+    "activeAttemptId": "att_69f680b5ed33447fb67b248137b2190a",
+    "retryEligible": false,
+    "actionDigest": "6f8e1ad062d4dac53f88607f4d6ce9fbac2db9734ccf27ec6af3b13b9aba0b32",
+    "result": {
+      "ok": true,
+      "jobId": "job_1d9f2df8926ef5086ff32a69",
+      "created": true,
+      "jobCompleted": false,
+      "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+      "templateRevision": 1
+    },
+    "finishedAt": "2026-10-25T10:10:11.426595+00:00"
+  },
+  "missing": {
+    "jobId": "job_4b973b38ae0614f7e18ecf9b",
+    "kind": "scheduled-task",
+    "taskId": "sch_c5789641b1a5",
+    "name": "fixed Pause Job",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "action_reference",
+      "actionId": "pause",
+      "arguments": {}
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_9cb107fc",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": "2026-10-25T19:10:07",
+        "lastFireAt": null,
+        "kind": "interval",
+        "interval_sec": 3600,
+        "intervalSec": 3600,
+        "anchor": "2026-10-25T18:10:07"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": "2026-10-25T19:10:07",
+    "lastFireAt": null,
+    "lastStatus": "completed",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "scheduled",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792923007.0,
+    "updatedAt": 1792923007.953891,
+    "config": {
+      "name": "fixed Pause Job",
+      "actionId": "pause",
+      "arguments": {},
+      "enabled": false,
+      "schedule": [
+        {
+          "kind": "interval",
+          "intervalSec": 3600
+        }
+      ],
+      "description": "",
+      "maxRuns": null,
+      "misfirePolicy": "fire_now",
+      "trigger": {
+        "kind": "schedule"
+      },
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "overlap": {
+        "mode": "forbid",
+        "parallelLimit": 3
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "completion": {
+        "kind": "ordinary"
+      }
+    },
+    "configRevision": 1,
+    "referenceGeneration": 0,
+    "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+    "creationEventPending": false,
+    "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+    "authorization": {
+      "type": "user"
+    },
+    "templateRevision": 1,
+    "operation": "run",
+    "runAuthorization": {
+      "type": "user"
+    },
+    "runPolicy": {
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "completion": {
+        "kind": "ordinary"
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      }
+    },
+    "recoveryFailures": 0,
+    "attempts": [
+      {
+        "id": "attempt_8446819b473a4c05a8088fec",
+        "runId": "run_352b8352d56b444b86e9941f",
+        "count": 1,
+        "status": "completed",
+        "actionId": "pause",
+        "templateRevision": 1,
+        "backoffSec": 0,
+        "receipt": null,
+        "sideEffectUncertainty": false,
+        "actionRevision": 1,
+        "registryRevision": 2,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+        "executionKind": "session_operation",
+        "terminalStatus": "completed",
+        "snapshotCleanup": "cleaned",
+        "finishedAt": 1792923009.574273
+      }
+    ],
+    "runId": "run_352b8352d56b444b86e9941f",
+    "activeExecutions": {},
+    "runRecoveryEligible": false,
+    "executionFinalizations": {},
+    "terminalOutbox": {},
+    "snapshotCleanup": "cleaned",
+    "lastExecution": {
+      "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "runId": "run_352b8352d56b444b86e9941f",
+      "attemptId": "attempt_8446819b473a4c05a8088fec",
+      "authorization": {
+        "type": "user"
+      },
+      "executionKind": "session_operation",
+      "status": "completed",
+      "notificationPolicy": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "actionId": "pause",
+      "actionRevision": 1,
+      "registryRevision": 2,
+      "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+      "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+      "targetIds": [
+        "ses_d94d1d5b3cad25c8"
+      ],
+      "targetResults": [
+        {
+          "sessionId": "ses_d94d1d5b3cad25c8",
+          "ok": true
+        }
+      ],
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0
+    },
+    "terminalEventId": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+    "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+    "target": {
+      "sessionId": null
+    },
+    "integrity": {
+      "status": "incomplete",
+      "issues": [
+        {
+          "actionId": "pause",
+          "position": "/config/actionId",
+          "error": "Missing Action reference: pause"
+        }
+      ],
+      "approvalRequired": true
+    },
+    "unified": {
+      "jobId": "job_4b973b38ae0614f7e18ecf9b",
+      "kind": "scheduled-task",
+      "taskId": "sch_c5789641b1a5",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_9cb107fc",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:07",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:07"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:07",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923007.0,
+      "updatedAt": 1792923007.953891,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+      "creationEventPending": false,
+      "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+      "authorization": {
+        "type": "user"
+      },
+      "templateRevision": 1,
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_8446819b473a4c05a8088fec",
+          "runId": "run_352b8352d56b444b86e9941f",
+          "count": 1,
+          "status": "completed",
+          "actionId": "pause",
+          "templateRevision": 1,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 1,
+          "registryRevision": 2,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+          "executionKind": "session_operation",
+          "terminalStatus": "completed",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923009.574273
+        }
+      ],
+      "runId": "run_352b8352d56b444b86e9941f",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+        "runId": "run_352b8352d56b444b86e9941f",
+        "attemptId": "attempt_8446819b473a4c05a8088fec",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "session_operation",
+        "status": "completed",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "pause",
+        "actionRevision": 1,
+        "registryRevision": 2,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+        "targetIds": [
+          "ses_d94d1d5b3cad25c8"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_d94d1d5b3cad25c8",
+            "ok": true
+          }
+        ],
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "terminalEventId": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "incomplete",
+        "issues": [
+          {
+            "actionId": "pause",
+            "position": "/config/actionId",
+            "error": "Missing Action reference: pause"
+          }
+        ],
+        "approvalRequired": true
+      }
+    }
+  },
+  "restored": {
+    "jobId": "job_4b973b38ae0614f7e18ecf9b",
+    "kind": "scheduled-task",
+    "taskId": "sch_c5789641b1a5",
+    "name": "fixed Pause Job",
+    "description": "",
+    "targetSessionId": null,
+    "text": "",
+    "action": {
+      "api": "action_reference",
+      "actionId": "pause",
+      "arguments": {}
+    },
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_9cb107fc",
+        "misfirePolicy": "fire_now",
+        "enabled": true,
+        "nextFireAt": "2026-10-25T19:10:07",
+        "lastFireAt": null,
+        "kind": "interval",
+        "interval_sec": 3600,
+        "intervalSec": 3600,
+        "anchor": "2026-10-25T18:10:07"
+      }
+    ],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": "2026-10-25T19:10:07",
+    "lastFireAt": null,
+    "lastStatus": "completed",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "scheduled",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792923007.0,
+    "updatedAt": 1792923007.953891,
+    "config": {
+      "name": "fixed Pause Job",
+      "actionId": "pause",
+      "arguments": {},
+      "enabled": false,
+      "schedule": [
+        {
+          "kind": "interval",
+          "intervalSec": 3600
+        }
+      ],
+      "description": "",
+      "maxRuns": null,
+      "misfirePolicy": "fire_now",
+      "trigger": {
+        "kind": "schedule"
+      },
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "overlap": {
+        "mode": "forbid",
+        "parallelLimit": 3
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "completion": {
+        "kind": "ordinary"
+      }
+    },
+    "configRevision": 1,
+    "referenceGeneration": 0,
+    "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+    "creationEventPending": false,
+    "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+    "authorization": {
+      "type": "user"
+    },
+    "templateRevision": 1,
+    "operation": "run",
+    "runAuthorization": {
+      "type": "user"
+    },
+    "runPolicy": {
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "completion": {
+        "kind": "ordinary"
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      }
+    },
+    "recoveryFailures": 0,
+    "attempts": [
+      {
+        "id": "attempt_8446819b473a4c05a8088fec",
+        "runId": "run_352b8352d56b444b86e9941f",
+        "count": 1,
+        "status": "completed",
+        "actionId": "pause",
+        "templateRevision": 1,
+        "backoffSec": 0,
+        "receipt": null,
+        "sideEffectUncertainty": false,
+        "actionRevision": 1,
+        "registryRevision": 2,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+        "executionKind": "session_operation",
+        "terminalStatus": "completed",
+        "snapshotCleanup": "cleaned",
+        "finishedAt": 1792923009.574273
+      }
+    ],
+    "runId": "run_352b8352d56b444b86e9941f",
+    "activeExecutions": {},
+    "runRecoveryEligible": false,
+    "executionFinalizations": {},
+    "terminalOutbox": {},
+    "snapshotCleanup": "cleaned",
+    "lastExecution": {
+      "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "runId": "run_352b8352d56b444b86e9941f",
+      "attemptId": "attempt_8446819b473a4c05a8088fec",
+      "authorization": {
+        "type": "user"
+      },
+      "executionKind": "session_operation",
+      "status": "completed",
+      "notificationPolicy": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "actionId": "pause",
+      "actionRevision": 1,
+      "registryRevision": 2,
+      "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+      "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+      "targetIds": [
+        "ses_d94d1d5b3cad25c8"
+      ],
+      "targetResults": [
+        {
+          "sessionId": "ses_d94d1d5b3cad25c8",
+          "ok": true
+        }
+      ],
+      "matched": 1,
+      "succeeded": 1,
+      "failed": 0
+    },
+    "terminalEventId": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+    "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+    "target": {
+      "sessionId": null
+    },
+    "integrity": {
+      "status": "complete",
+      "issues": [],
+      "approvalRequired": true
+    },
+    "unified": {
+      "jobId": "job_4b973b38ae0614f7e18ecf9b",
+      "kind": "scheduled-task",
+      "taskId": "sch_c5789641b1a5",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_9cb107fc",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:07",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:07"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:07",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923007.0,
+      "updatedAt": 1792923007.953891,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+      "creationEventPending": false,
+      "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+      "authorization": {
+        "type": "user"
+      },
+      "templateRevision": 1,
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_8446819b473a4c05a8088fec",
+          "runId": "run_352b8352d56b444b86e9941f",
+          "count": 1,
+          "status": "completed",
+          "actionId": "pause",
+          "templateRevision": 1,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 1,
+          "registryRevision": 2,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+          "executionKind": "session_operation",
+          "terminalStatus": "completed",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923009.574273
+        }
+      ],
+      "runId": "run_352b8352d56b444b86e9941f",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+        "runId": "run_352b8352d56b444b86e9941f",
+        "attemptId": "attempt_8446819b473a4c05a8088fec",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "session_operation",
+        "status": "completed",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "pause",
+        "actionRevision": 1,
+        "registryRevision": 2,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+        "targetIds": [
+          "ses_d94d1d5b3cad25c8"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_d94d1d5b3cad25c8",
+            "ok": true
+          }
+        ],
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "terminalEventId": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": true
+      }
+    }
+  },
+  "commandExecution": {
+    "id": "jexec_e89379ae54a9481c885e822d073227d3",
+    "runId": "run_753183dd37354e56a9f83a24",
+    "attemptId": "attempt_5fa675375bce4dfbb425f333",
+    "authorization": {
+      "type": "user"
+    },
+    "executionKind": "command",
+    "status": "completed",
+    "notificationPolicy": {
+      "on": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown",
+        "uncertain",
+        "cleaning"
+      ],
+      "target": "job"
+    },
+    "actionId": "hold",
+    "actionRevision": 1,
+    "registryRevision": 6,
+    "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "f4944a50a530f596a4b0e78488bf36b33e654a01ac54c42a9869d8e4fa6ec9f9"
+  },
+  "cancelExecution": {
+    "id": "jexec_440f78fb4ff846578fbd78225341a49a",
+    "runId": "run_9b81dfc912cc4339b5bcf580",
+    "attemptId": "attempt_46958e6ea3d342eb9cf9a239",
+    "authorization": {
+      "type": "user"
+    },
+    "executionKind": "command",
+    "status": "cancelled",
+    "notificationPolicy": {
+      "on": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown",
+        "uncertain",
+        "cleaning"
+      ],
+      "target": "job"
+    },
+    "actionId": "hold",
+    "actionRevision": 4,
+    "registryRevision": 9,
+    "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "7445d4ba5cc9fa8a74a88670b6a44562fe5fe4759db432e2d3cd533b6adecc81"
+  },
+  "recovered": {
+    "id": "jexec_e226840c317649aab0c8bf6653b1f9af",
+    "runId": "run_b8d66bb040b84e14b83a2212",
+    "attemptId": "attempt_d9ac298d63f54483870c314f",
+    "authorization": {
+      "type": "user"
+    },
+    "executionKind": "command",
+    "status": "uncertain",
+    "notificationPolicy": {
+      "on": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown",
+        "uncertain",
+        "cleaning"
+      ],
+      "target": "job"
+    },
+    "actionId": "hold",
+    "actionRevision": 4,
+    "registryRevision": 9,
+    "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "1e4ccecf4e2e50788c4eff45f1283e0a69dd2181cb87765f0ba361adb9daf6f0"
+  },
+  "scheduled": {
+    "id": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+    "runId": "run_d7ec517ecffd4501a827e102",
+    "attemptId": "attempt_3cd54e72d7ff4ced800bfc19",
+    "authorization": {
+      "type": "user"
+    },
+    "executionKind": "session_operation",
+    "status": "completed",
+    "notificationPolicy": {
+      "on": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown",
+        "uncertain",
+        "cleaning"
+      ],
+      "target": "job"
+    },
+    "actionId": "pause",
+    "actionRevision": 3,
+    "registryRevision": 9,
+    "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+    "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "contextDigest": "56f2db6966825755ec3a7e4ad41dddc8254640868a1862faf2bd8a8cd3c7089f",
+    "targetIds": [
+      "ses_d94d1d5b3cad25c8"
+    ],
+    "targetResults": [
+      {
+        "sessionId": "ses_d94d1d5b3cad25c8",
+        "ok": true
+      }
+    ],
+    "matched": 1,
+    "succeeded": 1,
+    "failed": 0
+  },
+  "trace": [
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 54764,
+      "at": 1792923013.6269426
+    },
+    {
+      "kind": "finish",
+      "label": "original",
+      "pid": 54764,
+      "at": 1792923013.8522801
+    },
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 37264,
+      "at": 1792923014.2130303
+    },
+    {
+      "kind": "start",
+      "label": "original",
+      "pid": 9448,
+      "at": 1792923014.6790245
+    }
+  ],
+  "snapshotCountAtEnd": 0,
+  "jobs": [
+    {
+      "jobId": "job_fba0571a458e4709a06b62f8",
+      "kind": "scheduled-task",
+      "taskId": "sch_2d862f5b212c",
+      "name": "actual scheduled Pause",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_58849dc2",
+          "misfirePolicy": "fire_now",
+          "enabled": false,
+          "nextFireAt": null,
+          "lastFireAt": null,
+          "kind": "once",
+          "at": "2026-10-25T18:10:21"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": null,
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "completed",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923018.0,
+      "updatedAt": 1792923018.3096213,
+      "config": {
+        "name": "actual scheduled Pause",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "once",
+            "at": "2026-10-25T18:10:21.301053"
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 1,
+      "creationFingerprint": "81b5002e3c70431fd1d6d627b62328e46df04951635c012016abcf71fac464cb",
+      "creationEventPending": false,
+      "templateId": null,
+      "authorization": {
+        "type": "user"
+      },
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_3cd54e72d7ff4ced800bfc19",
+          "runId": "run_d7ec517ecffd4501a827e102",
+          "count": 1,
+          "status": "completed",
+          "actionId": "pause",
+          "templateRevision": null,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 3,
+          "registryRevision": 9,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "56f2db6966825755ec3a7e4ad41dddc8254640868a1862faf2bd8a8cd3c7089f",
+          "executionKind": "session_operation",
+          "terminalStatus": "completed",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923021.123873
+        }
+      ],
+      "runId": "run_d7ec517ecffd4501a827e102",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+        "runId": "run_d7ec517ecffd4501a827e102",
+        "attemptId": "attempt_3cd54e72d7ff4ced800bfc19",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "session_operation",
+        "status": "completed",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "pause",
+        "actionRevision": 3,
+        "registryRevision": 9,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "56f2db6966825755ec3a7e4ad41dddc8254640868a1862faf2bd8a8cd3c7089f",
+        "targetIds": [
+          "ses_d94d1d5b3cad25c8"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_d94d1d5b3cad25c8",
+            "ok": true
+          }
+        ],
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "terminalEventId": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+      "terminalEventEmittedFor": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      },
+      "unified": {
+        "jobId": "job_fba0571a458e4709a06b62f8",
+        "kind": "scheduled-task",
+        "taskId": "sch_2d862f5b212c",
+        "name": "actual scheduled Pause",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "pause",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": false,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_58849dc2",
+            "misfirePolicy": "fire_now",
+            "enabled": false,
+            "nextFireAt": null,
+            "lastFireAt": null,
+            "kind": "once",
+            "at": "2026-10-25T18:10:21"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": null,
+        "lastFireAt": null,
+        "lastStatus": "completed",
+        "lastError": null,
+        "runCount": 1,
+        "maxRuns": null,
+        "status": "completed",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923018.0,
+        "updatedAt": 1792923018.3096213,
+        "config": {
+          "name": "actual scheduled Pause",
+          "actionId": "pause",
+          "arguments": {},
+          "enabled": false,
+          "schedule": [
+            {
+              "kind": "once",
+              "at": "2026-10-25T18:10:21.301053"
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 1,
+        "referenceGeneration": 1,
+        "creationFingerprint": "81b5002e3c70431fd1d6d627b62328e46df04951635c012016abcf71fac464cb",
+        "creationEventPending": false,
+        "templateId": null,
+        "authorization": {
+          "type": "user"
+        },
+        "operation": "run",
+        "runAuthorization": {
+          "type": "user"
+        },
+        "runPolicy": {
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          }
+        },
+        "recoveryFailures": 0,
+        "attempts": [
+          {
+            "id": "attempt_3cd54e72d7ff4ced800bfc19",
+            "runId": "run_d7ec517ecffd4501a827e102",
+            "count": 1,
+            "status": "completed",
+            "actionId": "pause",
+            "templateRevision": null,
+            "backoffSec": 0,
+            "receipt": null,
+            "sideEffectUncertainty": false,
+            "actionRevision": 3,
+            "registryRevision": 9,
+            "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+            "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "contextDigest": "56f2db6966825755ec3a7e4ad41dddc8254640868a1862faf2bd8a8cd3c7089f",
+            "executionKind": "session_operation",
+            "terminalStatus": "completed",
+            "snapshotCleanup": "cleaned",
+            "finishedAt": 1792923021.123873
+          }
+        ],
+        "runId": "run_d7ec517ecffd4501a827e102",
+        "activeExecutions": {},
+        "runRecoveryEligible": false,
+        "executionFinalizations": {},
+        "terminalOutbox": {},
+        "snapshotCleanup": "cleaned",
+        "lastExecution": {
+          "id": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+          "runId": "run_d7ec517ecffd4501a827e102",
+          "attemptId": "attempt_3cd54e72d7ff4ced800bfc19",
+          "authorization": {
+            "type": "user"
+          },
+          "executionKind": "session_operation",
+          "status": "completed",
+          "notificationPolicy": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "actionId": "pause",
+          "actionRevision": 3,
+          "registryRevision": 9,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "56f2db6966825755ec3a7e4ad41dddc8254640868a1862faf2bd8a8cd3c7089f",
+          "targetIds": [
+            "ses_d94d1d5b3cad25c8"
+          ],
+          "targetResults": [
+            {
+              "sessionId": "ses_d94d1d5b3cad25c8",
+              "ok": true
+            }
+          ],
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0
+        },
+        "terminalEventId": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+        "terminalEventEmittedFor": "jexec_edf96615f3304e55bfe19ec6d9f2ff2c",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": false
+        }
+      }
+    },
+    {
+      "jobId": "job_a5b20578a575423a8dbee2e8",
+      "kind": "scheduled-task",
+      "taskId": "sch_00a2a0f45d2b",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_7f2a5245",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:14",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:14"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:14",
+      "lastFireAt": null,
+      "lastStatus": "cancelled",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "cancelled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923014.0,
+      "updatedAt": 1792923014.019806,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 2,
+      "referenceGeneration": 1,
+      "creationFingerprint": "85491807c7ebaace9dde749ae0ad4fef27042d27359ee36f6618b9a8bd743fdf",
+      "creationEventPending": false,
+      "templateId": null,
+      "authorization": {
+        "type": "user"
+      },
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_46958e6ea3d342eb9cf9a239",
+          "runId": "run_9b81dfc912cc4339b5bcf580",
+          "count": 1,
+          "status": "cancelled",
+          "actionId": "hold",
+          "templateRevision": null,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 4,
+          "registryRevision": 9,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "7445d4ba5cc9fa8a74a88670b6a44562fe5fe4759db432e2d3cd533b6adecc81",
+          "executionKind": "command",
+          "terminalStatus": "cancelled",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923014.3106482
+        }
+      ],
+      "runId": "run_9b81dfc912cc4339b5bcf580",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "pendingRuns": [],
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_440f78fb4ff846578fbd78225341a49a",
+        "runId": "run_9b81dfc912cc4339b5bcf580",
+        "attemptId": "attempt_46958e6ea3d342eb9cf9a239",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "command",
+        "status": "cancelled",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "hold",
+        "actionRevision": 4,
+        "registryRevision": 9,
+        "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "7445d4ba5cc9fa8a74a88670b6a44562fe5fe4759db432e2d3cd533b6adecc81"
+      },
+      "terminalEventId": "jexec_440f78fb4ff846578fbd78225341a49a",
+      "terminalEventEmittedFor": "jexec_440f78fb4ff846578fbd78225341a49a",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      },
+      "unified": {
+        "jobId": "job_a5b20578a575423a8dbee2e8",
+        "kind": "scheduled-task",
+        "taskId": "sch_00a2a0f45d2b",
+        "name": "command Job",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "hold",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": false,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_7f2a5245",
+            "misfirePolicy": "fire_now",
+            "enabled": true,
+            "nextFireAt": "2026-10-25T19:10:14",
+            "lastFireAt": null,
+            "kind": "interval",
+            "interval_sec": 3600,
+            "intervalSec": 3600,
+            "anchor": "2026-10-25T18:10:14"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": "2026-10-25T19:10:14",
+        "lastFireAt": null,
+        "lastStatus": "cancelled",
+        "lastError": null,
+        "runCount": 1,
+        "maxRuns": null,
+        "status": "cancelled",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923014.0,
+        "updatedAt": 1792923014.019806,
+        "config": {
+          "name": "command Job",
+          "actionId": "hold",
+          "arguments": {},
+          "enabled": false,
+          "schedule": [
+            {
+              "kind": "interval",
+              "intervalSec": 3600
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 2,
+        "referenceGeneration": 1,
+        "creationFingerprint": "85491807c7ebaace9dde749ae0ad4fef27042d27359ee36f6618b9a8bd743fdf",
+        "creationEventPending": false,
+        "templateId": null,
+        "authorization": {
+          "type": "user"
+        },
+        "operation": "run",
+        "runAuthorization": {
+          "type": "user"
+        },
+        "runPolicy": {
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          }
+        },
+        "recoveryFailures": 0,
+        "attempts": [
+          {
+            "id": "attempt_46958e6ea3d342eb9cf9a239",
+            "runId": "run_9b81dfc912cc4339b5bcf580",
+            "count": 1,
+            "status": "cancelled",
+            "actionId": "hold",
+            "templateRevision": null,
+            "backoffSec": 0,
+            "receipt": null,
+            "sideEffectUncertainty": false,
+            "actionRevision": 4,
+            "registryRevision": 9,
+            "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+            "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "contextDigest": "7445d4ba5cc9fa8a74a88670b6a44562fe5fe4759db432e2d3cd533b6adecc81",
+            "executionKind": "command",
+            "terminalStatus": "cancelled",
+            "snapshotCleanup": "cleaned",
+            "finishedAt": 1792923014.3106482
+          }
+        ],
+        "runId": "run_9b81dfc912cc4339b5bcf580",
+        "activeExecutions": {},
+        "runRecoveryEligible": false,
+        "pendingRuns": [],
+        "executionFinalizations": {},
+        "terminalOutbox": {},
+        "snapshotCleanup": "cleaned",
+        "lastExecution": {
+          "id": "jexec_440f78fb4ff846578fbd78225341a49a",
+          "runId": "run_9b81dfc912cc4339b5bcf580",
+          "attemptId": "attempt_46958e6ea3d342eb9cf9a239",
+          "authorization": {
+            "type": "user"
+          },
+          "executionKind": "command",
+          "status": "cancelled",
+          "notificationPolicy": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "actionId": "hold",
+          "actionRevision": 4,
+          "registryRevision": 9,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "7445d4ba5cc9fa8a74a88670b6a44562fe5fe4759db432e2d3cd533b6adecc81"
+        },
+        "terminalEventId": "jexec_440f78fb4ff846578fbd78225341a49a",
+        "terminalEventEmittedFor": "jexec_440f78fb4ff846578fbd78225341a49a",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": false
+        }
+      }
+    },
+    {
+      "jobId": "job_726ecd4d22f94935810df30e",
+      "kind": "scheduled-task",
+      "taskId": "sch_27357478c90e",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_08bfa4cd",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:14",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:14"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:14",
+      "lastFireAt": null,
+      "lastStatus": "uncertain",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "uncertain",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923014.0,
+      "updatedAt": 1792923014.4103165,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 1,
+      "creationFingerprint": "5dea7c939a689c53ae793b25e68c1737ccd6b8732351b1af8669fe80e4a4d082",
+      "creationEventPending": false,
+      "templateId": null,
+      "authorization": {
+        "type": "user"
+      },
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_d9ac298d63f54483870c314f",
+          "runId": "run_b8d66bb040b84e14b83a2212",
+          "count": 1,
+          "status": "uncertain",
+          "actionId": "hold",
+          "templateRevision": null,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": true,
+          "actionRevision": 4,
+          "registryRevision": 9,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "1e4ccecf4e2e50788c4eff45f1283e0a69dd2181cb87765f0ba361adb9daf6f0",
+          "executionKind": "command",
+          "terminalStatus": "uncertain",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923016.3992162
+        }
+      ],
+      "runId": "run_b8d66bb040b84e14b83a2212",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_e226840c317649aab0c8bf6653b1f9af",
+        "runId": "run_b8d66bb040b84e14b83a2212",
+        "attemptId": "attempt_d9ac298d63f54483870c314f",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "command",
+        "status": "uncertain",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "hold",
+        "actionRevision": 4,
+        "registryRevision": 9,
+        "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "1e4ccecf4e2e50788c4eff45f1283e0a69dd2181cb87765f0ba361adb9daf6f0"
+      },
+      "terminalEventId": "jexec_e226840c317649aab0c8bf6653b1f9af",
+      "terminalEventEmittedFor": "jexec_e226840c317649aab0c8bf6653b1f9af",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      },
+      "unified": {
+        "jobId": "job_726ecd4d22f94935810df30e",
+        "kind": "scheduled-task",
+        "taskId": "sch_27357478c90e",
+        "name": "command Job",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "hold",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": false,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_08bfa4cd",
+            "misfirePolicy": "fire_now",
+            "enabled": true,
+            "nextFireAt": "2026-10-25T19:10:14",
+            "lastFireAt": null,
+            "kind": "interval",
+            "interval_sec": 3600,
+            "intervalSec": 3600,
+            "anchor": "2026-10-25T18:10:14"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": "2026-10-25T19:10:14",
+        "lastFireAt": null,
+        "lastStatus": "uncertain",
+        "lastError": null,
+        "runCount": 1,
+        "maxRuns": null,
+        "status": "uncertain",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923014.0,
+        "updatedAt": 1792923014.4103165,
+        "config": {
+          "name": "command Job",
+          "actionId": "hold",
+          "arguments": {},
+          "enabled": false,
+          "schedule": [
+            {
+              "kind": "interval",
+              "intervalSec": 3600
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 1,
+        "referenceGeneration": 1,
+        "creationFingerprint": "5dea7c939a689c53ae793b25e68c1737ccd6b8732351b1af8669fe80e4a4d082",
+        "creationEventPending": false,
+        "templateId": null,
+        "authorization": {
+          "type": "user"
+        },
+        "operation": "run",
+        "runAuthorization": {
+          "type": "user"
+        },
+        "runPolicy": {
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          }
+        },
+        "recoveryFailures": 0,
+        "attempts": [
+          {
+            "id": "attempt_d9ac298d63f54483870c314f",
+            "runId": "run_b8d66bb040b84e14b83a2212",
+            "count": 1,
+            "status": "uncertain",
+            "actionId": "hold",
+            "templateRevision": null,
+            "backoffSec": 0,
+            "receipt": null,
+            "sideEffectUncertainty": true,
+            "actionRevision": 4,
+            "registryRevision": 9,
+            "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+            "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "contextDigest": "1e4ccecf4e2e50788c4eff45f1283e0a69dd2181cb87765f0ba361adb9daf6f0",
+            "executionKind": "command",
+            "terminalStatus": "uncertain",
+            "snapshotCleanup": "cleaned",
+            "finishedAt": 1792923016.3992162
+          }
+        ],
+        "runId": "run_b8d66bb040b84e14b83a2212",
+        "activeExecutions": {},
+        "runRecoveryEligible": false,
+        "executionFinalizations": {},
+        "terminalOutbox": {},
+        "snapshotCleanup": "cleaned",
+        "lastExecution": {
+          "id": "jexec_e226840c317649aab0c8bf6653b1f9af",
+          "runId": "run_b8d66bb040b84e14b83a2212",
+          "attemptId": "attempt_d9ac298d63f54483870c314f",
+          "authorization": {
+            "type": "user"
+          },
+          "executionKind": "command",
+          "status": "uncertain",
+          "notificationPolicy": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "actionId": "hold",
+          "actionRevision": 4,
+          "registryRevision": 9,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "1e4ccecf4e2e50788c4eff45f1283e0a69dd2181cb87765f0ba361adb9daf6f0"
+        },
+        "terminalEventId": "jexec_e226840c317649aab0c8bf6653b1f9af",
+        "terminalEventEmittedFor": "jexec_e226840c317649aab0c8bf6653b1f9af",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": false
+        }
+      }
+    },
+    {
+      "jobId": "job_15029fb5ac8f4693941e84ce",
+      "kind": "scheduled-task",
+      "taskId": "sch_b6a31fffed38",
+      "name": "command Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "hold",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_8a6490aa",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:13",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:13"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:13",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923013.0,
+      "updatedAt": 1792923013.3957725,
+      "config": {
+        "name": "command Job",
+        "actionId": "hold",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "0a9e0526c7f37027f66ef10ad7fb008f346f3a3b10216d9fa6d78b38629c96d8",
+      "creationEventPending": false,
+      "templateId": null,
+      "authorization": {
+        "type": "user"
+      },
+      "operation": "run",
+      "runAuthorization": {
+        "type": "user"
+      },
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "recoveryFailures": 0,
+      "attempts": [
+        {
+          "id": "attempt_5fa675375bce4dfbb425f333",
+          "runId": "run_753183dd37354e56a9f83a24",
+          "count": 1,
+          "status": "completed",
+          "actionId": "hold",
+          "templateRevision": null,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 1,
+          "registryRevision": 6,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "f4944a50a530f596a4b0e78488bf36b33e654a01ac54c42a9869d8e4fa6ec9f9",
+          "executionKind": "command",
+          "terminalStatus": "completed",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923013.9493706
+        }
+      ],
+      "runId": "run_753183dd37354e56a9f83a24",
+      "activeExecutions": {},
+      "runRecoveryEligible": false,
+      "executionFinalizations": {},
+      "terminalOutbox": {},
+      "snapshotCleanup": "cleaned",
+      "lastExecution": {
+        "id": "jexec_e89379ae54a9481c885e822d073227d3",
+        "runId": "run_753183dd37354e56a9f83a24",
+        "attemptId": "attempt_5fa675375bce4dfbb425f333",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "command",
+        "status": "completed",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "hold",
+        "actionRevision": 1,
+        "registryRevision": 6,
+        "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "f4944a50a530f596a4b0e78488bf36b33e654a01ac54c42a9869d8e4fa6ec9f9"
+      },
+      "terminalEventId": "jexec_e89379ae54a9481c885e822d073227d3",
+      "terminalEventEmittedFor": "jexec_e89379ae54a9481c885e822d073227d3",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": true
+      },
+      "unified": {
+        "jobId": "job_15029fb5ac8f4693941e84ce",
+        "kind": "scheduled-task",
+        "taskId": "sch_b6a31fffed38",
+        "name": "command Job",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "hold",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": false,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_8a6490aa",
+            "misfirePolicy": "fire_now",
+            "enabled": true,
+            "nextFireAt": "2026-10-25T19:10:13",
+            "lastFireAt": null,
+            "kind": "interval",
+            "interval_sec": 3600,
+            "intervalSec": 3600,
+            "anchor": "2026-10-25T18:10:13"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": "2026-10-25T19:10:13",
+        "lastFireAt": null,
+        "lastStatus": "completed",
+        "lastError": null,
+        "runCount": 1,
+        "maxRuns": null,
+        "status": "scheduled",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923013.0,
+        "updatedAt": 1792923013.3957725,
+        "config": {
+          "name": "command Job",
+          "actionId": "hold",
+          "arguments": {},
+          "enabled": false,
+          "schedule": [
+            {
+              "kind": "interval",
+              "intervalSec": 3600
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 1,
+        "referenceGeneration": 0,
+        "creationFingerprint": "0a9e0526c7f37027f66ef10ad7fb008f346f3a3b10216d9fa6d78b38629c96d8",
+        "creationEventPending": false,
+        "templateId": null,
+        "authorization": {
+          "type": "user"
+        },
+        "operation": "run",
+        "runAuthorization": {
+          "type": "user"
+        },
+        "runPolicy": {
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          }
+        },
+        "recoveryFailures": 0,
+        "attempts": [
+          {
+            "id": "attempt_5fa675375bce4dfbb425f333",
+            "runId": "run_753183dd37354e56a9f83a24",
+            "count": 1,
+            "status": "completed",
+            "actionId": "hold",
+            "templateRevision": null,
+            "backoffSec": 0,
+            "receipt": null,
+            "sideEffectUncertainty": false,
+            "actionRevision": 1,
+            "registryRevision": 6,
+            "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+            "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "contextDigest": "f4944a50a530f596a4b0e78488bf36b33e654a01ac54c42a9869d8e4fa6ec9f9",
+            "executionKind": "command",
+            "terminalStatus": "completed",
+            "snapshotCleanup": "cleaned",
+            "finishedAt": 1792923013.9493706
+          }
+        ],
+        "runId": "run_753183dd37354e56a9f83a24",
+        "activeExecutions": {},
+        "runRecoveryEligible": false,
+        "executionFinalizations": {},
+        "terminalOutbox": {},
+        "snapshotCleanup": "cleaned",
+        "lastExecution": {
+          "id": "jexec_e89379ae54a9481c885e822d073227d3",
+          "runId": "run_753183dd37354e56a9f83a24",
+          "attemptId": "attempt_5fa675375bce4dfbb425f333",
+          "authorization": {
+            "type": "user"
+          },
+          "executionKind": "command",
+          "status": "completed",
+          "notificationPolicy": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "actionId": "hold",
+          "actionRevision": 1,
+          "registryRevision": 6,
+          "digest": "e20e55dbd130f8b910f9ad00fdc3eb6f7e7ea29a842215d7f9078503f08b99f5",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "f4944a50a530f596a4b0e78488bf36b33e654a01ac54c42a9869d8e4fa6ec9f9"
+        },
+        "terminalEventId": "jexec_e89379ae54a9481c885e822d073227d3",
+        "terminalEventEmittedFor": "jexec_e89379ae54a9481c885e822d073227d3",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": true
+        }
+      }
+    },
+    {
+      "jobId": "job_1d9f2df8926ef5086ff32a69",
+      "kind": "scheduled-task",
+      "taskId": "sch_7b18020b674d",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": false,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_6251188c",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:11",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:11"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:11",
+      "lastFireAt": null,
+      "lastStatus": null,
+      "lastError": null,
+      "runCount": 0,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923011.0,
+      "updatedAt": 1792923011.4114387,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": false,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 1,
+      "referenceGeneration": 0,
+      "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+      "creationEventPending": false,
+      "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+      "authorization": {
+        "type": "user"
+      },
+      "templateRevision": 1,
+      "operation": "run",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": true
+      },
+      "unified": {
+        "jobId": "job_1d9f2df8926ef5086ff32a69",
+        "kind": "scheduled-task",
+        "taskId": "sch_7b18020b674d",
+        "name": "fixed Pause Job",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "pause",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": false,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_6251188c",
+            "misfirePolicy": "fire_now",
+            "enabled": true,
+            "nextFireAt": "2026-10-25T19:10:11",
+            "lastFireAt": null,
+            "kind": "interval",
+            "interval_sec": 3600,
+            "intervalSec": 3600,
+            "anchor": "2026-10-25T18:10:11"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": "2026-10-25T19:10:11",
+        "lastFireAt": null,
+        "lastStatus": null,
+        "lastError": null,
+        "runCount": 0,
+        "maxRuns": null,
+        "status": "scheduled",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923011.0,
+        "updatedAt": 1792923011.4114387,
+        "config": {
+          "name": "fixed Pause Job",
+          "actionId": "pause",
+          "arguments": {},
+          "enabled": false,
+          "schedule": [
+            {
+              "kind": "interval",
+              "intervalSec": 3600
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 1,
+        "referenceGeneration": 0,
+        "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+        "creationEventPending": false,
+        "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+        "authorization": {
+          "type": "user"
+        },
+        "templateRevision": 1,
+        "operation": "run",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": true
+        }
+      }
+    },
+    {
+      "jobId": "job_4b973b38ae0614f7e18ecf9b",
+      "kind": "scheduled-task",
+      "taskId": "sch_c5789641b1a5",
+      "name": "fixed Pause Job",
+      "description": "",
+      "targetSessionId": null,
+      "text": "",
+      "action": {
+        "api": "action_reference",
+        "actionId": "pause",
+        "arguments": {}
+      },
+      "source": {
+        "type": "system"
+      },
+      "creatorSessionId": null,
+      "enabled": true,
+      "paused": false,
+      "schedule": [
+        {
+          "id": "sce_9cb107fc",
+          "misfirePolicy": "fire_now",
+          "enabled": true,
+          "nextFireAt": "2026-10-25T19:10:07",
+          "lastFireAt": null,
+          "kind": "interval",
+          "interval_sec": 3600,
+          "intervalSec": 3600,
+          "anchor": "2026-10-25T18:10:07"
+        }
+      ],
+      "misfirePolicy": "fire_now",
+      "nextFireAt": "2026-10-25T19:10:07",
+      "lastFireAt": null,
+      "lastStatus": "completed",
+      "lastError": null,
+      "runCount": 1,
+      "maxRuns": null,
+      "status": "scheduled",
+      "runStartedAt": null,
+      "undeliveredFires": [],
+      "createdAt": 1792923007.0,
+      "updatedAt": 1792923013.3176656,
+      "config": {
+        "name": "fixed Pause Job",
+        "actionId": "pause",
+        "arguments": {},
+        "enabled": true,
+        "schedule": [
+          {
+            "kind": "interval",
+            "intervalSec": 3600
+          }
+        ],
+        "description": "",
+        "maxRuns": null,
+        "misfirePolicy": "fire_now",
+        "trigger": {
+          "kind": "schedule"
+        },
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "overlap": {
+          "mode": "forbid",
+          "parallelLimit": 3
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "completion": {
+          "kind": "ordinary"
+        }
+      },
+      "configRevision": 3,
+      "referenceGeneration": 1,
+      "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+      "creationEventPending": false,
+      "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+      "authorization": {
+        "type": "user"
+      },
+      "templateRevision": 1,
+      "lastExecution": {
+        "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+        "runId": "run_352b8352d56b444b86e9941f",
+        "attemptId": "attempt_8446819b473a4c05a8088fec",
+        "authorization": {
+          "type": "user"
+        },
+        "executionKind": "session_operation",
+        "status": "completed",
+        "notificationPolicy": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        },
+        "actionId": "pause",
+        "actionRevision": 1,
+        "registryRevision": 2,
+        "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+        "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+        "targetIds": [
+          "ses_d94d1d5b3cad25c8"
+        ],
+        "targetResults": [
+          {
+            "sessionId": "ses_d94d1d5b3cad25c8",
+            "ok": true
+          }
+        ],
+        "matched": 1,
+        "succeeded": 1,
+        "failed": 0
+      },
+      "attempts": [
+        {
+          "id": "attempt_8446819b473a4c05a8088fec",
+          "runId": "run_352b8352d56b444b86e9941f",
+          "count": 1,
+          "status": "completed",
+          "actionId": "pause",
+          "templateRevision": 1,
+          "backoffSec": 0,
+          "receipt": null,
+          "sideEffectUncertainty": false,
+          "actionRevision": 1,
+          "registryRevision": 2,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+          "executionKind": "session_operation",
+          "terminalStatus": "completed",
+          "snapshotCleanup": "cleaned",
+          "finishedAt": 1792923009.574273
+        }
+      ],
+      "runId": "run_352b8352d56b444b86e9941f",
+      "snapshotCleanup": "cleaned",
+      "activeExecutions": {},
+      "executionFinalizations": {},
+      "runAuthorization": {
+        "type": "user"
+      },
+      "terminalOutbox": {},
+      "pendingRuns": [],
+      "recoveryFailures": 0,
+      "runPolicy": {
+        "recovery": {
+          "enabled": false,
+          "monitoring": false,
+          "maxAttempts": 3,
+          "backoffSec": [
+            5,
+            15,
+            60
+          ],
+          "stableResetSec": 300
+        },
+        "completion": {
+          "kind": "ordinary"
+        },
+        "notification": {
+          "on": [
+            "completed",
+            "failed",
+            "cancelled",
+            "unknown",
+            "uncertain",
+            "cleaning"
+          ],
+          "target": "job"
+        }
+      },
+      "runRecoveryEligible": false,
+      "operation": "run",
+      "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+      "target": {
+        "sessionId": null
+      },
+      "integrity": {
+        "status": "complete",
+        "issues": [],
+        "approvalRequired": false
+      },
+      "unified": {
+        "jobId": "job_4b973b38ae0614f7e18ecf9b",
+        "kind": "scheduled-task",
+        "taskId": "sch_c5789641b1a5",
+        "name": "fixed Pause Job",
+        "description": "",
+        "targetSessionId": null,
+        "text": "",
+        "action": {
+          "api": "action_reference",
+          "actionId": "pause",
+          "arguments": {}
+        },
+        "source": {
+          "type": "system"
+        },
+        "creatorSessionId": null,
+        "enabled": true,
+        "paused": false,
+        "schedule": [
+          {
+            "id": "sce_9cb107fc",
+            "misfirePolicy": "fire_now",
+            "enabled": true,
+            "nextFireAt": "2026-10-25T19:10:07",
+            "lastFireAt": null,
+            "kind": "interval",
+            "interval_sec": 3600,
+            "intervalSec": 3600,
+            "anchor": "2026-10-25T18:10:07"
+          }
+        ],
+        "misfirePolicy": "fire_now",
+        "nextFireAt": "2026-10-25T19:10:07",
+        "lastFireAt": null,
+        "lastStatus": "completed",
+        "lastError": null,
+        "runCount": 1,
+        "maxRuns": null,
+        "status": "scheduled",
+        "runStartedAt": null,
+        "undeliveredFires": [],
+        "createdAt": 1792923007.0,
+        "updatedAt": 1792923013.3176656,
+        "config": {
+          "name": "fixed Pause Job",
+          "actionId": "pause",
+          "arguments": {},
+          "enabled": true,
+          "schedule": [
+            {
+              "kind": "interval",
+              "intervalSec": 3600
+            }
+          ],
+          "description": "",
+          "maxRuns": null,
+          "misfirePolicy": "fire_now",
+          "trigger": {
+            "kind": "schedule"
+          },
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "overlap": {
+            "mode": "forbid",
+            "parallelLimit": 3
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "completion": {
+            "kind": "ordinary"
+          }
+        },
+        "configRevision": 3,
+        "referenceGeneration": 1,
+        "creationFingerprint": "070e923376bd7832f3b11ca84c64c5637806c30d5cc43926a2dab925337e7c03",
+        "creationEventPending": false,
+        "templateId": "jtpl_cd50a08c7aa74d8e8d73958c",
+        "authorization": {
+          "type": "user"
+        },
+        "templateRevision": 1,
+        "lastExecution": {
+          "id": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+          "runId": "run_352b8352d56b444b86e9941f",
+          "attemptId": "attempt_8446819b473a4c05a8088fec",
+          "authorization": {
+            "type": "user"
+          },
+          "executionKind": "session_operation",
+          "status": "completed",
+          "notificationPolicy": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          },
+          "actionId": "pause",
+          "actionRevision": 1,
+          "registryRevision": 2,
+          "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+          "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+          "targetIds": [
+            "ses_d94d1d5b3cad25c8"
+          ],
+          "targetResults": [
+            {
+              "sessionId": "ses_d94d1d5b3cad25c8",
+              "ok": true
+            }
+          ],
+          "matched": 1,
+          "succeeded": 1,
+          "failed": 0
+        },
+        "attempts": [
+          {
+            "id": "attempt_8446819b473a4c05a8088fec",
+            "runId": "run_352b8352d56b444b86e9941f",
+            "count": 1,
+            "status": "completed",
+            "actionId": "pause",
+            "templateRevision": 1,
+            "backoffSec": 0,
+            "receipt": null,
+            "sideEffectUncertainty": false,
+            "actionRevision": 1,
+            "registryRevision": 2,
+            "digest": "eeee3b9724a20c6e603917257d693237cede4e7825adc130d21ba6d7aca6b95f",
+            "argumentsDigest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "contextDigest": "30d9c65787e52e919d5604b62aab6a39e46e45c53709257e7b0a6137db8e9755",
+            "executionKind": "session_operation",
+            "terminalStatus": "completed",
+            "snapshotCleanup": "cleaned",
+            "finishedAt": 1792923009.574273
+          }
+        ],
+        "runId": "run_352b8352d56b444b86e9941f",
+        "snapshotCleanup": "cleaned",
+        "activeExecutions": {},
+        "executionFinalizations": {},
+        "runAuthorization": {
+          "type": "user"
+        },
+        "terminalOutbox": {},
+        "pendingRuns": [],
+        "recoveryFailures": 0,
+        "runPolicy": {
+          "recovery": {
+            "enabled": false,
+            "monitoring": false,
+            "maxAttempts": 3,
+            "backoffSec": [
+              5,
+              15,
+              60
+            ],
+            "stableResetSec": 300
+          },
+          "completion": {
+            "kind": "ordinary"
+          },
+          "notification": {
+            "on": [
+              "completed",
+              "failed",
+              "cancelled",
+              "unknown",
+              "uncertain",
+              "cleaning"
+            ],
+            "target": "job"
+          }
+        },
+        "runRecoveryEligible": false,
+        "operation": "run",
+        "terminalEventEmittedFor": "jexec_dbfcba8629a9458ba25fdf86d87ce156",
+        "target": {
+          "sessionId": null
+        },
+        "integrity": {
+          "status": "complete",
+          "issues": [],
+          "approvalRequired": false
+        }
+      }
+    }
+  ],
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

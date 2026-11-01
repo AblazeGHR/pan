@@ -1,0 +1,49 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-source-receipt-20261029
+FFFF.F                                                                   [100%]
+================================== FAILURES ===================================
+_______ test_http_fresh_query_per_fire_original_wake_pause_and_identity _______
+tests\test_session_resume_product.py:70: in test_http_fresh_query_per_fire_original_wake_pause_and_identity
+    assert launch(h, job)['runId'] == first['runId']
+           ^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:106: in launch
+    assert response.status_code == 202, response.text
+E   AssertionError: {"admissionId":"adm_338be70463cd47e28a50b79f","links":{"self":"/api/operations/op_92b93081a7974472ae9fd8f8"},"objectRefs":[{"digest":"5d5cc3c44c8d41e3bdc4da864b74bacbcb1cf4472cf89cdfc20bfac34b6ad6e6","id":"job_934e7c06070741cb80432ad0","revision":1}],"operationId":"op_92b93081a7974472ae9fd8f8","requestKey":"run","result":{"admissionId":"adm_338be70463cd47e28a50b79f","configRevision":1,"runId":"run_d5ab99af0c874d03bcdb3e0a","runState":"completed"},"runId":"run_d5ab99af0c874d03bcdb3e0a","status":"completed","replayed":true}
+E   assert 200 == 202
+E    +  where 200 = <Response [200 OK]>.status_code
+__ test_cold_reopen_original_selection_and_config_change_never_resends[lost] __
+tests\test_session_resume_product.py:118: in test_cold_reopen_original_selection_and_config_change_never_resends
+    assert state['plans'][first['runId']]['resumeSelections']['resume'] == ['ses_a']
+           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_cold_reopen_original_selection_and_config_change_never_resends[crash] __
+tests\test_session_resume_product.py:118: in test_cold_reopen_original_selection_and_config_change_never_resends
+    assert state['plans'][first['runId']]['resumeSelections']['resume'] == ['ses_a']
+           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_ test_cold_reopen_original_selection_and_config_change_never_resends[before-wake] _
+tests\test_session_resume_product.py:118: in test_cold_reopen_original_selection_and_config_change_never_resends
+    assert state['plans'][first['runId']]['resumeSelections']['resume'] == ['ses_a']
+           ^^^^^^^^^^^^^^
+E   KeyError: 'plans'
+_____ test_scheduled_passive_template_matching_empty_fire_not_backlogged ______
+tests\test_session_resume_product.py:162: in test_scheduled_passive_template_matching_empty_fire_not_backlogged
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"revision_conflict","message":"revision conflict","path":"expectedRevision","currentRevision":2}}
+E   assert 409 == 201
+E    +  where 409 = <Response [409 Conflict]>.status_code
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_session_resume_product.py::test_http_fresh_query_per_fire_original_wake_pause_and_identity
+FAILED tests/test_session_resume_product.py::test_cold_reopen_original_selection_and_config_change_never_resends[lost]
+FAILED tests/test_session_resume_product.py::test_cold_reopen_original_selection_and_config_change_never_resends[crash]
+FAILED tests/test_session_resume_product.py::test_cold_reopen_original_selection_and_config_change_never_resends[before-wake]
+FAILED tests/test_session_resume_product.py::test_scheduled_passive_template_matching_empty_fire_not_backlogged

@@ -389,7 +389,7 @@ def test_inherited_task_id_is_not_terminal_idempotency_key(monkeypatch):
         w._current_task_idempotent = True
         first = await worker._persist_terminal_state(w, s, "done", "formal")
 
-        # The next queue row is an agent_send_force follow-up.  It inherits
+        # The next queue row is an agent_send follow-up.  It inherits
         # T-045 for report pairing, but taskIdSource=active means it is not an
         # assign retry and must not reuse task:T-045 as its terminal key.
         w._terminal_handled = False

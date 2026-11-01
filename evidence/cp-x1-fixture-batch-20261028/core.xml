@@ -1,0 +1,63 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="46" time="18.593" timestamp="2026-10-28T15:19:27.591468+08:00" hostname="windows-local"><testcase classname="tests.test_automation_concurrency" name="test_same_event_concurrent_admission_has_one_run_and_operation" time="0.588" /><testcase classname="tests.test_automation_concurrency" name="test_two_triggers_share_job_but_have_independent_cause_identities" time="0.567" /><testcase classname="tests.test_automation_concurrency" name="test_canonical_job_owns_concurrency_and_queued_cancel[queue-1]" time="0.573" /><testcase classname="tests.test_automation_concurrency" name="test_canonical_job_owns_concurrency_and_queued_cancel[parallel-2]" time="0.595" /><testcase classname="tests.test_automation_concurrency" name="test_serial_cancelled_head_does_not_starve_next_admission" time="0.609" /><testcase classname="tests.test_automation_retry_http" name="test_http_uncertain_retry_is_rejected_by_original_run_identity" time="0.472" /><testcase classname="tests.test_automation_retry_http" name="test_http_retry_replays_operation_without_a_second_admission" time="0.584" /><testcase classname="tests.test_automation_retry_parallel" name="test_parallel_trigger_contract" time="0.018" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_explicit_idempotence" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields0]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields1]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields2]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields3]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields4]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields5]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields6]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields7]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields8]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields9]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields10]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields11]" time="0.004" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields12]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields13]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields14]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_types_and_bounds_rejected_without_write[fields15]" time="0.003" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[None]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[1]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[true]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value3]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_action_idempotent_strict_boolean[value4]" time="0.002" /><testcase classname="tests.test_automation_retry_parallel" name="test_defaults_and_concurrency_change_need_user_even_disabled" time="0.017" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_defaults_cap_and_schema_matches_parser" time="0.036" /><testcase classname="tests.test_automation_retry_parallel" name="test_older_client_updates_preserve_explicit_scheduler_policy" time="0.016" /><testcase classname="tests.test_automation_retry_parallel" name="test_canonical_retry_keeps_run_and_effect_key_only_failed_step_repeats" time="0.642" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms[unknown]" time="0.479" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms[exception]" time="0.597" /><testcase classname="tests.test_automation_retry_parallel" name="test_unknown_or_cleanup_unconfirmed_never_auto_retries_or_confirms[partial]" time="0.515" /><testcase classname="tests.test_automation_retry_parallel" name="test_canonical_recovery_does_not_retry_failed_or_unknown_original_run" time="0.477" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_requires_frozen_idempotence_and_cleanup_contract[False-False-False-False]" time="0.483" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_requires_frozen_idempotence_and_cleanup_contract[True-False-False-True]" time="0.497" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_requires_frozen_idempotence_and_cleanup_contract[False-True-False-True]" time="0.565" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_requires_frozen_idempotence_and_cleanup_contract[True-True-True-False]" time="0.523" /><testcase classname="tests.test_automation_retry_parallel" name="test_retry_operation_has_exact_revision_auth_and_replays_one_attempt" time="0.606" /><testcase classname="tests.test_automation_retry_parallel" name="test_pause_resume_and_cancel_are_canonical_run_controls" time="0.986" /><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart_real_http" time="0.016"><failure message="AttributeError: 'CodexQuotaStore' object has no attribute 'patreal_http'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5778/test_owned_host_configuration_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000184094309F0&gt;
+
+    def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+        monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+        rt=real_http._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
+        now=float(int(time.time()))
+        profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
+        store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
+        store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
+&gt;       before=store.patreal_http.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
+               ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'CodexQuotaStore' object has no attribute 'patreal_http'
+
+tests\test_quota_host_http.py:51: AttributeError</failure></testcase><testcase classname="tests.test_quota_policy_http" name="test_quota_policy_owned_http_default_unavailable_is_unknown_real_http" time="6.855"><failure message="KeyError: 'ok'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5778/test_quota_policy_owned_http_d0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018409431240&gt;
+
+    def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+        monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        rt=real_http._PanRuntime(tmp_path/'owned-quota-http');rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
+        evidence={'port':real_http.PORT,'profile':str(rt.data_root),'providerCalls':0,'switches':0,'restarts':0}
+        try:
+            rt.start();evidence['serverPid']=rt.process.pid
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            token=rt.request('POST','/api/automation/login',json={'key':key})['token']
+            headers={'Authorization':'Bearer '+token};url=rt.base_url+'/api/automation/quota-policy'
+            with httpx.Client(timeout=10,trust_env=False) as client:
+                state=client.get(url).json();assert state['mode']=='manual' and state['adapter']=='unavailable'
+                assert state['disabledAccountIds']==[] and state['accountConfigRevision']==0
+                disabled_url=url+'/disabled-accounts'
+                disabled={'disabledAccountIds':['disabled-account-three'],'expectedRevision':state['revision']}
+                assert client.put(disabled_url,json=disabled).status_code==401
+                assert client.put(disabled_url,json={**disabled,'enabled':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'disabledAccountIds':['x','x']},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'expectedRevision':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==200
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==409
+                state=client.get(url).json()
+                assert state['disabledAccountIds']==['disabled-account-three'] and state['accountConfigRevision']==1
+                body={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
+                assert client.put(url,json=body).status_code==401
+                assert client.put(url,json={**body,'script':'denied'},headers=headers).status_code==400
+                assert client.put(url,json=body,headers=headers).status_code==200
+                state=client.get(url).json()
+                monitor=client.post(url+'/query-jobs',json={'kind':'monitor95','expectedRevision':state['revision']},headers=headers)
+                assert monitor.status_code==409  # unknown account cannot bind a monitor
+                state=client.get(url).json()
+                response=client.post(url+'/query-jobs',json={'kind':'once','expectedRevision':state['revision']},headers=headers)
+                assert response.status_code==200,response.text
+                jid=response.json()['job']['jobId']
+                for method,path,body in [('PATCH','/api/jobs/'+jid,{'enabled':True}),
+                                         ('POST','/api/jobs/'+jid+'/run-now',{}),
+                                         ('DELETE','/api/jobs/'+jid,None)]:
+                    denied=client.request(method,rt.base_url+path,json=body).json()
+&gt;                   assert denied['ok'] is False and denied['error']['code']=='user_confirmation_required'
+                           ^^^^^^^^^^^^
+E                   KeyError: 'ok'
+
+tests\test_quota_policy_http.py:82: KeyError</failure></testcase></testsuite></testsuites>

@@ -29,18 +29,19 @@ Tools exposed:
     - agent_spawn: Spawn a worker process (CLI) for an agent (= session)
     - agent_task: Send a task to an agent (auto-spawns if no live worker)
     - agent_assign: Async task dispatch to an agent, returns immediately (preferred)
-    - agent_send: Send a message to an agent (queued; no live worker → pending queue)
-    - agent_send_force: Urgent delivery (capability-routed Steer first, otherwise restart; no worker → queue)
+    - agent_send_to_queue: Deferred follow-up after the current task finishes
+    - agent_send: Default current-task update (capability-routed; preserves pause/locks)
     - agent_notify: Deliver a notification/reminder to an agent (self or managed only;
       persisted queue + immediate auto-spawn when no live worker)
     - agent_inbox: Shared Locker list/read/consume and subscription/mode/backlog/recovery
     - notification_send: Send a Pan system notification to self or managed session
     - reminder_register/list/cancel: Manage durable one-shot reminders
-    - agent_background_start/get/list/cancel/retry: Manage a durable Runner job
-    - agent_message_job_create/get/list/update/cancel: Schedule Session messages or broadcasts
+    - agent_background_get/list/cancel: Retained historical Runner reads/cancel
+    - agent_message_job_get/list/cancel: Retained historical message reads/cancel
+    - job_*, event_creator_*, trigger_*: Canonical Job and scheduling operations
+      Retired write-name calls return structured migration guidance only.
     - agent_send_many: Send one message to selected Sessions
-    - scheduler_create/list/get/update/delete/pause/resume/run_now/runs:
-      Scheduled tasks (闹钟式定时任务：设定任务文本 + 触发时间/重复规则，到点自动派给目标 session)
+    - scheduler_list/get/runs: Read-only historical scheduled tasks and execution history
     - agent_kill: Kill an agent's worker process (no worker → harmless no-op)
     - agent_restart_delayed: Restart a live Worker at its next valid idle boundary
     - agent_restart_delayed_status: Read the delayed restart receipt without mutation
@@ -79,7 +80,17 @@ from mcp.types import CallToolResult, TextContent
 
 _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 
-mcp = FastMCP("Pan")
+class PanMCP(FastMCP):
+    async def call_tool(self, name: str, arguments: dict):
+        """Dispatch tombstones without registering or executing retired tools."""
+        if name in LEGACY_MCP_COMPATIBILITY:
+            result = legacy_mcp_compatibility(name, arguments)
+            return CallToolResult(content=[TextContent(type="text", text=json.dumps(result))],
+                                  structuredContent=result, isError=True)
+        return await super().call_tool(name, arguments)
+
+
+mcp = PanMCP("Pan")
 _terminal_transport = "stdio"
 
 
@@ -187,16 +198,42 @@ _IMPORT_ADAPTERS = ("cbc", "kimi", "opencode", "claude", "codex")
 
 def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0) -> dict:
     """Call Pan's HTTP API and return parsed JSON response."""
-    from packages.automation.authorization import object_path
-    if object_path(path):
+    from packages.automation.authorization import canonical_path, object_path
+    # Retired object families must never fall through to the generic HTTP
+    # helper. Their readable/cancellable subset is method-checked below.
+    object_family = path.split('?', 1)[0].split('/', 3)
+    retired_family = (len(object_family) > 2 and object_family[2] in {
+        'final', 'jobs', 'actions', 'action-drafts', 'background-jobs',
+        'session-message-jobs', 'scheduler'}) or path.startswith((
+            '/api/automation/triggers', '/api/automation/runs'))
+    if canonical_path(path) or retired_family:
+        # A gateway can import this registry without running main(). Inspect the
+        # request context too; the module's default 'stdio' is not provenance.
+        try:
+            remote_request = mcp.get_context().request_context.request is not None
+        except ValueError:
+            remote_request = False
+        if remote_request or _terminal_transport != 'stdio':
+            return {'ok': False, 'error': {'code': 'authorization_denied',
+                    'message': 'Trusted local MCP transport required'}}
+    if object_path(path) or retired_family:
         if _terminal_transport != 'stdio':
             return {'ok': False, 'error': {'code': 403, 'message': 'Trusted local MCP transport required'}}
+        if not object_path(path, method):
+            # The address belongs to the retained legacy surface but this method
+            # is retired. Fail closed here instead of leaking an unauthenticated
+            # write onto the application port.
+            return {'ok': False, 'error': {'code': 403,
+                    'message': 'Legacy write entrypoint retired; use the canonical /api API'}}
         try:
             from packages.plugins.ipc import request
             return request({'operation': 'authorization_objects',
                             'session_id': os.environ.get('PAN_AGENT_SESSION_ID', ''),
                             'method': method, 'path': path, 'body': body})
         except Exception:
+            if canonical_path(path):
+                return {'ok': False, 'error': {'code': 'transport_unconfirmed',
+                        'message': 'Outcome unconfirmed; query original requestKey; do not replay'}}
             return {'ok': False, 'error': {'code': 'object_transport_unavailable',
                     'message': 'Trusted MCP object transport unavailable; outcome unconfirmed, do not replay'}}
     url = f"{_pan_api_url}{path}"
@@ -216,6 +253,10 @@ def _api(method: str, path: str, body: dict | None = None, timeout: float = 30.0
         return {"ok": False, "error": {"code": "connection_error", "message": str(e.reason)}}
     except TimeoutError:
         return {"ok": False, "error": {"code": "timeout", "message": "request timed out"}}
+
+
+from packages.mcp.final_tools import register_final_tools
+CANONICAL_TOOLS = register_final_tools(mcp, _api)
 
 
 def _strip_usage(result: dict) -> dict:
@@ -422,7 +463,7 @@ def _agent_message_prefix(text: str) -> str:
 
     立项 4.8：Pan 内 session（adapter 注入 PAN_AGENT_SESSION_ID/TITLE）向其他
     agent 发消息时标注发送者身份，目标 worker 据此区分编排消息与真实用户消息。
-    agent_send / agent_send_force 及其 worker_* 别名共用本实现。
+    agent_send_to_queue / agent_send 及其 worker_* 别名共用本实现。
     """
     sid = os.environ.get("PAN_AGENT_SESSION_ID")
     title = os.environ.get("PAN_AGENT_SESSION_TITLE")
@@ -1841,12 +1882,12 @@ def agent_assign(session_id: str, text: str, task_id: str | None = None) -> dict
 
 
 @mcp.tool()
-def agent_send(session_id: str, text: str = "") -> dict:
+def agent_send_to_queue(session_id: str, text: str = "") -> dict:
     """Deferred follow-up: handle only after the agent's current task finishes.
 
     仅用于明确允许当前任务结束后处理的独立后续事项，消息排队，不打断当前任务。
     向正在执行任务的 TA 更新当前任务（需求补充、用户澄清、实现纠正、约束或
-    验收条件变化、影响当前工作的证据）必须使用 `agent_send_force`，不要使用
+    验收条件变化、影响当前工作的证据）必须使用 `agent_send`，不要使用
     本工具；不以消息长短、语气或是否称为“补充”判断。
 
     无活 worker 时**不报错**——消息入该 agent 的持久队列（返回含
@@ -1880,9 +1921,10 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
     """Send one message to several selected Sessions immediately.
 
     This is the backend fan-out counterpart to selecting Sessions in the
-    Dashboard.  Each target uses the ordinary ``agent_send`` queue semantics;
-    use ``agent_message_job_create`` with ``target_session_ids`` for a durable
-    scheduled fan-out.
+    Dashboard.  Each target uses the ordinary ``agent_send_to_queue`` queue semantics;
+    use a canonical broadcast Job with a Creator/Trigger or a complete Template
+    for durable scheduled fan-out. Retired message-create calls give migration
+    guidance and do not schedule work.
 
     完整编排流程见 /pan skill。
     """
@@ -1902,12 +1944,12 @@ def agent_send_many(session_ids: list[str], text: str = "") -> dict:
 
 
 @mcp.tool()
-def agent_send_force(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
+def agent_send(session_id: str, text: str = "", client_message_id: str | None = None) -> dict:
     """Default for sending updates to the agent's current task.
 
     向正在执行任务的 TA 更新当前任务时默认用本工具：需求补充、用户澄清、
     实现纠正、约束或验收条件变化、影响当前工作的证据，无须额外判断是否紧急。
-    只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send`。
+    只有明确留到当前任务结束后处理的独立后续事项才使用 `agent_send_to_queue`。
     Pan 自动处理投递方式；本工具不绕过暂停、锁或其他发送限制。
     返回接受或入队不代表任务已完成。回执不明时不要重复发送；
     client_message_id 标识同一发送事务，对账时保留原 ID。
@@ -1943,10 +1985,10 @@ def agent_notify(target_session_id: str, text: str = "") -> dict:
     的 queue_pending，原 worker 退出也不会丢失；没有活 worker 时会自动唤醒
     / spawn 目标 worker。
 
-    与 agent_send 的区别：agent_send 发的是待处理任务消息（排队等空闲处理）；
+    与 agent_send_to_queue 的区别：agent_send_to_queue 发的是待处理任务消息（排队等空闲处理）；
     agent_notify 发的是提醒通知（目标以「通知」形态消费，不排入任务序列）。
-    它不是普通任务派发的替代品：普通任务继续使用 agent_assign 或
-    agent_send。后台命令本身仍必须遵守权限、审批、安全和结果验证规则，不能
+    它不是普通任务派发的替代品：新任务用 agent_assign，当前任务更新用
+    agent_send，独立延迟事项用 agent_send_to_queue。后台命令本身仍须遵守权限、审批、安全和结果验证规则，不能
     通过 agent_notify 绕过审批或 managed 隔离。
 
     与 agent_background_start 的分工：需要完成通知的长命令优先用
@@ -2109,8 +2151,6 @@ def interaction_card(operation: str, owner_session_id: str | None = None, card_i
     if operation in {"get", "receipt"}:
         suffix = "/receipt" if operation == "receipt" else ""
         return _api("GET", "/api/interaction-cards/" + quote(card_id, safe="") + suffix + "?" + urlencode({"ownerSessionId": target}))
-
-
 
 @mcp.tool()
 def agent_inbox(operation: str = "list", locker_id: str = "", message_ids: list[str] | None = None,
@@ -2446,7 +2486,7 @@ def agent_background_retry(job_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Scheduled tasks（定时任务插件）— /api/scheduler/* 的 MCP 薄封装
+# Historical scheduled tasks — read-only /api/scheduler/tasks projection
 # ---------------------------------------------------------------------------
 
 _SCHEDULER_TASKS_PATH = "/api/scheduler/tasks"
@@ -2486,99 +2526,9 @@ def _scheduler_task_path(task_id: str, suffix: str = "") -> str:
     return f"{_SCHEDULER_TASKS_PATH}/{quote(task_id, safe='')}{suffix}"
 
 
-def _scheduler_task_call(method: str, task_id: str, target_session_id: str | None,
-                         body: dict | None = None, suffix: str = "") -> dict:
-    """Resolve → authorize (claim=True) → mutate，鉴权失败绝不发出写请求。"""
-    if not _scheduler_identity():
-        return {"error": "missing_identity"}
-    target = target_session_id or _scheduler_target_of(
-        _api("GET", _scheduler_task_path(task_id)))
-    denied = _scheduler_auth(target, claim=True)
-    if denied:
-        return denied
-    return _api(method, _scheduler_task_path(task_id, suffix), body)
-
-
 @mcp.tool()
-def scheduler_create(
-    target_session_id: str,
-    text: str,
-    kind: str,
-    name: str | None = None,
-    at: str | None = None,
-    interval_sec: int | None = None,
-    cron: str | None = None,
-    timezone: str | None = None,
-    enabled: bool = True,
-    max_runs: int | None = None,
-    misfire_policy: str | None = None,
-) -> dict:
-    """Create a scheduled task: a todo + a trigger time, dispatched to a session like an alarm.
-
-    像手机闹钟：提前设定「任务文本 + 触发时间 + 重复规则」，到点插件自动把
-    `text` 派发给 `target_session_id` 的 worker 执行（等价于到点替你发一次
-    agent_assign）。也可以给自己排一条「半小时后回来检查」的提醒。
-
-    三种 schedule（用 `kind` 选择，注意各自必填参数）：
-    - once：一次性。`at` = 本地朴素时间 "YYYY-MM-DDTHH:MM:SS"（如
-      "2026-09-16T09:00:00"），到点触发一次后自动停用。
-    - interval：固定间隔。`interval_sec` = 间隔秒数（>0，如 1800 = 每 30 分钟），
-      按创建锚点推进、不漂移。
-    - cron：日历重复。`cron` = 5 段表达式 "分 时 日 月 周"，如
-      "0 9 * * 1-5" = 每工作日 9:00，"*/30 * * * *" = 每 30 分钟；周 0/7 = 周日。
-
-    返回后端原样结果：成功 {"ok": true, "task": {...}}（含 nextFireAt）；
-    失败 {"ok": false, "error": {"code": ..., "message": ...}}，如
-    invalid_schedule / session_not_found。
-
-    Args:
-        target_session_id: 到点派发的目标 Agent（= session）ID；必须是自己或自己
-            managed 的 session，否则 permission_denied（写操作会自动 claim 未归属 session）
-        text: 到点要执行的任务文本（原样派发给目标 session）
-        kind: "once" | "interval" | "cron"
-        name: 任务名（展示用，建议填）
-        at: kind="once" 必填，本地时间 "YYYY-MM-DDTHH:MM:SS"
-        interval_sec: kind="interval" 必填，间隔秒数（>0）
-        cron: kind="cron" 必填，5 段 cron 表达式
-        timezone: IANA 时区名（默认取配置 scheduler.default_timezone，通常
-            "Asia/Shanghai"）；时间字符串本身不带时区
-        enabled: 总开关，False 则完全不参与扫描
-        max_runs: 最多触发次数，null = 无限；达到后自动停用
-        misfire_policy: 错过触发点的处理，"fire_now"（补派一次）| "skip"（跳过）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks。
-    完整编排流程见 /pan skill。
-    """
-    denied = _scheduler_auth(target_session_id, claim=True)
-    if denied:
-        return denied
-    schedule: dict = {"kind": kind}
-    if at:
-        schedule["at"] = at
-    if interval_sec is not None:
-        schedule["intervalSec"] = interval_sec
-    if cron:
-        schedule["cron"] = cron
-    if timezone:
-        schedule["timezone"] = timezone
-    body: dict = {
-        "targetSessionId": target_session_id,
-        "text": text,
-        "schedule": schedule,
-        "enabled": enabled,
-    }
-    if name:
-        body["name"] = name
-    if max_runs is not None:
-        body["maxRuns"] = max_runs
-    if misfire_policy:
-        body["misfirePolicy"] = misfire_policy
-    return _api("POST", _SCHEDULER_TASKS_PATH, body)
-
-
-@mcp.tool()
-def scheduler_list(target_session_id: str | None = None) -> dict:
-    """List scheduled tasks with their next run time and last run status.
+def scheduler_list(target_session_id: str | None = None, limit: int | None = None, offset: int = 0) -> dict:
+    """List read-only scheduled-task history with original status (never executable).
 
     返回 {"ok": true, "tasks": [...]}，每条含 id / name / targetSessionId /
     schedule / nextFireAt / lastFireAt / lastStatus / runCount / enabled / paused。
@@ -2586,6 +2536,8 @@ def scheduler_list(target_session_id: str | None = None) -> dict:
     Args:
         target_session_id: 只列出派发目标为该 session 的任务（后端无过滤参数，
             在 MCP 层按 targetSessionId 过滤）；省略 = 全部任务（只读）
+        limit: 页大小（1–500），过滤目标 session 前应用
+        offset: 分页起点（非负），按创建时间/原 ID 排序
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks。
     完整编排流程见 /pan skill。
@@ -2593,7 +2545,10 @@ def scheduler_list(target_session_id: str | None = None) -> dict:
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
         return denied
-    result = _api("GET", _SCHEDULER_TASKS_PATH)
+    query = f"?offset={offset}" if limit is not None or offset else ""
+    if limit is not None:
+        query += f"&limit={limit}"
+    result = _api("GET", _SCHEDULER_TASKS_PATH + query)
     if not target_session_id or not isinstance(result, dict):
         return result
     tasks = result.get("tasks")
@@ -2610,7 +2565,7 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
     """Get one scheduled task by id.
 
     Args:
-        task_id: 定时任务 ID（sch_ 前缀）
+        task_id: 原始定时任务或迁移历史 ID
         target_session_id: 该任务派发的目标 session（省略时按返回体补一次只读鉴权）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}。
@@ -2628,117 +2583,8 @@ def scheduler_get(task_id: str, target_session_id: str | None = None) -> dict:
 
 
 @mcp.tool()
-def scheduler_update(
-    task_id: str,
-    target_session_id: str | None = None,
-    name: str | None = None,
-    text: str | None = None,
-    schedule: dict | None = None,
-    enabled: bool | None = None,
-    max_runs: int | None = None,
-    misfire_policy: str | None = None,
-) -> dict:
-    """Patch a scheduled task (only the provided fields are changed).
-
-    改 schedule 时后端会按新规则重算 nextFireAt。三种 schedule 见
-    `scheduler_create`：once（at）/ interval（intervalSec）/ cron（cron，
-    如 "0 9 * * 1-5" = 每工作日 9:00）。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务当前派发的目标 session（省略时先只读解析再鉴权）
-        name: 新任务名
-        text: 新的任务文本
-        schedule: 新的 schedule dict，键 kind / at / intervalSec / anchor / cron /
-            timezone（如 {"kind": "cron", "cron": "0 9 * * 1-5"}）
-        enabled: 总开关（False 停用）
-        max_runs: 最多触发次数（null = 无限）
-        misfire_policy: "fire_now" | "skip"
-
-    调用链：身份校验 → _check_access(claim=True) → PATCH /api/scheduler/tasks/{task_id}。
-    完整编排流程见 /pan skill。
-    """
-    body: dict = {}
-    if name is not None:
-        body["name"] = name
-    if text is not None:
-        body["text"] = text
-    if schedule is not None:
-        body["schedule"] = schedule
-    if enabled is not None:
-        body["enabled"] = enabled
-    if max_runs is not None:
-        body["maxRuns"] = max_runs
-    if misfire_policy is not None:
-        body["misfirePolicy"] = misfire_policy
-    return _scheduler_task_call("PATCH", task_id, target_session_id, body)
-
-
-@mcp.tool()
-def scheduler_delete(task_id: str, target_session_id: str | None = None) -> dict:
-    """Delete a scheduled task.
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → DELETE /api/scheduler/tasks/{task_id}。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("DELETE", task_id, target_session_id)
-
-
-@mcp.tool()
-def scheduler_pause(task_id: str, target_session_id: str | None = None) -> dict:
-    """Pause a scheduled task (skips firing but keeps advancing nextFireAt).
-
-    与 enabled 的区别：enabled 是总开关（关掉后 nextFireAt 不再推进）；paused 是
-    临时挂起，跳过触发但时间锚点照常走，恢复后不会爆发补跑。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/pause。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/pause")
-
-
-@mcp.tool()
-def scheduler_resume(task_id: str, target_session_id: str | None = None) -> dict:
-    """Resume a paused scheduled task (no back-fill of missed fires).
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/resume。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/resume")
-
-
-@mcp.tool()
-def scheduler_run_now(task_id: str, target_session_id: str | None = None) -> dict:
-    """Trigger a scheduled task immediately, without touching its nextFireAt.
-
-    手动立即派发一次（用独立的 dispatch_key 幂等，不影响后续自动触发节奏）。
-    派发是异步的：本工具返回只代表已触发，执行结果看 scheduler_runs 历史。
-
-    Args:
-        task_id: 定时任务 ID
-        target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
-
-    调用链：身份校验 → _check_access(claim=True) → POST /api/scheduler/tasks/{task_id}/run-now。
-    完整编排流程见 /pan skill。
-    """
-    return _scheduler_task_call("POST", task_id, target_session_id, suffix="/run-now")
-
-
-@mcp.tool()
 def scheduler_runs(task_id: str, target_session_id: str | None = None,
-                   limit: int = 50) -> dict:
+                   limit: int = 50, offset: int = 0) -> dict:
     """Execution history of a scheduled task (newest first).
 
     返回 {"ok": true, "runs": [...]}，每条含 runId / taskId / fireAt / actualAt /
@@ -2748,6 +2594,7 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         task_id: 定时任务 ID
         target_session_id: 该任务派发的目标 session（省略时先只读解析再鉴权）
         limit: 返回条数上限
+        offset: 分页起点（非负，最新归档行在前）
 
     调用链：身份校验 → _check_access(claim=False) → GET /api/scheduler/tasks/{task_id}/runs。
     完整编排流程见 /pan skill。
@@ -2760,7 +2607,7 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
         denied = _scheduler_auth(_scheduler_target_of(task), claim=False)
         if denied:
             return denied
-    return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}"))
+    return _api("GET", _scheduler_task_path(task_id, f"/runs?limit={limit}" + (f"&offset={offset}" if offset else "")))
 
 
 @mcp.tool()
@@ -2981,22 +2828,22 @@ def worker_assign(session_id: str, text: str, task_id: str | None = None) -> dic
 @mcp.tool()
 def worker_send(worker_id: str | None = None, text: str = "",
                 session_id: str | None = None) -> dict:
-    """DEPRECATED alias — prefer agent_send(session_id, text).
+    """DEPRECATED alias — prefer agent_send_to_queue(session_id, text).
 
-    Compat alias of `agent_send` for session_id calls (delegates to the same
+    Compat alias of `agent_send_to_queue` for session_id calls (delegates to the same
     implementation: queued multi-turn message, no live worker → pending
     queue with pendingSpawn=true). The legacy `worker_id` addressing path is
     kept here only. Message is queued — the target handles it when idle,
     never interrupting a running task; use `worker_send_force` /
-    `agent_send_force` to interrupt.
+    `agent_send` to interrupt.
 
     When this MCP server runs inside a Pan-managed session, the text is
     prefixed with the sending agent's identity (////by agent, 立项 4.8) —
-    identical to `agent_send`.
+    identical to `agent_send_to_queue`.
 
     Args:
         worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
-        session_id: Session ID (delegates to agent_send)
+        session_id: Session ID (delegates to agent_send_to_queue)
         text: Task text / prompt
 
     完整编排流程见 /pan skill。
@@ -3017,7 +2864,7 @@ def worker_send(worker_id: str | None = None, text: str = "",
         return _api("POST", "/api/task", body)
     if session_id:
         # 委托一等实现（////by agent 前缀在其内部拼接）
-        return agent_send(session_id=session_id, text=text)
+        return agent_send_to_queue(session_id=session_id, text=text)
     return {"ok": False, "error": {
         "code": "missing_params",
         "message": "session_id or worker_id is required"}}
@@ -3026,16 +2873,16 @@ def worker_send(worker_id: str | None = None, text: str = "",
 @mcp.tool()
 def worker_send_force(worker_id: str | None = None, text: str = "",
                       session_id: str | None = None, client_message_id: str | None = None) -> dict:
-    """DEPRECATED alias — prefer agent_send_force(session_id, text).
+    """DEPRECATED alias — prefer agent_send(session_id, text).
 
-    Compat alias of `agent_send_force` for session_id calls (delegates to
+    Compat alias of `agent_send` for session_id calls (delegates to
     the same implementation: capability-routed Steer first; no live worker → pending
     queue). The legacy `worker_id` addressing path is kept here only.
-    Identity prefix (////by agent) identical to `agent_send_force`.
+    Identity prefix (////by agent) identical to `agent_send`.
 
     Args:
         worker_id: Worker ID (e.g. "worker-1") — legacy addressing; 与 session_id 二选一
-        session_id: Session ID (delegates to agent_send_force)
+        session_id: Session ID (delegates to agent_send)
         text: Task text / prompt
 
         client_message_id: Stable force-send transaction ID; do not resend unknown outcomes.
@@ -3046,9 +2893,9 @@ def worker_send_force(worker_id: str | None = None, text: str = "",
         target_sid = _worker_session_id(worker_id)
         if target_sid is None:
             return _worker_unresolvable(worker_id)
-        return agent_send_force(target_sid, text, client_message_id)
+        return agent_send(target_sid, text, client_message_id)
     if session_id:
-        return agent_send_force(session_id=session_id, text=text, client_message_id=client_message_id)
+        return agent_send(session_id=session_id, text=text, client_message_id=client_message_id)
     return {"ok": False, "error": {
         "code": "missing_params",
         "message": "session_id or worker_id is required"}}
@@ -3364,28 +3211,114 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
 def authorization_objects(kind: str, operation: str, item: dict | None = None,
                           item_id: str | None = None, expected_revision: int | None = None,
                           idempotency_key: str | None = None) -> dict:
-    """Profile-wide delegated Trigger/Action/Job Template/Action-reference Job operations.
+    """Compatibility reads for Trigger/Action/Job Template/Job via canonical pages.
 
-    Uses trusted local IPC and the user's Agent grant, never a user password or Bearer.
-    kind: trigger/action/jobTemplate/job. Operations: read/create/updateConfig/delete;
-    trigger/action/job also enable/disable; job also pause/resume/cancel/execute/retry/
-    confirmRecovery; jobTemplate only use (copies a passive fixed configuration).
-    item is the complete Trigger/Action/Template or Job config. Updates and lifecycle
-    require current expected_revision; use also requires stable idempotency_key.
-    Template has no enabled/lifecycle/execute. System definitions cannot be edited or
-    deleted; only their separate enable/disable state is configurable with the explicit
-    manageSystemActions grant. Trigger matches never grant effects; delegated effects
-    also require job.execute. Creation outcome unknown: inspect before retry, never replay.
+    Uses trusted local IPC and the user's Agent read grant, never a user password
+    or Bearer. All legacy writes are explicitly retired. Use canonical object and
+    Run tools with their complete revision, identity and operation envelope.
 
     完整编排流程见 /pan skill。
     """
-    from packages.automation.authorization import object_request
+    from packages.automation.authorization import object_request, LegacyObjectWriteRetired
     try:
         method, path, body = object_request(kind, operation, item, item_id,
                                             expected_revision, idempotency_key)
+    except LegacyObjectWriteRetired:
+        return {'ok': False, 'error': {'code': 'retired',
+                'message': 'Legacy object writes retired; use canonical operation tools'}}
     except ValueError:
         return {'ok': False, 'error': {'code': 'invalid_operation', 'message': 'Invalid four-object operation'}}
     return _api(method, path, body)
+
+
+# R5 retirement: historical Job writes are no longer discoverable or callable
+# through MCP. Scheduler write functions were removed in R6-C; other retired
+# functions remain pending their own source-removal packages. ``tools/list``
+# and ``tools/call`` agree on both kinds of tombstone.
+# Retained on purpose: reads (get/list/runs) and the explicit cancels.  A legacy
+# Job that still owns a Runner process must remain inspectable and cancellable
+# until its owner is drained; an orphaned process is worse than a stale read.
+# R6-C source tombstones: never registered, even temporarily.
+REMOVED_SCHEDULER_MCP_TOOLS = (
+    "scheduler_create",
+    "scheduler_update",
+    "scheduler_delete",
+    "scheduler_pause",
+    "scheduler_resume",
+    "scheduler_run_now",
+)
+
+RETIRED_MCP_TOOLS = (
+    "agent_background_start",
+    "agent_background_retry",
+    "agent_message_job_create",
+    "agent_message_job_update",
+    *REMOVED_SCHEDULER_MCP_TOOLS,
+)
+RETAINED_LEGACY_MCP_TOOLS = (
+    "agent_background_get",
+    "agent_background_list",
+    "agent_background_cancel",
+    "agent_message_job_get",
+    "agent_message_job_list",
+    "agent_message_job_cancel",
+    "scheduler_list",
+    "scheduler_get",
+    "scheduler_runs",
+)
+
+LEGACY_MCP_COMPATIBILITY = {
+    "agent_background_start": "old Runner owner/argv lifecycle has no lossless canonical Job admission mapping",
+    "agent_background_retry": "old retry creates a legacy Job identity; canonical retry requires an original Run/Step/effect and owner fence",
+    "agent_message_job_create": "old message backlog/schedule envelope lacks a canonical Creator/Trigger reference and source admission envelope",
+    "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
+    "scheduler_create": "old scheduler fields lack a canonical Event Creator definition and explicit Trigger/Job composition",
+    "scheduler_update": "old scheduler mutation lacks Creator revision and Trigger reference CAS",
+    "scheduler_delete": "old scheduler delete has no canonical Creator retirement/reference proof envelope",
+    "scheduler_pause": "old scheduler pause is a legacy cursor mutation, not a canonical Creator lifecycle operation",
+    "scheduler_resume": "old scheduler resume is a legacy cursor mutation, not a canonical Creator lifecycle operation",
+    "scheduler_run_now": "old run-now bypasses Event publication and Trigger admission; no canonical event identity is supplied",
+}
+
+LEGACY_MCP_GUIDANCE = {
+    "agent_background_start": "job_action_list -> job_create (immutable process Action ref, literal argv/cwd) -> job_control(enable) -> job_run; retain request_key and job_operation_find",
+    "agent_background_retry": "job_run_get(original run_id) -> job_run_retry(original run_id, expected_state_revision, request_key); unknown/partial: query original, do not replay",
+    "agent_message_job_create": "job_create(definition, request_key) with immutable Session Action ref; event_creator_create + trigger_create for scheduling, or job_template_create for a complete composition",
+    "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
+    "scheduler_create": "event_creator_create(definition, request_key) -> event_creator_control(enable); trigger_create binds the Creator to a canonical Job",
+    "scheduler_update": "event_creator_get -> event_creator_update(object_id, definition, expected_revision, request_key)",
+    "scheduler_delete": "event_creator_get -> event_creator_retire(object_id, expected_revision, expected_state_revision, request_key); resolve active references first",
+    "scheduler_pause": "event_creator_get -> event_creator_control(object_id, operation='pause', expected_revision, expected_state_revision, request_key)",
+    "scheduler_resume": "event_creator_get -> event_creator_control(object_id, operation='enable', expected_revision, expected_state_revision, request_key)",
+    "scheduler_run_now": "job_get -> job_run(job_id, expected_revision, request_key) for explicit manual intent; this does not advance the Scheduler cursor or fabricate an Event",
+}
+
+
+def legacy_mcp_compatibility(tool_name: str, arguments: dict | None = None) -> dict:
+    """Return a structured compatibility disposition without touching transport.
+
+    Canonical tools remain the only write path. This helper makes removed MCP
+    names explicit to callers and tests while refusing to recreate a dispatcher,
+    legacy registry, scheduler, Runner, or second receipt protocol.
+    """
+    if tool_name not in LEGACY_MCP_COMPATIBILITY:
+        return {"ok": False, "error": {"code": "invalid_tool",
+                "message": f"Unknown legacy MCP tool: {tool_name}"}}
+    if arguments is not None and not isinstance(arguments, dict):
+        return {"ok": False, "error": {"code": "invalid_schema",
+                "message": "legacy MCP arguments must be an object"}}
+    return {"ok": False, "error": {"code": "capability_unsupported",
+            "message": LEGACY_MCP_COMPATIBILITY[tool_name],
+            "tool": tool_name, "canonical": "Use registered job_/trigger_/event_creator_/job_template_ tools",
+            "guidance": LEGACY_MCP_GUIDANCE[tool_name]}}
+for _retired_tool in RETIRED_MCP_TOOLS:
+    if _retired_tool not in REMOVED_SCHEDULER_MCP_TOOLS:
+        mcp.remove_tool(_retired_tool)
+_registered_tools = {tool.name for tool in mcp._tool_manager.list_tools()}
+for _retained_tool in RETAINED_LEGACY_MCP_TOOLS:
+    assert _retained_tool in _registered_tools, f"Retained legacy tool disappeared: {_retained_tool}"
+for _retired_tool in RETIRED_MCP_TOOLS:
+    assert _retired_tool not in _registered_tools, f"Retired tool still discoverable: {_retired_tool}"
 
 
 def main():

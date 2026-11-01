@@ -1,0 +1,103 @@
+{
+  "schema": "pan.retirement.validation-finish/revision8",
+  "baseSha": "877717b0014ed386c6bafbfa3c3443f53aa5f309",
+  "testedSourceSha": "0dc3cbad7f86c6553dfcfc94032dd5e864749e44",
+  "changedSourceFile": "tests/test_session_product_closure.py",
+  "changedFunctions": [
+    "test_product_missing_target_rejects_without_spawn",
+    "test_product_fanout_partial_unknown_cold_reopen_never_resends"
+  ],
+  "assertionAudit": [
+    {
+      "node": "tests/test_session_product_closure.py::test_product_missing_target_rejects_without_spawn",
+      "originalAssertions": [
+        "assert h.client.get(\"/api/job-runs/\" + admitted[\"runId\"]).json()[\"state\"] == \"failed\"",
+        "assert sessions.get(\"ses_missing\") is None"
+      ],
+      "verbatimPreserved": true,
+      "admissionBeforeRealDeletionBeforeDispatch": true
+    },
+    {
+      "node": "tests/test_session_product_closure.py::test_product_fanout_partial_unknown_cold_reopen_never_resends",
+      "originalAssertions": [
+        "assert [r[\"outcome\"] for r in receipt[\"receipt\"][\"targets\"]] == [\"succeeded\", \"unknown\", \"rejected\"]",
+        "assert receipt[\"outcome\"] == \"partial\"",
+        "assert cold.final.query_original(\"original-unknown\")[0][\"runs\"][0][\"state\"] == \"uncertain\"",
+        "assert cold.get_run(admitted[\"runId\"], actor={\"type\": \"user\", \"id\": \"local\"})[\"state\"] == \"uncertain\"",
+        "assert calls == [\"ses_a\", \"ses_b\", \"ses_missing\"]"
+      ],
+      "verbatimPreserved": true,
+      "admissionBeforeRealDeletionBeforeDispatch": true
+    }
+  ],
+  "productUnchanged": true,
+  "productGitBlobSha256": "9d0cbc80f7414c78998eaa888671a89687d54f02e57409480d8f6e2a146396f0",
+  "original131Covered": true,
+  "entirePriorAffectedMatrixCovered": true,
+  "twoRedToGreen": [
+    {
+      "node": "tests/test_session_product_closure.py::test_product_missing_target_rejects_without_spawn",
+      "originalSourceSha": "4ef9764c9089a714b9355c5932f0060a68719326",
+      "originalCommand": "evidence/job-retirement-rev7-20261029/affected-http-command.json",
+      "currentStatus": "passed",
+      "currentSourceSha": "0dc3cbad7f86c6553dfcfc94032dd5e864749e44"
+    },
+    {
+      "node": "tests/test_session_product_closure.py::test_product_fanout_partial_unknown_cold_reopen_never_resends",
+      "originalSourceSha": "4ef9764c9089a714b9355c5932f0060a68719326",
+      "originalCommand": "evidence/job-retirement-rev7-20261029/affected-http-command.json",
+      "currentStatus": "passed",
+      "currentSourceSha": "0dc3cbad7f86c6553dfcfc94032dd5e864749e44"
+    }
+  ],
+  "counts": {
+    "passed": 193,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "actualExit": 0,
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev7_write_validation.py",
+    "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin",
+    "tests/test_retirement_rev6_session_validation.py",
+    "tests/test_job_retirement_literal_validation.py",
+    "tests/test_job_retirement_name_scope.py",
+    "tests/test_session_product_closure.py",
+    "tests/test_job_final_http_service.py",
+    "tests/test_scheduler_time_templates.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev8-20261029\\combined-immutable.xml"
+  ],
+  "entireSessionClosureNodeCount": 12,
+  "originalRedArtifacts": {
+    "affected-http.xml": "3bfc609430b08c4585efab2cad855d4112014173d49650a2c02353348b7e0dbc",
+    "affected-http.log": "a60e724a6e2dd1be3f234b13ce8ce6b31f5cda963a50c90a205d5c8465664236",
+    "affected-http-command.json": "b47236ac189889d0f0edccb451ba47fc6bb7629c06b5e2a4852157f05df8d12c"
+  },
+  "environment": {
+    "python": "3.14.5",
+    "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+    "prefix": "D:\\project\\Pan-main\\.venv",
+    "tzlocal": "5.4.5",
+    "tzdata": "2026.5",
+    "packagesInstalledThisRevision": []
+  },
+  "remainingDesignItems": [
+    "QQ retry",
+    "default assign/shell form wrappers",
+    "MCP compatibility",
+    "monitoring/stable-reset",
+    "unknown fallback",
+    "clear-target decisions"
+  ],
+  "wholeMigrationAccepted": false,
+  "remoteCIInvoked": false
+}

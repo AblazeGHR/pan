@@ -1,0 +1,18 @@
+{
+  "sourceSha": "4be0f6c788b1b544c4e2d6722ee0771a01a5db56",
+  "jobId": "job_cfa3e05c007359e8bea667af",
+  "exitCode": 1,
+  "testcases": 69,
+  "passed": 36,
+  "failed": 33,
+  "errors": 0,
+  "skipped": 0,
+  "groups": {
+    "main_service_exit": 13,
+    "main_service_restart": 14,
+    "legal_offline_http": 20,
+    "job_lifecycle_prevention": 22
+  },
+  "productEdits": false,
+  "remoteCi": false
+}

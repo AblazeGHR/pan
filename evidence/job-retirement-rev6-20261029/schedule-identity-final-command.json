@@ -1,0 +1,37 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_schedule.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\schedule-identity-final.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 2.842,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_schedule.py::test_explicit_passive_time_template_reuses_original_worker_and_manual_keeps_cursor[assign]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_schedule.py::test_explicit_passive_time_template_reuses_original_worker_and_manual_keeps_cursor[session-message]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_schedule.py::test_one_actual_time_event_independently_admits_two_original_worker_effects",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 3,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

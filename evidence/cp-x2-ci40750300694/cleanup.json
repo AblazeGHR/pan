@@ -1,0 +1,84 @@
+{
+  "sourceSha": "dd3ea8d8f9f9daa9d460a9bb42e63e800324c34b",
+  "identities": [
+    {
+      "pid": 30552,
+      "birth": 134376915846628298,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 47496,
+      "birth": 134376915828123331,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 52472,
+      "birth": 134376915827518693,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 48156,
+      "birth": 134376915826948446,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 15824,
+      "birth": 134376915831288389,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 2660,
+      "birth": 134376915830620928,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 42356,
+      "birth": 134376915829957070,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 54768,
+      "birth": 134376915848903333,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 15832,
+      "birth": 134376915848253519,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 36824,
+      "birth": 134376915847688627,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 35060,
+      "birth": 134376915844137767,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 9304,
+      "birth": 134376915843501079,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 16000,
+      "birth": 134376915842876004,
+      "originalGone": true,
+      "desktopGone": true
+    }
+  ],
+  "ownedProbeSurvivors": []
+}

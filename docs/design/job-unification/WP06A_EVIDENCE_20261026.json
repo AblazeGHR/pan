@@ -1,0 +1,228 @@
+{
+  "status": "fast-forward-candidate-with-reproduced-baseline-failures",
+  "base": "b63861569232c168fadb4ab62946e19101315473",
+  "branch": "r1/wp06a-http-20261025",
+  "sourceHashBasis": "UTF-8 bytes with CRLF normalized to LF, matching Git source blobs",
+  "sourceSha256": {
+    "packages/jobs/final_api.py": "aec99a6e7cd68f8d2529d5b48a66449410e28203094b6d10134c52dc5f10c6aa",
+    "packages/jobs/final_service.py": "51eb87af82aa83a79a1800bc64d46ae5ba1eec65486a700ab2fc00221cb74b61",
+    "packages/web/server.py": "36549dc7ed02296a51b706b227b003ed5385be4900684790020e1522ef6f61fa",
+    "packages/automation/service.py": "9c2970448b01e04e2fa7244db3dde1679fe03b74bb86d1227aeab9f341cde97a",
+    "packages/automation/store.py": "429e68e1fbb5be1fdd838090f2234a4a6e0185e42a20a20d13420cb5a8dd2ebf",
+    "packages/scheduler/creators.py": "64c89d97de4bb680b56b65b62d3faf666e5c08799c36f74834372c72135e06f8",
+    "tests/test_job_final_transports.py": "0d704495a73db6cbc1492dc386c2e808c6d171179caa1ebb545928aa94a850c6",
+    "tests/test_job_final_http_service.py": "ba87348b8047c180ea39fac287674318d44a1351a18bc3bd4af8338ef6026ccd"
+  },
+  "temporaryPrefix": "/api/final",
+  "routes": {
+    "import": "passed-without-lifespan",
+    "canonicalMethods": 31,
+    "legacyMethods": 36,
+    "jobsPrefixMethods": 36,
+    "duplicateMethodPathPairs": 0
+  },
+  "routeInventory": "WP06A_ROUTES_20261026.json",
+  "tests": {
+    "requiredRegression": {
+      "tests": 392,
+      "passed": 392,
+      "failed": 0,
+      "skipped": 0,
+      "failureNodes": [],
+      "exitCode": 0,
+      "localJUnit": ".artifacts/wp06a-candidate.xml",
+      "command": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_job_final_http_service.py",
+        "tests/test_job_final_transports.py",
+        "tests/test_job_final_contracts.py",
+        "tests/test_job_final_creators.py",
+        "tests/test_job_final_admission.py",
+        "tests/test_job_final_runtime.py",
+        "tests/test_job_final_executors.py",
+        "tests/test_authorization_permissions.py",
+        "tests/test_authorization_password.py",
+        "tests/test_jobs_api.py",
+        "tests/test_scheduler_api.py",
+        "tests/test_background_job_api.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=.artifacts/wp06a-candidate.xml"
+      ]
+    },
+    "newHttpSubset": {
+      "tests": 95,
+      "passed": 95,
+      "failed": 0,
+      "skipped": 0,
+      "failureNodes": [],
+      "exitCode": 0,
+      "localJUnit": ".artifacts/wp06a-http-service.xml",
+      "includedIn": "requiredRegression"
+    },
+    "affectedServiceFinalRerun": {
+      "tests": 33,
+      "passed": 33,
+      "failed": 0,
+      "skipped": 0,
+      "failureNodes": [],
+      "exitCode": 0,
+      "localJUnit": ".artifacts/wp06a-service-final.xml",
+      "includedIn": "requiredRegression",
+      "command": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_job_final_http_service.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=.artifacts/wp06a-service-final.xml"
+      ]
+    },
+    "authorizationAdjacent": {
+      "tests": 39,
+      "passed": 35,
+      "failed": 4,
+      "skipped": 0,
+      "failureNodes": [
+        "tests/test_authorization_runtime.py::test_trigger_lifecycle_grant_does_not_authorize_effect_and_user_trigger_survives_revocation",
+        "tests/test_authorization_runtime.py::test_trigger_effect_revision_barrier",
+        "tests/test_authorization_mcp.py::test_real_stdio_grants_no_user_bearer_and_four_object_operations[core]",
+        "tests/test_authorization_mcp.py::test_real_stdio_grants_no_user_bearer_and_four_object_operations[native]"
+      ],
+      "exitCode": 1,
+      "localJUnit": ".artifacts/wp06a-authorization-final.xml",
+      "command": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_authorization_runtime.py",
+        "tests/test_authorization_mcp.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=.artifacts/wp06a-authorization-final.xml"
+      ]
+    },
+    "eventAdjacent": {
+      "tests": 101,
+      "passed": 86,
+      "failed": 15,
+      "skipped": 0,
+      "failureNodes": [
+        "tests/test_event_store.py::test_commit_precedes_fanout_schema_and_write_failure",
+        "tests/test_event_store.py::test_crash_after_commit_before_delivery_and_frozen_trigger_set",
+        "tests/test_event_store.py::test_partial_run_write_recovery_dedup_and_no_automatic_run_retry",
+        "tests/test_event_store.py::test_uncertain_preserves_attempt_and_refuses_user_replay",
+        "tests/test_event_store.py::test_run_retention_protects_pending_uncertain_and_retained_event",
+        "tests/test_event_store.py::test_empty_event_release_is_read_only_and_existing_run_still_admitted",
+        "tests/test_event_store.py::test_pending_old_plugin_events_do_not_starve_independent_event[0]",
+        "tests/test_event_store.py::test_pending_old_plugin_events_do_not_starve_independent_event[0.06]",
+        "tests/test_event_store.py::test_slow_commit_cancellation_settles_and_restart_delivers",
+        "tests/test_event_store.py::test_disabled_after_accept_does_not_resurrect_and_attempt_deferral_reuses_id",
+        "tests/test_event_store.py::test_capacity_alarm_visible_without_evicting_uncertain",
+        "tests/test_event_store.py::test_legacy_running_migrates_to_one_uncertain_attempt_without_event_replay",
+        "tests/test_event_store.py::test_many_concurrent_same_event_ids_have_one_run_and_attempt",
+        "tests/test_event_store_http.py::test_actual_running_event_persists_before_query_pause",
+        "tests/test_event_store_http.py::test_node_durable_event_http_replay_restart_and_uncertain"
+      ],
+      "exitCode": 1,
+      "localJUnit": ".artifacts/wp06a-adjacent-stable.xml",
+      "command": [
+        "python",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_automation_core.py",
+        "tests/test_event_store.py",
+        "tests/test_event_store_http.py",
+        "tests/test_scheduler_time_events.py",
+        "tests/test_scheduler_cron.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=.artifacts/wp06a-adjacent-stable.xml"
+      ]
+    }
+  },
+  "completedDistinctTests": {
+    "tests": 532,
+    "passed": 513,
+    "failed": 19,
+    "skipped": 0
+  },
+  "baseline": {
+    "authorizationFailuresReproduced": 4,
+    "authorizationLocalEvidence": [
+      ".artifacts/wp06a-baseline-authorization.log",
+      ".artifacts/wp06a-baseline-mcp.log"
+    ],
+    "eventFailuresReproduced": 15,
+    "sameEventFailureNodes": true,
+    "relevantArchiveSourceBytesMatchBaseline": true,
+    "incompleteExpansion": {
+      "countedAsPassed": false,
+      "node": "tests/test_automation_concurrency.py::test_kick_read_inflight_at_close_must_not_spawn",
+      "candidate": "broader batch hung; only owned pytest terminated",
+      "baselineTimeoutSeconds": 30
+    }
+  },
+  "checks": {
+    "serverImportWithoutLifespan": "passed",
+    "sourceAstParse": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "implemented": [
+    "legacy jobs URLs and handlers preserved",
+    "production lifespan binds durable canonical service",
+    "WP01 definitions and errors",
+    "WP02 aggregate/Run/Attempt/Effect/outbox",
+    "WP03 admission projection",
+    "WP04 Creator transactions and clone composition",
+    "CAS and durable requestKey replay",
+    "six Run operations",
+    "Cookie same-origin and Bearer",
+    "execution-time reauthorization",
+    "unknown effects retain concurrency capacity and original identity"
+  ],
+  "explicitUnsupported": [
+    "automatic recovery policy",
+    "owner transfer"
+  ],
+  "notWired": [
+    "public Template instantiate/graph edit API",
+    "notification channel delivery from outbox",
+    "production independent-host/lifecycle-supervisor delegation and cross-host receipt consumer"
+  ],
+  "unverified": [
+    "canonical TCP HTTP and browser",
+    "full production lifespan",
+    "real Session/QQ effects",
+    "durableDetach/main restart-exit",
+    "POSIX machine",
+    "remote three-platform CI",
+    "full backend suite",
+    "real data migration",
+    "deployment",
+    "human acceptance"
+  ],
+  "boundaries": {
+    "push": false,
+    "existingServicesStartedStopped": false,
+    "ports8767_8768Touched": false,
+    "mcpCliUiSourceChanged": false,
+    "legacyHandlerOrObjectPathRemoved": false,
+    "isolatedTestOwnedTcpSubprocesses": true
+  }
+}

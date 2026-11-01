@@ -1,0 +1,407 @@
+{
+  "port": 54358,
+  "profile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0\\crash-profile",
+  "crash": "kill only captured owned host PID/create-time identities",
+  "jobId": "job_2ffd434cbdb84f3cb5c2ed24",
+  "crashedHostPids": [
+    15540,
+    49692
+  ],
+  "recovered": {
+    "jobId": "job_2ffd434cbdb84f3cb5c2ed24",
+    "kind": "background-process",
+    "taskId": "sch_47f4a05d1418",
+    "name": "Phase5 crash uncertainty",
+    "description": "",
+    "targetSessionId": "ses_1ea7d2a3d95b670d",
+    "sourceStruct": {
+      "type": "system"
+    },
+    "targetStruct": {
+      "sessionId": null
+    },
+    "text": "",
+    "source": "automation",
+    "creatorSessionId": "ses_1ea7d2a3d95b670d",
+    "enabled": false,
+    "paused": false,
+    "schedule": [],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": null,
+    "lastFireAt": null,
+    "lastStatus": "uncertain",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "uncertain",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792923479.0,
+    "updatedAt": 1792923479.967694,
+    "configRevision": 1,
+    "creationEventPending": false,
+    "templateId": null,
+    "authorization": {
+      "type": "legacy-mcp"
+    },
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-c",
+      "import pathlib,time; p=pathlib.Path('C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-4668\\\\test_owned_host_crash_retains_0\\\\business-effect.jsonl'); p.open(\"a\",encoding=\"utf-8\").write(\"executed\\n\"); time.sleep(20)"
+    ],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0",
+    "hideWindow": true,
+    "label": null,
+    "sourceSessionId": "ses_1ea7d2a3d95b670d",
+    "legacyCompat": "background-process",
+    "operation": "run",
+    "runAuthorization": {
+      "type": "legacy-mcp"
+    },
+    "runPolicy": {
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "completion": {
+        "kind": "ordinary"
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      }
+    },
+    "recoveryFailures": 0,
+    "attempts": [
+      {
+        "id": "attempt_738f72d23b91455bbf9befdf",
+        "runId": "run_aba347afa84b48db890bb57a",
+        "count": 1,
+        "status": "uncertain",
+        "actionId": "system_background_process",
+        "templateRevision": null,
+        "backoffSec": 0,
+        "receipt": null,
+        "sideEffectUncertainty": true,
+        "actionRevision": 1,
+        "registryRevision": 1,
+        "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+        "argumentsDigest": "27a45d7ac8f797fb69344ff1e48512c69bb3c1c0df3cf1034e3306881be0b5dd",
+        "contextDigest": "08a3368a6d57dd6d253312e79fa1683a17cfa2c0997cae479bbbce219f1990f1",
+        "executionKind": "system_job",
+        "terminalStatus": "uncertain",
+        "snapshotCleanup": "cleaned",
+        "finishedAt": 1792923481.5048685
+      }
+    ],
+    "runId": "run_aba347afa84b48db890bb57a",
+    "activeExecutions": {},
+    "runRecoveryEligible": false,
+    "processAdmissionId": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+    "processAdmittedAt": 1792923479.7028174,
+    "runnerSpawnStartedAt": 1792923479.7058992,
+    "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0\\crash-profile\\background_jobs\\logs\\job_2ffd434cbdb84f3cb5c2ed24.log",
+    "notificationState": "pending",
+    "pid": 56048,
+    "processCreatedAt": 1792923479.9615428,
+    "runnerPid": 33300,
+    "runnerProcessCreatedAt": 1792923479.7354298,
+    "runnerFiletime": "134373970797354300",
+    "runnerClaim": "8e5eebbaa0437a414cc49e3ca338a0eb",
+    "processFiletime": "134373970799615429",
+    "processJobHandle": "584",
+    "executionFinalizations": {},
+    "terminalOutbox": {},
+    "snapshotCleanup": "cleaned",
+    "lastExecution": {
+      "id": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+      "runId": "run_aba347afa84b48db890bb57a",
+      "attemptId": "attempt_738f72d23b91455bbf9befdf",
+      "authorization": {
+        "type": "legacy-mcp"
+      },
+      "executionKind": "system_job",
+      "status": "uncertain",
+      "notificationPolicy": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "actionId": "system_background_process",
+      "actionRevision": 1,
+      "registryRevision": 1,
+      "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+      "argumentsDigest": "27a45d7ac8f797fb69344ff1e48512c69bb3c1c0df3cf1034e3306881be0b5dd",
+      "contextDigest": "08a3368a6d57dd6d253312e79fa1683a17cfa2c0997cae479bbbce219f1990f1",
+      "processJobId": "job_2ffd434cbdb84f3cb5c2ed24"
+    },
+    "terminalEventId": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+    "terminalEventEmittedFor": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162"
+  },
+  "retry": {
+    "ok": false,
+    "error": {
+      "code": "job_not_retryable",
+      "message": "Job cannot be retried without a known terminal result"
+    }
+  },
+  "cancelled": {
+    "jobId": "job_2ffd434cbdb84f3cb5c2ed24",
+    "kind": "background-process",
+    "taskId": "sch_47f4a05d1418",
+    "name": "Phase5 crash uncertainty",
+    "description": "",
+    "targetSessionId": "ses_1ea7d2a3d95b670d",
+    "text": "",
+    "source": {
+      "type": "system"
+    },
+    "creatorSessionId": "ses_1ea7d2a3d95b670d",
+    "enabled": false,
+    "paused": false,
+    "schedule": [],
+    "misfirePolicy": "fire_now",
+    "nextFireAt": null,
+    "lastFireAt": null,
+    "lastStatus": "uncertain",
+    "lastError": null,
+    "runCount": 1,
+    "maxRuns": null,
+    "status": "cancelled",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792923479.0,
+    "updatedAt": 1792923482.7002568,
+    "configRevision": 2,
+    "creationEventPending": false,
+    "templateId": null,
+    "authorization": {
+      "type": "legacy-mcp"
+    },
+    "argv": [
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+      "-c",
+      "import pathlib,time; p=pathlib.Path('C:\\\\Users\\\\14709\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-ablaze\\\\pytest-4668\\\\test_owned_host_crash_retains_0\\\\business-effect.jsonl'); p.open(\"a\",encoding=\"utf-8\").write(\"executed\\n\"); time.sleep(20)"
+    ],
+    "cwd": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0",
+    "hideWindow": true,
+    "label": null,
+    "sourceSessionId": "ses_1ea7d2a3d95b670d",
+    "legacyCompat": "background-process",
+    "operation": "run",
+    "runAuthorization": {
+      "type": "legacy-mcp"
+    },
+    "runPolicy": {
+      "recovery": {
+        "enabled": false,
+        "monitoring": false,
+        "maxAttempts": 3,
+        "backoffSec": [
+          5,
+          15,
+          60
+        ],
+        "stableResetSec": 300
+      },
+      "completion": {
+        "kind": "ordinary"
+      },
+      "notification": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      }
+    },
+    "recoveryFailures": 0,
+    "attempts": [
+      {
+        "id": "attempt_738f72d23b91455bbf9befdf",
+        "runId": "run_aba347afa84b48db890bb57a",
+        "count": 1,
+        "status": "uncertain",
+        "actionId": "system_background_process",
+        "templateRevision": null,
+        "backoffSec": 0,
+        "receipt": null,
+        "sideEffectUncertainty": true,
+        "actionRevision": 1,
+        "registryRevision": 1,
+        "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+        "argumentsDigest": "27a45d7ac8f797fb69344ff1e48512c69bb3c1c0df3cf1034e3306881be0b5dd",
+        "contextDigest": "08a3368a6d57dd6d253312e79fa1683a17cfa2c0997cae479bbbce219f1990f1",
+        "executionKind": "system_job",
+        "terminalStatus": "uncertain",
+        "snapshotCleanup": "cleaned",
+        "finishedAt": 1792923481.5048685
+      }
+    ],
+    "runId": "run_aba347afa84b48db890bb57a",
+    "activeExecutions": {},
+    "runRecoveryEligible": false,
+    "processAdmissionId": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+    "processAdmittedAt": 1792923479.7028174,
+    "runnerSpawnStartedAt": 1792923479.7058992,
+    "logPath": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-4668\\test_owned_host_crash_retains_0\\crash-profile\\background_jobs\\logs\\job_2ffd434cbdb84f3cb5c2ed24.log",
+    "notificationState": "pending",
+    "pid": 56048,
+    "processCreatedAt": 1792923479.9615428,
+    "runnerPid": 33300,
+    "runnerProcessCreatedAt": 1792923479.7354298,
+    "runnerFiletime": "134373970797354300",
+    "runnerClaim": "8e5eebbaa0437a414cc49e3ca338a0eb",
+    "processFiletime": "134373970799615429",
+    "processJobHandle": "584",
+    "executionFinalizations": {},
+    "terminalOutbox": {},
+    "snapshotCleanup": "cleaned",
+    "lastExecution": {
+      "id": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+      "runId": "run_aba347afa84b48db890bb57a",
+      "attemptId": "attempt_738f72d23b91455bbf9befdf",
+      "authorization": {
+        "type": "legacy-mcp"
+      },
+      "executionKind": "system_job",
+      "status": "uncertain",
+      "notificationPolicy": {
+        "on": [
+          "completed",
+          "failed",
+          "cancelled",
+          "unknown",
+          "uncertain",
+          "cleaning"
+        ],
+        "target": "job"
+      },
+      "actionId": "system_background_process",
+      "actionRevision": 1,
+      "registryRevision": 1,
+      "digest": "5b8e77dd5a8508ad79d0a1c0c44c980d9843f8e0d8071d8b0efb29045a74d7b8",
+      "argumentsDigest": "27a45d7ac8f797fb69344ff1e48512c69bb3c1c0df3cf1034e3306881be0b5dd",
+      "contextDigest": "08a3368a6d57dd6d253312e79fa1683a17cfa2c0997cae479bbbce219f1990f1",
+      "processJobId": "job_2ffd434cbdb84f3cb5c2ed24"
+    },
+    "terminalEventId": "job_2ffd434cbdb84f3cb5c2ed24:terminal",
+    "terminalEventEmittedFor": "jexec_3d7b50c7a1d9435c8e20ac0c57f84162",
+    "cancelRequestedAt": 1792923482.678213,
+    "exitCode": null,
+    "processTreeEnded": true,
+    "pendingRuns": [],
+    "target": {
+      "sessionId": null
+    }
+  },
+  "unmappable": {
+    "jobId": "job_b5e083fc2aeb",
+    "kind": "scheduled-task",
+    "taskId": "sch_phase5_unmappable",
+    "name": "Phase5 unmappable",
+    "description": "",
+    "targetSessionId": "ses_1ea7d2a3d95b670d",
+    "sourceStruct": {
+      "type": "system"
+    },
+    "targetStruct": {
+      "sessionId": "ses_1ea7d2a3d95b670d"
+    },
+    "text": "retained",
+    "action": {
+      "api": "assign"
+    },
+    "source": "automation",
+    "creatorSessionId": null,
+    "enabled": false,
+    "paused": false,
+    "schedule": [
+      {
+        "id": "sce_e7f26598",
+        "misfirePolicy": "skip",
+        "enabled": true,
+        "nextFireAt": "2026-10-25T19:18:00",
+        "lastFireAt": null,
+        "kind": "interval",
+        "interval_sec": 3600,
+        "intervalSec": 3600,
+        "anchor": "2026-10-25T18:18:00",
+        "futureField": {
+          "must": "survive"
+        }
+      }
+    ],
+    "misfirePolicy": "skip",
+    "nextFireAt": "2026-10-25T19:18:00",
+    "lastFireAt": null,
+    "lastStatus": null,
+    "lastError": null,
+    "runCount": 0,
+    "maxRuns": null,
+    "status": "completed",
+    "runStartedAt": null,
+    "undeliveredFires": [],
+    "createdAt": 1792923480.0,
+    "updatedAt": 1792923480.3716748
+  },
+  "legacyPause": {
+    "ok": true,
+    "task": {
+      "id": "sch_phase5_unmappable",
+      "name": "Phase5 unmappable",
+      "description": "",
+      "targetSessionId": "ses_1ea7d2a3d95b670d",
+      "text": "retained",
+      "enabled": false,
+      "paused": true,
+      "schedule": {
+        "kind": "interval",
+        "intervalSec": 3600,
+        "anchor": "2026-10-25T18:18:00",
+        "futureField": {
+          "must": "survive"
+        }
+      },
+      "nextFireAt": "2026-10-25T19:18:00",
+      "lastFireAt": null,
+      "lastStatus": null,
+      "lastError": null,
+      "runCount": 0,
+      "maxRuns": null,
+      "misfirePolicy": "skip",
+      "createdAt": "2026-10-25T18:18:00",
+      "updatedAt": "2026-10-25T18:18:02",
+      "nextRunAt": "2026-10-25T19:18:00",
+      "lastRunAt": null
+    }
+  },
+  "secondRestartNoReplay": true,
+  "ownedProcessesRemaining": [],
+  "fallbackCleanupPids": [],
+  "portReleased": true
+}

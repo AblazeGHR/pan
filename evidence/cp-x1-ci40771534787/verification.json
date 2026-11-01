@@ -1,0 +1,44 @@
+{
+  "base": "505b458348e7e8c4c1c99095b75bb0f8a396e894",
+  "remote_run": 40771534787,
+  "remote_source": "c503b21a",
+  "remote_artifact_sha256": {
+    "3.12/terminal-phases.json": "4763eb1f59bc9856a37c8efa7d7a9b71d7e95560334af85dbd31d47757abcf13",
+    "3.12/terminal-held-phases.json": "7bac68e3f87d7a0593e8dc6a87a6702b2956653a2fefe9fa9bffaca2b5d9b8df",
+    "3.12/locker-requests.json": "0cea65a9091ea599bff1b8c12ade706d313cf07b6085c30a5f7ee6925f06b1df",
+    "3.14/terminal-phases.json": "be0ae97073d5cadb3ffb5d636bf5aee8c66ea467312535d63c822aed98053d1e",
+    "3.14/terminal-held-phases.json": "e2cbafbfad7d8eda04cf0610e79a82acacaf67c79f9f84d4745a0b8939c30abb",
+    "3.14/locker-requests.json": "6c947edca2777e38865984be243c2ec8e62a630a59b0fcde558ce4ee4db41466"
+  },
+  "local_python": "3.14.5",
+  "original_asserts": {
+    "baseline": 9,
+    "preserved": 9,
+    "added": 1
+  },
+  "runs": [
+    {
+      "name": "local-v3 instrumented original nodes and held test",
+      "passed": 3,
+      "exit": 0
+    },
+    {
+      "name": "original terminal and held test after final assertion",
+      "passed": 2,
+      "exit": 0
+    },
+    {
+      "name": "real crash unit and owned HTTP end-to-end",
+      "passed": 2,
+      "exit": 0
+    },
+    {
+      "name": "missing Chromium induced cleanup check",
+      "passed": 0,
+      "failed": 1,
+      "exit": 1,
+      "expected_failure": true,
+      "port_released": true
+    }
+  ]
+}

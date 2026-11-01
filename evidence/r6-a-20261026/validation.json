@@ -1,0 +1,115 @@
+{
+  "schema": "pan.r6-a.validation/v1",
+  "baseline": "43655680f030765de5bce5ea5b675c7a0e2672d5",
+  "baselineFocused": {
+    "passed": 188,
+    "exitCode": 0
+  },
+  "groups": [
+    {
+      "group": "leaves",
+      "tests": 55,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 55,
+      "exitCode": 0,
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_r6_legacy_leaves.py -q -o addopts= --tb=short --junitxml=evidence/r6-a-20261026/leaves.xml"
+    },
+    {
+      "group": "focused",
+      "tests": 188,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 188,
+      "exitCode": 0,
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_runtime_owner.py tests/test_job_final_retirement.py tests/test_job_final_executors.py tests/test_job_final_migration_user_authorization.py tests/test_automation_retirement.py -q -o addopts= --tb=short --junitxml=evidence/r6-a-20261026/focused.xml"
+    },
+    {
+      "group": "retained",
+      "tests": 101,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 101,
+      "exitCode": 0,
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_canonical_migration.py tests/test_job_system_actions.py tests/test_handoff_job_retarget.py tests/test_jobs_completed_retention.py tests/test_job_inbox_boundaries.py tests/test_job_inbox_migration_drill.py -q -o addopts= --tb=short --junitxml=evidence/r6-a-20261026/retained.xml"
+    },
+    {
+      "group": "canonical",
+      "tests": 393,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "passed": 392,
+      "exitCode": 0,
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_contracts.py tests/test_job_final_runtime.py tests/test_job_final_admission.py tests/test_job_final_creators.py tests/test_job_final_http_service.py tests/test_job_final_transports.py tests/test_job_final_migration.py tests/test_job_final_migration_apply.py tests/test_job_final_migration_partial.py tests/test_p9_practical_rehearsal.py tests/test_runtime_owner_stuck.py tests/test_job_final_independent_execution.py -q -o addopts= --tb=short --junitxml=evidence/r6-a-20261026/canonical.xml"
+    },
+    {
+      "group": "import-retained",
+      "tests": 104,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 104,
+      "exitCode": 0,
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_platform_import_chain.py tests/test_r5_p4_platform.py tests/test_job_path_flip.py tests/test_session_pin_api.py tests/test_data_retention.py tests/test_scheduler_cron.py -q -o addopts= --tb=short --junitxml=evidence/r6-a-20261026/import-retained.xml"
+    }
+  ],
+  "total": {
+    "tests": 841,
+    "passed": 840,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "collection": {
+    "collected": 6924,
+    "exitCode": 0,
+    "log": "collection-with-deps.log",
+    "command": "<temporary-venv-python> scripts/run_tests_isolated.py -- <temporary-venv-python> -m pytest tests/ --collect-only -q -o addopts="
+  },
+  "compile": {
+    "trackedPythonFiles": 1085,
+    "failures": []
+  },
+  "imports": {
+    "passed": 301,
+    "failed": 0,
+    "excludedLaunchOrTestFiles": 34,
+    "command": "<temporary-venv-python> scripts/run_tests_isolated.py -- <temporary-venv-python> evidence/r6-a-20261026/import_smoke.py"
+  },
+  "sourceScan": {
+    "beforeFiles": 4352,
+    "afterFiles": 4355,
+    "removedDefinitions": 37,
+    "resolvedBaselineReferences": 62,
+    "afterResolvedReferences": 0
+  },
+  "boundaries": {
+    "reactBuild": false,
+    "mcpRegistrationChanged": false,
+    "R6P7Combined": false,
+    "remoteCI": false,
+    "realDataMigration": false,
+    "manualDeleteExecuted": false,
+    "deployedServiceStartedOrStopped": false,
+    "protectedPortsUsed": false,
+    "push": false
+  },
+  "testMigrations": [
+    {
+      "old": "test_recovery_cycle_invokes_the_retention_gate",
+      "successor": "test_retired_recovery_never_drives_retention"
+    },
+    {
+      "old": "test_recovery_runs_retention_off_loop_and_emits_deleted_event_on_loop",
+      "successor": "test_explicit_retention_still_emits_deleted_event"
+    },
+    {
+      "old": "test_inflight_message_send_cannot_be_recalled_but_next_run_uses_retargeted_id",
+      "successor": "test_retired_message_cannot_send_and_handoff_keeps_original_identity"
+    }
+  ]
+}

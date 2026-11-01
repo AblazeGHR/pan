@@ -1,0 +1,14 @@
+[
+  {
+    "path": "qq-recovery.log",
+    "rawSha256InArchive": "02bdde39700505d142bfda1c5635d9db7a83acea99b4dadbc9c865c20c67ff15",
+    "textViewSha256": "6c8f782a399777436bd3f1f131cf3c9d404bbf229ae2cc657540e01eb2b67c4d",
+    "onlyChange": "trailing spaces removed from materialized text view; raw bytes retained in raw-artifacts.zip"
+  },
+  {
+    "path": "qq-recovery.xml",
+    "rawSha256InArchive": "66f0579254a51a4761c16032ed5305664d7a1781c045f3c78bbef70cadab76e9",
+    "textViewSha256": "189e82b574926506974cacc32667583b731af47319c9d2ea3c7973d9ff27a6bb",
+    "onlyChange": "trailing spaces removed from materialized text view; raw bytes retained in raw-artifacts.zip"
+  }
+]

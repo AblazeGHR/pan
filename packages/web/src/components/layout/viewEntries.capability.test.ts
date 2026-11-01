@@ -34,7 +34,7 @@ describe('view entry capabilities', () => {
       'terminal.detach': false,
     });
     expect(filtered.map((entry) => entry.to)).toEqual([
-      '/', '/editor', '/jobs', '/locker', '/actions', '/automation',
+      '/', '/editor', '/locker', '/actions', '/automation',
     ]);
   });
 });

@@ -1,0 +1,25 @@
+{
+  "note": "Only generated resume artifacts; exact raw bytes retained in raw-tracebacks.zip. Original prior-turn evidence untouched.",
+  "files": [
+    {
+      "file": "core-final.log",
+      "originalSha256": "3727b28cac739c678705c869b272aa333a4c81c0f15bf1c3247c1e8ebd74a3aa",
+      "normalizedSha256": "3c5a75e920f7ead14b6447a83015c0cd552b8b10a5c153d36fa6808b10bcd637"
+    },
+    {
+      "file": "core-final.xml",
+      "originalSha256": "29ac06feb8f8f4e6f62b3badaf7ada63391906b646a0ad1e13653ebc81ccb8c6",
+      "normalizedSha256": "48f65e08c7eedd16bc81f2228c9e5f992121cb0a85a721bace69260014e550c6"
+    },
+    {
+      "file": "startup.log",
+      "originalSha256": "55bf2d458bbecce7112b14962c1a6c0048b502d04cb274beca71ceccbf085ef6",
+      "normalizedSha256": "9f0c37c8bf060071c705423122b79a0e0fd2f693463dcb18c26db7c4ec38991e"
+    },
+    {
+      "file": "startup.xml",
+      "originalSha256": "72e14e4e9f5c64466ce4f1f17cc72822d21ee396ae6d2133b642b6224aea5b48",
+      "normalizedSha256": "a87e161b44ff624469a5ab7e53555815bae23cf37144b5f58a5caddcc43c4d0a"
+    }
+  ]
+}

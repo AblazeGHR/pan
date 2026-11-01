@@ -1,0 +1,54 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_platform_process_windows_hidden.py::test_atomic_membership_precedes_resume_and_no_late_assign",
+    "tests/test_platform_process_windows_hidden.py::test_runner_death_inside_create_before_return_runs_no_child_instruction",
+    "tests/test_session_product_closure.py::test_handoff_only_declared_targets_preserves_nested_payload_and_frozen_run",
+    "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+    "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+    "tests/test_job_retirement_remaining_successors.py::test_invalid_schedule_spec_is_rejected_before_creator_persistence",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\creation-source.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 3.35,
+  "nodes": [
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_atomic_membership_precedes_resume_and_no_late_assign",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_platform_process_windows_hidden.py::test_runner_death_inside_create_before_return_runs_no_child_instruction",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_session_product_closure.py::test_handoff_only_declared_targets_preserves_nested_payload_and_frozen_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_remaining_successors.py::test_invalid_schedule_spec_is_rejected_before_creator_persistence",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 6,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

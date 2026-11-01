@@ -1,0 +1,9 @@
+{
+  "executorPort": 53032,
+  "label": "canonical-late-terminal",
+  "canonicalPort": 51246,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 1
+}

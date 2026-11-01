@@ -1,0 +1,10 @@
+{
+  "originalFence": true,
+  "ownedTreeConfirmed": true,
+  "supervisorExited": true,
+  "invalidBearerRejected": true,
+  "revokedReadRejected": true,
+  "portReleased": true,
+  "supervisorsRemaining": [],
+  "interpreter": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe"
+}

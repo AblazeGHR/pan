@@ -1,0 +1,420 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_qq_native_provider.py",
+    "packages/qq/test_channels.py",
+    "packages/qq/test_qq_api.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev10-20261029\\qq-native.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "testedSourceSha": "f04011d1691fe0aa2982c772b3d338866ed65b5d",
+  "boundFileSha256": {
+    "packages/actions/qq_channel_provider.py": "341ebed70a0b67b4d1b13e8ea60b3795e6e05731714ca4fb16b376369fb92fdb",
+    "packages/actions/typed_executor.py": "f12ad157590202420ea090ea175f8e536c7125a0f4bb7404d8498a2e545282fe",
+    "packages/jobs/final_service.py": "8ed984f8ff2aeec2635a05d88facadc487a0819dabe4c300a86f7022dd441ba1",
+    "tests/test_retirement_rev9_qq_http.py": "ed337d1a0e0784d79d3c090bcb577ad5a6a5b3ce1ca13cca9b7f89290345610c"
+  },
+  "sourceStable": true,
+  "productFileSha256": "8ed984f8ff2aeec2635a05d88facadc487a0819dabe4c300a86f7022dd441ba1",
+  "elapsedSeconds": 20.004,
+  "nodes": [
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_existing_chain_maps_action_and_preserves_raw_success",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_optional_bot_and_group_are_forwarded_to_existing_route",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_existing_plugin_rejection_is_returned_unchanged",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[private-123456-hello]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[user-bad-hello]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_action_validation_happens_before_transport[user-123456-]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_unknown_original_failure_is_not_reclassified_as_success",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_qq_native_provider.py::test_host_injection_binds_existing_sender_once",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_resolve_channel_name_defaults_and_fallback",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_create_channel_returns_correct_type",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_spec_defaults",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_spec_config_override",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_spec_env_precedence",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_specs_single_channel_compat",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_specs_multi_channel",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_specs_entry_fallbacks",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_build_channel_specs_env_ignored_in_multi",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_create_channel_alias_name",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_multi_channel_registry",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_filters_by_bot_uin",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_bot_connect_filters_by_bot_uin",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_plugin_get_channel_by_uin_and_reply_routing",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_api_send_with_bot_uin_routes_and_persists",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_history_path_legacy_and_bot_isolation",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_api_read_default_bot_fallback",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_send_private_routes_to_send_private_msg",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_send_group_routes_to_send_group_msg",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_send_validation_errors",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_send_bot_not_connected",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_upload_file_private",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_upload_file_group",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_upload_file_name_autoderive",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_upload_file_validation_errors",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_recent_contacts_merges",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_channel_recent_contacts_bot_not_connected",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_private_builds_qqmessage",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_group_requires_at_bot",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_empty_text_dropped",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_rich_media_appended_to_text",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_pure_media_not_dropped",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_file_segment_described",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_mface_described",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_mface_downloaded_to_local_path",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_safe_filename_rules",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_download_writes_file_and_ext_from_content_type",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_download_failure_returns_none",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_media_downloaded_to_local_path",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_on_message_media_download_failure_keeps_url",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_is_connected_toggles",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_napcat_llonebot_isolation",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_plugin_get_channel_uses_configured_channel",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_channels.py::test_plugin_channel_send_goes_through_active_channel",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_private_routes_to_send_private_msg",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_group_routes_to_send_group_msg",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_string_numeric_target_id",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_invalid_target_type",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_invalid_target_id",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_empty_text",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_bot_not_connected",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_api_failure",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_history_empty",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_append_and_read_roundtrip",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_history_limit_takes_newest",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_history_sanitizes_target_id",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_send_records_outgoing_assistant_message",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_merges_full_lists",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_missing_name_falls_back_to_uin",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_recent_fails_still_lists",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_unsupported",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_mode_default_mirror",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_mode_selective_and_invalid",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_selective_writes_inbox_and_history_no_reply",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_selective_group_at_message_goes_inbox",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_inbox_consume_deletes_all",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_inbox_consume_partial_keeps_rest",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_inbox_clear",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_selective_command_route_still_executes",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_mirror_mode_behavior_unchanged",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_mcp_qq_read_inbox_consume",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_mcp_qq_read_inbox_defaults",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_format_report_batch_qq_branch",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_format_report_batch_agent_branch_unchanged",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_bind_missing_identity",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_unbind_missing_identity",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_bind_invalid_target_type",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_qq_bind_passes_identity_to_pan_core",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_session_qq_subscriptions_roundtrip",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_enqueue_qq_reminder_delivers_to_subscribers",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_enqueue_qq_reminder_bot_scoped_subscription",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_format_report_batch_qq_header_with_bot",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_bot_uin_routes_to_channel",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_unknown_bot_uin",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_recent_contacts_default_channel_when_no_bot_uin",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_api_channels_lists_registry",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_api_channels_active_fallback",
+      "status": "passed"
+    },
+    {
+      "node": "packages/qq/test_qq_api.py::test_shared_locker_scope_instance_and_native_parts",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 96,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

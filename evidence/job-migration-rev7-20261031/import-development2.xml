@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="13" time="9.943" timestamp="2026-10-31T15:13:35.517374+08:00" hostname="ablaze"><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[assign]" time="0.471" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[send_session]" time="0.463" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[legacy-assign]" time="0.463" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[message]" time="0.457" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_opt_in_maps_real_runtime_release_input_owner_phase[broadcast]" time="0.468" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_old_release_does_not_gain_runtime_from_opt_in" time="0.333" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[assign]" time="0.494" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[send_session]" time="0.492" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[message]" time="0.533" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_null_target_is_backlog_input_not_missing_function[broadcast]" time="0.502" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_actual_import_event_backlog_retarget_cold_no_resend[assign]" time="1.693" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_actual_import_event_backlog_retarget_cold_no_resend[send_session]" time="1.592" /><testcase classname="tests.test_job_migration_runtime_contract" name="test_rev7_actual_import_event_backlog_retarget_cold_no_resend[broadcast]" time="1.474"><failure message="AssertionError: assert ('delivery-manager' == 'delivery-manager'&#10;  &#10;    delivery-manager and 'unknown' == 'succeeded'&#10;  &#10;  - succeeded&#10;  + unknown)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6472/test_rev7_actual_import_event_2')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize('kind',['assign','send_session','broadcast'])
+    def test_rev7_actual_import_event_backlog_retarget_cold_no_resend(tmp_path,kind):
+        import asyncio
+        import copy
+        import hashlib
+        from packages.core import session,worker
+        from packages.jobs.final_api import CanonicalUserAuth
+        from packages.jobs.final_service import FinalService,definition
+        from tests.support.job_migration_runtime_rehearsal import hashes
+        profile=tmp_path/'owned-profile'
+        path,source=_runtime_delivery_source(profile,kind)
+        # Keep the exact schedule grid/cursor offset explicit for the real importer.
+        if kind=='broadcast':
+            source['targetSessionIds']=None
+        else:
+            source['targetSessionId']=None
+            source['schedule'][0]['at']=source['schedule'][0]['nextFireAt']='2030-01-01T00:00:00+00:00'
+            source['nextFireAt']='2030-01-01T00:00:00+00:00'
+        path.write_text(json.dumps(source),encoding='utf-8')
+        original=path.read_bytes()
+        for sid in ('rev7_target','rev7_later'):
+            session.save(session.Session(id=sid,name='owned rev7',workdir=str(tmp_path),queue_paused=True))
+        before_workers=set(worker.workers)
+        service=FinalService(profile/'job-final',CanonicalUserAuth(profile/'auth'))
+        context=runtime_context(profile)
+        context['profileId']=service.profile_id
+        target=tmp_path/'import-bundle.json'
+        inv=build_inventory(profile,runtime_delivery=True)
+        result=migration.migrate(profile,target,context,apply=True,mark_read_only=True,
+            expected_digest=migration.plan_digest(inv,context))
+        bundle=migration.read_bundle(target)
+        ids={r['kind']:r['object']['id'] for r in bundle['canonical']}
+        spec={'path':str(target),'expected_hash':hashlib.sha256(target.read_bytes()).hexdigest(),
+              'expected_plan_digest':bundle['planDigest'],'active_ids':list(ids.values())}
+        actor={'type':'user','id':'local'}
+        async def run():
+            service.creators.clock=lambda: __import__('packages.scheduler.providers',fromlist=['instant']).instant('2030-01-01T00:00:00+00:00')
+            await service.start(activation=spec)
+            try:
+                await service.tick()
+                await service.tick()
+                events=service.events.page()
+                assert len(events)==1
+                event=copy.deepcopy(service.events.get(events[0]['eventId']))
+                assert service.final.history(ids['job'])['runs']==[]
+                assert not session.get('rev7_target').queue_pending
+            finally:
+                await service.close()
+            cold=FinalService(service.root,service.auth)
+            cold.creators.clock=service.creators.clock
+            try:
+                await cold.start(activation=spec)
+                current=cold.get('job',ids['job'],actor=actor)
+                cfg=definition('job',current)
+                field='sessionIds' if kind=='broadcast' else 'sessionId'
+                cfg['arguments']['delivery']={field:['rev7_target'] if kind=='broadcast' else 'rev7_target',
+                                             'text':'  updated runtime body\n原文  '}
+                changed=cold.write('job',ids['job'],{'definition':cfg,'expectedRevision':current['configRevision'],
+                    'requestKey':'rev7-retarget'},actor=actor)
+                assert changed['result']['runtimeAudit']['after']['inputs']['delivery.text']==cfg['arguments']['delivery']['text']
+                await cold.tick()
+                state=cold.final.get(ids['job'])
+                assert len(state['runs'])==len(state['attempts'])==len(state['effects'])==1
+                rid=next(iter(state['runs']))
+                assert state['runs'][rid]['cause']['eventId']==event['event']['eventId']
+                frozen=copy.deepcopy(cold.final.store.get(ids['job'])['finalRuntime']['plans'][rid]['frozen'])
+                receipt=state['effects'][0]['receipt']['deliveryRuntime']
+                assert receipt['owner']=='delivery-manager' and receipt['acceptance'][0]['outcome']=='succeeded'
+                child=receipt['children'][0]
+                assert child['status']=='accepted' and child['parentFence']['attemptId']==state['effects'][0]['attemptId']
+                assert len(session.get('rev7_target').queue_pending)==1
+                assert session.get('rev7_target').queue_pending[0]['text']==cfg['arguments']['delivery']['text']
+                latest=changed['result']['object']
+                cfg['arguments']['delivery'][field]=['rev7_later'] if kind=='broadcast' else 'rev7_later'
+                cfg['arguments']['delivery']['text']='must not resend'
+                cold.write('job',ids['job'],{'definition':cfg,'expectedRevision':latest['configRevision'],
+                    'requestKey':'after-accepted'},actor=actor)
+                await cold.tick()
+                assert not session.get('rev7_later').queue_pending
+                assert cold.final.store.get(ids['job'])['finalRuntime']['plans'][rid]['frozen']==frozen
+            finally:
+                await cold.close()
+            reopened=FinalService(service.root,service.auth)
+            try:
+                await reopened.start(activation=spec)
+                await reopened.tick()
+                assert len(reopened.final.get(ids['job'])['runs'])==1
+                assert len(session.get('rev7_target').queue_pending)==1 and not session.get('rev7_later').queue_pending
+                assert reopened.events.get(event['event']['eventId'])==event
+            finally:
+                await reopened.close()
+&gt;       asyncio.run(run())
+
+tests\test_job_migration_runtime_contract.py:196: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        service.creators.clock=lambda: __import__('packages.scheduler.providers',fromlist=['instant']).instant('2030-01-01T00:00:00+00:00')
+        await service.start(activation=spec)
+        try:
+            await service.tick()
+            await service.tick()
+            events=service.events.page()
+            assert len(events)==1
+            event=copy.deepcopy(service.events.get(events[0]['eventId']))
+            assert service.final.history(ids['job'])['runs']==[]
+            assert not session.get('rev7_target').queue_pending
+        finally:
+            await service.close()
+        cold=FinalService(service.root,service.auth)
+        cold.creators.clock=service.creators.clock
+        try:
+            await cold.start(activation=spec)
+            current=cold.get('job',ids['job'],actor=actor)
+            cfg=definition('job',current)
+            field='sessionIds' if kind=='broadcast' else 'sessionId'
+            cfg['arguments']['delivery']={field:['rev7_target'] if kind=='broadcast' else 'rev7_target',
+                                         'text':'  updated runtime body\n原文  '}
+            changed=cold.write('job',ids['job'],{'definition':cfg,'expectedRevision':current['configRevision'],
+                'requestKey':'rev7-retarget'},actor=actor)
+            assert changed['result']['runtimeAudit']['after']['inputs']['delivery.text']==cfg['arguments']['delivery']['text']
+            await cold.tick()
+            state=cold.final.get(ids['job'])
+            assert len(state['runs'])==len(state['attempts'])==len(state['effects'])==1
+            rid=next(iter(state['runs']))
+            assert state['runs'][rid]['cause']['eventId']==event['event']['eventId']
+            frozen=copy.deepcopy(cold.final.store.get(ids['job'])['finalRuntime']['plans'][rid]['frozen'])
+            receipt=state['effects'][0]['receipt']['deliveryRuntime']
+&gt;           assert receipt['owner']=='delivery-manager' and receipt['acceptance'][0]['outcome']=='succeeded'
+E           AssertionError: assert ('delivery-manager' == 'delivery-manager'
+E             
+E               delivery-manager and 'unknown' == 'succeeded'
+E             
+E             - succeeded
+E             + unknown)
+
+tests\test_job_migration_runtime_contract.py:172: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,10 @@
+{
+  "port": 50557,
+  "response": {
+    "ok": true,
+    "deleted": true,
+    "jobId": "job_4319007cc60246db0705d9e3"
+  },
+  "ownedProcessesRemaining": [],
+  "portReleased": true
+}

@@ -1,0 +1,74 @@
+{
+  "baseline": "20955b3c8959c881797d84bcd03302158ddf08c3",
+  "sourceSha": "eb214dcac23bb52f72b2f679f75dba60c5e2cc90",
+  "reports": {
+    "baseline-red.xml": {
+      "exit": 1,
+      "tests": 12,
+      "failures": 12,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 0
+    },
+    "baseline-behavior-red.xml": {
+      "exit": 1,
+      "tests": 12,
+      "failures": 10,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 2
+    },
+    "windows-regression-first.xml": {
+      "exit": 0,
+      "tests": 114,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 25,
+      "passed": 89
+    },
+    "windows-regression-final.xml": {
+      "exit": 0,
+      "tests": 119,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 27,
+      "passed": 92
+    },
+    "final-focused-v3.xml": {
+      "exit": 0,
+      "tests": 52,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 8,
+      "passed": 44
+    }
+  },
+  "collection": {
+    "exit": 0,
+    "nodes": 52
+  },
+  "isolatedImport": {
+    "exit": 0,
+    "platform": "Windows"
+  },
+  "runtimeCleanup": {
+    "windows-runtime": {
+      "documents": 13,
+      "portsReleased": true,
+      "capturedProcessesRemaining": [],
+      "canonicalPortsReleased": true,
+      "supervisorsReaped": 10
+    },
+    "windows-runtime-final": {
+      "documents": 13,
+      "portsReleased": true,
+      "capturedProcessesRemaining": [],
+      "canonicalPortsReleased": true,
+      "supervisorsReaped": 10
+    }
+  },
+  "targetLinux": "NOT RUN",
+  "targetMacOS": "NOT RUN",
+  "sourceUnchangedAfterValidation": true,
+  "gitPolicy": "integration-only; no main/practical/push/remote CI"
+}

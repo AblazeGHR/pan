@@ -1,0 +1,9 @@
+{
+  "gate": "passed",
+  "runtimeEpoch": 2,
+  "persistedAttemptEpochs": [
+    2
+  ],
+  "providerCalls": 1,
+  "sourceMigrationUsed": false
+}

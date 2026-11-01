@@ -1,0 +1,30 @@
+[18:09:45] [Pan] Loaded 0 session templates from manifest
+[18:09:45] GET  /api/health  �� 200
+[18:09:45] POST  /api/sessions  �� 200
+[18:09:45] POST  /api/sessions  �� 200
+[18:09:45] POST  /api/sessions  �� 200
+[18:09:46] POST  /api/spawn  �� 200
+[18:09:46] POST  /api/spawn  �� 200
+[18:09:46] POST  /api/spawn  �� 200
+[18:09:46] POST  /api/automation/login  �� 200
+[18:09:46] POST  /api/actions/actions  �� 200
+[18:09:46] POST  /api/automation/triggers  �� 200
+[18:09:46] POST  /api/sessions/ses_00eefdf1f45178e0/queue  �� 200
+[18:09:46] GET  /api/sessions  �� 200
+[18:09:46] GET  /api/automation  �� 200
+[18:09:46] GET  /api/sessions/ses_dc1884e3477e21d8/queue  �� 200
+[18:09:46] POST  /api/sessions/ses_dc1884e3477e21d8/queue  �� 200
+[18:09:46] POST  /api/automation/login  �� 200
+[18:09:46] POST  /api/automation/triggers  �� 200
+[18:09:46] POST  /api/automation/logout  �� 200
+[18:09:46] POST  /api/sessions/ses_00eefdf1f45178e0/queue  �� 200
+[18:09:46] GET  /api/automation  �� 200
+[18:09:46] GET  /api/automation  �� 200
+[18:09:46] GET  /api/automation  �� 200
+[18:09:46] GET  /api/automation/events  �� 200
+[18:09:46] GET  /api/sessions/ses_dc1884e3477e21d8/queue  �� 200
+[18:09:46] PATCH  /api/sessions/ses_dc1884e3477e21d8/queue/q_c2db6841c1024d9488d56adfe05f206d/lock  �� 200
+[18:09:46] POST  /api/sessions/ses_06148f1149ea8ccd/queue  �� 200
+[18:09:46] GET  /api/sessions/ses_dc1884e3477e21d8/queue  �� 200
+[18:09:48] POST  /__test/stop-owned-runtime  �� 200
+[18:09:48] [Pan] All workers shut down

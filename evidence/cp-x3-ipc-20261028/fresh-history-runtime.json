@@ -1,0 +1,25 @@
+{
+  "port": 52742,
+  "ownedProfile": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5770\\test_history_terminal_producti0\\owned-history-profile",
+  "browserExit": 0,
+  "providerTextOnly": true,
+  "coldReopen": true,
+  "ownedProcesses": [
+    [
+      35384,
+      1793171617.2514875,
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\xplat-worker-capability-20261027\\tests\\support\\automation_http_server.py --port 52742 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5770\\test_history_terminal_producti0\\owned-history-profile"
+    ],
+    [
+      35848,
+      1793171617.2581005,
+      "\\??\\C:\\Windows\\system32\\conhost.exe 0x4"
+    ],
+    [
+      3424,
+      1793171617.2733736,
+      "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\xplat-worker-capability-20261027\\tests\\support\\automation_http_server.py --port 52742 --data-root C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5770\\test_history_terminal_producti0\\owned-history-profile"
+    ]
+  ],
+  "portReleased": true
+}

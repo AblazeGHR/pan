@@ -1,0 +1,44 @@
+    if api == RESUME_LEGAL_RUNNING_ACTION:
+        from . import legal_offline as _legality
+        # Resolve candidates at fire time. Session identity is persistent, while
+        # Worker liveness is a separate, transient runtime fact.
+        candidates = sorted(
+            (
+                session for session in _sessions.list_all(load_history=False)
+                if (_legality.is_illegal(session)
+                    and isinstance(getattr(session, "id", None), str)
+                    and _worker.find_alive_worker_by_session(session.id) is None)
+            ),
+            key=lambda session: session.id,
+        )
+        results: list[dict] = []
+        errors: list[str] = []
+        for session in candidates:
+            # A stable per-fire/per-Session client id makes a stale-claim retry
+            # resolve the original durable message receipt instead of enqueueing
+            # the same wake-up twice. A later fire receives a different key.
+            digest = hashlib.sha256(
+                f"{dispatch_key}\0{session.id}".encode("utf-8")
+            ).hexdigest()
+            client_message_id = f"job-resume:{digest}"
+            try:
+                result = await _worker.wake_session(
+                    session.id, source="automation", client_message_id=client_message_id)
+                if not isinstance(result, dict):
+                    result = {"status": "error",
+                              "result": "send_session returned an invalid result"}
+            except Exception as exc:
+                result = {"status": "error", "result": str(exc)}
+            item = {**result, "sessionId": session.id}
+            results.append(item)
+            if item.get("status") in {"error", "failed", "cancelled"}:
+                errors.append(
+                    f"{session.id}: {item.get('result') or item.get('error') or 'send failed'}"
+                )
+        return {
+            "status": "error" if errors else ("dispatched" if candidates else "completed"),
+            "dispatchKey": dispatch_key,
+            "matchedCount": len(candidates),
+            "results": results,
+            **({"errors": errors, "error": "; ".join(errors)} if errors else {}),
+        }

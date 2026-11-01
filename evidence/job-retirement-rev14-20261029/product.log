@@ -1,0 +1,50 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+............FR14_BROWSER={"chromium": "153.0.8010.12", "pageErrors": [], "writes": ["/api/job-templates", "/api/job-templates/template_abd255ee67464e3cad27d1eb/operations", "/api/job-templates/template_abd255ee67464e3cad27d1eb/instantiate", "/api/job-templates", "/api/job-templates/template_b094ba1a6b0f4a38b2943c33/operations", "/api/job-templates/template_b094ba1a6b0f4a38b2943c33/instantiate"], "instances": [{"kind": "assign", "operationId": "op_90af1f668e9247028b947659", "job": "job_a9d92adc6d75263a5280dd51", "creators": {}, "triggers": {}}, {"kind": "shell", "operationId": "op_585f462c75eb4c0380dca364", "job": "job_b54fd4dddcd271c819f1bd1a", "creators": {}, "triggers": {}}], "layer": "fresh Vite production bundle + real owned canonical HTTP, no intercepted API replies", "port": 57386, "realEffects": 2, "queueRows": 1, "shellLines": 1, "coldLookup": true, "noDuplicate": true}
+.........................................................................
+================================== FAILURES ===================================
+______ test_production_shell_form_real_process_exit_and_original_lookup _______
+
+env = namespace(service=<packages.jobs.final_service.FinalService object at 0x0000022E9F1395B0>, client=<starlette.testclien...nicalUserAuth object at 0x0000022E9F213E70>, app=<fastapi.applications.FastAPI object at 0x0000022E9F282BA0>, serial=0)
+
+    def test_production_shell_form_real_process_exit_and_original_lookup(env):
+        marker = env.tmp / 'shell-result.txt'
+        command = f'"{sys.executable}" -c "from pathlib import Path; Path(\'shell-result.txt\').write_text(\'owned\')"'
+        body = form_body(env.client, kind='shell', fields={'command': command, 'cwd': str(env.tmp), 'hideWindow': True})
+        item = create_template(env.client, body)
+        argv = item['jobDefinition']['steps'][0]['arguments']['argv']['value']
+        assert argv[-1] == command
+        response = instantiate(env.client, item)
+        assert response.status_code == 201, response.text
+        jid = response.json()['result']['objectIds']['job']
+        job = env.client.get('/api/jobs/' + jid).json()
+        assert job['state'] == 'disabled' and not marker.exists()
+        assert env.client.get('/api/jobs/' + jid + '/runs').json()['items'] == []
+        response = control(env, 'jobs', job, 'enable')
+        assert response.status_code == 200, response.text
+        admitted = launch(env, response.json()['result']['object'])
+        for _ in range(400):
+            asyncio.run(env.service.dispatch_once())
+            if env.client.get('/api/job-runs/' + admitted['runId']).json()['state'] in {'completed', 'failed'}: break
+            time.sleep(.025)
+        history = env.service.final.history(jid)
+        logs = asyncio.run(env.service.read_process_log(admitted['runId'], history['effects'][0]['attemptId'], actor=USER, limit=65536))
+>       assert env.client.get('/api/job-runs/' + admitted['runId']).json()['state'] == 'completed', json.dumps({'history': history, 'log': logs}, ensure_ascii=True)
+E       AssertionError: {"history": {"jobId": "job_5c1f2eece0dbda020dda48cf", "runs": [{"admissionId": "adm_6b214bc83ee245a18f28b7d0", "cause": {"type": "manual"}, "configRevision": 1, "createdAt": "2026-10-29T14:52:05.887640Z", "finishedAt": "2026-10-29T14:52:06.415248Z", "jobId": "job_5c1f2eece0dbda020dda48cf", "planDigest": "4e045c0bf7f2c5329f96910adf140c12c6163ea4a21a44547506baf9cf8c9724", "profileId": "profile_8d595e21a94eb072a016ef03", "runId": "run_e556bde5d21840c0ab672184", "startedAt": "2026-10-29T14:52:05.930156Z", "state": "failed", "stateRevision": 3, "transitionSeq": 3}], "events": [], "effects": [{"attemptId": "attempt_e92c10ca3f244cf39ab6c5b5", "createdAt": "2026-10-29T14:52:06.105345Z", "effectKey": {"operationOrdinal": 0, "runId": "run_e556bde5d21840c0ab672184", "stepId": "effect", "targetId": "product_process_logs_v1"}, "outcome": "rejected", "receipt": {"cleanupProof": {"confirmed": true, "identityVerified": true, "ownedTree": {"confirmed": true, "detail": "TerminateJobObject + active==0 \u53cc\u8bc1\u636e", "owned": [40204], "remaining": []}, "remaining": [], "treeTerminated": true}, "effectKey": {"operationOrdinal": 0, "runId": "run_e556bde5d21840c0ab672184", "stepId": "effect", "targetId": "product_process_logs_v1"}, "ok": false, "outcome": "rejected", "receipt": {"exitCode": 1, "logRef": {"attempt": {"attemptId": "attempt_e92c10ca3f244cf39ab6c5b5", "generation": 1, "leaseId": "lease_674447717de4412ab0dd3ede", "ownerEpoch": 1, "runId": "run_e556bde5d21840c0ab672184", "stepId": "effect"}, "cursorUnit": "byte", "effectId": "effect_93387571114c5b183e1564e3b10fee7ecb16da40e0913ea7a6d40669fe73dc4b", "effectKey": {"operationOrdinal": 0, "runId": "run_e556bde5d21840c0ab672184", "stepId": "effect", "targetId": "product_process_logs_v1"}, "id": "log_079d8040925560414956ea5e0ba58403f815159acaa775536776b344b0123cae", "jobId": "job_5c1f2eece0dbda020dda48cf", "kind": "process-log", "streams": ["stdout", "stderr"], "version": 1}, "processIdentity": {"birth": "134377591263539035", "boot_id": null, "image": "C:\\Windows\\system32\\cmd.exe", "kind": "filetime", "pgid": null, "pid": 38936, "platform": "windows", "recorded_at": 1793285526.362, "schema": "pan.process-identity/1"}}, "status": "rejected"}, "updatedAt": "2026-10-29T14:52:06.415052Z"}], "outbox": [{"channel": "ws", "createdAt": "2026-10-29T14:52:06.105647Z", "legacyId": "canonical:run_e556bde5d21840c0ab672184", "outboxId": "outbox_97d661082de6876fb10617778d68d8c97bd0c484", "recipientId": "job:job_5c1f2eece0dbda020dda48cf", "runId": "run_e556bde5d21840c0ab672184", "status": "pending", "summary": {"runId": "run_e556bde5d21840c0ab672184", "status": "uncertain"}, "transitionSeq": 2}, {"channel": "ws", "createdAt": "2026-10-29T14:52:06.416737Z", "legacyId": "canonical:run_e556bde5d21840c0ab672184", "outboxId": "outbox_c416993ab926ea1958b0240a7b4d4c89dd9eea56", "recipientId": "job:job_5c1f2eece0dbda020dda48cf", "runId": "run_e556bde5d21840c0ab672184", "status": "pending", "summary": {"runId": "run_e556bde5d21840c0ab672184", "status": "failed"}, "transitionSeq": 3}], "cancellations": {}}, "log": {"logRef": {"kind": "process-log", "version": 1, "id": "log_079d8040925560414956ea5e0ba58403f815159acaa775536776b344b0123cae", "jobId": "job_5c1f2eece0dbda020dda48cf", "effectId": "effect_93387571114c5b183e1564e3b10fee7ecb16da40e0913ea7a6d40669fe73dc4b", "effectKey": {"runId": "run_e556bde5d21840c0ab672184", "stepId": "effect", "targetId": "product_process_logs_v1", "operationOrdinal": 0}, "attempt": {"attemptId": "attempt_e92c10ca3f244cf39ab6c5b5", "leaseId": "lease_674447717de4412ab0dd3ede", "runId": "run_e556bde5d21840c0ab672184", "stepId": "effect", "ownerEpoch": 1, "generation": 1}, "streams": ["stdout", "stderr"], "cursorUnit": "byte"}, "offset": 0, "nextOffset": 107, "eof": true, "sizeBytes": 107, "bytesBase64": "J1wiRDpccHJvamVjdFxQYW4tbWFpblwudmVudlxTY3JpcHRzXHB5dGhvbi5leGVcIicgsrvKx8Tasr+78s3isr/D/MHuo6zSsrK7yse/ydTL0NC1xLPM0PINCrvyxfq0psDtzsS8/qGjDQo=", "text": null, "encoding": "binary", "pendingBytes": 0, "pendingBase64": ""}}
+E       assert 'failed' == 'completed'
+E         
+E         - completed
+E         + failed
+
+tests\test_retirement_rev14_templates.py:254: AssertionError
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_retirement_rev14_templates.py::test_production_shell_form_real_process_exit_and_original_lookup

@@ -1,0 +1,141 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+FFFFFFFF..................................                               [100%]
+================================== FAILURES ===================================
+__ test_business_json_blank_name_is_validated_only_by_its_schema[arguments] ___
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+___ test_business_json_blank_name_is_validated_only_by_its_schema[literal] ____
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1876: in _validate_name_semantics
+    _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1876: in _validate_name_semantics
+    _validate_name_semantics(child, path=f"{path}.{index}" if path else str(index))
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+_ test_business_json_blank_name_is_validated_only_by_its_schema[schema-default] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+_ test_business_json_blank_name_is_validated_only_by_its_schema[action-config] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+_ test_business_json_blank_name_is_validated_only_by_its_schema[action-schema] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+_ test_business_json_blank_name_is_validated_only_by_its_schema[creator-config] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+_ test_business_json_blank_name_is_validated_only_by_its_schema[template-payload] _
+tests\test_job_retirement_name_scope.py:40: in test_business_json_blank_name_is_validated_only_by_its_schema
+    normalized = fc.validate_definition(kind, value)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2364: in validate_definition
+    value = normalize_definition(kind, definition)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2219: in normalize_definition
+    _validate_name_semantics(value, path="definition")
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+__________ test_event_payload_business_name_is_not_a_canonical_name ___________
+tests\test_job_retirement_name_scope.py:47: in test_event_payload_business_name_is_not_a_canonical_name
+    assert fc.validate_event_publish(event)['payload'] == event['payload']
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2577: in validate_event_publish
+    _validate_document("event_publish", envelope)
+packages\jobs\final_contracts.py:1852: in _validate_document
+    _validate_name_semantics(instance)
+packages\jobs\final_contracts.py:1873: in _validate_name_semantics
+    _validate_name_semantics(child, path=child_path)
+packages\jobs\final_contracts.py:1867: in _validate_name_semantics
+    raise ContractError(
+E   packages.jobs.final_contracts.ContractError: name must contain at least one non-whitespace character
+=========================== short test summary info ===========================
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[arguments]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[literal]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[schema-default]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-config]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[action-schema]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[creator-config]
+FAILED tests/test_job_retirement_name_scope.py::test_business_json_blank_name_is_validated_only_by_its_schema[template-payload]
+FAILED tests/test_job_retirement_name_scope.py::test_event_payload_business_name_is_not_a_canonical_name

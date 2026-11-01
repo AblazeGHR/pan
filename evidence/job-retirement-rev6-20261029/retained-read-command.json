@@ -1,0 +1,679 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations",
+    "tests/test_job_retained_pin_successor.py",
+    "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox",
+    "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+    "tests/test_job_retained_canonical_pin_resolution.py",
+    "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect",
+    "tests/test_scheduler_history_read.py::test_list_runs_pagination_aliases_and_mcp_transport",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\retained-read.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 29.643,
+  "nodes": [
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-json]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-encoding]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[session-message-read]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-json]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-encoding]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_jobs_api.py::test_pin_metadata_failure_does_not_fail_committed_operations[scheduled-task-read]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_pin_successor.py::test_retained_pin_persistence_failure_keeps_disk_and_emits_nothing",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[http-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_pin_write_failure_rolls_back_disk_and_has_no_success_or_outbox[runtime-metadata]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pins.py::test_http_config_pin_cas_operation_and_disk_reopen",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-config-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[delete-metadata-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-config-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-config-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_independent_holds_require_both_releases[gc-metadata-first-metadata-first]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_unrelated_http_edit_and_stale_cas_never_clear_other_hold",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-value1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-retention-value3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-config-pin-1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-value8]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[False-metadata-pin-0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-value1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-retention-value3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-config-pin-1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-value8]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-unknown]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_corrupt_source_is_never_masked_by_other_hold[True-metadata-pin-0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[http-config]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_failed_release_preserves_both_holds_on_disk_and_reopen[runtime-metadata]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job2]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retained_canonical_pin_resolution.py::test_missing_compatible_sources_default_to_false[job4]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[0]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[1]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[2]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[3]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[4]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[5]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[6]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[7]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[8]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[9]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[10]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[11]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[12]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[13]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[14]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[15]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[16]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[17]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[18]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[19]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[20]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[21]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[22]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[23]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[24]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[25]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[26]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[27]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[28]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[29]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[30]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[31]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[32]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[33]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[34]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[35]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[36]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[37]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[38]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[39]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[40]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[41]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[42]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[43]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[44]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[45]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[46]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[47]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[48]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[49]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[50]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[51]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[52]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[53]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[54]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[55]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[56]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[57]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[58]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[59]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[60]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[61]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[62]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[63]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[64]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[65]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[66]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[67]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[68]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[69]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[70]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[71]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[72]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[73]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[74]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[75]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[76]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[77]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[78]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[79]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[80]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[81]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[82]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[83]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[84]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[85]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[86]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[87]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[88]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[89]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[90]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[91]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[92]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[93]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[94]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[95]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[96]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[97]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[98]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[99]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[100]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[101]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[102]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[103]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[104]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[105]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[106]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[107]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[108]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[109]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_all_original_ids_hash_status_log_receipt_and_no_effect[110]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_history_read.py::test_list_runs_pagination_aliases_and_mcp_transport",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 162,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

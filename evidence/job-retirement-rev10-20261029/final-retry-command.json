@@ -1,0 +1,66 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev10_qq_retry.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev10-20261029\\final-retry.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "testedSourceSha": "8b2aa0cfcfd1209037545c52e2b1ac868667fe47",
+  "boundFileSha256": {
+    "packages/actions/qq_channel_provider.py": "341ebed70a0b67b4d1b13e8ea60b3795e6e05731714ca4fb16b376369fb92fdb",
+    "packages/actions/typed_executor.py": "f12ad157590202420ea090ea175f8e536c7125a0f4bb7404d8498a2e545282fe",
+    "packages/jobs/final_service.py": "8ed984f8ff2aeec2635a05d88facadc487a0819dabe4c300a86f7022dd441ba1",
+    "tests/test_retirement_rev9_qq_http.py": "ed337d1a0e0784d79d3c090bcb577ad5a6a5b3ce1ca13cca9b7f89290345610c"
+  },
+  "sourceStable": true,
+  "productFileSha256": "8ed984f8ff2aeec2635a05d88facadc487a0819dabe4c300a86f7022dd441ba1",
+  "elapsedSeconds": 99.686,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[None]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_original_receipt_binding_corruption_and_unknown_partial_never_retry",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_current_authorization_revoked_before_manual_retry_no_write_or_send",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_custom_product_like_action_cannot_use_trusted_retry_exception",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_call_api_entered_channel_not_connected_is_ambiguous_no_proof",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev10_qq_retry.py::test_http_spoof_missing_wrong_phase_non2xx_and_sender_provenance",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 8,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

@@ -11,15 +11,18 @@ export interface Locker {
   total: number;
   unread: number;
 }
-export interface TrustedBinding {
+interface TrustedBindingCommon {
   summary: string;
-  actionId: string;
-  actionDigest: string;
   triggerRevision: number;
   targetIds: string[];
-  arguments: Record<string, unknown>;
   authorization?: { producerSessionId: string; basis: string };
 }
+export type TrustedBinding = TrustedBindingCommon & (
+  | { version?: 1; actionId: string; actionDigest: string; arguments: Record<string, unknown> }
+  | { version: 2; triggerId: string; triggerDigest: string;
+      jobId: string; jobRevision: number; jobDigest: string; authorityDigest: string;
+      actions: { id: string; revision: number; digest: string }[] }
+);
 export type QuestionAnswer =
   | { rejected: true; reason?: string }
   | { text: string }

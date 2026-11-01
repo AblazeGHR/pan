@@ -1,0 +1,320 @@
+{
+  "sourceSha": "cd8e04b5ca05265612b0e2a45169d36c07d169ab",
+  "baseline": "4b577633d2d9ffcdc5bf8a44b12836724c18804e",
+  "python": "Python 3.14.5",
+  "checks": [
+    {
+      "name": "mcp",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev16_mcp_stdio.py",
+        "tests/test_retirement_rev12_mcp.py",
+        "tests/test_authorization_mcp.py",
+        "-q",
+        "-s",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\mcp.xml"
+      ],
+      "exit": 0,
+      "seconds": 9.521,
+      "total": 17,
+      "counts": {
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      "nodes": [
+        {
+          "node": "tests/test_retirement_rev16_mcp_stdio.py::test_retired_names_actual_stdio_boundary_and_authorized_canonical_path",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_removed_mcp_job_tools_have_structured_unsupported_dispositions",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_compatibility_disposition_is_pure_and_unknown_shape_fails_closed",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev12_mcp.py::test_canonical_tools_and_retained_read_cancel_tools_remain_discoverable",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[core]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_real_stdio_canonical_objects_without_user_bearer[native]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_legacy_four_object_write_tool_keeps_only_retained_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_object_path_allowlist_is_canonical_plus_retained_reads",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[read-GET-/api/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[create-POST-/api/jobs]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[updateConfig-PUT-/api/jobs/job_x]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_job_capability_maps_to_denial_over_ipc[delete-DELETE-/api/jobs/job_x]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[read-GET-/api/triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_every_trigger_capability_maps_to_denial_over_ipc[create-POST-/api/triggers]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[jobTemplate-read-GET-/api/job-templates]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_authorization_mcp.py::test_template_and_event_creator_reads_map_to_denial_over_ipc[eventCreator-read-GET-/api/event-creators]",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "name": "behavior",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev16_behavior.py",
+        "-q",
+        "-s",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\behavior.xml"
+      ],
+      "exit": 1,
+      "seconds": 22.755,
+      "total": 10,
+      "counts": {
+        "passed": 9,
+        "failed": 1,
+        "skipped": 0
+      },
+      "nodes": [
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_schedule_replacement_removes_old_rule_and_fires_only_new_real_event",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules0]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_or_bad_schedule_update_rejects_without_any_write[rules1]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[disable]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_job_lifecycle_preserves_admitted_run_but_explicit_cancel_prevents_effect[retire]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_creator_disable_stops_future_events_and_effects",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_literal_empty_schedule_create_rejected_without_operation_creator_or_effect",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_actual_missing_notification_target_unknown_receipt_cold_no_resend",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_partial_fanout_real_results_notice_receipt_once_and_cold_no_replay",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev16_behavior.py::test_partial_failure_terminal_notice_identifies_actual_failed_target",
+          "status": "failed"
+        }
+      ]
+    },
+    {
+      "name": "accepted-delta",
+      "argv": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev6_session_validation.py",
+        "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin",
+        "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan",
+        "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send",
+        "tests/test_retirement_rev9_qq_http.py::test_edit_after_admission_keeps_actual_original_bot_target_text",
+        "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect",
+        "-q",
+        "-s",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-entry-notification-closure-20261029\\evidence\\job-retirement-rev16-20261029\\accepted-delta.xml"
+      ],
+      "exit": 1,
+      "seconds": 153.041,
+      "total": 30,
+      "counts": {
+        "passed": 26,
+        "failed": 4,
+        "skipped": 0
+      },
+      "nodes": [
+        {
+          "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-create]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-update]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[10000-  \\u4e2d\\u6587 CQ [CQ:face,id=1]\\n-10000]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -None]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev7_write_validation.py::test_product_qq_legal_text_and_id_bytes_create_edit_and_frozen_plan[99999999999999999999-\\t legal English  -10000]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev9_qq_http.py::test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev9_qq_http.py::test_edit_after_admission_keeps_actual_original_bot_target_text",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[None]",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[222222]",
+          "status": "failed"
+        },
+        {
+          "node": "tests/test_retirement_rev10_qq_retry.py::test_original_http_cold_retry_duplicate_control_cas_same_effect[333333]",
+          "status": "failed"
+        }
+      ]
+    }
+  ]
+}

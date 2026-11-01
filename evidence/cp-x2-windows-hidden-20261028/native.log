@@ -1,0 +1,111 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-posix-safety-20261027
+...........................F.F.F.F.F.F.F.F...F.FF                        [100%]
+================================== FAILURES ===================================
+_ test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy] _
+tests\test_job_lifecycle_prevention.py:84: in test_runner_death_at_creation_edge_converges_without_survivors
+    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                             ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy] _
+tests\test_job_lifecycle_prevention.py:162: in test_owned_multigeneration_tree_cleanup_on_exit_or_exception
+    if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                  ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy] _
+tests\test_job_lifecycle_prevention.py:162: in test_owned_multigeneration_tree_cleanup_on_exit_or_exception
+    if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                  ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+_ test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy] _
+tests\test_job_lifecycle_prevention.py:262: in test_controller_process_crash_keeps_owned_runner_then_restart_cancels
+    assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E   assert False
+E    +  where False = until(<function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.<locals>.<lambda> at 0x0000013F8951B1C0>)
+_ test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base] _
+tests\test_job_lifecycle_prevention.py:335: in test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication
+    assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E   assert False
+E    +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000013F8951BED0>)
+_ test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv] _
+tests\test_job_lifecycle_prevention.py:335: in test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication
+    assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E   assert False
+E    +  where False = until(<function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.<locals>.<lambda> at 0x0000013F89518300>)
+=========================== short test summary info ===========================
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]
+FAILED tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]
+FAILED tests/test_job_lifecycle_prevention.py::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]
+11 failed, 38 passed in 21.90s

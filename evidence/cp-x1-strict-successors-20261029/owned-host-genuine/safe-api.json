@@ -1,0 +1,235 @@
+[
+  {
+    "point": "started",
+    "port": 64347,
+    "popenPid": 43100,
+    "exitCode": null,
+    "listenerOwner": 39352,
+    "popenBirth": 1793198592.4375346,
+    "listenerBirth": 1793198592.4609747,
+    "serviceIdentity": {
+      "pid": 39352,
+      "createdAt": 1793198592.4609747,
+      "rootMarker": true,
+      "entryMarker": true,
+      "commandMarker": true,
+      "ok": true,
+      "error": null
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "actionResponse",
+    "response": {
+      "ok": true,
+      "accepted": true,
+      "actionId": "system_main_lifecycle",
+      "operation": "exit",
+      "status": "scheduled",
+      "requestId": "request_a117d0568d20cc3c87c4bae1",
+      "jobId": "job_9037c517124a8a519a0ff830",
+      "effectId": "effect_a13897a4a02e6c27063f9f0bb3175596c7c2b95ab84dff7d280d0909581252dd"
+    }
+  },
+  {
+    "point": "before_cleanup",
+    "port": 64347,
+    "popenPid": 43100,
+    "exitCode": 0,
+    "listenerOwner": null,
+    "popenBirth": null,
+    "listenerBirth": null,
+    "shouldExit": "unavailable",
+    "internalShutdown": {
+      "statusCode": 200,
+      "response": {
+        "ok": true,
+        "status": "stopping"
+      },
+      "shouldExit": true
+    },
+    "receipts": [
+      {
+        "effectId": "effect_a13897a4a02e6c27063f9f0bb3175596c7c2b95ab84dff7d280d0909581252dd",
+        "jobId": "job_9037c517124a8a519a0ff830",
+        "requestId": "request_a117d0568d20cc3c87c4bae1",
+        "phase": "offline",
+        "result": {
+          "effectKey": {
+            "runId": "run_e9a10078a961b19d500c7212",
+            "stepId": "step_main_lifecycle",
+            "targetId": "main",
+            "operationOrdinal": 0
+          },
+          "outcome": "succeeded",
+          "status": "succeeded",
+          "ok": true,
+          "receipt": {
+            "phase": "offline",
+            "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+            "port": 64347,
+            "oldPid": 39352,
+            "oldPidCreatedAt": 1793198592.4609747,
+            "offlineProof": {
+              "ok": true,
+              "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+              "port": 64347,
+              "listenerOwner": null,
+              "listenerStatus": "offline",
+              "oldPid": 39352,
+              "oldPidCreatedAt": 1793198592.4609747,
+              "oldProcessStatus": "dead"
+            }
+          },
+          "cleanupProof": {
+            "confirmed": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  },
+  {
+    "point": "started",
+    "port": 64347,
+    "popenPid": 43476,
+    "exitCode": null,
+    "listenerOwner": 43504,
+    "popenBirth": 1793198598.5239096,
+    "listenerBirth": 1793198598.54877,
+    "serviceIdentity": {
+      "pid": 43504,
+      "createdAt": 1793198598.54877,
+      "rootMarker": true,
+      "entryMarker": true,
+      "commandMarker": true,
+      "ok": true,
+      "error": null
+    },
+    "shouldExit": false,
+    "internalShutdown": {
+      "statusCode": 200,
+      "response": {
+        "ok": true,
+        "status": "stopping"
+      },
+      "shouldExit": true
+    },
+    "receipts": [
+      {
+        "effectId": "effect_a13897a4a02e6c27063f9f0bb3175596c7c2b95ab84dff7d280d0909581252dd",
+        "jobId": "job_9037c517124a8a519a0ff830",
+        "requestId": "request_a117d0568d20cc3c87c4bae1",
+        "phase": "offline",
+        "result": {
+          "effectKey": {
+            "runId": "run_e9a10078a961b19d500c7212",
+            "stepId": "step_main_lifecycle",
+            "targetId": "main",
+            "operationOrdinal": 0
+          },
+          "outcome": "succeeded",
+          "status": "succeeded",
+          "ok": true,
+          "receipt": {
+            "phase": "offline",
+            "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+            "port": 64347,
+            "oldPid": 39352,
+            "oldPidCreatedAt": 1793198592.4609747,
+            "offlineProof": {
+              "ok": true,
+              "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+              "port": 64347,
+              "listenerOwner": null,
+              "listenerStatus": "offline",
+              "oldPid": 39352,
+              "oldPidCreatedAt": 1793198592.4609747,
+              "oldProcessStatus": "dead"
+            }
+          },
+          "cleanupProof": {
+            "confirmed": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "point": "before_cleanup",
+    "port": 64347,
+    "popenPid": 43476,
+    "exitCode": null,
+    "listenerOwner": 43504,
+    "popenBirth": 1793198598.5239096,
+    "listenerBirth": 1793198598.54877,
+    "serviceIdentity": {
+      "pid": 43504,
+      "createdAt": 1793198598.54877,
+      "rootMarker": true,
+      "entryMarker": true,
+      "commandMarker": true,
+      "ok": true,
+      "error": null
+    },
+    "shouldExit": false,
+    "internalShutdown": {
+      "statusCode": 200,
+      "response": {
+        "ok": true,
+        "status": "stopping"
+      },
+      "shouldExit": true
+    },
+    "receipts": [
+      {
+        "effectId": "effect_a13897a4a02e6c27063f9f0bb3175596c7c2b95ab84dff7d280d0909581252dd",
+        "jobId": "job_9037c517124a8a519a0ff830",
+        "requestId": "request_a117d0568d20cc3c87c4bae1",
+        "phase": "offline",
+        "result": {
+          "effectKey": {
+            "runId": "run_e9a10078a961b19d500c7212",
+            "stepId": "step_main_lifecycle",
+            "targetId": "main",
+            "operationOrdinal": 0
+          },
+          "outcome": "succeeded",
+          "status": "succeeded",
+          "ok": true,
+          "receipt": {
+            "phase": "offline",
+            "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+            "port": 64347,
+            "oldPid": 39352,
+            "oldPidCreatedAt": 1793198592.4609747,
+            "offlineProof": {
+              "ok": true,
+              "root": "C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-5867\\test_owned_host_signal_vs_exit0\\host-exit",
+              "port": 64347,
+              "listenerOwner": null,
+              "listenerStatus": "offline",
+              "oldPid": 39352,
+              "oldPidCreatedAt": 1793198592.4609747,
+              "oldProcessStatus": "dead"
+            }
+          },
+          "cleanupProof": {
+            "confirmed": true
+          }
+        }
+      }
+    ]
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  }
+]

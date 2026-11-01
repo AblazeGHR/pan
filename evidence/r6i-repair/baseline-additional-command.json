@@ -1,0 +1,17 @@
+{
+  "baseSha": "bac726cf84c0510dff8618afb82e227e660f590c",
+  "command": [
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+    "-m",
+    "pytest",
+    "tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt",
+    "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\evidence\\r6i-repair\\baseline-additional.xml"
+  ],
+  "exit": 1
+}

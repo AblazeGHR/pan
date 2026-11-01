@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.281" timestamp="2026-10-27T11:17:32.422914+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]" time="0.009"><failure message="ModuleNotFoundError: No module named 'playwright'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5470/test_structured_scheduler_job_0')
+create_job_with_form = False
+
+    @pytest.mark.parametrize('create_job_with_form', [False, True])
+    def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):
+&gt;       from playwright.sync_api import sync_playwright, expect
+E       ModuleNotFoundError: No module named 'playwright'
+
+tests\test_scheduler_structured_browser.py:17: ModuleNotFoundError</failure></testcase><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]" time="0.003"><failure message="ModuleNotFoundError: No module named 'playwright'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5470/test_structured_scheduler_job_1')
+create_job_with_form = True
+
+    @pytest.mark.parametrize('create_job_with_form', [False, True])
+    def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):
+&gt;       from playwright.sync_api import sync_playwright, expect
+E       ModuleNotFoundError: No module named 'playwright'
+
+tests\test_scheduler_structured_browser.py:17: ModuleNotFoundError</failure></testcase><testcase classname="tests.test_scheduler_management_browser" name="test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser" time="0.002"><failure message="ModuleNotFoundError: No module named 'playwright'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5470/test_authenticated_native_sour0')
+
+    def test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser(tmp_path):
+&gt;       from playwright.sync_api import sync_playwright, expect
+E       ModuleNotFoundError: No module named 'playwright'
+
+tests\test_scheduler_management_browser.py:17: ModuleNotFoundError</failure></testcase></testsuite></testsuites>

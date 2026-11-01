@@ -1,0 +1,12 @@
+{
+  "exitCode": 0,
+  "parser": "PyYAML BaseLoader (local existing dependency; no install)",
+  "checks": [
+    "unchanged automatic push branches",
+    "pull_request and workflow_dispatch present",
+    "Windows full 3.12/3.14 retained",
+    "Windows/Linux/macOS fast 3.12",
+    "artifact upload always",
+    "helper failure propagates; no continue-on-error"
+  ]
+}

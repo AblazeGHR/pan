@@ -1,0 +1,15 @@
+{
+  "baseline": "2600a78f2deac4f55cd64e3180b55fcc7339b6c9",
+  "codeSha": "cd696f1f18996a203f6e3d5064c8311bed814f9c",
+  "platform": "win32",
+  "python": "3.14.5",
+  "exitCode": 0,
+  "passed": 23,
+  "failed": 0,
+  "skipped": 2,
+  "skipReason": "real unsupported lifecycle boundary applies only on hosts without capability",
+  "sourceboundXml": "sourcebound.xml",
+  "linux": "not run",
+  "macos": "not run",
+  "remoteCI": "not run"
+}

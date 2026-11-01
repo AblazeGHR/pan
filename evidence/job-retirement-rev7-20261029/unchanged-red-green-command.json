@@ -1,0 +1,106 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin",
+    "tests/test_retirement_rev6_session_validation.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev7-20261029\\unchanged-red-green.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 44.478,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_parity.py::test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_message-update]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-create]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_retirement_rev6_session_validation.py::test_current_source_aware_product_missing_fixed_session_rejected_before_commit[session_broadcast-update]",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 20,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

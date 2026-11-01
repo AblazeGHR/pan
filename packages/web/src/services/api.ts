@@ -95,25 +95,11 @@ import type {
   RewindScope,
   ApiRewindResponse,
   ApiRewindJobStatus,
-  ScheduledTask,
-  ScheduledTaskInput,
-  ScheduledTaskPatch,
-  SchedulerStatus,
   SchedulerApiError,
-  SchedulerNextFire,
-  TaskRun,
-  ApiScheduledTasksResponse,
-  ApiScheduledTaskResponse,
-  ApiTaskRunsResponse,
-  ApiSchedulerNextResponse,
-  ApiSchedulerStatusResponse,
-  ApiSchedulerActionResponse,
 } from '@/types';
 import type {
   Job,
-  JobCreateInput,
   JobKindMeta,
-  JobPatchInput,
   JobRunRecord,
 } from '@/types/jobs';
 import type { ActionRegistry } from '@/types/actions';
@@ -122,6 +108,8 @@ const BASE = '/api';
 
 export class ApiRequestError extends Error {
   readonly status: number;
+  code?: string;
+  response?: unknown;
 
   constructor(status: number, message: string) {
     super(message);
@@ -184,17 +172,19 @@ function waitForForeground(signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function request<T>(url: string, options?: RequestInit, background = false): Promise<T> {
-  const protectedPath = /^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$))/.test(url);
-  const authStore = protectedPath ? (await import('@/stores/automationStore')).useAutomationAuth : null;
-  const auth = authStore?.getState();
-  if (protectedPath) options = { ...options, credentials: 'same-origin', headers: {
-    ...options?.headers, ...(auth?.token ? { Authorization: `Bearer ${auth.token}` } : {}),
-  } };
+async function request<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
+  if (/^\/api\/(actions(?:\/|$)|automation(?:\/|$)|jobs(?:\/|$)|legacy\/jobs(?:\/|$))/.test(url)) {
+    const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
+    const auth = authStore.getState();
+    options = { ...options, credentials: 'same-origin', headers: {
+      ...options?.headers, ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+    } };
+  }
   const finish = background ? () => {} : beginForegroundRequest();
-  try { return await requestBody<T>(url, options, background); }
+  try { return await requestBody<T>(url, options, background, canonical); }
   catch (error) {
-    if (error instanceof ApiRequestError && error.status === 401 && authStore?.getState() === auth) auth?.clear();
+    const authStore = (await import('@/stores/automationStore')).useAutomationAuth;
+    if (error instanceof ApiRequestError && error.status === 401) authStore.getState().clear();
     throw error;
   }
   finally { finish(); }
@@ -202,6 +192,22 @@ async function request<T>(url: string, options?: RequestInit, background = false
 
 export function actionRequest<T>(path = '', method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>('/api/' + path, { method, signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+
+/** Canonical transport shares JSON/error handling, never legacy endpoints. */
+export async function canonicalRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  const { useAutomationAuth } = await import('@/stores/automationStore');
+  const auth = useAutomationAuth.getState();
+  if (auth.token && auth.expiresAt <= Date.now()) auth.clear();
+  const token = useAutomationAuth.getState().token;
+  try {
+    return await request<T>(`/api/${path === 'actions' ? 'jobs/actions' : path}`, { method, signal,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) }, false, true);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 401 && useAutomationAuth.getState().token === token) useAutomationAuth.getState().clear();
+    throw error;
+  }
 }
 
 export async function fetchPluginPanels(): Promise<import('@/types/pluginPanels').PluginPanel[]> {
@@ -273,7 +279,7 @@ export async function invokePluginPanel<T>(plugin: string, panel: string, action
   return result.structuredContent;
 }
 
-async function requestBody<T>(url: string, options?: RequestInit, background = false): Promise<T> {
+async function requestBody<T>(url: string, options?: RequestInit, background = false, canonical = false): Promise<T> {
   // Authorization adds headers to formerly headerless JSON requests. Merge
   // defaults after spreading options so authentication cannot erase JSON type.
   const headers = new Headers({ 'Content-Type': 'application/json' });
@@ -283,6 +289,13 @@ async function requestBody<T>(url: string, options?: RequestInit, background = f
     headers: Object.fromEntries(headers),
   });
   if (!res.ok) {
+    if (canonical) {
+      const payload = await res.json().catch(() => null) as { error?: { code?: string } } | null;
+      const error = new ApiRequestError(res.status, `HTTP ${res.status}`);
+      error.code = payload?.error?.code;
+      error.response = payload;
+      throw error;
+    }
     let detail = '';
     try {
       const body = (await res.json()) as { detail?: unknown; error?: unknown };
@@ -2419,7 +2432,7 @@ export async function updateWorkerSettings(
   return data;
 }
 
-// ── Scheduler (alarm-style scheduled tasks) ──
+// ── Error envelope shared by retained Job reads ──
 
 /**
  * Scheduler endpoints answer `{"ok":false,"error":{"code","message"}}`, i.e.
@@ -2434,104 +2447,12 @@ function throwSchedulerError(error: SchedulerApiError): never {
   throw new Error(schedulerErrorMessage(error));
 }
 
-export async function fetchScheduledTasks(): Promise<ScheduledTask[]> {
-  const data = await request<ApiScheduledTasksResponse>(`${BASE}/scheduler/tasks`);
-  if (data.error) throwSchedulerError(data.error);
-  return data.tasks || [];
-}
-
-export async function createScheduledTask(
-  input: ScheduledTaskInput,
-): Promise<ScheduledTask> {
-  const data = await request<ApiScheduledTaskResponse>(`${BASE}/scheduler/tasks`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  return data.task ?? ({ ...data } as unknown as ScheduledTask);
-}
-
-export async function updateScheduledTask(
-  taskId: string,
-  patch: ScheduledTaskPatch,
-): Promise<ScheduledTask> {
-  const data = await request<ApiScheduledTaskResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}`,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data.task ?? ({ ...data } as unknown as ScheduledTask);
-}
-
-export async function deleteScheduledTask(taskId: string): Promise<ApiSchedulerActionResponse> {
-  const data = await request<ApiSchedulerActionResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}`,
-    { method: 'DELETE' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data;
-}
-
-export async function pauseScheduledTask(taskId: string): Promise<ScheduledTask> {
-  const data = await request<ApiScheduledTaskResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/pause`,
-    { method: 'POST' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data.task ?? ({ ...data } as unknown as ScheduledTask);
-}
-
-export async function resumeScheduledTask(taskId: string): Promise<ScheduledTask> {
-  const data = await request<ApiScheduledTaskResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/resume`,
-    { method: 'POST' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data.task ?? ({ ...data } as unknown as ScheduledTask);
-}
-
-export async function runScheduledTaskNow(taskId: string): Promise<ApiSchedulerActionResponse> {
-  const data = await request<ApiSchedulerActionResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/run-now`,
-    { method: 'POST' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data;
-}
-
-export async function fetchTaskRuns(taskId: string, limit = 50): Promise<TaskRun[]> {
-  const data = await request<ApiTaskRunsResponse>(
-    `${BASE}/scheduler/tasks/${encodeURIComponent(taskId)}/runs?limit=${limit}`,
-  );
-  if (data.error) throwSchedulerError(data.error);
-  return data.runs || [];
-}
-
-/** GET /api/scheduler/next — upcoming fire times (taskId omitted = all tasks). */
-export async function fetchSchedulerNext(
-  taskId: string | null,
-  count = 5,
-): Promise<SchedulerNextFire[]> {
-  const params = new URLSearchParams({ count: String(count) });
-  if (taskId) params.set('task_id', taskId);
-  const data = await request<ApiSchedulerNextResponse>(`${BASE}/scheduler/next?${params.toString()}`);
-  if (data.error) throwSchedulerError(data.error);
-  return data.next || [];
-}
-
-export async function fetchSchedulerStatus(): Promise<SchedulerStatus> {
-  const data = await request<ApiSchedulerStatusResponse>(`${BASE}/scheduler/status`);
-  if (data.error) throwSchedulerError(data.error);
-  return { running: data.running === true, tickSec: data.tickSec, dueScanned: data.dueScanned, lastTickAt: data.lastTickAt };
-}
-
 // ── Jobs (unified /api/jobs/*; PLAN §5) ──
 
 interface ApiJobsResponse { ok?: boolean; jobs?: Job[]; pinMetadataStatus?: 'available' | 'unavailable'; error?: SchedulerApiError; }
 interface ApiJobResponse { ok?: boolean; job?: Job; error?: SchedulerApiError; }
 interface ApiJobKindsResponse { ok?: boolean; kinds?: JobKindMeta[]; error?: SchedulerApiError; }
 interface ApiJobRunsResponse { ok?: boolean; runs?: JobRunRecord[]; error?: SchedulerApiError; }
-interface ApiJobDeleteResponse { ok?: boolean; deleted?: boolean; jobId?: string; error?: SchedulerApiError; }
 
 export interface CompletedJobRetentionRun {
   scannedAt: string;
@@ -2561,7 +2482,7 @@ interface ApiCompletedJobRetentionResponse {
   error?: SchedulerApiError;
 }
 
-/** GET /api/jobs/settings/completed-retention. */
+/** GET /api/legacy/jobs/settings/completed-retention. */
 export async function fetchCompletedJobRetentionSettings(): Promise<{
   settings: CompletedJobRetentionSettings;
   rules: JobRetentionRules;
@@ -2571,7 +2492,7 @@ export async function fetchCompletedJobRetentionSettings(): Promise<{
   lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
 }> {
   const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/jobs/settings/completed-retention`,
+    `${BASE}/legacy/jobs/settings/completed-retention`,
   );
   if (data.error) throwSchedulerError(data.error);
   if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
@@ -2587,81 +2508,33 @@ export async function fetchCompletedJobRetentionSettings(): Promise<{
   };
 }
 
-/** PUT /api/jobs/settings/completed-retention. */
-export async function updateCompletedJobRetentionSettings(
-  rules: JobRetentionRules,
-): Promise<{
-  settings: CompletedJobRetentionSettings;
-  rules: JobRetentionRules;
-  configValid: boolean;
-  configValidity: Record<JobRetentionRule, boolean>;
-  lastRun: CompletedJobRetentionRun | null;
-  lastRuns: Record<JobRetentionRule, CompletedJobRetentionRun | null>;
-}> {
-  const data = await request<ApiCompletedJobRetentionResponse>(
-    `${BASE}/jobs/settings/completed-retention`,
-    { method: 'PUT', body: JSON.stringify({ rules }) },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.settings || !data.rules || !data.configValidity || !data.lastRuns) {
-    throw new Error('Job retention settings missing');
-  }
-  return {
-    settings: data.settings,
-    rules: data.rules,
-    configValid: data.configValid === true,
-    configValidity: data.configValidity,
-    lastRun: data.lastRun ?? null,
-    lastRuns: data.lastRuns,
-  };
-}
-
-/** GET /api/jobs — 全 kind 列表（客户端排序/筛选）。 */
+/** Legacy retention settings are read-only in the React client. */
+/** GET /api/legacy/jobs — 全 kind 列表（客户端排序/筛选）。 */
 export async function fetchJobs(
   onPinMetadataStatus?: (status: 'available' | 'unavailable') => void,
 ): Promise<Job[]> {
-  const data = await request<ApiJobsResponse>(`${BASE}/jobs`);
+  const data = await request<ApiJobsResponse>(`${BASE}/legacy/jobs`);
   if (data.error) throwSchedulerError(data.error);
   onPinMetadataStatus?.(data.pinMetadataStatus === 'unavailable' ? 'unavailable' : 'available');
   return data.jobs || [];
 }
 
-/** GET /api/jobs/kinds — kind 元数据（中文 label + 能力位）。 */
+/** GET /api/legacy/jobs/kinds — kind 元数据（中文 label + 能力位）。 */
 export async function fetchJobKinds(): Promise<JobKindMeta[]> {
-  const data = await request<ApiJobKindsResponse>(`${BASE}/jobs/kinds`);
+  const data = await request<ApiJobKindsResponse>(`${BASE}/legacy/jobs/kinds`);
   if (data.error) throwSchedulerError(data.error);
   return data.kinds || [];
 }
 
-/** GET /api/jobs/{id} — 详情（结构化 source/target 视图）。 */
+/** GET /api/legacy/jobs/{id} — 详情（结构化 source/target 视图）。 */
 export async function fetchJob(jobId: string): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`);
+  const data = await request<ApiJobResponse>(`${BASE}/legacy/jobs/${encodeURIComponent(jobId)}`);
   if (data.error) throwSchedulerError(data.error);
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }
 
-/** POST /api/jobs — creates one of the kinds advertised as creatable by /api/jobs/kinds. */
-export async function createJob(input: JobCreateInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
-/** PATCH /api/jobs/{id} — kind-specific editable fields; unsupported fields are rejected. */
-export async function patchJob(jobId: string, patch: JobPatchInput): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
 /** Unified Job API. The legacy endpoints remain available for old records. */
 export async function fetchActionRegistry(): Promise<ActionRegistry> {
@@ -2724,45 +2597,18 @@ export async function mutateActionJob(job: Job, operation: 'run-now' | 'cancel' 
       ...(['retry','confirm-recovery'].includes(operation) ? { confirm: true } : {}) });
 }
 
-/** DELETE /api/jobs/{id}。 */
-export async function deleteJob(jobId: string): Promise<void> {
-  const data = await request<ApiJobDeleteResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}`,
-    { method: 'DELETE' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-}
 
-/** GET /api/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
+/** GET /api/legacy/jobs/{id}/runs?limit= — 执行历史（最新在前，limit 1..500）。 */
 export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRecord[]> {
   const data = await request<ApiJobRunsResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
+    `${BASE}/legacy/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
   );
   if (data.error) throwSchedulerError(data.error);
   return data.runs || [];
 }
 
-/** POST /api/jobs/{id}/run-now — manually trigger a scheduled-task action. */
-export async function runJobNow(jobId: string): Promise<Job> {
-  const data = await request<ApiJobResponse>(
-    `${BASE}/jobs/${encodeURIComponent(jobId)}/run-now`,
-    { method: 'POST' },
-  );
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
 
 /** Persist Pan-owned presentation metadata for every Job kind/owner. */
-export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
-  const data = await request<ApiJobResponse>(`${BASE}/jobs/${encodeURIComponent(jobId)}/pin`, {
-    method: 'PUT', body: JSON.stringify({ pinned }),
-  });
-  if (data.error) throwSchedulerError(data.error);
-  if (!data.job) throw new Error('job missing in response');
-  return data.job;
-}
-
 export interface WorkdirRetentionResult {
   candidates: Array<{ name: string; path: string; modifiedAt: string; entries: number }>;
   results: Array<{ name: string; deleted: boolean; reason?: string }>;
@@ -2802,7 +2648,5 @@ export async function fetchLegacyJob(jobId: string): Promise<Record<string, unkn
 }
 
 /** Legacy retry creates another background-process Job; it is not an Attempt. */
-export async function retryLegacyJob(jobId: string): Promise<void> {
-  const data = await request<{ error?: SchedulerApiError }>(`${BASE}/background-jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' });
-  if (data.error) throwSchedulerError(data.error);
-}
+
+

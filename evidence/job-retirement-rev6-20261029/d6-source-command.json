@@ -1,0 +1,105 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_final_migration_apply.py::test_fm01_all_six_types_schema_hashes_provenance_and_idempotency",
+    "tests/test_job_final_migration_apply.py::test_fm02_default_dry_run_and_complex_are_untouched",
+    "tests/test_job_final_migration_apply.py::test_fm02_unknown_corrupt_duplicate_refuse_whole_apply",
+    "tests/test_job_final_migration_apply.py::test_fm05_cli_preflights_output_root_profile_and_no_server_import",
+    "tests/test_job_final_migration_partial.py::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once",
+    "tests/test_job_final_migration_partial.py::test_partial_runtime_import_never_loads_unknown_or_replays_its_effect",
+    "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement",
+    "tests/test_scheduler_pending_adoption.py::test_original_unknown_effects_and_receipts_are_never_replayed_or_marked_succeeded",
+    "tests/test_scheduler_pending_adoption.py::test_missing_original_commit_after_advance_stays_explicitly_uncertain",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\d6-source.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 13.941,
+  "nodes": [
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm01_all_six_types_schema_hashes_provenance_and_idempotency",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm02_default_dry_run_and_complex_are_untouched",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm02_unknown_corrupt_duplicate_refuse_whole_apply[{\"kind\":\"future-kind\"}]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm02_unknown_corrupt_duplicate_refuse_whole_apply[{invalid]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm02_unknown_corrupt_duplicate_refuse_whole_apply[{\"kind\":\"a\",\"kind\":\"b\"}]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_apply.py::test_fm05_cli_preflights_output_root_profile_and_no_server_import",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_partial.py::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{broken-json]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_partial.py::test_partial_preserves_complex_unknown_raw_bytes_and_replays_once[{\"kind\":\"future\",\"status\":\"unknown\"}]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_migration_partial.py::test_partial_runtime_import_never_loads_unknown_or_replays_its_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-before-admit]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-after-admit-before-cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[interval-before-ack]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-before-admit]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-after-admit-before-cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_three_breakpoints_keep_identity_and_pending_until_explicit_settlement[once-before-ack]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_original_unknown_effects_and_receipts_are_never_replayed_or_marked_succeeded[after-admit-before-cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_original_unknown_effects_and_receipts_are_never_replayed_or_marked_succeeded[before-ack]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_pending_adoption.py::test_missing_original_commit_after_advance_stays_explicitly_uncertain",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 18,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

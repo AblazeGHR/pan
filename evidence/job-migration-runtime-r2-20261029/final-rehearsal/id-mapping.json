@@ -1,0 +1,22 @@
+[
+  {
+    "originalId": "job_r2_0",
+    "migrationId": "mig1_f84c6dca34681546313d609f",
+    "canonicalIds": [
+      "job_f84c6dca34681546313d609f"
+    ],
+    "sourceFileSha256": "sha256:466afd76296ef2d3dc4fbf6c9e1840589c248f31abed489d4032b4e19a24f2ec",
+    "historyReadable": true,
+    "legacyWriterFenced": true
+  },
+  {
+    "originalId": "job_r2_1",
+    "migrationId": "mig1_c96e42e08960a7a7330db67d",
+    "canonicalIds": [
+      "job_c96e42e08960a7a7330db67d"
+    ],
+    "sourceFileSha256": "sha256:582699ffd433bfdc11f2aac8805391b1334e133c58bb138eb31ae2d656d65bb5",
+    "historyReadable": true,
+    "legacyWriterFenced": true
+  }
+]

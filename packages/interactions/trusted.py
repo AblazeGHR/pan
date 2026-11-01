@@ -37,6 +37,19 @@ def all_choices(definition):
                 yield None, choice
 
 
+def canonical_host(service):
+    host = getattr(service, 'final_jobs', None)
+    return host if host is not None and host.owner.token is not None else None
+
+
+def canonical_binding(service, request, ref):
+    from .canonical_read import read_fixed_graph
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+    authorization = scope(request.get('producerSessionId', request['ownerSessionId']), request['ownerSessionId'], graph['targetIds'])
+    return {**graph, 'version': 2, 'authorization': authorization,
+            'summary': f"Session Job {graph['jobId']} r{graph['jobRevision']} · Trigger {graph['triggerId']} r{graph['triggerRevision']}"}
+
+
 def resolve(service, request):
     """Read definitions under existing writers; persist result only with the Card."""
     choices = list(all_choices(request['card']))
@@ -45,6 +58,13 @@ def resolve(service, request):
     if service is None or not service.started or service.stopping:
         raise InteractionError('incomplete', 'Trigger host unavailable')
     result = {}
+    host = canonical_host(service)
+    if host is not None:
+        with host.transaction(readonly=True):
+            for question_id, choice in choices:
+                target = result.setdefault(question_id, {}) if question_id is not None else result
+                target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+        return result
     with service.ledger.lock, actions_lock:
         triggers = service.ledger.read()['triggers']
         actions = service.engine.actions.read()['actions']
@@ -88,6 +108,10 @@ def create(service, store, request, *, producer_id=None):
         return store.create(request, producer_id=producer_id, related_message_id=related)
     if service is None:
         raise InteractionError('incomplete', 'Trigger host unavailable')
+    host = canonical_host(service)
+    if host is not None:
+        with host.transaction(readonly=True):
+            return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
     with service.ledger.lock, actions_lock:
         return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
 
@@ -98,6 +122,21 @@ def verify(service, event):
         raise InteractionError('incomplete', 'Legacy choice has no trusted execution binding')
     if service is None or not service.started or service.stopping:
         raise InteractionError('incomplete', 'Trigger host unavailable')
+    host = canonical_host(service)
+    if host is not None:
+        if binding.get('version') != 2:
+            raise InteractionError('stale', 'Legacy binding cannot authorize a canonical graph')
+        from .contracts import validate
+        validate('ExecutionBinding', binding)
+        auth = binding['authorization']
+        if event['payload']['ownerSessionId'] != auth['ownerSessionId']:
+            raise InteractionError('forbidden', 'Binding source mismatch')
+        current = canonical_binding(service, auth, {'id': binding['triggerId'], 'revision': binding['triggerRevision']})
+        if current != binding:
+            raise InteractionError('stale', 'Approved canonical graph or source authority changed')
+        return binding
+    if binding.get('version') != 1:
+        raise InteractionError('stale', 'Canonical binding host unavailable')
     with service.ledger.lock, actions_lock:
         trigger = service.ledger.read()['triggers'].get(binding['triggerId'])
         action = service.engine.actions.read()['actions'].get(binding['actionId'])

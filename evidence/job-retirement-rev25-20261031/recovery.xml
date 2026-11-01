@@ -1,0 +1,691 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="115" time="95.281" timestamp="2026-10-31T20:52:05.176832+08:00" hostname="ablaze"><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery0-capability_unsupported]" time="0.405"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery1-capability_unsupported]" time="0.361"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery2-capability_unsupported]" time="0.352"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery3-capability_unsupported]" time="0.363"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery4-capability_unsupported]" time="0.341"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery5-invalid_schema]" time="0.356"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery6-invalid_schema]" time="0.453"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery7-invalid_schema]" time="0.378"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery8-invalid_schema]" time="0.394"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery9-invalid_schema]" time="0.546"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_unsupported_or_malformed_before_write[recovery10-invalid_schema]" time="0.424"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_reason_filter_and_no_generic_failure_fallback[failed-True]" time="0.450"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_reason_filter_and_no_generic_failure_fallback[timeout-False]" time="0.603"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_reason_filter_and_no_generic_failure_fallback[cancelled_before_effect-False]" time="0.473"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_reason_filter_and_no_generic_failure_fallback[provider_unavailable-False]" time="0.517"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_reason_filter_and_no_generic_failure_fallback[process_exception-False]" time="0.524"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_extra_retry_conversion_and_first_attempt_budget[0-False]" time="0.470"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_extra_retry_conversion_and_first_attempt_budget[1-True]" time="0.498"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_extra_retry_conversion_and_first_attempt_budget[9-True]" time="0.551"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_timeout_requires_full_original_proof" time="0.452"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_cleanup_or_supervisor_proof_holds[identityVerified]" time="0.577"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_cleanup_or_supervisor_proof_holds[treeTerminated]" time="0.460"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_cleanup_or_supervisor_proof_holds[ownedTree]" time="0.474"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_cleanup_or_supervisor_proof_holds[confirmed]" time="0.570"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_cleanup_or_supervisor_proof_holds[supervisor]" time="0.461"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_real_unknown_or_partial_loses_pending_eligibility[unknown]" time="0.527"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_real_unknown_or_partial_loses_pending_eligibility[partial]" time="0.593"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wrong_original_fence_never_admits[effectKey]" time="0.453"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wrong_original_fence_never_admits[attempt]" time="0.510"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wrong_original_fence_never_admits[planDigest]" time="0.496"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wrong_original_fence_never_admits[frozenPlan]" time="0.521"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wrong_original_fence_never_admits[jobId]" time="0.583"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_decimal_deadline_frozen_policy_and_args" time="0.595"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wait_control_keeps_count_and_deadline[pause]" time="0.617"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wait_control_keeps_count_and_deadline[cancel]" time="0.724"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_wait_control_keeps_count_and_deadline[revoke]" time="0.692"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_transaction_rollback_before_marker_and_before_admission" time="0.470"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_concurrent_pulses_claim_once_and_late_original_is_inert" time="0.515"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_last_backoff_manual_attempts_and_per_step_budget" time="0.635"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_early_revoke_does_not_schedule_or_consume" time="0.484"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_action_disable_and_cancel_during_proof_lookup" time="0.600"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_live_action_or_job_disable_blocks_waiting_attempt[action]" time="0.578"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_live_action_or_job_disable_blocks_waiting_attempt[job]" time="0.512"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_due_filter_does_not_starve_ready_tail" time="0.568"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_cold_pending_lookup_and_actual_host_loss_are_distinct" time="0.660"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_malformed_marker_never_becomes_due[None]" time="0.562"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_malformed_marker_never_becomes_due[NaN]" time="0.514"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_malformed_marker_never_becomes_due[-1]" time="0.525"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_malformed_marker_never_becomes_due[True]" time="0.521"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_legacy_definition_and_old_frozen_plan_stay_disabled" time="0.494"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_missing_original_receipt_is_not_permission" time="0.562"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_pause_resume_uses_original_deadline" time="0.595"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_complete_step_is_not_repeated_when_later_step_retries" time="2.128"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_actual_retained_owner_timeout_adds_verified_facts" time="0.372"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_default_detached_process_budget_exhaustion[0]" time="0.973"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_default_detached_process_budget_exhaustion[1]" time="1.476"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_automatic_recovery" name="test_owned_http_default_process_cold_reopen_and_pulse" time="9.289"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_proof_is_bounded_and_attempt_bound" time="0.518"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[pass]" time="0.467"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[import json; print(json.dumps({'panJobCompletion':{'type':'other.done','completed':True}}))]" time="0.504"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[import json; print(json.dumps({'panJobCompletion':{'type':'owned.done','completed':False}}))]" time="0.503"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[import json; print(json.dumps({'panJobCompletion':{'type':'owned.done','completed':True,'extra':1}}))]" time="0.510"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[import sys,json; print(json.dumps({'panJobCompletion':{'type':'owned.done','completed':True}}),file=sys.stderr)]" time="0.491"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[import sys; sys.stdout.buffer.write(b'\\xff')]" time="0.455"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[print('x' * (512 * 1024 + 1))]" time="0.495"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_detached_monitoring_missing_or_mismatched_signal_is_explicit_rejection[print('{}\\n{}')]" time="0.496"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_matching_signal_never_overrides_nonzero_exit" time="0.579"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_output_limit_uses_original_owned_cleanup_before_child_wait_ends" time="0.493"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_invalid_monitoring_contract_has_no_admission_or_launch[None]" time="0.057"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_invalid_monitoring_contract_has_no_admission_or_launch[parameters1]" time="0.030"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_invalid_monitoring_contract_has_no_admission_or_launch[parameters2]" time="0.027"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_invalid_monitoring_contract_has_no_admission_or_launch[parameters3]" time="0.036"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_invalid_monitoring_contract_has_no_admission_or_launch[parameters4]" time="0.055"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_store_never_promotes_unknown_or_accepts_unproven_success[unknown]" time="0.061"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_store_never_promotes_unknown_or_accepts_unproven_success[partial]" time="0.067"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_store_never_promotes_unknown_or_accepts_unproven_success[succeeded]" time="0.054"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_runner_never_promotes_unknown_even_with_valid_stdout[unknown]" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_runner_never_promotes_unknown_even_with_valid_stdout[partial]" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_owned_http_detached_monitoring_retry_cold_reopen_and_actual_pulse" time="12.669"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_monitoring_completion" name="test_original_unknown_reconciles_proof_once_without_retry" time="1.398"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_baseline_rejection_and_old_algorithm_characterization" time="0.754"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[0.999999999-False]" time="0.564"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[1-True]" time="0.642"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[1.000000001-True]" time="0.588"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_decimal_threshold_uses_execution_ticks_not_late_host_clock" time="0.644"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[missing]" time="0.505"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[reversed]" time="0.469"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[bool]" time="0.576"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[invalidTimestamp]" time="0.565"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[negative]" time="0.486"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[prose]" time="0.566"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_wait_and_query_lag_never_become_stable_execution" time="0.527"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_cold_reopen_concurrent_pulse_and_lost_lookup_ack" time="0.785"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[revoke]" time="0.634"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[cancel]" time="0.726"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[pause]" time="0.595"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[unknown]" time="0.564"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[partial]" time="0.494"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[cleanup]" time="0.613"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[supervisor]" time="0.545"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[stale]" time="0.535"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_reset_window_rolls_back_with_receipt_commit" time="0.668"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_frozen_reset_policy_is_not_promoted_or_changed" time="0.587"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_window_supported_reasons_still_need_allowlist[timeout]" time="0.585"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_window_supported_reasons_still_need_allowlist[failed]" time="0.589"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_result_denied_reason_never_resets_budget" time="0.517"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_zero_reset_retains_lifetime_budget_even_with_long_execution" time="0.629"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[base]" time="0.585"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[attempt]" time="0.684"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[timing]" time="0.553"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[threshold]" time="0.675"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_monitoring_frozen_history_never_executes_as_plain_exit_zero" time="1.555"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_historical_monitoring_pending_exit_zero_without_proof_is_unknown" time="0.473"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_monitoring_is_admitted_and_requires_structured_completion" time="1.213"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_recovery_stable_reset" name="test_default_detached_http_stable_reset_exceeds_total_cap_without_identity_reuse" time="12.308"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>

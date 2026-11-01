@@ -1,0 +1,14 @@
+{
+  "executorPort": 54597,
+  "label": "public-queued-cancel",
+  "queuedCancelled": true,
+  "attempts": 0,
+  "effects": 0,
+  "supervisors": 0,
+  "canonicalPort": 54613,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 0,
+  "interpreter": "venv"
+}

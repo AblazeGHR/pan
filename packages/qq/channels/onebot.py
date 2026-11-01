@@ -382,21 +382,26 @@ class OneBotChannel(QQChannel):
     async def send(
         self, target_type: str, target_id: str | int, text: str
     ) -> dict:
+        def before_send(code, message, reason):
+            return {"ok": False, "error": {"code": code, "message": message},
+                    "qqSendPhase": {"producer": "onebot.send", "stage": "before-call-api", "reason": reason}}
+
         if target_type not in ("private", "group"):
-            return {"ok": False, "error": {
-                "code": "invalid_target_type",
-                "message": "target_type 必须是 'private' 或 'group'"}}
+            return before_send("invalid_target_type", "target_type 必须是 'private' 或 'group'", "invalid-target-type")
         try:
             target_id_int = int(target_id)
         except (TypeError, ValueError):
-            return {"ok": False, "error": {
-                "code": "invalid_target_id",
-                "message": f"target_id 必须是 QQ 号/群号，got {target_id!r}"}}
+            return before_send("invalid_target_id", f"target_id 必须是 QQ 号/群号，got {target_id!r}", "invalid-target-id")
         if not text:
-            return {"ok": False, "error": {
-                "code": "empty_text", "message": "text 不能为空"}}
+            return before_send("empty_text", "text 不能为空", "empty-text")
         try:
             bot = self._resolve_bot()
+        except ChannelNotConnected as e:
+            return before_send("bot_not_connected", str(e), "resolve-not-connected")
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": {
+                "code": "send_failed", "message": f"{type(e).__name__}: {e}"}}
+        try:
             api = "send_private_msg" if target_type == "private" else "send_group_msg"
             params = (
                 {"user_id": target_id_int}

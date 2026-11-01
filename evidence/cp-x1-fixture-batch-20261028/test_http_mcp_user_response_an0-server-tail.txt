@@ -1,0 +1,65 @@
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\web\server.py", line 472, in __call__
+    await self.app(scope, receive, response if scope['type'] == 'http' else send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
+    await route.handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 1281, in handle
+    await super().handle(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\routing.py", line 280, in handle
+    await self.app(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 158, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\project\Pan-main\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 144, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 706, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "D:\project\Pan-main\.venv\Lib\site-packages\fastapi\routing.py", line 352, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\tests\support\interaction_card_http_server.py", line 64, in prepare_trigger
+    service.ledger.put({**trigger('synthetic-trigger'),
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        'eventTypes':['pan.interaction.responded']},0,authorized=True)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\automation\store.py", line 139, in put
+    return self.mutate(change)
+           ~~~~~~~~~~~^^^^^^^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\jobs\runtime_owner.py", line 153, in synchronous
+    with owner.legacy_pass() if reservation else owner.writer():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 141, in __enter__
+    return next(self.gen)
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\jobs\runtime_owner.py", line 73, in writer
+    self._check(db, token)
+    ~~~~~~~~~~~^^^^^^^^^^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\jobs\runtime_owner.py", line 67, in _check
+    refused("Job runtime owner epoch fence rejected writer")
+    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\xplat-job-fast-gates-20261027\packages\jobs\runtime_owner.py", line 22, in refused
+    raise ContractError("revision_conflict", message)
+packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer
+[15:20:44] [Pan] Loaded 6 session templates from manifest
+[QQ plugins] automatic start failed: unknown QQ plugin: napcat
+[15:20:45] GET  /__test/inbox-identity  → 200
+[15:20:45] GET  /__test/interaction-identity  → 200
+[15:20:45] POST  /api/sessions  → 200
+[15:20:45] POST  /__test/inbox-exit  → 200
+[15:20:45] [Pan] All workers shut down

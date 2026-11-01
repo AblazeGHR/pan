@@ -1,0 +1,28 @@
+{
+  "baseline": "41a5ffd0b62787f8d7eb97f0a801921d0db31a54",
+  "sourceSha": "5adbf3662b8e06e8eae13bf4aa5320a336bfa7a7",
+  "exitCode": 0,
+  "existingTriggersAndJobsUnchanged": true,
+  "existingFastNodesPreserved": 21,
+  "addedExecutionFiles": [
+    "tests/test_worker_platform_admission.py",
+    "tests/test_quota_native_admission.py",
+    "tests/test_job_process_logs.py"
+  ],
+  "protectedRedInputsSha256": {
+    "tests/test_quota_policy_http.py": {
+      "gitBlob": "51f65aaf91110349b84ec43d07e9974e00e2e8bd",
+      "workingTreeBytesSha256": "53b5012f45891147623dc86b771f7b690fde5f154bd5359d09680a3ca41c0892"
+    },
+    "tests/test_job_retirement_quota_transport.py": {
+      "gitBlob": "bb9f5cb72626d1e0c9acfd23730e1d6cecc0702d",
+      "workingTreeBytesSha256": "b1805396aad0735c340a7cd2c09dce25212b788b0f908e0551301ab6160a7df3"
+    },
+    "evidence/quota-native/original-red.log": {
+      "gitBlob": "e1626388241c9e34e83cfcae7d913b2838610bc3",
+      "workingTreeBytesSha256": "614abade877343f781a4a506dea8e38ab350803d2ab1cda2ec252e92036453d4"
+    }
+  },
+  "browserInstallMatchesNodeLock": "1.63.0",
+  "remoteCi": "not_run"
+}

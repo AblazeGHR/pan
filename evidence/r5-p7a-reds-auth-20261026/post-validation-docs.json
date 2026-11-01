@@ -1,0 +1,7 @@
+{
+  "moduleDocstringsCorrected": [
+    "tests/support/authorization.py",
+    "tests/test_automation_canonical.py"
+  ],
+  "executableAstUnchanged": true
+}

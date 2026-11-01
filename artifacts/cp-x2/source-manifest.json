@@ -1,0 +1,15 @@
+{
+  "sourceSha": "eb214dcac23bb52f72b2f679f75dba60c5e2cc90",
+  "baseline": "20955b3c8959c881797d84bcd03302158ddf08c3",
+  "files": {
+    "packages/core/platform/process_posix.py": "ae303ee1ce626c3ffd302ef798cccb0acfa2743137ea8fc4f43e9683d3787028",
+    "tests/test_platform_process_posix_unit.py": "7f2ab2840b3f9ca6abe0e410a7b8bd91730773b17474a14515807fc9b9104e59",
+    "tests/job_posix_fixture.py": "e43e205c449e70efb577b4f7fe30a72e9040e484c818c3d5687887d01c58a611",
+    "tests/test_job_posix_safety.py": "722022ebe184458c798ad012edcfcbfa39aa21662baa41b56bba9c7276e93c38",
+    "docs/reports/CP_X2_CAPABILITIES_20261027.md": "c50484581bf5e5ac3947824c1f378eebeeb5bbfd15017a452581f3726f420a1c"
+  },
+  "targetLinux": "NOT RUN",
+  "targetMacOS": "NOT RUN",
+  "wslRunningDistributions": 0,
+  "startedDistributions": false
+}

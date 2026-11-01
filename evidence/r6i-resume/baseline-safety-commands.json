@@ -1,0 +1,22 @@
+{
+  "baseSha": "bac726cf84c0510dff8618afb82e227e660f590c",
+  "results": [
+    {
+      "label": "baseline-safety",
+      "command": [
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "scripts/run_tests_isolated.py",
+        "--",
+        "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_delete_safety.py::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+        "tests/test_job_delete_http_owned.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-p21-r6-time-events-20261025\\evidence\\r6i-resume\\baseline-safety.xml"
+      ],
+      "exit": 1
+    }
+  ]
+}

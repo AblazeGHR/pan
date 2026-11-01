@@ -1,0 +1,33 @@
+def test_scheduled_qq_backlog_retry_runs_without_session_target(client):
+    calls = []
+
+    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
+        calls.append((target_type, target_id, text, bot_uin))
+        return {"ok": True, "message_id": "replay-1"}
+
+    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
+    created = _create_scheduled_qq_job(client)
+    assert created["ok"] is True
+    saved = jobs.get(created["job"]["jobId"], registry_root=scheduler_store.data_root())
+    note = {
+        "entryId": saved["schedule"][0]["id"],
+        "fireAt": (datetime.now() - timedelta(seconds=5)).isoformat(),
+        "dispatchKey": f"{saved['taskId']}:retry-fixture",
+        "text": saved["text"],
+        "error": "recovered pending QQ send",
+    }
+    saved = jobs._update(saved["jobId"], {
+        "undeliveredFires": [note],
+        "targetSessionId": None,
+    }, registry_root=scheduler_store.data_root())
+
+    assert asyncio.run(jobs._redeliver_undelivered(
+        saved, scheduler_store.data_root())) == 1
+    refreshed = jobs.get(saved["jobId"], registry_root=scheduler_store.data_root())
+    run = jobs.list_run_records(
+        task_id=saved["taskId"], registry_root=scheduler_store.data_root())[0]
+    assert calls == [("private", "123456", "hello QQ", "987654")]
+    assert refreshed["undeliveredFires"] == []
+    assert refreshed["lastStatus"] == "completed"
+    assert refreshed["lastDelivery"]["messageId"] == "replay-1"
+    assert run["status"] == "completed"

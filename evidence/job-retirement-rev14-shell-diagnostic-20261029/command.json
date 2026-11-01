@@ -1,0 +1,30 @@
+{
+  "testedSourceSha": "4c527d3cddc64e8d3428997d05d2b972da74d446",
+  "argv": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "scripts/run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev14_shell_diagnostic.py",
+    "tests/test_retirement_rev14_templates.py::test_production_shell_form_real_process_exit_and_original_lookup",
+    "-q",
+    "-s",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev14-shell-diagnostic-20261029\\focused.xml"
+  ],
+  "exit": 1,
+  "seconds": 2.124,
+  "nodes": [
+    {
+      "node": "tests.test_retirement_rev14_shell_diagnostic::test_same_raw_command_legacy_shell_vs_current_crt_serialization",
+      "result": "passed"
+    },
+    {
+      "node": "tests.test_retirement_rev14_templates::test_production_shell_form_real_process_exit_and_original_lookup",
+      "result": "failed"
+    }
+  ],
+  "python": "Python 3.14.5",
+  "claim": "Diagnostic pass confirms observed mismatch, not capability success; original positive red remains failed"
+}

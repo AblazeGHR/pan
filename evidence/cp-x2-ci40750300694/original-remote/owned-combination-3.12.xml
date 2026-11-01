@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="21" time="19.603" timestamp="2026-10-28T19:01:14.631044+00:00" hostname="runnervmdaln5"><testcase classname="tests.test_lifecycle_followthrough" name="test_observation_requires_existing_store_and_never_creates_it" time="0.035" /><testcase classname="tests.test_lifecycle_followthrough" name="test_observation_verifies_original_fence_and_persisted_frozen_options" time="0.149" /><testcase classname="tests.test_lifecycle_followthrough" name="test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[after-submit-return]" time="2.350" /><testcase classname="tests.test_lifecycle_followthrough" name="test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[before-submit-return]" time="1.361" /><testcase classname="tests.test_lifecycle_controller_publication" name="test_canonical_job_cancel_after_controller_crash[before-claim-base]" time="4.565" /><testcase classname="tests.test_lifecycle_controller_publication" name="test_canonical_job_cancel_after_controller_crash[before-claim-named-venv]" time="2.923" /><testcase classname="tests.test_lifecycle_controller_publication" name="test_canonical_job_cancel_after_controller_crash[after-running-base]" time="2.860" /><testcase classname="tests.test_lifecycle_controller_publication" name="test_canonical_job_cancel_after_controller_crash[after-running-named-venv]" time="2.826" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_hidden_tree_identity_stdio_and_desktop_cleanup[base]" time="0.286" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_hidden_tree_identity_stdio_and_desktop_cleanup[named-venv]" time="0.179"><failure message="AssertionError: assert 788 == 5520&#10; +  where 788 = ppid()&#10; +    where ppid = psutil.Process(pid=5520, name='python.exe', status='running', started='19:01:32').ppid&#10; +      where psutil.Process(pid=5520, name='python.exe', status='running', started='19:01:32') = &lt;class 'psutil.Process'&gt;(5520)&#10; +        where &lt;class 'psutil.Process'&gt; = &lt;module 'psutil' from 'C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\psutil\\__init__.py'&gt;.Process&#10;[+1 more line; full report in element text]">tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/test_hidden_tree_identity_stdi1')
+runtime = 'named-venv'
+
+    @pytest.mark.parametrize('runtime', ['base', 'named-venv'])
+    def test_hidden_tree_identity_stdio_and_desktop_cleanup(tmp_path, runtime):
+        from packages.core.platform.process import WindowsProcessOwner
+        from tests.test_job_lifecycle_prevention import desktop_gone
+        from tests.helpers.process_owner_hidden_probe import desktop
+        original = desktop()
+        active_input = input_desktop()
+        owner = WindowsProcessOwner()
+        interpreter = sys._base_executable if runtime == 'base' else sys.executable
+        owned = owner.spawn([interpreter, str(PROBE), 'tree', str(tmp_path), '2'])
+        handles = []
+        try:
+            facts = rows(tmp_path)
+            handles = retain(facts)
+            name = facts[0]['desktop']
+            assert name.startswith('PanJob_') and name != original
+            assert {row['desktop'] for row in facts} == {name}
+            assert not desktop_gone(name)
+            from packages.core.terminal.identity import read_creation_filetime
+            assert int(owned.identity.birth) == read_creation_filetime(int(owned.popen._handle))
+            if runtime == 'base':
+                assert owned.pid == facts[2]['pid']
+                assert int(owned.identity.birth) == facts[2]['birth']
+            else:
+                import psutil
+&gt;               assert psutil.Process(facts[2]['pid']).ppid() == owned.pid
+E               AssertionError: assert 788 == 5520
+E                +  where 788 = ppid()
+E                +    where ppid = psutil.Process(pid=5520, name='python.exe', status='running', started='19:01:32').ppid
+E                +      where psutil.Process(pid=5520, name='python.exe', status='running', started='19:01:32') = &lt;class 'psutil.Process'&gt;(5520)
+E                +        where &lt;class 'psutil.Process'&gt; = &lt;module 'psutil' from 'C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\Lib\\site-packages\\psutil\\__init__.py'&gt;.Process
+E                +  and   5520 = WindowsOwnedProcess(pid=5520, platform='windows', closed=False).pid
+
+tests\test_platform_process_windows_hidden.py:88: AssertionError</failure></testcase><testcase classname="tests.test_platform_process_windows_hidden" name="test_normal_exit_env_cwd_pipes_merge_and_private_desktop" time="0.069" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_visible_intent_does_not_allocate_hidden_desktop" time="0.210" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_atomic_membership_precedes_resume_and_no_late_assign" time="0.092" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_creation_failure_closes_real_resources_without_execution[before-create]" time="0.004" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_creation_failure_closes_real_resources_without_execution[after-create]" time="0.006" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_creation_failure_closes_real_resources_without_execution[after-return]" time="0.006" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_runner_hard_death_releases_whole_tree_and_desktop" time="0.320" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_runner_death_inside_create_before_return_runs_no_child_instruction" time="0.140" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_close_failure_retains_desktop_and_allows_retry" time="0.007" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_hidden_owner_preserves_existing_token_restriction" time="0.024" /><testcase classname="tests.test_platform_process_windows_hidden" name="test_process_handle_close_failure_remains_retryable" time="0.006" /></testsuite></testsuites>

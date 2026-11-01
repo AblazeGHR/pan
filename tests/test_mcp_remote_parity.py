@@ -188,13 +188,15 @@ def test_remote_tools_list_equals_stdio_registry(remote_gateway):
     remote = {tool.name: tool for tool in _mcp_list_tools(url, token)}
     stdio = {tool.name: tool for tool in asyncio.run(stdio_mcp.list_tools())}
     assert set(remote) == set(stdio)
+    assert {name for name in remote if name.startswith("agent_send")
+            and name != "agent_send_many"} == {"agent_send", "agent_send_to_queue"}
 
     for name in sorted(stdio):
         assert remote[name].description == stdio[name].description, name
         assert remote[name].inputSchema == stdio[name].inputSchema, name
 
-    remote_force = remote["agent_send_force"]
-    stdio_force = stdio["agent_send_force"]
+    remote_force = remote["agent_send"]
+    stdio_force = stdio["agent_send"]
     assert remote_force.description == stdio_force.description
     assert remote_force.inputSchema == stdio_force.inputSchema
 
@@ -227,7 +229,7 @@ def test_remote_send_force_keeps_capability_semantics(monkeypatch, remote_gatewa
 
     monkeypatch.setattr("packages.mcp.server._api", fake_api)
     assert "PAN_AGENT_SESSION_ID" not in os.environ
-    result = _mcp_call(url, token, "agent_send_force", {
+    result = _mcp_call(url, token, "agent_send", {
         "session_id": "ses_remote", "text": "urgent",
         "client_message_id": "cmid-1"})
 
@@ -252,7 +254,7 @@ def test_remote_unknown_result_is_not_retried(monkeypatch, remote_gateway):
                 "error": {"code": "unconfirmed", "message": "no receipt"}}
 
     monkeypatch.setattr("packages.mcp.server._api", fake_api)
-    result = _mcp_call(url, token, "agent_send_force", {
+    result = _mcp_call(url, token, "agent_send", {
         "session_id": "ses_remote", "text": "again",
         "client_message_id": "cmid-2"})
 
@@ -272,7 +274,7 @@ def test_remote_call_still_runs_managed_access_gate(monkeypatch, remote_gateway)
         "packages.mcp.server._check_access",
         lambda *args, **kwargs: {"ok": False, "error": "denied"})
     monkeypatch.setattr("packages.mcp.server._api", fake_api)
-    result = _mcp_call(url, token, "agent_send_force", {
+    result = _mcp_call(url, token, "agent_send", {
         "session_id": "ses_remote", "text": "denied"})
 
     assert calls == []
@@ -300,14 +302,22 @@ def test_remote_unbound_call_cannot_use_local_session_tools(remote_gateway):
     ("agent_restart_delayed_status", {"session_id"}),
     ("report_consume", {"item_id"}),
     ("action_drafts", {"operation", "kind", "item", "expected_revision"}),
-    ("agent_background_start", {"name", "target_session_id", "hide_window"}),
+    ("agent_send", {"session_id", "text", "client_message_id"}),
+    ("agent_send_to_queue", {"session_id", "text"}),
 ])
 def test_current_catalog_schema(remote_gateway, name, fields):
     url, token = remote_gateway
     tools = {tool.name: tool for tool in _mcp_list_tools(url, token)}
     assert fields <= tools[name].inputSchema["properties"].keys()
-    if name == "agent_background_start":
-        assert "name" in tools[name].inputSchema["required"]
+    if name in {"agent_send", "agent_send_to_queue"}:
+        assert "session_id" in tools[name].inputSchema["required"]
+
+
+def test_remote_catalog_excludes_retired_job_writes(remote_gateway):
+    from packages.mcp.server import RETIRED_MCP_TOOLS
+    url, token = remote_gateway
+    names = {tool.name for tool in _mcp_list_tools(url, token)}
+    assert not names & set(RETIRED_MCP_TOOLS)
 
 
 @pytest.mark.parametrize("name,arguments", [
@@ -341,7 +351,7 @@ def test_access_rejects_wrong_claims(remote_gateway, access_key, claim):
     ("session_get", {"session_id": "ses_unmanaged"}),
     ("session_message_get", {"session_id": "ses_unmanaged", "message_id": "pan:synthetic"}),
     ("session_history_search", {"session_id": "ses_unmanaged", "query": "private"}),
-    ("agent_send_force", {"session_id": "ses_unmanaged", "text": "private", "client_message_id": "original-id"}),
+    ("agent_send", {"session_id": "ses_unmanaged", "text": "private", "client_message_id": "original-id"}),
 ])
 def test_real_managed_gate_before_backend(monkeypatch, remote_gateway, name, arguments):
     url, token = remote_gateway

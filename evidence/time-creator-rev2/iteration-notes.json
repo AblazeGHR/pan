@@ -1,0 +1,46 @@
+{
+  "observedDuringImplementation": [
+    {
+      "issue": "First standalone precision assertion used default Decimal context in expected value",
+      "resolution": "Expected-value context raised to 80 digits; no product assertion weakened",
+      "originalOutput": "conversation tool output; initial XML not retained"
+    },
+    {
+      "issue": "First frontend render used key outside local input scope",
+      "resolution": "Only optional timezone text input uses key; numeric limit fields remain required",
+      "originalOutput": "conversation tool output"
+    },
+    {
+      "issue": "Missing vitest before dependency install",
+      "resolution": "pnpm frozen-lockfile install, no package-lock change"
+    },
+    {
+      "issue": "Missing Playwright",
+      "resolution": "Installed test-only Python dependency; original red log retained"
+    },
+    {
+      "issue": "Public Creator projection intentionally omits cursor",
+      "resolution": "Browser proof reads fixture SQLite in readonly mode for UTC precision; product schema not expanded"
+    },
+    {
+      "issue": "Full navigation loses in-memory Bearer",
+      "resolution": "Browser uses existing SPA Canonical Jobs link; auth policy unchanged"
+    },
+    {
+      "issue": "Platform capability exact snapshot required additive new key",
+      "resolution": "Expected capability list and platform support sets explicitly updated"
+    },
+    {
+      "issue": "New Template composer default profile owner failed canonical schema",
+      "resolution": "Use explicit authorization principal for owned Creator owner; no public schema widening"
+    },
+    {
+      "issue": "One TS unknown JSX condition and test mock metadata typing failed build",
+      "resolution": "Boolean guard and complete typed mock metadata"
+    },
+    {
+      "issue": "New UI lost-receipt test used wrong button name",
+      "resolution": "Use actual existing Query original operation label; final regression passed"
+    }
+  ]
+}

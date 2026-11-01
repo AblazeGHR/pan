@@ -1,0 +1,41 @@
+{
+  "schema": "pan.job-final-migration.target-text-runtime-review/v1",
+  "candidateSource": "74d19f86b7b5b9babc9921acd7c85a6de4fc152a",
+  "baseline": "b288613e8a1862ea82d16a27d27992b715d3e0ba",
+  "eventBacklogPresentInBaseline": true,
+  "mapperLosslessForTargetText": false,
+  "fields": [
+    {
+      "field": "targetSessionId/target_session_id",
+      "mapperPath": "session.send.arguments.sessionId",
+      "currentBinding": "literal",
+      "owner": "legacy delivery/scheduled-task manager before reservation; canonical delivery manager after acceptance",
+      "candidateStates": ["pending-before-queue", "known-no-attempt", "accepted-success", "unknown-or-partial"],
+      "activationPhase": "reservation/fence boundary",
+      "classification": "ambiguous-preserve",
+      "reason": "source lacks manager/receipt phase; literal mapping can freeze a pre-acceptance runtime target"
+    },
+    {
+      "field": "targetSessionIds",
+      "mapperPath": "session.send-many.arguments.sessionIds",
+      "currentBinding": "literal-ordered-deduplicated",
+      "owner": "legacy delivery/scheduled-task manager per recipient before reservation; canonical delivery manager after acceptance",
+      "candidateStates": ["pending-before-queue", "known-no-attempt", "accepted-success", "unknown-or-partial"],
+      "activationPhase": "reservation/fence boundary",
+      "classification": "ambiguous-preserve",
+      "reason": "de-duplication is not evidence of target acceptance or safe retarget"
+    },
+    {
+      "field": "text",
+      "mapperPath": "session.send.arguments.text or process/qq action text",
+      "currentBinding": "literal",
+      "owner": "legacy delivery manager before reservation; canonical run manager after Run admission",
+      "candidateStates": ["pending-before-queue", "known-no-attempt", "accepted-success", "unknown-or-partial"],
+      "activationPhase": "reservation/fence or Run admission, depending on old manager contract",
+      "classification": "ambiguous-preserve",
+      "reason": "mapper has no proof whether source text was still editable or already frozen"
+    }
+  ],
+  "followUp": "MA/user decision required for old owner/status/receipt matrix before lossless conversion",
+  "productChanges": []
+}

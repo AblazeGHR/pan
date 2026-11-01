@@ -1,0 +1,46 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-migration-readiness-20261029
+F                                                                        [100%]
+================================== FAILURES ===================================
+_ test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6420/test_runtime_delivery_review_c0')
+
+    def test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order(tmp_path):
+        import csv
+        import io
+        from scripts.job_final_migration.inventory import build_inventory
+        from scripts.job_final_migration.review_packet import _csv, _disposition
+        root = tmp_path / "synthetic-source"
+        _, source = _runtime_delivery_source(root, "assign")
+        item, = build_inventory(root)["instances"]
+        runtime = {"id": "runtime-source", "runtimeBindingGap": item["runtimeBindingGap"], **_disposition(item, source)}
+        historical = {"id": "unresolved-original", **_disposition(
+            {**item, "reasonCodes": ["uncertain_effect"]}, {})}
+        for rows in ([historical, runtime], [runtime, historical]):
+>           parsed = list(csv.DictReader(io.StringIO(_csv(rows).decode("utf-8"))))
+                                                     ^^^^^^^^^^
+
+tests\test_job_migration_runtime_readiness.py:324: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+scripts\job_final_migration\review_packet.py:54: in _csv
+    writer.writerow({k: "'" + v if v.startswith(("=", "+", "-", "@", "\t", "\r")) else v
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\csv.py:225: in writerow
+    return self.writer.writerow(self._dict_to_list(rowdict))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <csv.DictWriter object at 0x000001722A2B81A0>
+rowdict = {'id': 'runtime-source', 'runtimeBindingGap': '{"acceptanceState":"unverified","allowedStates":["pending","reserved"],...ricalPreserve': 'raw bytes only; retain original source manager lifecycle', 'historicalExecutionAllowed': 'False', ...}
+
+    def _dict_to_list(self, rowdict):
+        if self.extrasaction == "raise":
+            wrong_fields = rowdict.keys() - self.fieldnames
+            if wrong_fields:
+>               raise ValueError("dict contains fields not in fieldnames: "
+                                 + ", ".join([repr(x) for x in wrong_fields]))
+E               ValueError: dict contains fields not in fieldnames: 'runtimeBindingGap', 'implementationFollowUp'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\csv.py:220: ValueError
+=========================== short test summary info ===========================
+FAILED tests/test_job_migration_runtime_readiness.py::test_runtime_delivery_review_csv_keeps_optional_gap_columns_in_either_order
+1 failed, 31 deselected in 0.46s

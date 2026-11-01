@@ -62,19 +62,27 @@ def publish(root, **fields):
 
 
 async def setup(root, sessions, m):
-    calls = []
-    async def pause(sid, args):
-        calls.append(sid)
-        return {'ok': True}
     workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None,
         _sess=SimpleNamespace(SESSION_DIR=root/'sessions'))
-    svc = Service(root / 'automation', workers, pause)
-    svc.engine.actions = Store(root / 'actions')
-    svc.engine.actions.put('actions', action())
-    svc.ledger.put({**trigger(), 'eventTypes': ['producer.ping']}, 0, True)
+    svc = Service(root / 'automation', workers, None)
+    from tests.support.canonical_owner import dispatch_host
+    host = dispatch_host(svc, root / 'job-final', event_type='producer.ping')
+    svc.canonical_test_host = host
     await svc.start()
+    async def drive():
+        while True:
+            await host.service.dispatch_once()
+            await asyncio.sleep(.01)
+    driver = asyncio.create_task(drive())
+    original_close = svc.close
+    async def close():
+        driver.cancel()
+        await asyncio.gather(driver, return_exceptions=True)
+        await original_close()
+        await host.service.close()
+    svc.close = close
     manager = EventRuntime(svc, lambda: m, lambda: list(sessions.values()), root)
-    return svc, manager, calls
+    return svc, manager, host.calls
 
 
 def test_catalog_event_contract_and_legacy():
@@ -115,9 +123,9 @@ def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode)
             publish(tmp_path, type='producer.ping', payload={'value': 7}, event_id='owned-event')
             await until(lambda: calls == ['selected'])
             await until(lambda: all(any(r['kind'] == 'delivery' and r['event']['id'] == 'owned-event' for r in records(tmp_path, pid)) for pid in ('observer', 'other')))
-            row = next(iter(svc.ledger.read()['runs'].values()))
-            await until(lambda: svc.ledger.read()['runs'][row['id']]['status'] == 'succeeded')
-            assert row['event']['source'] == {'type': 'plugin', 'id': 'producer'}
+            host = svc.canonical_test_host
+            await until(lambda: host.service.final.runs(host.job['id'])[0]['state'] == 'completed')
+            assert svc.events.lookup('owned-event')['event']['source'] == {'type': 'plugin', 'id': 'producer'}
             assert svc.bus.definitions['producer.ping']['description'] == 'Owned external fact'
             sessions['a'].adapter_config['plugin_bindings'] = []
             sessions['a'].adapter_config['plugin_selection_revision'] = 1
@@ -140,11 +148,11 @@ def test_real_external_fanout_action_and_shared_session_lifetime(tmp_path, mode)
             await manager.settle()
             new = manager.connections['producer']
             assert new.ready and new.generation != old.generation
-            assert svc.ledger.read()['triggers']['t']['enabled']
+            assert host.service.get('trigger', host.trigger['id'], actor={'type':'user','id':'local'})['state'] == 'enabled'
             publish(tmp_path, type='producer.ping', payload={'value': 8}, event_id='after-enable')
             await until(lambda: len(calls) == 2)
-            await until(lambda: len([r for r in svc.ledger.read()['runs'].values() if r['status'] == 'succeeded']) == 2)
-            evidence = {'mode': mode, 'runs': svc.ledger.read()['runs'], 'oldGeneration': old.generation,
+            await until(lambda: len([r for r in host.service.final.runs(host.job['id']) if r['state'] == 'completed']) == 2)
+            evidence = {'mode': mode, 'runs': host.service.final.runs(host.job['id']), 'oldGeneration': old.generation,
                         'newGeneration': new.generation, 'records': {pid: records(tmp_path, pid) for pid in ('producer', 'observer', 'other')}}
             out = Path('artifacts/event-plugin-adapter')
             out.mkdir(parents=True, exist_ok=True)
@@ -188,17 +196,15 @@ def test_external_rejections_disconnect_and_queue_restore(tmp_path):
                 connection.process.kill()
             await until(lambda: not svc.bus.available('producer.ping'))
             assert not connection.ready
-            # Persist an admitted queued Run with an unavailable dependency.
-            run = {'id': 'waiting', 'triggerId': 't', 'triggerRevision': 1, 'actionId': 'pause',
-                   'event': {'id': 'waiting-event', 'type': 'producer.ping', 'payload': {'value': 1}},
-                   'arguments': {}, 'state': {}, 'status': 'queued', 'admitted': True}
-            svc.ledger.append(run)
-            await svc.engine.kick()
-            assert svc.ledger.read()['runs']['waiting']['status'] == 'queued'
+            # Reconnect establishes a fresh trusted publisher. A new canonical
+            # Event creates one Run; it cannot recover a retired Ledger attempt.
             await manager.reconcile()
             await manager.settle()
-            await until(lambda: svc.ledger.read()['runs']['waiting']['status'] == 'succeeded')
-            assert calls == ['selected']
+            publish(tmp_path, type='producer.ping', payload={'value': 1}, event_id='after-eof')
+            await until(lambda: calls == ['selected'])
+            host = svc.canonical_test_host
+            await until(lambda: host.service.final.runs(host.job['id'])[0]['state'] == 'completed')
+            assert not svc.ledger.read()['runs']
             assert list(svc.bus.diagnostics)
         finally:
             await manager.close()
@@ -243,36 +249,6 @@ def test_slow_external_subscriber_isolated_and_bounded(tmp_path, monkeypatch):
     asyncio.run(run())
 
 
-def test_service_restart_restores_queued_only_after_actual_plugin_ready(tmp_path):
-    async def run():
-        sessions = {}
-        m = manifest()
-        svc, manager, calls = await setup(tmp_path, sessions, m)
-        svc.ledger.append({'id': 'persisted', 'triggerId': 't', 'triggerRevision': 1, 'actionId': 'pause',
-            'event': {'id': 'persisted-event', 'type': 'producer.ping', 'payload': {'value': 1}},
-            'arguments': {}, 'state': {}, 'status': 'queued', 'admitted': True})
-        await svc.engine.kick()
-        await manager.close()
-        await svc.close()
-        assert svc.ledger.read()['runs']['persisted']['status'] == 'queued'
-        workers = SimpleNamespace(workers={}, set_running_observer=lambda callback: None,
-            _sess=SimpleNamespace(SESSION_DIR=tmp_path/'sessions'))
-        restored = Service(tmp_path / 'automation', workers, svc.engine.execute.keywords['pause'])
-        restored.engine.actions = Store(tmp_path / 'actions')
-        events = EventRuntime(restored, lambda: m, lambda: list(sessions.values()), tmp_path)
-        try:
-            await restored.start()
-            await events.start()
-            assert restored.ledger.read()['runs']['persisted']['status'] == 'queued' and not calls
-            sessions['a'] = session('a', ['producer'])
-            await events.reconcile()
-            await events.settle()
-            await until(lambda: restored.ledger.read()['runs']['persisted']['status'] == 'succeeded')
-            assert calls == ['selected']
-        finally:
-            await events.close()
-            await restored.close()
-    asyncio.run(run())
 
 
 @pytest.mark.parametrize('mode,view', [('standalone', 'standalone'), ('pan_native', 'native'), ('gateway', 'gateway')])

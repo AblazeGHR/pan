@@ -1,0 +1,52 @@
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +466
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 466, reused 0, downloaded 44, added 43
+Progress: resolved 466, reused 0, downloaded 99, added 97
+Progress: resolved 466, reused 0, downloaded 144, added 143
+Progress: resolved 466, reused 0, downloaded 163, added 163
+Progress: resolved 466, reused 0, downloaded 179, added 179
+Progress: resolved 466, reused 0, downloaded 192, added 192
+Progress: resolved 466, reused 0, downloaded 205, added 205
+Progress: resolved 466, reused 0, downloaded 218, added 217
+Progress: resolved 466, reused 0, downloaded 235, added 235
+Progress: resolved 466, reused 0, downloaded 256, added 254
+Progress: resolved 466, reused 0, downloaded 291, added 291
+Progress: resolved 466, reused 0, downloaded 314, added 313
+Progress: resolved 466, reused 0, downloaded 344, added 342
+Progress: resolved 466, reused 0, downloaded 363, added 361
+Progress: resolved 466, reused 0, downloaded 376, added 376
+Progress: resolved 466, reused 0, downloaded 404, added 403
+Progress: resolved 466, reused 0, downloaded 424, added 423
+Progress: resolved 466, reused 0, downloaded 448, added 447
+Progress: resolved 466, reused 0, downloaded 452, added 451
+Progress: resolved 466, reused 0, downloaded 455, added 453
+Progress: resolved 466, reused 0, downloaded 456, added 455
+Progress: resolved 466, reused 0, downloaded 458, added 457
+Progress: resolved 466, reused 0, downloaded 458, added 458
+Progress: resolved 466, reused 0, downloaded 459, added 458
+Progress: resolved 466, reused 0, downloaded 459, added 459
+Progress: resolved 466, reused 0, downloaded 460, added 459
+Progress: resolved 466, reused 0, downloaded 461, added 461
+Progress: resolved 466, reused 0, downloaded 462, added 461
+Progress: resolved 466, reused 0, downloaded 462, added 462
+Progress: resolved 466, reused 0, downloaded 463, added 462
+Progress: resolved 466, reused 0, downloaded 465, added 464
+Progress: resolved 466, reused 0, downloaded 465, added 465
+Progress: resolved 466, reused 0, downloaded 466, added 465
+Progress: resolved 466, reused 0, downloaded 466, added 466
+Progress: resolved 466, reused 0, downloaded 466, added 466, done
+ EBUSY  EBUSY: resource busy or locked, symlink 'D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\node_modules\.pnpm\eslint-scope@8.4.0\node_modules\eslint-scope' -> 'D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\node_modules\eslint-scope'
+
+pnpm: EBUSY: resource busy or locked, symlink 'D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\node_modules\.pnpm\eslint-scope@8.4.0\node_modules\eslint-scope' -> 'D:\project\pan-worktrees\job-entry-notification-closure-20261029\packages\web\node_modules\eslint-scope'
+    at async Object.symlink (node:internal/fs/promises:1714:10)
+    at async forceSymlink (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:103080:9)
+    at async symlinkHoistedDependency (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:138603:9)
+    at async Promise.all (index 0)
+    at async D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:138594:9
+    at async Promise.all (index 32)
+    at async symlinkHoistedDependencies (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:138580:7)
+    at async hoist (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:138454:7)
+    at async headlessInstall (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:176496:36)
+    at async _install (D:\node_npm\node_global\node_modules\pnpm\dist\pnpm.cjs:193989:33)

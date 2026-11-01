@@ -8,6 +8,7 @@ import threading
 import time
 
 from packages.core.system_fields import canonical_event
+from packages.jobs.runtime_owner import OwnerFence
 
 RETENTION_SECONDS = 7 * 24 * 60 * 60
 MAX_EVENTS = 100_000
@@ -35,10 +36,13 @@ class EventStore:
         self.path = Path(root) / 'events.sqlite3'
         self.retention, self.max_events, self.max_bytes, self.clock = retention, max_events, max_bytes, clock
         self.lock = threading.RLock()
+        self.owner_fence = OwnerFence(self.path.parent.parent)
 
     @contextmanager
-    def connection(self):
-        with self.lock:
+    def connection(self, *, readonly=False):
+        from contextlib import nullcontext
+        guard = nullcontext() if readonly else self.owner_fence.writer(canonical=True)
+        with guard, self.lock:
             db = sqlite3.connect(self.path, timeout=5)
             try:
                 db.row_factory = sqlite3.Row
@@ -47,6 +51,8 @@ class EventStore:
                 # leave subsequent admission connections effectively unbounded.
                 db.execute('PRAGMA max_page_count=81920')
                 with db:
+                    if readonly:
+                        db.execute("PRAGMA query_only=ON")
                     yield db
             finally:
                 db.close()
@@ -61,6 +67,10 @@ class EventStore:
                 deliveries INTEGER NOT NULL DEFAULT 0, last_error TEXT)''')
             db.execute('CREATE INDEX IF NOT EXISTS events_pending ON events(done,seq)')
             db.execute('CREATE INDEX IF NOT EXISTS events_retention ON events(done,received)')
+            db.execute('''CREATE TABLE IF NOT EXISTS subscriptions (
+                event_id TEXT NOT NULL, target TEXT NOT NULL, receipt TEXT NOT NULL,
+                PRIMARY KEY(event_id,target))''')
+            db.execute('CREATE TABLE IF NOT EXISTS event_pins(event_id TEXT PRIMARY KEY)')
             db.execute('PRAGMA user_version=1')
 
     def append(self, event, targets, *, max_payload_bytes=PAYLOAD_BYTES):
@@ -90,6 +100,8 @@ class EventStore:
                 raise CapacityError('Event Store capacity reached; admission refused')
             db.execute('INSERT INTO events(id,fingerprint,event,targets,received,bytes) VALUES(?,?,?,?,?,?)',
                        (event['id'], fingerprint, event_json, targets_json, self.clock(), size))
+            if event['type']=='scheduler.time.v1' and event.get('source')=={'type':'core','id':'scheduler'}:
+                db.execute('INSERT OR IGNORE INTO event_pins VALUES(?)',(event['id'],))
         return {'event': event, 'duplicate': False}
 
     @staticmethod
@@ -99,19 +111,43 @@ class EventStore:
                     deliveryCount=row['deliveries'], lastError=row['last_error'])
 
     def pending(self, limit=64, after=0):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             return [self.decode(r) for r in db.execute('SELECT * FROM events WHERE done=0 AND seq>? ORDER BY seq LIMIT ?', (after, limit))]
 
     def lookup(self, event_id):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             row = db.execute('SELECT * FROM events WHERE id=?', (event_id,)).fetchone()
             return self.decode(row) if row else None
+
+    def subscription_receipts(self, event_id):
+        with self.connection(readonly=True) as db:
+            return {row[0]:json.loads(row[1]) for row in db.execute(
+                'SELECT target,receipt FROM subscriptions WHERE event_id=?',(event_id,))}
+
+    def release_pin(self,event_id):
+        with self.connection() as db:db.execute('DELETE FROM event_pins WHERE event_id=?',(event_id,))
+
+    def subscription(self,event_id,target,status,**fields):
+        receipt=dict(status=status,**fields)
+        with self.connection() as db:
+            if not db.execute('SELECT 1 FROM events WHERE id=?',(event_id,)).fetchone():
+                raise ValueError('Subscription requires admitted Event')
+            db.execute('INSERT OR REPLACE INTO subscriptions VALUES(?,?,?)',
+                       (event_id,target,json.dumps(receipt,ensure_ascii=False,allow_nan=False)))
+        return receipt
+
+    def subscription_errors(self,rows):
+        with self.connection() as db:
+            db.executemany('INSERT OR REPLACE INTO subscriptions VALUES(?,?,?)',
+                [(eid,key,json.dumps({'status':'error','error':str(error)[:1000]})) for eid,key,error in rows])
 
     def page(self, after=0, limit=20):
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= BATCH:
             raise ValueError('after must be nonnegative; limit must be 1..100')
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             rows = [self.decode(r) for r in db.execute('SELECT * FROM events WHERE seq>? ORDER BY seq LIMIT ?', (after, limit))]
+            for row in rows:
+                row['subscriptions']={r[0]:json.loads(r[1]) for r in db.execute('SELECT target,receipt FROM subscriptions WHERE event_id=?',(row['event']['id'],))}
         return {'events': rows, 'nextAfter': rows[-1]['seq'] if rows else after}
 
     def delivery(self, event_id, *, done=False, error=None):
@@ -139,11 +175,12 @@ class EventStore:
     def maintenance(self):
         with self.connection() as db:
             # Never silently discard undelivered facts to meet retention/capacity.
-            deleted = db.execute('DELETE FROM events WHERE done=1 AND received<?', (self.clock()-self.retention,)).rowcount
+            deleted = db.execute('DELETE FROM events WHERE done=1 AND received<? AND id NOT IN (SELECT event_id FROM event_pins)', (self.clock()-self.retention,)).rowcount
+            db.execute('DELETE FROM subscriptions WHERE event_id NOT IN (SELECT id FROM events)')
             return {'deletedEvents': deleted, 'retainedIds': {r[0] for r in db.execute('SELECT id FROM events')}}
 
     def stats(self):
-        with self.connection() as db:
+        with self.connection(readonly=True) as db:
             total, size, pending = db.execute('SELECT count(*),coalesce(sum(bytes),0),coalesce(sum(done=0),0) FROM events').fetchone()
             overdue = db.execute('SELECT count(*) FROM events WHERE done=0 AND received<?', (self.clock()-self.retention,)).fetchone()[0]
             pages = db.execute('PRAGMA page_count').fetchone()[0]

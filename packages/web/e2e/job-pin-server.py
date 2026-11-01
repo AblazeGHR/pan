@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from fastapi import FastAPI
 from packages.jobs import api, pan_bridge
 from packages.core import background_jobs
-from packages.scheduler import store
+from packages.core.platform.data_paths import job_root
 pan_bridge.configured_client = lambda: None
 app = FastAPI()
 app.include_router(api.router)
@@ -31,7 +31,7 @@ def pin_bytes():
 def fail(*args):
     raise OSError("isolated disk failure")
 original = background_jobs._atomic_write
-root = store.data_root()
+root = job_root()
 for index, (kind, status) in enumerate([("session-message", "running"), ("session-broadcast", "completed"), ("scheduled-task", "scheduled"), ("background-process", "running"), ("main-lifecycle", "completed")]):
     job_id = f"job_pin_{index}"
     if background_jobs.get(job_id, registry_root=root) is None:

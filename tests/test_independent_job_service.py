@@ -48,158 +48,157 @@ def test_owned_job_query_failure_does_not_confirm_empty():
     assert runner._owned_job_empty(Guard()) is False
 
 
-def test_system_action_admission_sql_failure_and_unknown_cleanup(tmp_path,monkeypatch):
-    store=JobStore(str(tmp_path/'owned'))
-    spawned=[]
-    monkeypatch.setattr(subprocess,'Popen',lambda *a,**k:spawned.append(a))
-    with store.connect() as db:
-        db.execute("CREATE TRIGGER reject_admission BEFORE INSERT ON jobs BEGIN SELECT RAISE(ABORT,'owned admission failure'); END")
-    with pytest.raises(sqlite3.IntegrityError):
-        store.create(_request([sys.executable,'-c','print(1)']))
-    assert not spawned and not store.list()['jobs']
-    with store.connect() as db:db.execute('DROP TRIGGER reject_admission')
-    job=store.create(_request([sys.executable,'-c','print(1)']))
-    assert len(spawned)==1 and job['attempts'][0]['actionId']=='system_background_process'
-    assert 'attemptSnapshot' not in job and job['unified']['config']['recovery']['enabled'] is False
-    with store.connect() as db:
-        private=json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
-        assert private['attemptSnapshot']['arguments']['argv']==[sys.executable,'-c','print(1)']
-    store.set_unknown(job['jobId'])
-    terminal=store.get(job['jobId'])
-    assert terminal['status']=='UNKNOWN' and terminal['snapshotCleanup']=='cleaned'
-    assert terminal['attempts'][0]['status']=='uncertain'
-    with store.connect() as db:
-        assert 'attemptSnapshot' not in json.loads(db.execute('SELECT execution_audit FROM jobs').fetchone()[0])
+# R5: canonical effects replace the old Job writer in all live fixtures.
+from packages.jobs.independent_service import ServiceError, ServiceLock
+from packages.jobs.independent_executor import ExecutionHost, ExecutionStore, ExecutionConflict, effect_id
+from packages.actions.typed_executor import EffectReceipt
+from tests.test_job_final_independent_execution import attempt, key, process_plan
 
 
-def _service(root):
+def _service(root, launch=None):
     store = JobStore(str(root))
+    if launch is not None:
+        store._execution_host = ExecutionHost(ExecutionStore(root), launch=launch)
     store.recover()
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    httpd.daemon_threads = True
-    httpd.store = store
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    server.store = store
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    client = IndependentJobClient(f"http://127.0.0.1:{httpd.server_port}")
-    return httpd, thread, client, store
+    return server, thread, IndependentJobClient(f"http://127.0.0.1:{server.server_port}"), store
 
 
 def _stop(server, thread):
     server.shutdown()
     server.server_close()
     thread.join(timeout=3)
+    assert not thread.is_alive()
 
 
-def _request(argv, **more):
-    return {"name": "Validate independent lifecycle", "argv": argv, "cwd": os.getcwd(), "targetSessionId": "session_test", **more}
+def _request(root, argv=None):
+    plan = process_plan(root)
+    if argv is not None: plan["argv"] = argv
+    return {"jobId": "job_original", "attempt": attempt(), "effectKey": key(), "frozenPlan": plan}
 
 
-def _wait(client, job_id, terminal=("completed", "failed", "cancelled", "UNKNOWN"), timeout=8):
-    end = time.monotonic() + timeout
-    while time.monotonic() < end:
-        job = client.get(job_id)
-        if job["status"] in terminal:
-            return job
+def _wait(client, identity, timeout=12):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        doc = client.get_execution(identity)
+        if doc["result"] is not None: return doc
         time.sleep(.03)
-    raise AssertionError(f"job {job_id} did not become terminal")
+    raise AssertionError("canonical execution did not settle")
+
+
+def _historical(root, *, status="running", birth="unverified"):
+    # Explicit historical bytes, never call a runtime legacy creator.
+    root.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(root / "jobs.sqlite3") as db:
+        db.executescript("""
+            CREATE TABLE jobs(id TEXT PRIMARY KEY,payload TEXT,status TEXT,created REAL,updated REAL,
+                runner_pid INTEGER,runner_filetime TEXT,exit_code INTEGER,log_path TEXT,
+                notification_state TEXT,cancel_requested INTEGER DEFAULT 0,execution_audit TEXT);
+            CREATE TABLE outbox(event_id TEXT PRIMARY KEY,job_id TEXT,payload TEXT,acked INTEGER DEFAULT 0,created REAL);
+        """)
+        payload = {"argv": ["historical"], "cwd": str(root), "label": None,
+                   "name": "Historical name " + "x" * 250, "targetSessionId": "s", "creatorSessionId": None}
+        identity = "job_" + "a" * 24
+        db.execute("INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+            (identity, json.dumps(payload), status, 1, 1, 123, birth, None, "historical.log", "pending", 0, "{}"))
+        event = {"eventId": identity + ":terminal", "jobId": identity, "status": status}
+        db.execute("INSERT INTO outbox VALUES(?,?,?,?,?)", (event["eventId"], identity, json.dumps(event), 0, 1))
+    return identity
+
+
+def test_system_action_admission_sql_failure_and_unknown_cleanup(tmp_path, monkeypatch):
+    launches = []
+    server, thread, client, container = _service(tmp_path, lambda *args: launches.append(args))
+    try:
+        store = container.execution_host.store
+        with store.connect() as db:
+            db.execute("CREATE TRIGGER reject_admission BEFORE INSERT ON executions BEGIN SELECT RAISE(ABORT,'failure'); END")
+        with pytest.raises(RuntimeError, match="500"): client.submit_execution(_request(tmp_path))
+        assert launches == [] and store.events()["events"] == []
+        with store.connect() as db: db.execute("DROP TRIGGER reject_admission")
+        doc = client.submit_execution(_request(tmp_path))
+        assert len(launches) == 1
+        store.recover(lambda _: False)
+        unknown = client.get_execution(doc["effectId"])
+        assert unknown["result"]["outcome"] == "unknown"
+        assert unknown["result"]["cleanupProof"]["confirmed"] is False
+        assert client.submit_execution(_request(tmp_path))["result"] == unknown["result"]
+        assert len(launches) == 1 and not (tmp_path / "jobs.sqlite3").exists()
+    finally: _stop(server, thread)
 
 
 def test_concurrent_create_is_idempotent_and_conflict_is_rejected(tmp_path):
-    server, thread, client, _ = _service(tmp_path)
+    launches = []
+    server, thread, client, _ = _service(tmp_path, lambda *args: launches.append(args))
     try:
-        payload = _request([sys.executable, "-c", "import time; time.sleep(.2)"], idempotencyKey="same")
-        results = []
-        workers = [threading.Thread(target=lambda: results.append(client.start(payload))) for _ in range(5)]
-        for w in workers: w.start()
-        for w in workers: w.join()
-        assert len({j["jobId"] for j in results}) == 1
-        changed = {**payload, "argv": [sys.executable, "-c", "print('different')"]}
-        with pytest.raises(RuntimeError, match="409"):
-            client.start(changed)
-    finally:
-        _stop(server, thread)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            docs = list(pool.map(lambda _: client.submit_execution(_request(tmp_path)), range(5)))
+        assert len({doc["effectId"] for doc in docs}) == 1 and len(launches) == 1
+        changed = _request(tmp_path, [sys.executable, "-c", "print('changed')"])
+        with pytest.raises(RuntimeError, match="409"): client.submit_execution(changed)
+        assert len(launches) == 1
+    finally: _stop(server, thread)
 
 
 def test_immediate_completion_and_outbox_ack_are_durable_and_idempotent(tmp_path):
     server, thread, client, _ = _service(tmp_path)
     try:
-        job = client.start(_request([sys.executable, "-c", "pass"]))
-        terminal = _wait(client, job["jobId"])
-        assert terminal["status"] == "completed"
-        assert terminal['snapshotCleanup']=='cleaned'
-        assert terminal['attempts'][0]['status']=='completed'
-        assert terminal['attempts'][0]['snapshotCleanup']=='cleaned'
-        assert 'attemptSnapshot' not in terminal
-        events = client.events()["events"]
-        assert len(events) == 1
-        event = events[0]
-        assert event["eventId"] == job["jobId"] + ":terminal"
-        assert event["targetSessionId"] == "session_test"
-        assert client.ack(event["eventId"]) == {"ok": True, "eventId": event["eventId"]}
-        assert client.ack(event["eventId"]) == {"ok": True, "eventId": event["eventId"]}
-        assert client.events()["events"] == []
-    finally:
-        _stop(server, thread)
+        doc = client.submit_execution(_request(tmp_path))
+        final = _wait(client, doc["effectId"])
+        assert final["result"]["outcome"] == "succeeded"
+        assert final["result"]["cleanupProof"]["ownedTree"]["confirmed"] is True
+        event, = client.execution_events()["events"]
+        assert event["attempt"] == attempt() and event["result"] == final["result"]
+        for _ in range(2): assert client.ack_execution(event["eventId"])["ok"] is True
+        assert client.execution_events()["events"] == []
+        assert ExecutionStore(tmp_path).get(doc["effectId"])["result"] == final["result"]
+    finally: _stop(server, thread)
 
 
 def test_malformed_body_is_rejected_with_static_error(tmp_path):
     server, thread, client, _ = _service(tmp_path)
     try:
         from urllib.request import Request, urlopen
-        req = Request(client.endpoint + "/jobs", data=b"{", method="POST", headers={"Content-Type": "application/json"})
-        with pytest.raises(Exception) as exc:
-            urlopen(req, timeout=2)
-        assert getattr(exc.value, "code", None) == 400
-        assert json.loads(exc.value.read()) == {"error": "malformed JSON"}
-    finally:
-        _stop(server, thread)
+        for route in ("/jobs", "/executions"):
+            req = Request(client.endpoint + route, data=b"{", method="POST", headers={"Content-Type": "application/json"})
+            with pytest.raises(Exception) as caught: urlopen(req, timeout=2)
+            assert caught.value.code == 400
+            assert json.loads(caught.value.read()) == {"error": "malformed JSON"}
+    finally: _stop(server, thread)
 
 
 def test_cancel_with_wrong_runner_identity_does_not_touch_job(tmp_path):
-    server, thread, client, store = _service(tmp_path)
+    identity = _historical(tmp_path)
+    server, thread, client, store = _service(tmp_path, lambda *args: None)
     try:
-        job = client.start(_request([sys.executable, "-c", "import time; time.sleep(1.5)"]))
-        deadline = time.monotonic() + 4
-        while time.monotonic() < deadline:
-            job = client.get(job["jobId"])
-            if job["runnerPid"] and job["runnerFiletime"]: break
-            time.sleep(.03)
-        assert job["runnerPid"] and job["runnerFiletime"]
+        with store.connect() as db: db.execute("UPDATE jobs SET status='running'")
+        with pytest.raises(RuntimeError, match="409"): client.cancel(identity)
         with store.connect() as db:
-            db.execute("UPDATE jobs SET runner_filetime='wrong-identity' WHERE id=?", (job["jobId"],))
-        with pytest.raises(RuntimeError, match="409"):
-            client.cancel(job["jobId"])
-        with store.connect() as db:
-            assert db.execute("SELECT cancel_requested FROM jobs WHERE id=?", (job["jobId"],)).fetchone()[0] == 0
-        with store.connect() as db:
-            db.execute("UPDATE jobs SET runner_filetime=? WHERE id=?", (job["runnerFiletime"], job["jobId"]))
-        assert _wait(client, job["jobId"])["status"] == "completed"
-    finally:
-        _stop(server, thread)
+            assert db.execute("SELECT cancel_requested FROM jobs").fetchone()[0] == 0
+    finally: _stop(server, thread)
 
 
 def test_cancel_proves_and_terminates_the_owned_process_tree(tmp_path):
-    server, thread, client, _ = _service(tmp_path)
+    # Canonical cancellation is a fenced pre-effect window; active cleanup is
+    # separately exercised by ProcessOwner and delete-safety contract tests.
+    server, thread, client, store = _service(tmp_path, lambda *args: None)
     try:
-        child = "import time; time.sleep(30)"
-        parent = "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c'," + repr(child) + "]); print('ready',flush=True); time.sleep(30)"
-        job = client.start(_request([sys.executable, "-c", parent]))
-        deadline = time.monotonic() + 6
-        while time.monotonic() < deadline:
-            current = client.get(job["jobId"])
-            if current["status"] == "running" and os.path.isfile(current["logPath"]):
-                if os.path.getsize(current["logPath"]) > 0: break
-            time.sleep(.03)
-        else: raise AssertionError("owned parent and child did not start")
-        client.cancel(job["jobId"])
-        cancelled = _wait(client, job["jobId"], timeout=8)
-        assert cancelled["status"] == "cancelled"
-        assert cancelled['snapshotCleanup']=='cleaned'
-        assert cancelled['attempts'][0]['status']=='cancelled'
-        assert any(e["eventId"] == job["jobId"] + ":terminal" and e["status"] == "cancelled"
-                   for e in client.events()["events"])
-    finally:
-        _stop(server, thread)
+        doc = client.submit_execution(_request(tmp_path))
+        before = client.get_execution(doc["effectId"])
+        with pytest.raises(RuntimeError, match="409"):
+            client.cancel_execution(doc["effectId"], attempt(leaseId="stale"))
+        assert client.get_execution(doc["effectId"]) == before
+        cancelled = client.cancel_execution(doc["effectId"], attempt())
+        assert cancelled["result"]["cleanupProof"] == {"confirmed": True, "effectStarted": False}
+        assert cancelled["phase"] == "cancelled"
+        with pytest.raises(ExecutionConflict):
+            store.execution_host.store.claim(doc["effectId"], attempt(), {"pid": 7, "birth": "birth"})
+    finally: _stop(server, thread)
 
 
 def test_runner_environment_removes_pan_variables_and_pythonpath(tmp_path, monkeypatch):
@@ -208,40 +207,31 @@ def test_runner_environment_removes_pan_variables_and_pythonpath(tmp_path, monke
     server, thread, client, _ = _service(tmp_path)
     try:
         marker = tmp_path / "environment.json"
-        code = "import json,os,sys; json.dump({'pan':any(k.upper().startswith('PAN_') for k in os.environ),'pythonpath':os.environ.get('PYTHONPATH'),'path':sys.path},open(r'" + str(marker) + "','w'))"
-        job = client.start(_request([sys.executable, "-c", code]))
-        assert _wait(client, job["jobId"])["status"] == "completed"
-        value = json.loads(marker.read_text())
-        assert value["pan"] is False
-        assert value["pythonpath"] is None
-    finally:
-        _stop(server, thread)
+        code = "import json,os; json.dump({'pan':any(k.upper().startswith('PAN_') for k in os.environ),'pythonpath':os.environ.get('PYTHONPATH')},open(" + repr(str(marker)) + ",'w'))"
+        doc = client.submit_execution(_request(tmp_path, [sys.executable, "-c", code]))
+        assert _wait(client, doc["effectId"])["result"]["outcome"] == "succeeded"
+        assert json.loads(marker.read_text()) == {"pan": False, "pythonpath": None}
+    finally: _stop(server, thread)
 
 
 def test_service_restart_keeps_live_runner_and_does_not_repeat_execution(tmp_path):
     server, thread, client, store = _service(tmp_path)
-    marker = tmp_path / "ran-once"
+    marker = tmp_path / "once"
+    code = "import pathlib,time; p=pathlib.Path(" + repr(str(marker)) + "); p.write_text(p.read_text()+'x' if p.exists() else 'x'); time.sleep(1.5)"
     try:
-        code = "import pathlib,time; pathlib.Path(r'" + str(marker) + "').write_text('once'); time.sleep(1.2)"
-        job = client.start(_request([sys.executable, "-c", code]))
-        deadline = time.monotonic() + 4
-        while time.monotonic() < deadline and not job["runnerPid"]:
-            time.sleep(.03); job = client.get(job["jobId"])
-        pid = job["runnerPid"]
-        assert pid
-        _stop(server, thread)
-        server2, thread2, client2, _ = _service(tmp_path)
-        try:
-            recovered = client2.get(job["jobId"])
-            assert recovered["runnerPid"] == pid
-            assert recovered["status"] in ("running", "completed")
-            assert _wait(client2, job["jobId"])["status"] == "completed"
-            assert marker.read_text() == "once"
-        finally:
-            _stop(server2, thread2)
-    except BaseException:
-        # The first server may already be stopped; close is safe in normal completion.
-        raise
+        doc = client.submit_execution(_request(tmp_path, [sys.executable, "-c", code]))
+        deadline = time.monotonic() + 5
+        while not marker.exists() and time.monotonic() < deadline: time.sleep(.02)
+        assert marker.exists()
+        original = client.get_execution(doc["effectId"])
+    finally: _stop(server, thread)
+    server, thread, client, _ = _service(tmp_path)
+    try:
+        recovered = client.get_execution(doc["effectId"])
+        assert recovered["supervisorIdentity"] == original["supervisorIdentity"]
+        assert _wait(client, doc["effectId"])["result"]["outcome"] == "succeeded"
+        assert marker.read_text() == "x"
+    finally: _stop(server, thread)
 
 
 @pytest.mark.skipif(os.name != "nt", reason="taskkill /T is a Windows-only lifecycle check")
@@ -290,15 +280,15 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
         marker = tmp_path / "survived-host-tree-kill"
         code = "import pathlib,time; time.sleep(1.5); pathlib.Path(r'" + str(marker) + "').write_text('done')"
         try:
-            job = client.start(_request([sys.executable, "-c", code]))
+            job = client.submit_execution(_request(tmp_path, [sys.executable, "-c", code]))
         except Exception as exc:
             # Preserve one POST and its original timeout. A lost response may
             # already have admitted a Job; diagnostics must never retry it.
             state = {"serviceReturncode": service.poll(), "requests": requests}
-            database = root / 'jobs.sqlite3'
+            database = root / 'executions.sqlite3'
             if database.exists():
                 with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as db:
-                    state['durableJobs'] = db.execute('SELECT id,status,runner_pid FROM jobs').fetchall()
+                    state['durableExecutions'] = db.execute('SELECT effect_id,document FROM executions').fetchall()
             service_log.flush()
             exc.add_note(json.dumps(state) + '\n' + (tmp_path / 'independent-service.log').read_text(encoding='utf-8', errors='replace')[-8000:])
             raise
@@ -313,7 +303,7 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
         assert host.returncode is not None
         host = None
         assert client.health()["ok"] is True
-        assert _wait(client, job["jobId"], timeout=8)["status"] == "completed"
+        assert _wait(client, job["effectId"], timeout=8)["result"]["outcome"] == "succeeded"
         assert marker.read_text() == "done"
     finally:
         if host is not None and host.poll() is None:
@@ -327,45 +317,62 @@ def test_killing_pan_like_sibling_host_tree_does_not_kill_independent_service_ta
         service_log.close()
 
 
-def test_unknown_jobs_are_not_retryable(tmp_path):
-    server, thread, client, store = _service(tmp_path)
-    try:
-        job = client.start(_request([sys.executable, "-c", "import time; time.sleep(2)"]))
-        deadline = time.monotonic() + 4
-        while time.monotonic() < deadline:
-            job = client.get(job["jobId"])
-            if job["status"] == "running": break
-            time.sleep(.02)
-        assert job["status"] == "running"
-        with store.connect() as db:
-            db.execute("UPDATE jobs SET status='UNKNOWN' WHERE id=?", (job["jobId"],))
-        with pytest.raises(RuntimeError, match="409"):
-            client.retry(job["jobId"])
-        assert len(client.list()["jobs"]) == 1
-        with store.connect() as db:
-            db.execute("UPDATE jobs SET status='running' WHERE id=?", (job["jobId"],))
-        assert _wait(client, job["jobId"])["status"] == "completed"
-    finally:
-        _stop(server, thread)
+
+@pytest.mark.parametrize("status", ["UNKNOWN", "failed", "cancelled", "completed", "running"])
+def test_unknown_jobs_are_not_retryable(tmp_path, status):
+    identity = _historical(tmp_path, status=status)
+    store = JobStore(str(tmp_path))
+    before = (tmp_path / "jobs.sqlite3").read_bytes()
+    with pytest.raises(ServiceError) as caught: store.retry(identity)
+    assert caught.value.status == 410
+    assert (tmp_path / "jobs.sqlite3").read_bytes() == before
+    assert store.get(identity)["status"] == status
 
 
-@pytest.mark.parametrize("name", [None, "", "   ", "x" * 201])
+@pytest.mark.parametrize("name", [None, "", "   ", "x" * 201, "valid historical name"])
 def test_new_process_requires_name_without_spawning(tmp_path, monkeypatch, name):
-    from packages.jobs.independent_service import ServiceError
-    store = JobStore(str(tmp_path / "owned-name"))
-    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", lambda *a, **k: pytest.fail("must not spawn"))
-    with pytest.raises(ServiceError, match="name"):
-        store.create(_request([sys.executable], name=name))
+    store = JobStore(str(tmp_path))
+    with pytest.raises(ServiceError) as caught: store.create({"name": name})
+    assert caught.value.status == 410
+    assert not (tmp_path / "jobs.sqlite3").exists()
 
 
-def test_name_is_trimmed_label_optional_and_legacy_read_unchanged(tmp_path, monkeypatch):
-    store = JobStore(str(tmp_path / "owned-name"))
-    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", lambda *a, **k: None)
-    job = store.create(_request([sys.executable], name="  Validate logs  "))
-    assert job["name"] == "Validate logs" and job["label"] is None
-    with store.connect() as db:
-        row = db.execute("SELECT payload FROM jobs WHERE id=?", (job["jobId"],)).fetchone()
-        payload = json.loads(row["payload"])
-        payload["name"] = "Historical name " + "x" * 250
-        db.execute("UPDATE jobs SET payload=? WHERE id=?", (json.dumps(payload), job["jobId"]))
-    assert store.get(job["jobId"])["name"] == payload["name"]
+def test_name_is_trimmed_label_optional_and_legacy_read_unchanged(tmp_path):
+    identity = _historical(tmp_path, status="completed")
+    store = JobStore(str(tmp_path))
+    before = (tmp_path / "jobs.sqlite3").read_bytes()
+    doc = store.get(identity)
+    assert doc["name"] == "Historical name " + "x" * 250 and doc["label"] is None
+    assert doc["readOnly"] is True and doc["legacy"] is True
+    assert (tmp_path / "jobs.sqlite3").read_bytes() == before
+    event, = store.events()["events"]
+    assert store.ack(event["eventId"])["ok"] is True
+    assert store.ack(event["eventId"])["ok"] is True
+    assert store.events()["events"] == []
+
+
+def test_retired_http_writes_and_client_helpers_never_create_jobs(tmp_path):
+    from urllib.request import Request, urlopen
+    server, thread, client, _ = _service(tmp_path)
+    try:
+        for route in ("/jobs", "/jobs/job_" + "a" * 24 + "/retry"):
+            req = Request(client.endpoint + route, data=b"{}", method="POST", headers={"Content-Type": "application/json"})
+            with pytest.raises(Exception) as caught: urlopen(req, timeout=2)
+            assert caught.value.code == 410
+        for call in (lambda: client.start({}), lambda: client.retry("original")):
+            with pytest.raises(RuntimeError, match="410"): call()
+        assert client.list() == {"jobs": []} and client.events() == {"events": []}
+        assert not (tmp_path / "jobs.sqlite3").exists()
+    finally: _stop(server, thread)
+
+
+def test_service_lock_is_exclusive_and_releasable(tmp_path):
+    first, second = ServiceLock(tmp_path), ServiceLock(tmp_path)
+    first.acquire()
+    try:
+        with pytest.raises((OSError, RuntimeError)): second.acquire()
+        assert first.file is not None
+    finally: first.release()
+    second.acquire()
+    second.release()
+    assert second.file is None

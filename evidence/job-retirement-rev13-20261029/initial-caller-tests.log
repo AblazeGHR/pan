@@ -1,0 +1,678 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-retirement-closure-20261027/packages/web/src
+
+ × views/CanonicalJobsView.retirement-r13.test.tsx > existing assign caller writes exact literal fields and immutable Action reference to a passive canonical Job
+   → expected { definition: { …(3) }, …(2) } to match object { expectedRevision: +0, …(1) }
+(3 matching properties omitted from actual)
+ ✓ views/CanonicalJobsView.retirement-r13.test.tsx > existing process caller preserves argv boundaries/cwd/hideWindow without guessing command-string shell syntax
+ × views/CanonicalJobsView.retirement-r13.test.tsx > missing Action selection rejects locally without a legacy fallback write 1047ms
+   → Found multiple elements with the text: /Choose an Action for each step/
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m<li>[39m
+  [0mChoose an Action for each step.[0m
+[36m</li>[39m
+
+Ignored nodes: comments, script, style
+[36m<li>[39m
+  [0mChoose an Action for each step.[0m
+[36m</li>[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Canonical management"[39m
+      [33mclass[39m=[32m"h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto min-w-0 max-w-6xl space-y-4"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex min-w-0 flex-wrap items-center justify-between gap-3"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"text-2xl font-semibold"[39m
+            [36m>[39m
+              [0mCanonical Jobs[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-sm text-text-secondary"[39m
+            [36m>[39m
+              [0m统一定义与 Run 管理 · 手动刷新[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<nav[39m
+            [33mclass[39m=[32m"flex flex-wrap gap-3 text-sm"[39m
+          [36m>[39m
+            [36m<a[39m
+              [33mdata-discover[39m=[32m"true"[39m
+              [33mhref[39m=[32m"/automation"[39m
+            [36m>[39m
+              [0mAutomation[0m
+            [36m</a>[39m
+          [36m</nav>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"rounded border border-border-default p-3 text-xs space-y-2"[39m
+        [36m>[39m
+          [36m<p>[39m
+            [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+          [36m</p>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+          [36m>[39m
+            [0mLog out[0m
+          [36m</button>[39m
+        [36m</section>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Canonical sections"[39m
+          [33mclass[39m=[32m"flex min-w-0 flex-wrap gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"true"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mJobs[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTriggers[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mEventCreators[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mJobTemplates[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-4"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mclass[39m=[32m"mr-auto text-lg font-semibold"[39m
+            [36m>[39m
+              [0mCanonical [0m
+              [0mJobs[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m刷新列表[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m创建 [0m
+              [0mJobs[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<form[39m
+            [33maria-label[39m=[32m"编辑 Jobs"[39m
+            [33mclass[39m=[32m"min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-3"[39m
+          [36m>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"block text-sm"[39m
+            [36m>[39m
+              [0m名称[0m
+              [36m<input[39m
+                [33mclass[39m=[32m"mt-1 block w-full min-w-0 rounded border border-border-default bg-bg-primary p-2 text-sm"[39m
+                [33mmaxlength[39m=[32m"200"[39m
+                [33mrequired[39m=[32m""[39m
+                [33mvalue[39m=[32m"Incomplete"[39m
+              [36m/>[39m
+            [36m</label>[39m
+            [36m<fieldset[39m
+              [33mclass[39m=[32m"min-w-0"[39m
+            [36m>[39m
+              [36m<section[39m
+                [33maria-label[39m=[32m"Structured Job definition"[39m
+                [33mclass[39m=[32m"space-y-4"[39m
+              [36m>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"block text-sm"[39m
+                [36m>[39m
+                  [0mDescription[0m
+                  [36m<textarea[39m
+                    [33mclass[39m=[32m"mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:curso...
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Canonical management"[39m
+      [33mclass[39m=[32m"h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto min-w-0 max-w-6xl space-y-4"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex min-w-0 flex-wrap items-center justify-between gap-3"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"text-2xl font-semibold"[39m
+            [36m>[39m
+              [0mCanonical Jobs[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-sm text-text-secondary"[39m
+            [36m>[39m
+              [0m统一定义与 Run 管理 · 手动刷新[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<nav[39m
+            [33mclass[39m=[32m"flex flex-wrap gap-3 text-sm"[39m
+          [36m>[39m
+            [36m<a[39m
+              [33mdata-discover[39m=[32m"true"[39m
+              [33mhref[39m=[32m"/automation"[39m
+            [36m>[39m
+              [0mAutomation[0m
+            [36m</a>[39m
+          [36m</nav>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"rounded border border-border-default p-3 text-xs space-y-2"[39m
+        [36m>[39m
+          [36m<p>[39m
+            [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+          [36m</p>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+          [36m>[39m
+            [0mLog out[0m
+          [36m</button>[39m
+        [36m</section>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Canonical sections"[39m
+          [33mclass[39m=[32m"flex min-w-0 flex-wrap gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"true"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mJobs[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTriggers[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mEventCreators[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-pressed[39m=[32m"false"[39m
+            [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mJobTemplates[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-4"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mclass[39m=[32m"mr-auto text-lg font-semibold"[39m
+            [36m>[39m
+              [0mCanonical [0m
+              [0mJobs[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m刷新列表[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "[39m
+              [33mdisabled[39m=[32m""[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m创建 [0m
+              [0mJobs[0m
+            [36m</button>[39m
+          [36m</div>[39m
+          [36m<form[39m
+            [33maria-label[39m=[32m"编辑 Jobs"[39m
+            [33mclass[39m=[32m"min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-3"[39m
+          [36m>[39m
+            [36m<label[39m
+              [33mclass[39m=[32m"block text-sm"[39m
+            [36m>[39m
+              [0m名称[0m
+              [36m<input[39m
+                [33mclass[39m=[32m"mt-1 block w-full min-w-0 rounded border border-border-default bg-bg-primary p-2 text-sm"[39m
+                [33mmaxlength[39m=[32m"200"[39m
+                [33mrequired[39m=[32m""[39m
+                [33mvalue[39m=[32m"Incomplete"[39m
+              [36m/>[39m
+            [36m</label>[39m
+            [36m<fieldset[39m
+              [33mclass[39m=[32m"min-w-0"[39m
+            [36m>[39m
+              [36m<section[39m
+                [33maria-label[39m=[32m"Structured Job definition"[39m
+                [33mclass[39m=[32m"space-y-4"[39m
+              [36m>[39m
+                [36m<label[39m
+                  [33mclass[39m=[32m"block text-sm"[39m
+                [36m>[39m
+                  [0mDescription[0m
+                  [36m<textarea[39m
+                    [33mclass[39m=[32m"mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:curso...
+ ✓ views/CanonicalJobsView.retirement-r13.test.tsx > server rejection preserves the structured draft without retrying a legacy endpoint
+ ✓ views/CanonicalJobsView.retirement-r13.test.tsx > no-Creator Template exposes structured unsupported and keeps activation false without a fallback or Run request
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  views/CanonicalJobsView.retirement-r13.test.tsx > existing assign caller writes exact literal fields and immutable Action reference to a passive canonical Job
+AssertionError: expected { definition: { …(3) }, …(2) } to match object { expectedRevision: +0, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+    "definition": Object {
+      "name": "  原文 Job  ",
+      "steps": Array [
+        Object {
+          "actionRef": Object {
+            "digest": "fixture-product_assign_v2",
+            "id": "product_assign_v2",
+            "revision": 1,
+          },
+          "arguments": Object {
+            "sessionId": Object {
+              "from": "literal",
+              "value": "ses_owned",
+            },
+            "source": Object {
+              "from": "literal",
+              "value": "MA",
+            },
+            "sourceSessionId": Object {
+              "from": "literal",
+              "value": "ses_caller",
+            },
+            "taskId": Object {
+              "from": "literal",
+              "value": "task_owned",
+            },
+            "text": Object {
+              "from": "literal",
+-             "value": "  原文
+- text  ",
++             "value": "  原文text  ",
+            },
+          },
+          "completion": Object {
+            "contract": "durable-queue-accepted",
+          },
+          "stepId": "step1",
+        },
+      ],
+    },
+    "expectedRevision": 0,
+  }
+
+ ❯ views/CanonicalJobsView.retirement-r13.test.tsx:64:27
+     62|   await waitFor(() => expect(writes).toHaveLength(1));
+     63|   expect(writes[0]!.url).toBe('/api/jobs');
+     64|   expect(writes[0]!.body).toMatchObject({ expectedRevision: 0, definit…
+       |                           ^
+     65|     stepId: 'step1', actionRef: references.product_assign_v2,
+     66|     completion: { contract: 'durable-queue-accepted' }, arguments: {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  views/CanonicalJobsView.retirement-r13.test.tsx > missing Action selection rejects locally without a legacy fallback write
+TestingLibraryElementError: Found multiple elements with the text: /Choose an Action for each step/
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+<li>
+  Choose an Action for each step.
+</li>
+
+Ignored nodes: comments, script, style
+<li>
+  Choose an Action for each step.
+</li>
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+<body>
+  <div>
+    <section
+      aria-label="Canonical management"
+      class="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"
+    >
+      <div
+        class="mx-auto min-w-0 max-w-6xl space-y-4"
+      >
+        <header
+          class="flex min-w-0 flex-wrap items-center justify-between gap-3"
+        >
+          <div>
+            <h1
+              class="text-2xl font-semibold"
+            >
+              Canonical Jobs
+            </h1>
+            <p
+              class="text-sm text-text-secondary"
+            >
+              统一定义与 Run 管理 · 手动刷新
+            </p>
+          </div>
+          <nav
+            class="flex flex-wrap gap-3 text-sm"
+          >
+            <a
+              data-discover="true"
+              href="/automation"
+            >
+              Automation
+            </a>
+          </nav>
+        </header>
+        <section
+          aria-label="Job user authorization"
+          class="rounded border border-border-default p-3 text-xs space-y-2"
+        >
+          <p>
+            User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+          </p>
+          <button
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+          >
+            Log out
+          </button>
+        </section>
+        <nav
+          aria-label="Canonical sections"
+          class="flex min-w-0 flex-wrap gap-2"
+        >
+          <button
+            aria-pressed="true"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            Jobs
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            Triggers
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            EventCreators
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            JobTemplates
+          </button>
+        </nav>
+        <div
+          class="min-w-0 space-y-4"
+        >
+          <div
+            class="flex flex-wrap items-center gap-2"
+          >
+            <h2
+              class="mr-auto text-lg font-semibold"
+            >
+              Canonical 
+              Jobs
+            </h2>
+            <button
+              class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+              type="button"
+            >
+              刷新列表
+            </button>
+            <button
+              class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+              disabled=""
+              type="button"
+            >
+              创建 
+              Jobs
+            </button>
+          </div>
+          <form
+            aria-label="编辑 Jobs"
+            class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-3"
+          >
+            <label
+              class="block text-sm"
+            >
+              名称
+              <input
+                class="mt-1 block w-full min-w-0 rounded border border-border-default bg-bg-primary p-2 text-sm"
+                maxlength="200"
+                required=""
+                value="Incomplete"
+              />
+            </label>
+            <fieldset
+              class="min-w-0"
+            >
+              <section
+                aria-label="Structured Job definition"
+                class="space-y-4"
+              >
+                <label
+                  class="block text-sm"
+                >
+                  Description
+                  <textarea
+                    class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:curso...
+
+Ignored nodes: comments, script, style
+<body>
+  <div>
+    <section
+      aria-label="Canonical management"
+      class="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"
+    >
+      <div
+        class="mx-auto min-w-0 max-w-6xl space-y-4"
+      >
+        <header
+          class="flex min-w-0 flex-wrap items-center justify-between gap-3"
+        >
+          <div>
+            <h1
+              class="text-2xl font-semibold"
+            >
+              Canonical Jobs
+            </h1>
+            <p
+              class="text-sm text-text-secondary"
+            >
+              统一定义与 Run 管理 · 手动刷新
+            </p>
+          </div>
+          <nav
+            class="flex flex-wrap gap-3 text-sm"
+          >
+            <a
+              data-discover="true"
+              href="/automation"
+            >
+              Automation
+            </a>
+          </nav>
+        </header>
+        <section
+          aria-label="Job user authorization"
+          class="rounded border border-border-default p-3 text-xs space-y-2"
+        >
+          <p>
+            User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+          </p>
+          <button
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+          >
+            Log out
+          </button>
+        </section>
+        <nav
+          aria-label="Canonical sections"
+          class="flex min-w-0 flex-wrap gap-2"
+        >
+          <button
+            aria-pressed="true"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            Jobs
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            Triggers
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            EventCreators
+          </button>
+          <button
+            aria-pressed="false"
+            class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+            type="button"
+          >
+            JobTemplates
+          </button>
+        </nav>
+        <div
+          class="min-w-0 space-y-4"
+        >
+          <div
+            class="flex flex-wrap items-center gap-2"
+          >
+            <h2
+              class="mr-auto text-lg font-semibold"
+            >
+              Canonical 
+              Jobs
+            </h2>
+            <button
+              class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+              type="button"
+            >
+              刷新列表
+            </button>
+            <button
+              class="inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm "
+              disabled=""
+              type="button"
+            >
+              创建 
+              Jobs
+            </button>
+          </div>
+          <form
+            aria-label="编辑 Jobs"
+            class="min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-3"
+          >
+            <label
+              class="block text-sm"
+            >
+              名称
+              <input
+                class="mt-1 block w-full min-w-0 rounded border border-border-default bg-bg-primary p-2 text-sm"
+                maxlength="200"
+                required=""
+                value="Incomplete"
+              />
+            </label>
+            <fieldset
+              class="min-w-0"
+            >
+              <section
+                aria-label="Structured Job definition"
+                class="space-y-4"
+              >
+                <label
+                  class="block text-sm"
+                >
+                  Description
+                  <textarea
+                    class="mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:curso...
+ ❯ waitForWrapper ../../../../../Pan-main/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../../../../Pan-main/packages/web/node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ views/CanonicalJobsView.retirement-r13.test.tsx:93:16
+     91|   host(); click('创建 Jobs'); change('名称', 'Incomplete');
+     92|   click('Add step'); click('保存定义');
+     93|   await screen.findByText(/Choose an Action for each step/);
+       |                ^
+     94|   expect(writes).toEqual([]);
+     95| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+   Start at  22:12:26
+   Duration  3.06s (transform 180ms, setup 10ms, collect 400ms, tests 1.44s, environment 384ms, prepare 78ms)
+
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

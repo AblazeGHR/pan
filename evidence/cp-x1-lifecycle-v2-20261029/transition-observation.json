@@ -1,0 +1,70 @@
+[
+  {
+    "operation": "exit",
+    "strategy": "ask",
+    "inputOptions": null,
+    "accepted": true,
+    "sameEffectOnDuplicate": true,
+    "requestId": "request_6a6943f5e19b8550e3d91e9c",
+    "effectId": "effect_7329251d4a6d31016e3e977e218481e3d48bde6068ff26402425f5ee29d45a35",
+    "storedOptions": {},
+    "phase": "admitted",
+    "result": null,
+    "launchCount": 1,
+    "snapshotCount": 0,
+    "gateCount": 0
+  },
+  {
+    "operation": "restart",
+    "strategy": "ask",
+    "inputOptions": null,
+    "accepted": true,
+    "sameEffectOnDuplicate": true,
+    "requestId": "request_d87fd15641b5d7bbbc04f004",
+    "effectId": "effect_618c7c70e86af386d27ee59e5f58d9f39435e8036147e910573ac136ce4cebc2",
+    "storedOptions": {},
+    "phase": "admitted",
+    "result": null,
+    "launchCount": 1,
+    "snapshotCount": 0,
+    "gateCount": 0
+  },
+  {
+    "operation": "exit",
+    "strategy": "offline",
+    "inputOptions": {
+      "markRunningSessionsOffline": false
+    },
+    "accepted": true,
+    "sameEffectOnDuplicate": true,
+    "requestId": "request_7391994525b81df9ab8a6a89",
+    "effectId": "effect_dfa2a1a7f119a4ae92854c8a6467200fbe7be98c9aba5d1a284b82ccde2cbf5f",
+    "storedOptions": {
+      "markRunningSessionsOffline": false
+    },
+    "phase": "admitted",
+    "result": null,
+    "launchCount": 1,
+    "snapshotCount": 0,
+    "gateCount": 0
+  },
+  {
+    "operation": "restart",
+    "strategy": "preserve-running",
+    "inputOptions": {
+      "markRunningSessionsOffline": true
+    },
+    "accepted": true,
+    "sameEffectOnDuplicate": true,
+    "requestId": "request_b5ef60bb18adabfc53774ac5",
+    "effectId": "effect_7f092ddcba2fb87b5b48cd323f630d483d9c193174b5332cdd6051066950740f",
+    "storedOptions": {
+      "markRunningSessionsOffline": true
+    },
+    "phase": "admitted",
+    "result": null,
+    "launchCount": 1,
+    "snapshotCount": 0,
+    "gateCount": 0
+  }
+]

@@ -1,0 +1,93 @@
+{
+  "platform": "win32",
+  "python": "3.14.5",
+  "executions": [
+    {
+      "effectId": "effect_86e23ddda1744265ffa3007515f4cd91948c8486b7f69a73ca27f9b0c73bab9a",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_f2f7ce24444646db8bedf005",
+        "leaseId": "lease_918261f7be4949788c802178",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 22492,
+        "kind": "filetime",
+        "birth": "134376728438787290",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorIdentity": {
+        "pid": 43652,
+        "kind": "filetime",
+        "birth": "134376728436513185",
+        "platform": "windows",
+        "boot_id": null,
+        "pgid": null
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            22492,
+            38636,
+            43832
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 22492,
+            "kind": "filetime",
+            "birth": "134376728438787290",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          },
+          "observed": {
+            "pid": 22492,
+            "kind": "filetime",
+            "birth": "134376728438787290",
+            "platform": "windows",
+            "boot_id": null,
+            "pgid": null
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            22492,
+            38636,
+            43832
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true
+  }
+}

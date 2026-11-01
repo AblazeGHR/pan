@@ -16,7 +16,6 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useUIStore } from '@/stores/uiStore';
 import { useWorkerStore } from '@/stores/workerStore';
-import { createJob } from '@/services/api';
 import { effectiveWorkspaceIds } from '@/utils/sessionFilters';
 import type { JobCreateInput } from '@/types/jobs';
 import {
@@ -140,25 +139,9 @@ export function SelectedSessionActions({
       setBusy(false);
     }
   };
-  const broadcast = async (input: JobCreateInput) => {
-    if (!targets || busyRef.current) return;
-    busyRef.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      if (input.kind !== 'session-broadcast') throw new Error('Expected a Session broadcast Job');
-      const job = await createJob({
-        ...input,
-        target: { sessionId: targets[0]!.id, sessionIds: targets.map((target) => target.id) },
-      });
-      toast(`Broadcast Job created: ${job.jobId}`);
-      setPanel(null);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
+  const broadcast = async (_input: JobCreateInput) => {
+    setPanel(null);
+    setError('群发 Job 已迁移，请在 Automation → Canonical Jobs 中创建。');
   };
 
   // Lifecycle availability mirrors the single-Session Worker menu: Kill needs a

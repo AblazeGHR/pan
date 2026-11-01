@@ -1,0 +1,174 @@
+{
+  "schema": "pan.retirement.passive-template/revision14",
+  "baseline": "aad8dd82eaa137a5e456a3c49696dd7387545249",
+  "testedSourceSha": "cb950d53201be21477314d351d99a597daa7504b",
+  "historicalArtifactsUnchanged": "r6-r13; original successors.json and revision6 acceptance-matrix.json",
+  "capabilities": [
+    {
+      "id": "M01",
+      "status": "bounded-passive-template-preserved",
+      "strictSuccessors": [
+        "tests/test_retirement_rev14_templates.py::test_zero_creator_complete_template_default_disabled_same_key_cold_reopen",
+        "tests/test_retirement_rev14_templates.py::test_real_grants_passive_activation_revoke_and_source_authority",
+        "tests/test_retirement_rev14_templates.py::test_passive_instantiate_failure_rolls_back_and_recovers_same_key"
+      ],
+      "limit": "No overall M01 or historical suite acceptance implied"
+    },
+    {
+      "id": "M05",
+      "status": "simple-default-assign-production-entry-verified",
+      "originalNode": "tests/test_jobs_api.py::test_action_template_default_assign",
+      "strictSuccessors": [
+        "tests/test_retirement_rev14_templates.py::test_production_form_assign_queue_source_frozen_identity_cold_no_duplicate",
+        "tests/test_retirement_rev14_templates.py::test_fresh_production_browser_real_template_http_queue_and_shell"
+      ],
+      "limit": "Precomposed fixed assign entry, not obsolete scheduled API or unknown generic dispatch"
+    },
+    {
+      "id": "M07",
+      "status": "partial-quoted-Windows-command-product-gap",
+      "originalNode": "tests/test_jobs_api.py::test_post_creates_scheduled_shell_action_without_target_or_runner",
+      "strictSuccessors": [
+        "tests/test_retirement_rev14_templates.py::test_fresh_production_browser_real_template_http_queue_and_shell"
+      ],
+      "retainedRed": [
+        "tests/test_retirement_rev14_templates.py::test_production_shell_form_real_process_exit_and_original_lookup"
+      ],
+      "limit": "Simple shell real exit/file effect preserved; quoted executable fails; scheduled regression is a separate claim"
+    }
+  ],
+  "productGap": {
+    "symbol": "packages/core/platform/process_creation_win.py::OwnedPopen._execute_child",
+    "scope": "CreateProcess command-line serialization around subprocess.list2cmdline(values[args])",
+    "observed": "Exact raw command reaches process Action; actual cmd exit1, marker absent, Run failed, owned cleanup confirmed",
+    "decision": "No repair in this scope; MA coordinate narrow platform serialization contract/tests before edits"
+  },
+  "oldNegativeCorrection": {
+    "baselineEvidence": "baseline-zero-creator-red.xml",
+    "baselineExit": 1,
+    "actual": "422 capability_unsupported, expected201",
+    "reason": "Documented complete passive Template capability, not a new Scheduler requirement",
+    "preservedEvidence": "All r13 raw negative artifacts retained; current frontend assertion now positive"
+  },
+  "checks": [
+    {
+      "name": "product",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_retirement_rev14_templates.py",
+        "tests/test_scheduler_time_templates.py",
+        "tests/test_retirement_rev11_compat.py",
+        "tests/test_job_final_http_service.py",
+        "tests/test_session_product_closure.py",
+        "-q",
+        "-s",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev14-20261029\\product.xml"
+      ],
+      "exit": 1,
+      "seconds": 69.416,
+      "counts": {
+        "tests": 86,
+        "passed": 85,
+        "failedOrError": 1,
+        "skipped": 0
+      },
+      "failedNodes": [
+        "tests.test_retirement_rev14_templates::test_production_shell_form_real_process_exit_and_original_lookup"
+      ]
+    },
+    {
+      "name": "runtime",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_automatic_recovery.py",
+        "tests/test_job_process_logs.py",
+        "tests/test_job_final_contracts.py",
+        "tests/test_job_final_creators.py",
+        "-q",
+        "-s",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev14-20261029\\runtime.xml"
+      ],
+      "exit": 0,
+      "seconds": 150.428,
+      "counts": {
+        "tests": 223,
+        "passed": 222,
+        "failedOrError": 0,
+        "skipped": 1
+      },
+      "failedNodes": []
+    },
+    {
+      "name": "react",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "exec",
+        "vitest",
+        "run",
+        "src/views/CanonicalJobsView.retirement-r14.test.tsx",
+        "src/views/CanonicalJobsView.retirement-r13.test.tsx",
+        "src/views/CanonicalJobsView.test.tsx",
+        "src/components/automation/CanonicalForms.test.tsx",
+        "src/components/jobs/JobTemplateEditor.test.tsx",
+        "src/components/jobs/UnifiedJobForm.test.tsx",
+        "src/components/jobs/NewJobForm.window.test.tsx",
+        "src/components/session/SelectedSessionActions.test.tsx",
+        "--reporter=junit",
+        "--outputFile=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev14-20261029\\react.xml"
+      ],
+      "exit": 0,
+      "seconds": 4.64,
+      "counts": {
+        "tests": 63,
+        "passed": 63,
+        "failedOrError": 0,
+        "skipped": 0
+      },
+      "failedNodes": []
+    },
+    {
+      "name": "build",
+      "argv": [
+        "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:\\node_npm\\node_global\\pnpm.cmd",
+        "--dir",
+        "packages/web",
+        "build"
+      ],
+      "exit": 0,
+      "seconds": 22.724
+    }
+  ],
+  "remaining": [
+    "quoted Windows command serialization",
+    "monitoring/stable-reset",
+    "unknown fallback/clear-target",
+    "unrelated UI flows",
+    "real migration",
+    "deployment"
+  ],
+  "unverifiedLayers": [
+    "POSIX shell execution",
+    "remote CI in this revision",
+    "real accounts/data",
+    "deployed application and full app browser shell"
+  ],
+  "notClaimed": "No aggregate original43/remaining-nine closure, no generic fallback, no production delivery acceptance"
+}

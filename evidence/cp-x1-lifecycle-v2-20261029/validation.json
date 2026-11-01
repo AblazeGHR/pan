@@ -1,0 +1,47 @@
+{
+  "baseline": "dc393e9557adec86ae54bf186a221b4fbbb38206",
+  "codeSha": "ec2a61e162c0a680aaec3f906397480db2c2e64d",
+  "sixHostSourceSha": "f1c63ee8d7a6cf4a50b878c66f0bbfcc55ba9cc6",
+  "platform": "Windows",
+  "python": "3.14.5",
+  "tests": [
+    {
+      "evidence": "preparation-regression-28.xml",
+      "passed": 28,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    {
+      "evidence": "existing-fences-final.xml",
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    {
+      "evidence": "original-15-final.xml",
+      "passed": 10,
+      "failed": 5,
+      "skipped": 0,
+      "exitCode": 1,
+      "fixture": "read-only canonical projection; launch suppressed"
+    },
+    {
+      "evidence": "host-genuine-safe-final.xml",
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    {
+      "evidence": "host-genuine-six.xml",
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    }
+  ],
+  "remoteCi": "not run",
+  "realProfileOrServices": "not used"
+}

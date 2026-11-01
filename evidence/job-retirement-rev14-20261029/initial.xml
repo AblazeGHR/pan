@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="12" time="22.932" timestamp="2026-10-29T22:27:59.976474+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev14_templates" name="test_zero_creator_complete_template_default_disabled_same_key_cold_reopen" time="1.358"><failure message="AssertionError: assert 400 == 409&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code&#10; +    where &lt;Response [400 Bad Request]&gt; = instantiate(&lt;httpx.Client object at 0x00000190160797F0&gt;, {'composition': {'creators': [], 'triggers': []}, 'createdAt': '2026-10-29T14:28:01.440149Z', 'createdBy': {'id': 'local', 'type': 'user'}, 'description': '', ...}, expectedRevision=0, requestKey='stale')&#10; +      where &lt;httpx.Client object at 0x00000190160797F0&gt; = namespace(client=&lt;httpx.Client object at 0x00000190160797F0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000019015D79BE0&gt;).client">h = namespace(client=&lt;httpx.Client object at 0x00000190160797F0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000019015D79BE0&gt;)
+
+    def test_zero_creator_complete_template_default_disabled_same_key_cold_reopen(h):
+        body = form_body(h.client)
+        # A complete canonical definition works without the convenience envelope.
+        del body['form']
+        body['definition']['jobDefinition']['steps'][0]['arguments'] = {
+            'sessionId': {'from': 'literal', 'value': 'ses_a'}, 'text': {'from': 'literal', 'value': 'raw'}}
+        item = create_template(h.client, body)
+        before = set(worker.workers)
+        first = instantiate(h.client, item)
+        assert first.status_code == 201, first.text
+        receipt = first.json()
+        ids = receipt['result']['objectIds']
+        assert ids['creators'] == ids['triggers'] == {}
+        job = h.client.get('/api/jobs/' + ids['job']).json()
+        assert job['state'] == 'disabled'
+        assert h.client.get('/api/jobs/' + ids['job'] + '/runs').json()['items'] == []
+        assert h.service.creators.list() == [] and not h.owned['ses_a'].queue_pending
+        assert set(worker.workers) == before
+        assert instantiate(h.client, item).json()['operationId'] == receipt['operationId']
+        assert instantiate(h.client, item, activate=True).status_code == 409
+&gt;       assert instantiate(h.client, item, expectedRevision=0, requestKey='stale').status_code == 409
+E       AssertionError: assert 400 == 409
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+E        +    where &lt;Response [400 Bad Request]&gt; = instantiate(&lt;httpx.Client object at 0x00000190160797F0&gt;, {'composition': {'creators': [], 'triggers': []}, 'createdAt': '2026-10-29T14:28:01.440149Z', 'createdBy': {'id': 'local', 'type': 'user'}, 'description': '', ...}, expectedRevision=0, requestKey='stale')
+E        +      where &lt;httpx.Client object at 0x00000190160797F0&gt; = namespace(client=&lt;httpx.Client object at 0x00000190160797F0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000019015D79BE0&gt;).client
+
+tests\test_retirement_rev14_templates.py:75: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev14_templates" name="test_production_form_assign_queue_source_frozen_identity_cold_no_duplicate" time="1.306"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;expectedRevision&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(client=&lt;httpx.Client object at 0x00000190163A5F90&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000019015F7FB60&gt;)
+
+    def test_production_form_assign_queue_source_frozen_identity_cold_no_duplicate(h):
+        fields = {'target': {'sessionId': 'ses_a'}, 'message': '  中文\nraw  ',
+                  'source': 'agent', 'sourceSessionId': 'ses_source', 'taskId': 'owned-r14-task'}
+        body = form_body(h.client, fields=fields)
+&gt;       item = create_template(h.client, body)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_retirement_rev14_templates.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = &lt;httpx.Client object at 0x00000190163A5F90&gt;
+body = {'definition': {'name': 'Passive assign', 'jobDefinition': {'name': 'Complete assign', 'steps': [{'stepId': 'effect', ...nraw  ', 'source': 'agent', 'sourceSessionId': 'ses_source', ...}}, 'expectedRevision': 0, 'requestKey': 'create-form'}
+
+    def create_template(client, body):
+        response = client.post('/api/job-templates', json=body)
+&gt;       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"expectedRevision"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:40: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[missing-session]" time="2.099" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[stale-ref]" time="2.380" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[conflict]" time="2.009" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[unknown]" time="2.289" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[dynamic]" time="2.210" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[custom]" time="2.121" /><testcase classname="tests.test_retirement_rev14_templates" name="test_form_rejection_no_definition_operation_or_composition[missing-key]" time="1.806" /><testcase classname="tests.test_retirement_rev14_templates" name="test_session_deleted_after_publish_blocks_instantiate_without_writes" time="2.233"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;expectedRevision&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(client=&lt;httpx.Client object at 0x0000019016599850&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x000001901650BE00&gt;)
+
+    def test_session_deleted_after_publish_blocks_instantiate_without_writes(h):
+&gt;       item = create_template(h.client, form_body(h.client))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_retirement_rev14_templates.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = &lt;httpx.Client object at 0x0000019016599850&gt;
+body = {'definition': {'name': 'Passive assign', 'jobDefinition': {'name': 'Complete assign', 'steps': [{'stepId': 'effect', ...'assign', 'fields': {'sessionId': 'ses_a', 'text': '  中文\nraw  '}}, 'expectedRevision': 0, 'requestKey': 'create-form'}
+
+    def create_template(client, body):
+        response = client.post('/api/job-templates', json=body)
+&gt;       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"expectedRevision"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:40: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev14_templates" name="test_passive_instantiate_failure_rolls_back_and_recovers_same_key" time="2.158"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;expectedRevision&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(client=&lt;httpx.Client object at 0x00000190164D85F0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x00000190167ED6A0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001901658BCB0&gt;
+
+    def test_passive_instantiate_failure_rolls_back_and_recovers_same_key(h, monkeypatch):
+&gt;       item = create_template(h.client, form_body(h.client))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_retirement_rev14_templates.py:152: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = &lt;httpx.Client object at 0x00000190164D85F0&gt;
+body = {'definition': {'name': 'Passive assign', 'jobDefinition': {'name': 'Complete assign', 'steps': [{'stepId': 'effect', ...'assign', 'fields': {'sessionId': 'ses_a', 'text': '  中文\nraw  '}}, 'expectedRevision': 0, 'requestKey': 'create-form'}
+
+    def create_template(client, body):
+        response = client.post('/api/job-templates', json=body)
+&gt;       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"expectedRevision"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:40: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev14_templates" name="test_production_shell_form_real_process_exit_and_original_lookup" time="0.411"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;expectedRevision&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000019013B96690&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000190164DAE40&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000019016545550&gt;, serial=0)
+
+    def test_production_shell_form_real_process_exit_and_original_lookup(env):
+        marker = env.tmp / 'shell-result.txt'
+        command = f'"{sys.executable}" -c "from pathlib import Path; Path(\'shell-result.txt\').write_text(\'owned\')"'
+        body = form_body(env.client, kind='shell', fields={'command': command, 'cwd': str(env.tmp), 'hideWindow': True})
+&gt;       item = create_template(env.client, body)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_retirement_rev14_templates.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = &lt;starlette.testclient.TestClient object at 0x0000019015EB9FD0&gt;
+body = {'definition': {'name': 'Passive shell', 'jobDefinition': {'name': 'Complete shell', 'steps': [{'stepId': 'effect', 'a...ytest-6245\\test_production_shell_form_rea0', 'hideWindow': True}}, 'expectedRevision': 0, 'requestKey': 'create-form'}
+
+    def create_template(client, body):
+        response = client.post('/api/job-templates', json=body)
+&gt;       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"expectedRevision"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_retirement_rev14_templates.py:40: AssertionError</failure></testcase></testsuite></testsuites>

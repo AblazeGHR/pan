@@ -1,0 +1,16 @@
+{
+  "executorPort": 59797,
+  "label": "public-product-default-executor",
+  "productDefaultOwned": true,
+  "supervisorExitConfirmed": true,
+  "effects": 1,
+  "attempts": 1,
+  "noLegacyLifecycle": true,
+  "productProcessesRemaining": [],
+  "canonicalPort": 59798,
+  "canonicalPortReleased": true,
+  "portReleased": true,
+  "ownedProcessesRemaining": [],
+  "supervisorsReaped": 0,
+  "interpreter": "venv"
+}

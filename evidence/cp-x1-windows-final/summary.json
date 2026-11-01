@@ -1,0 +1,185 @@
+{
+  "sourceSha": "aea397157f03c7649c4b2625eef760ce0325e9ec",
+  "baseline": "20955b3c8959c881797d84bcd03302158ddf08c3",
+  "collection": {
+    "count": 7427,
+    "roots": [
+      "tests/",
+      "packages/qq/",
+      "packages/wechat/"
+    ],
+    "exitCode": 0
+  },
+  "fast": {
+    "passed": 149,
+    "skipped": 19,
+    "failed": 0,
+    "errors": 0,
+    "groups": {
+      "tests.test_platform_layer": {
+        "passed": 16,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_api": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_portability_paths": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_import_chain": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_process_contract.TestWindowsProcessOwnerContract": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_process_contract.TestPosixProcessOwnerContract": {
+        "passed": 0,
+        "skipped": 18,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_process_contract": {
+        "passed": 4,
+        "skipped": 1,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_process_posix_unit": {
+        "passed": 25,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_job_runtime_owner": {
+        "passed": 28,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_job_attempt_epoch": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_job_final_executors": {
+        "passed": 19,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_job_final_independent_execution": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      },
+      "tests.test_platform_fast_gate": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0
+      }
+    },
+    "skips": [
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_spawn_binds_exact_identity",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_identity_by_pid_matches_spawn_identity",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_identity_of_own_process_is_readable",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_wait_returns_exit_code",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_wait_timeout_does_not_terminate",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_wait_after_exit_is_stable",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_terminate_stops_process",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_terminate_is_idempotent",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_kill_tree_removes_grandchild",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_check_detects_reused_pid",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_recover_refuses_mismatched_identity",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_recoverable_identity_roundtrip",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_verify_rejects_foreign_platform_record",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_recover_terminates_verified_process",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_recover_can_verify_without_terminating",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_recover_reports_already_dead",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_close_is_idempotent",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract.TestPosixProcessOwnerContract::test_handle_cannot_cross_owner",
+        "reason": "POSIX 契约测试需要真实 POSIX 主机（ubuntu/macos CI）：start_new_session/killpg//proc/ps 语义无法在 Windows 上验证；本机为 Windows，显式跳过而不是静默通过"
+      },
+      {
+        "node": "tests.test_platform_process_contract::test_windows_owner_rejects_construction_on_posix",
+        "reason": "仅在 POSIX 主机上验证 Windows 实现门禁"
+      }
+    ]
+  },
+  "staticChecks": {
+    "windowsFullJobUnchangedIgnoringComments": true,
+    "automaticPushFilterUnchanged": true
+  },
+  "remoteCi": "not_run",
+  "python312": "not_run",
+  "linux": "not_run",
+  "macos": "not_run"
+}

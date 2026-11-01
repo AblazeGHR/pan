@@ -1,0 +1,17 @@
+{
+  "executable": "D:\\project\\Pan-main\\.venv\\Scripts\\python.exe",
+  "prefix": "D:\\project\\Pan-main\\.venv",
+  "basePrefix": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314",
+  "python": "3.14.5",
+  "pip": "26.2.1",
+  "tzlocal": "5.4.5",
+  "tzlocalLocation": "D:\\project\\Pan-main\\.venv\\Lib\\site-packages",
+  "tzdata": "2026.5",
+  "hostZoneResolved": true,
+  "declaration": "minimal-requirements.txt:11 tzlocal>=5.3,<6",
+  "requirementsSha256": "5f175bb93b724ae5d0292673fbd047b60aea081a819ba6b80f429b55b0d3e2e6",
+  "onlyInstalled": [
+    "tzlocal"
+  ],
+  "osTimezoneChanged": false
+}

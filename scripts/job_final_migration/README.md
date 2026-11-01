@@ -1,0 +1,334 @@
+# WP08 离线迁移 apply
+
+2026-10-29 revision2 在 MA 明确授权下新增**合成 source-copy → 新自有 profile** 的 runtime-import readiness 验证，
+及逐路径 source coverage guard。入口见 [R2 runbook](RUNTIME_READINESS_RUNBOOK_20261029.md)。这扩展了 revision1
+本批不得调用 P9D 的范围；不追溯改变 revision1 证据，也不授权真实数据迁移。默认 inventory/apply CLI 的离线边界仍如下。
+
+此包在 lite inventory/plan 上扩展，只处理 `simple-script-migratable`。**root 始终只读**；
+`--target` 是 root 外的私有 JSON 迁移包，包含 WP01 `schemaVersion=2` canonical objects、稳定 ID
+分配表、来源/hash、逐条迁移证据、源文件原始 bytes 备份及只读/owner 切换意图。
+它不是运行中的 store，也不会自动被服务加载。所有 Job/Trigger/Creator 都是 disabled，Template 是 draft。
+原启用/暂停意图、cursor、历史结果和授权材料单独保留，不伪造 canonical Run，也不把旧 payload 放进新执行定义。
+
+`--apply` 成功原子发布整包后，返回报告的 `plan.executable=true`；默认 dry-run、失败和 rollback 均不置 true。
+此字段只表示离线 apply 已提交，**不是运行准入/业务已恢复**。报告始终标明
+`runtimeActivated=false,runtimeFenceVerified=false`。不 import server，不启动进程/服务，不改运行时、旧 store/pass 或源文件。
+
+## CLI
+
+以下变量必须指向自己拥有的临时 fixture，不能套用到真实 profile：
+
+```powershell
+$fixtureRoot = 'C:/Temp/wp08-fixture/data'
+$migrationTarget = 'C:/Temp/wp08-fixture/canonical.json'
+$migrationContext = 'C:/Temp/wp08-fixture/context.json'
+$migrationReport = 'C:/Temp/wp08-fixture/dry-run.json'
+
+# 保持 lite 接口：只读盘点。--root 和 --out 必填。
+python -m scripts.job_final_migration --root $fixtureRoot --out -
+
+# 不加 --apply：校验上下文、六类型映射、schema/引用；不创建 target 或它的父目录。
+python -m scripts.job_final_migration --root $fixtureRoot --target $migrationTarget --context $migrationContext --out $migrationReport
+$reviewedPlan = Get-Content -Raw $migrationReport | ConvertFrom-Json
+
+# 审阅报告后，用该次 planDigest 提交；源/上下文改变均报 plan_stale。
+python -m scripts.job_final_migration --root $fixtureRoot --target $migrationTarget --context $migrationContext --expected-digest $reviewedPlan.planDigest --apply --mark-read-only --out -
+
+# 原输入重跑：返回同一 IDs/operationId，不重复写 target。
+python -m scripts.job_final_migration --root $fixtureRoot --target $migrationTarget --context $migrationContext --expected-digest $reviewedPlan.planDigest --apply --out -
+
+# 回滚离线发布；预期摘要取当前包，保留 ID、来源和备份，不重启旧 owner。
+$currentBundle = Get-Content -Raw $migrationTarget | ConvertFrom-Json
+python -m scripts.job_final_migration --root $fixtureRoot --target $migrationTarget --rollback --expected-digest $currentBundle.bundleDigest --out -
+```
+
+也支持 `python scripts/job_final_migration/cli.py ...`；报告可用 `--format md`，rollback 固定输出 JSON。
+`--root`、报告、target 均显式指定。报告/target/backup/lock 不能重合，输出拒绝 root 内、符号链接或 junction。
+报告硬链接拒绝；报告和迁移包均通过临时文件原子替换写入。`process.json` / `data/process.json`
+仍在任何源读取前触发真实 profile 保护；必须 `--allow-real-profile` 才可读，但该 flag 不提供迁移授权、fencing 或运行激活证明。
+本工作包没有接触真实 profile。
+
+## 迁移上下文 v1
+
+lite 的 simple 只证明白名单形状，不证明真实授权、provider 可用或旧 owner 停止。
+因此需要显式 `--context`，不从 `source=agent/system` 或 `creatorSessionId` 升格推定执行权限。
+上下文是受控离线输入/操作员声明；脚本校验结构、已有 authorization 主体一致性和引用，但不谎称已独立验证声明。
+缺字段、未知版本、不同摘要、Action 未发布/已禁用/版本或 digest 不符都 fail closed。
+
+顶层字段：
+
+| 字段 | 内容 |
+|---|---|
+| `schemaVersion` | 整数 `1`；不是 canonical schema 版本 |
+| `profileId` | 目标 profile 的明确标识，不从目录名猜 |
+| `actions` | 映射键到 `{object,ref,completions}`；object 是完整 WP01 published+enabled Action；ref 的 digest 必须等于其规范化 definition 的 WP01 digest |
+| `records` | 以 inventory 的 `migrationId` 为键的逐条上下文；complex 不需要也不会迁移 |
+
+`actions` 的键：MIG-BG 用 `process.exec`；MIG-MSG 用 `session.send` / `session.send-many`；
+MIG-SCHED 用 `session.assign` / `session.send` / `process.shell` / `qq.send`；
+MIG-ACTION-JOB/TRIGGER/TEMPLATE 用原 `actionId`。
+`completions` 按源 `ordinary` / `monitoring` 映射到显式 WP01 `{contract,parameters?}`，必须在固定 Action 声明中存在。
+带旧 signal 参数但缺确定映射时拒绝，不能静默丢参数。Action literal arguments 按 pinned inputSchema 校验。
+
+每条 `records[migrationId]` 必须提供：
+
+```json
+{
+  "originalDigest": "sha256:<inventory originalDigest>",
+  "principal": {"type": "user", "id": "fixture_user"},
+  "owner": {"type": "user", "id": "fixture_user"},
+  "authorizationEvidence": "受控授权证据引用；不能填凭空推定的权限",
+  "oldOwnerStopped": true,
+  "oldOwnerEpoch": 1,
+  "fenceEvidence": "已停止旧 owner 的证据引用；临时 fixture 明确从未存在 owner",
+  "importedAt": "2026-10-25T00:00:00+00:00",
+  "policies": {
+    "overlap": {"mode": "forbid", "maxActive": 1, "maxPending": 0},
+    "recovery": {"automatic": false, "maxAttempts": 3, "backoffSeconds": ["5", "15", "60"], "stableResetSeconds": "300"},
+    "notification": {"on": [], "recipients": []},
+    "retention": {"policyRef": "fixture_policy", "pinned": false}
+  }
+}
+```
+
+这段只展示结构，策略值必须来自来源政策。Action Job/Template 的 recovery、overlap、通知接收人及状态
+会与源逐项核对；旧通知 `unknown→uncertain,cleaning→settling`，按源顺序去重，原词保留在源备份。
+Trigger 的 retry budget 和并发上限必须一致。旧未指明的 maxPending、通知通道、retention 不用新建默认猜补。
+已有 authorization 的主体不能借 context 改成别的 user/agent。
+
+有 schedule 的条目还需要 `scheduler`：
+`providerRef`（WP01 time provider ref）、`configSchemaRef`（固定 Ref）、`requiredCapabilities`、
+`graceSeconds`、`pausePolicy`；interval 还需 `advanceMode="grid"`，cron 还需 `dstPolicy`。
+有直接 Trigger 时还需 `creatorSelector`，明确既有 provider/source 的选择范围。
+完整、可执行的合成上下文工厂见 `tests/test_job_final_migration_apply.py::context_for`，只服务于临时 fixture，不能用于生成真实授权声明。
+
+## 映射与保留
+
+| 来源 | 目标与证据 |
+|---|---|
+| MIG-BG | process Action Step + 手动 Job；exit/log/资源收据仅 historicalEvidenceOnly，无自动 Run |
+| MIG-MSG | session send/send-many Job + once Creator + Trigger；delay 用已落盘 nextRunAt，广播按顺序去重 |
+| MIG-SCHED | assign/send/shell/QQ Step + Job/Creator/Trigger；once/固定 anchor interval/native cron；未消耗 maxRuns 映射 Creator driveLimit |
+| MIG-ACTION-JOB | 静态单步/链，固定 Action ref、原 configRevision 与策略；定时则附 Creator/Trigger；runLimit 归 run-admission |
+| MIG-TRIGGER | 非执行 Trigger + 受管 Job；event bindings 移到 admission arguments，Job Step 从 input 取值；原 ID/revision 在 provenance 保留 |
+| MIG-TEMPLATE | 完整被动 Template，可包含时间 composition；原 revision/provenance 保留，无实例运行 |
+
+target IDs 来自 `migrationId` 的确定角色分配，并与 operation 一起持久保存，不按业务内容合并不同来源。
+原 ID/task/entry、source path/file hash、record digest、schema fingerprint、cursor、fieldMap 和审计字段保留在 entries。
+来源的本地时间只按显式 zone 解释；模糊/不存在的本地时间拒绝，不猜 DST fold。
+
+complex 原位置/hash 不变，仅写非执行 preserved 清单，不产生 targetIds，不进入 migrated。
+unknown/坏 JSON/重复 key/扫描错误会拒绝整次 apply，避免只迁已读到的一半。
+apply 前后核对扫描输入集合和原始 bytes，新增/修改 ledger 或来源文件会触发 plan_stale。
+
+## 原子提交、备份、rollback 与只读意图
+
+所有对象、ID 分配、源文件 bytes 备份（base64）、hash、来源证据和 owner 意图在一个 JSON 包中提交。
+先在同目录写临时文件并 fsync，再用 `os.replace` 原子发布，避免逐对象留下半张图。
+同 target 用独占 `.lock` 串行化。已有包更新前，先原子写 `<target>.bak` 保存前一完整包。
+源备份保留在包中，`bundleDigest` 覆盖整个包；未知 operation 版本/损坏摘要拒绝恢复，不能新建 ID 重试绕过。
+
+`--mark-read-only` 仅在离线迁移完成时持久化 `oldRecordReadOnly=true`，ownerEpoch=旧 epoch+1，
+新 owner 状态为 canonical-disabled。普通重跑保持标记。此处是供后续受控集成读取的意图，
+**没有修改源记录权限，也未建立跨进程 fencing authority**；`runtimeEnforced=false`。
+在用户要求不改运行时/不启停服务的边界内，不把此意图冒充设计 §5.2 的真实 owner 切换。
+
+rollback 原子改成 `rolled-back-offline`，撤销当前包的 canonical 发布和只读意图，保留 allocations、entries、
+原始备份及前一包 `.bak`。不会恢复旧执行能力、删除源数据或进行在线降级。再次 apply 复用原 IDs。
+进程在 replace 前退出时可见旧包，replace 后退出时可见新包；中断留下的 lock 不自动判死。
+操作员先核实原进程确已退出，再清除该 target 的 lock 后，用原 root/context/target/planDigest 重跑。
+孤立临时文件不是已提交记录，不被自动读取。没有复用真实资料、自动 GC 或删除源 store 的入口。
+
+### P9B partial preserve
+
+显式 `--preserve-incompatible` 可在审阅过的 context 中执行部分离线 apply。context 必须包含：
+
+```json
+{
+  "partialPolicy": {"version": 1, "mode": "preserve-incompatible"},
+  "selectedMigrationIds": ["<simple candidate migrationId>"]
+}
+```
+
+`selectedMigrationIds` 会绑定到 `planDigest`，只能包含当前 inventory 的 simple candidates。selected
+记录才会生成 disabled/draft canonical objects；complex、unknown、未选 simple 及未分类 source 文件进入
+`preserved`，带原路径、hash、原因和 `targetIds=[]/historicalOnly=true/executable=false`，不执行、不重投。
+默认 apply 不变，仍遇 unknown/corrupt 或 scan error 整体拒绝。部分 apply 仍要求每个 selected record 的
+当前授权、Action/provider 引用、owner/fence 证据完整，不能用 partial flag 绕过授权。
+
+这是本地文件系统上的原子发布协议，未宣称网络文件系统、真实断电落盘或恶意目录替换下的跨主机一致性。
+source snapshot、context 和迁移包可能含命令/文本/授权材料，必须按私有迁移材料保管，不能提交到仓库；
+仓库证据只保存合成 fixture 测试、统计、命令与 SHA。
+
+P9B 快照和复核可从仓库根目录复现；`--private` 必须是新的隔离目录，不能覆盖源。
+旧 8 项的路径只保存在私有 retry 清单，省略该参数时仍对 allowlist 中每个文件执行稳定双 hash：
+
+```powershell
+python -m scripts.job_final_migration.snapshot --source D:/project/Pan/data --private .validation/p9b-new-private --retry-paths-json .validation/p9b-private-20261026-v2/old-change-retries.json
+python scripts/p9_practical_rehearsal.py audit --private .validation/p9b-new-private
+python scripts/p9_practical_rehearsal.py compare --private .validation/p9b-new-private
+```
+
+SQLite WAL 仅在稳定的私有 DB/WAL 副本上 backup；发现 rollback journal 则保持阻断，不将 journal
+静默排除后宣称一致。`remaining-legacy-by-id.json` 列出每项仍保留的 legacy 身份及原因；
+它不探测真实进程，因此不能把文件存在、`active_resource` 原因或历史状态解释为当前运行数。
+
+## P9C 人类审阅包（非执行材料）
+
+只从已有 P9B 私有隔离副本生成材料，不重新打开 practical 数据根，不调用旧 get/list、Mapper 或 migrate：
+
+```powershell
+python -m scripts.job_final_migration.review_packet --evidence .validation/p9b-private-20261026-v2 --out .validation/p9c-private-new/review-packet --expected-manifest-sha256 b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5
+```
+
+`--out` 必须不存在且位于 P9B 证据目录外。生成器先复核 manifest SHA、全部稳定文件 SHA、WP08 输入集合及
+inventory，再输出 `simple-review.csv`、`preserved-review.csv`、`records.json`、`REVIEW.md`、
+`decisions.json`、`reviewed-context.draft.json`、`packet-manifest.json`。输出只进入忽略的私有目录；
+真实 ID/路径/引用不能提交到仓库。CSV 中不可信的公式前缀按文本转义。
+
+`recordSha256` 由实际 JSON 内容重新规范化后计算；无法解析时标注 raw-source-bytes basis。
+不直接信任旧 inventory 的 `recordDigest` 字段名，因为逐文件记录中它可能实际为规范化 JSON 文本。
+`sourceFileSha256` 是原文件 bytes SHA。拟 canonical ID 使用既有确定性公式，仅为提案，不分配对象。
+bundle 身份绑定 inventory、原快照及归档 envelope；canonicalBundleProduced=false，没有可导入 bundleDigest。
+
+草稿 wrapper 和嵌套 context 都带 `reviewManifest/status=draft_unapproved`；wrapper 的 `planDigest`
+绑定精确的 nested context、逐 ID hash、选择集合和草稿元数据，避免把 digest 包含自身造成循环。
+实际 principal/owner/grants/fence/策略均留空，approvedSelection/active_ids 为空。
+无签名、占位签名、自报 signer、手改 approved 状态，都不能让 P9C packet/context 进入 apply。
+本版本没有可信签署者注册或密码学签名验证契约，所以所有 P9C review 格式一律拒绝，dry-run 也不能将其映射为定义。
+新增拒绝规则限于 P9C 材料；已有 v1 操作员 attestation 合同没有被升级为签名验证系统。
+未来授权必须另行确定签署者、可信验证方式和当前权限，不能删除草稿标记或把占位审核当作授权。
+
+同一快照生成不同输出目录时，每个文件 bytes、packetDigest 与 draft planDigest 都稳定；
+不嵌入当前时间或输出目录。source root 的实际身份仍参与 inventory/operation 摘要，迁移快照位置后须重新审阅。
+历史保留建议只是供人类确认：原始 bytes 可归档不等于效果已结算、安全历史读路径已验收或 R6 可放行。
+
+## P9D user-authorization 与隔离导入
+
+P9D 在用户明确决定“51 simple 全部按 user 迁移、60 complex/unknown 全部 unrecognized 保留”后，
+使用独立的新上下文，不修改或签署 P9C 草稿：
+
+```powershell
+python scripts/run_tests_isolated.py -- python -m scripts.job_final_migration.p9d_rehearsal run --evidence .validation/p9b-private-20261026-v2 --packet .validation/p9c-private-20261026/review-packet --private .validation/p9d-new/rehearsal --instruction .validation/p9d-private-20261026/user-instruction.txt --reference conversation/user/P9D-policy-decision-current-turn --recorded-at <本次记录的UTC时间> --original-root D:/project/Pan/data --expected-manifest-sha256 b94efb1c455f400e41f795e8b0d24d19ce62562f1cbec109daabd03ad2edcba5
+```
+
+`--original-root` 只作为日志重定位前缀与人工命令中的原始路径，生成器不打开该目录。
+只有 P9B 的 `source-copy` 被读取，全部稳定文件再复制到新的 `--private/profile`，原 P9B/P9C 工件保持不变。
+复制来的真实 owner authority 不允许被采用/重置；新 profile 建立自己的 OwnerFence，provider/Action pin 来自
+该 profile 实际发布的 `product_process`。executor 拒绝所有效果，active_ids=[]，不运行真实 Pan 服务或端口。
+
+`user-authorization.json` 是用户指令的审计收据：包含原指令文本及 hash、记录时间（不是猜测的消息时间）、
+conversation/user 引用、51 个 ID/hash、packetDigest、user/local principal/owner、隔离 profile 和上下文摘要。
+assistant 仅为记录者，不是批准人。signature=null，没有密码学签名验证；真实性依赖受信任的会话/操作员交接。
+文件 hash 是完整性证据，不等于密码学身份证明。仅嵌入 approved、伪填 user 或占位签名不提供批准。
+
+通用 CLI 对该上下文要求独立的 `--user-authorization` 和 `--expected-user-authorization-digest`；
+runtime activation 同样要求 `expected_user_authorization_digest`。摘要不能由嵌入 context 自行提供。
+审计/上下文/选择/每条 hash/owner 被修改、来源是 agent、占位审核或缺外部 pin 时均拒绝。
+拥有可信调用边界及文件写权限的操作员仍是信任根；本版本不声称防御控制该边界的恶意操作员。
+现有 v1 fixture attestation 与 P9C 一律拒绝规则保持各自契约。
+
+51 个定义保持 disabled、manual-only。新导入策略为 overlap forbid、关闭自动恢复和新通知、历史保留/pinned；
+这不是声称旧记录原本具有这些策略。原 source JSON、通知状态、creator/source 身份和原 pins 均作为历史保留。
+`migration_history`、`migration_receipt` 和 `migration_unrecognized` 与整图激活同事务提交，失败全部回滚。
+`packages.jobs.migration_history` 可按原 ID/terminal key 查询，不回调旧 loader；日志只读隔离 profile 内的 hash 固定副本。
+source-stated delivered 收据仅按原键登记历史结算，不再次投递、不伪造 canonical Run，也不声称外部投递已重新核验。
+unrecognized 的原 bytes/身份、reason、targetIds=[]、executable=false 单独保存，不转换、不重投、不结算未知效果。
+
+预演先模拟 bundle 写失败，再在写历史的事务中抛错，之后让子进程在第 17 条 Job 写入后 exit 77；
+每次失败均要求 graph/history/receipt/unrecognized/activation 行数为零且旧写封锁。恢复后导入全部 51 条并重启、
+重复 apply，ID、历史和原键保持一致，不增加 Run/outbox/effect。
+`manual-deletion/` 只有 CSV/JSON/Markdown/惰性 txt 命令，没有自动删除函数；实际原始源没有被写入或删除。
+范围内 activeLegacy=0 仅针对这个隔离 profile 的已迁移 51 条，不能推定真实环境或所有 legacy 身份清零。
+
+## 支持与验证矩阵
+
+| 功能 | Windows | Linux / macOS |
+|---|---|---|
+| 离线 inventory/映射/单文件 apply/rollback | 本工作包临时 fixture 实测 | 使用同一 pathlib/os.replace 合同；本轮未实测 |
+| 原生进程/服务迁移执行 | 不提供；只生成 disabled 定义 | 不提供；不按运行脚本所在平台推定 target provider 可用 |
+| 真实 profile / owner fence / 激活 | 本轮未验证 | 本轮未验证 |
+
+运行 focused tests：
+
+```powershell
+python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_migration_apply.py tests/test_job_final_migration.py tests/test_job_final_contracts.py -q -o addopts= --junitxml=artifacts/wp08-apply-tests.xml
+```
+
+覆盖六类型、scheduler action/rule 变体、broadcast/chain、重复 apply、root 快照、unknown/corrupt/complex、
+部分 write/fsync/replace 失败、源变更、引用/摘要冲突、只读/rollback、提交边界真实子进程退出，以及独立进程无 server import。
+远端三平台 CI、真实 provider/授权/目标、100 个发生点/DST/pause/misfire 语义对照、真实复制数据和生产迁移、
+运行时 fencing/lease/activation、真实断电、部署与人工验收均未验证。
+## Runtime target/text amendment (2026-10-31)
+
+The approved Creator/Delivery Manager matrix applies to legacy message,
+broadcast and scheduled assign/send_session records. Their target(s)/text must
+not be blindly converted to frozen literal steps. This version reports
+`runtime_binding_unavailable` and keeps those records and bytes under the
+original manager; no replacement Job/target IDs are generated for them.
+Explicit partial packages can still import unrelated supported records.
+
+`runtime_binding_unavailable` is a temporary implementation blocker. The
+existing `incompatible-preserved` container does not classify these records as
+D6 permanent incompatibility, authorize deletion, or permit retiring/fencing
+the original manager. Keeping bytes is not preservation of its full lifecycle.
+The guard is a stage candidate; its 17 fresh original-assertion reds remain
+open. See [runtime mapping handoff](RUNTIME_MAPPING_HANDOFF_20261031.md) for the
+product evidence needed to resume mapping. Do not repeat the unchanged guard
+matrix while waiting for that evidence.
+
+`runtimeBindingGap` in inventory/partial bundle/review packet contains owner,
+pending/reserved phase, freeze-after-acceptance rule, revision/fence/receipt
+requirements and proposed existing `input` paths. Those paths already work
+before admission; the remaining manager annotation and acceptance wiring is
+an approved product implementation task, not a new user decision. This tool
+does not invent a Binding type, claim whole-profile migration, or retire the
+original manager. Existing uncertain/partial receipts stay original-key evidence;
+known-no-attempt is not reclassified as success or unknown. QQ runtime fields
+require a pinned Action declaration; the mapper does not infer it from names.
+
+### Rev9 QQ opt-in successor (2026-10-31)
+
+The older runtime-gap paragraphs above record the R3 stage. With product input
+`dc8b1ff805956a2290b91ee65d0d48f0949470ec`, explicit `--runtime-delivery`
+and matching context `runtimeDelivery={"version":1,"mode":"before-reservation"}`
+can map an unstarted, otherwise eligible `send_qq` scheduled record. Inventory
+describes requirements; it does not attest that a usable Action is available.
+The mapper requires the published `product_channel_runtime_v1` revision 1,
+digest `82674431dfd366b74e7278c682a51d0ad966239ed98c683ddffe6173a703a255`,
+provider `pan.typed` generation 2 / `digest("pan.typed.qq-runtime.v1")`, and the
+exact `runtimeBeforeAcceptance` declaration for targetType/targetId/botUin/text,
+owner delivery-manager, phase before-provider-acceptance, per-target-attempt-effect
+fence and query-original unknown policy. Incorrect declarations/pins are rejected
+before target publication; an old channel Action cannot gain runtime semantics.
+
+These four arguments use existing `input` bindings at `delivery.<field>`.
+The Job phase remains before-reservation. Missing/null botUin becomes explicit
+null input, preserving the original sender's default-bot selection; empty or
+invalid bot identity is not silently converted to a default. Without opt-in,
+the original literal channel mapping and persisted-bot guard remain unchanged.
+
+Existing undelivered fires, lastDelivery, accepted/unknown/partial observations
+and errors retain the original classification guards and bytes. The current
+importer does not resume a legacy pending note under the same dispatch/Attempt/
+effect identity. Such records stay non-executable in the preserved portion of
+a partial bundle, with no target IDs; dispatchKey/fireAt/text/error are retained.
+This limitation prevents declaring whole-profile migration or retiring the
+original manager. A newly imported eligible Job has new identity, not adoption
+of an old effect. Unknown Action names remain preserved; no assign fallback is
+implemented. User decision `job-unknown-api-reject-approved-20261031` explicitly
+requires rejection of unknown `action.api`, preserving source bytes and reporting
+the original field/value. This does not remove known assign/send_session/send_qq
+or shell/command capabilities.
+
+Replay the owned synthetic proof (including public CLI apply/replay, pinned
+release negatives, original bytes, actual new-profile import, pre-admission
+target/text update and cold accepted/unknown non-resend):
+
+```powershell
+& D:/project/Pan-main/.venv/Scripts/python.exe scripts/run_tests_isolated.py -- D:/project/Pan-main/.venv/Scripts/python.exe -X utf8 -m pytest tests/test_job_migration_qq_runtime.py tests/test_job_migration_runtime_contract.py tests/test_job_migration_runtime_readiness.py -q -o addopts=
+```
+
+These tests use an owned in-process sender, not a QQ service or real account.
+Offline `--apply` does not activate runtime. No real-profile or provider-delivery
+acceptance is implied.

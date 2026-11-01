@@ -1,0 +1,13 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\quota-native-admission-20261028
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_owned_host_configuration_read_projection_and_restart_real_http _____
+tests\test_quota_host_http.py:76: in test_owned_host_configuration_read_projection_and_restart_real_http
+    state=real_http._wait_for(done,label='host read-only projection')
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_real_queue_http_e2e.py:55: in _wait_for
+    raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E   AssertionError: timed out waiting for host read-only projection: None
+=========================== short test summary info ===========================
+FAILED tests/test_quota_host_http.py::test_owned_host_configuration_read_projection_and_restart_real_http
+1 failed in 21.39s

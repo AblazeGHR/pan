@@ -1,0 +1,78 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+F                                                                        [100%]
+================================== FAILURES ===================================
+___________ test_owned_host_signal_vs_exit_api_handshake[safe-api] ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-5825/test_owned_host_signal_vs_exit0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001BA81C21220>
+method = 'safe-api'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+                instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+>           _wait_for(lambda: instance.process.poll() is not None, timeout=25, label="owned host stopped")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = <function test_owned_host_signal_vs_exit_api_handshake.<locals>.<lambda> at 0x000001BA81C33320>
+timeout = 25, label = 'owned host stopped'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+>       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for owned host stopped: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+---------------------------- Captured stdout call -----------------------------
+CLEANUP http://127.0.0.1:57340 owned server stopped; port released
+=========================== short test summary info ===========================
+FAILED tests/test_legal_offline_http.py::test_owned_host_signal_vs_exit_api_handshake[safe-api]

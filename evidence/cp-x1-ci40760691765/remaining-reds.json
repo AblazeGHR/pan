@@ -1,0 +1,1897 @@
+{
+  "run": 40760691765,
+  "source_sha": "542be56e3b2097bd3a3d61ee153202c696b65a60",
+  "scope": "all junit failures and errors, unclassified except added nodes; does not claim baseline equivalence",
+  "versions": {
+    "3.12": {
+      "xml_sha256": "0fed78980d3d85aaae194ee86d4b89a7c16022644414db403f765610640ed876",
+      "counts": {
+        "failure": 221,
+        "error": 13
+      },
+      "nodes": [
+        {
+          "node": "tests.test_authorization_runtime::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_reports_missing_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_retry_rejects_running_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_default_side_effects_never_retry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_http_policy_and_public_status",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_start_persists_metadata_and_detaches",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_notification_is_idempotent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_retry_rejects_running_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_retry_inherits_creator_and_target",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_independent_job_bridge::test_core_routes_only_new_generic_jobs_and_never_reconciles_remote",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_retirement_quota_transport::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_structured_identity_new_records",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_rename_and_description",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_blank_name_rejected",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_enable_disable_stops_entries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_default_assign",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_send_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_runs_and_next_and_run_now",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_partial_failed_event_emitted",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_requires_existing_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_schedule_replaces_entries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_text_updates_dispatch_body",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_run_records_carry_entry_id",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_schedules_worker_shutdown_and_python_supervisor",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_duplicate_exit_is_rejected_without_second_request",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_returns_scheduled_before_python_supervisor_finishes",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_persistence_sharding::test_usage_merge_and_terminal_events_keep_durable_order",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_incremental::test_worker_path_saves_incrementally_and_reloads",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_message_job_default_name_min_vacant",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_get_ui_defaults_when_absent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_put_ui_full_replacement",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_terminal_broadcast::test_stream_persists_before_result_then_idle_and_does_not_wait_for_enrich",
+          "outcome": "failure"
+        }
+      ]
+    },
+    "3.14": {
+      "xml_sha256": "17a11b70ea2d48a85c8a83517f7f7c0f7ea95d5b863ddc4a4b245d308e170934",
+      "counts": {
+        "failure": 221,
+        "error": 13
+      },
+      "nodes": [
+        {
+          "node": "tests.test_authorization_runtime::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_auto_force_http_e2e::test_real_job_terminal_auto_force_steers_system_notice",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_reports_missing_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_retry_rejects_running_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[cancelled-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[dependency-unavailable-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[failed-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[interrupted-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[orphaned-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-cancelled]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-dependency-unavailable]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_reason_match_matrix[timeout-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_default_side_effects_never_retry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_zero_budget_and_spawn_failure_consume_no_extra_attempt",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_retry_does_not_swallow_registry_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options4]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options5]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options6]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options7]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options8]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options9]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options10]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_invalid_policy_has_no_effect[options11]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_restart_reconcile_persists_count_backoff_and_limit",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_cancel_during_backoff_prevents_retry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_accepted_cancel_beats_orphan_recovery",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_concurrent_recovery_and_late_runner_are_fenced",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_orphan_does_not_duplicate_live_task",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_http_policy_and_public_status",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error0-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error1-timeout]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error2-interrupted]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_runner_does_not_collapse_terminal_reasons[error3-failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_unavailable_independent_policy_fails_before_remote_start",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_recovery_notifies_final_outcome_once",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[orphaned]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_job_retry_if::test_separate_recovery_process_after_runner_loss[failed]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_start_persists_metadata_and_detaches",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_notification_is_idempotent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_retry_rejects_running_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_retry_inherits_creator_and_target",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_independent_job_bridge::test_core_routes_only_new_generic_jobs_and_never_reconciles_remote",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_trusted_question_scopes_and_independent_unknown_reconciliation",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_large_v2_runtime_admission_and_scope_recheck",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_interaction_questions::test_question_event_survives_deletion_without_resend",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_delete_safety::test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup",
+          "outcome": "error"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_retirement_quota_transport::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_structured_identity_new_records",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_rename_and_description",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_blank_name_rejected",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_enable_disable_stops_entries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_default_assign",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_send_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_runs_and_next_and_run_now",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_partial_failed_event_emitted",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_post_requires_existing_session",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_schedule_replaces_entries",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_patch_text_updates_dispatch_body",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_run_records_carry_entry_id",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[safe-api]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_locker_order_scroll_live::test_locker_order_scroll_live",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_ask_requires_explicit_choice_before_job_or_worker_gate",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_exit_schedules_worker_shutdown_and_python_supervisor",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_exit::test_duplicate_exit_is_rejected_without_second_request",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_returns_scheduled_before_python_supervisor_finishes",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_ask_requires_explicit_choice_before_any_side_effect",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_main_service_restart::test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_persistence_sharding::test_usage_merge_and_terminal_events_keep_durable_order",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_quota_policy_http::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_incremental::test_worker_path_saves_incrementally_and_reloads",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_session_message_jobs::test_message_job_default_name_min_vacant",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_key_absent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_load_config_falls_back_to_ui_defaults_when_file_missing",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_get_ui_defaults_when_absent",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_settings_ui::test_put_ui_full_replacement",
+          "outcome": "failure"
+        },
+        {
+          "node": "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer",
+          "outcome": "failure"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,30 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-retirement-closure-20261027
+........................................................................ [ 32%]
+........................................................................ [ 64%]
+......................................F................................. [ 96%]
+.........                                                                [100%]
+================================== FAILURES ===================================
+____________ test_ft01_system_grant_and_high_risk_remain_separate _____________
+tests\test_job_final_http_service.py:274: in test_ft01_system_grant_and_high_risk_remain_separate
+    item = enabled(h)
+           ^^^^^^^^^^
+tests\test_job_final_http_service.py:91: in enabled
+    item = create(h, value=value)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests\test_job_final_http_service.py:80: in create
+    assert response.status_code == 201, response.text
+E   AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E   assert 400 == 201
+E    +  where 400 = <Response [400 Bad Request]>.status_code
+============================== warnings summary ===============================
+..\..\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_final_http_service.py::test_ft01_system_grant_and_high_risk_remain_separate

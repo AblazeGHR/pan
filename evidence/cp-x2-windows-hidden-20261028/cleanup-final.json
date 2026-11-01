@@ -1,0 +1,66 @@
+{
+  "sourceSha": "62644ff2aebc57d72fc6a1c454c7cc6b78ff4bc5",
+  "ownedProbeSurvivors": [],
+  "exactProofResources": [
+    {
+      "pid": 43376,
+      "birth": 134376728192417511,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 37840,
+      "birth": 134376728175641026,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 36756,
+      "birth": 134376728175027741,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 43328,
+      "birth": 134376728174426284,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 15024,
+      "birth": 134376728178295594,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 21728,
+      "birth": 134376728177636367,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 18188,
+      "birth": 134376728177024557,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 10056,
+      "birth": 134376728190148859,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 42912,
+      "birth": 134376728189477757,
+      "originalGone": true,
+      "desktopGone": true
+    },
+    {
+      "pid": 18228,
+      "birth": 134376728188892323,
+      "originalGone": true,
+      "desktopGone": true
+    }
+  ]
+}

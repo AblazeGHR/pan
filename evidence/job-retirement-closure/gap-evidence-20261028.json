@@ -1,0 +1,358 @@
+{
+  "schema": "pan.job-retirement-gap-evidence/v3",
+  "closedGapCount": 0,
+  "gapCount": 9,
+  "nodes": {
+    "tests/test_jobs_api.py::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates": {
+      "kind": "missing-native-capability",
+      "blockingFact": "No canonical Action/executor for current legal-offline candidate query and explicit resume; session_operation in dynamic executor only pauses.",
+      "sharedSymbols": [
+        "packages/jobs/final_service.py::FinalService._install_product_actions",
+        "packages/actions/typed_executor.py::TypedExecutor.execute",
+        "packages/actions/executor.py::execute_dynamic"
+      ],
+      "minimalCoordination": "MA must define authorized native query/resume port, persist selected original Session IDs at effect admission, and re-use legal-offline/Wake gates. Do not inject a query provider in the test.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "supportNodes": [],
+      "evidence": {}
+    },
+    "tests/test_jobs_api.py::test_resume_legal_running_empty_scan_is_successful_noop": {
+      "kind": "missing-native-capability",
+      "blockingFact": "Same native resume port missing; _session_broadcast rejects empty sessionIds, so broadcast cannot prove empty dynamic selection completes.",
+      "sharedSymbols": [
+        "packages/actions/typed_executor.py::TypedExecutor._session_broadcast",
+        "packages/actions/typed_executor.py::TypedExecutor.execute",
+        "packages/jobs/final_service.py::FinalService._install_product_actions"
+      ],
+      "minimalCoordination": "Specify completed zero-selection receipt on native resume operation; preserve broadcast nonempty contract.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "supportNodes": [],
+      "evidence": {}
+    },
+    "tests/test_jobs_api.py::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields": {
+      "kind": "strict-red",
+      "redNodes": [
+        "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]"
+      ],
+      "blockingFact": "Canonical POST accepts invalid fixed numeric QQ target and commits definition/operation (201).",
+      "sharedSymbols": [
+        "packages/jobs/final_contracts.py::_check_job_references",
+        "packages/jobs/final_service.py::FinalService._references"
+      ],
+      "minimalCoordination": "Validate fully literal typed Action arguments against referenced inputSchema before write. Keep input/Event/step bindings deferred; retain immutable release and no provider call during validation.",
+      "status": "gap",
+      "closed": false,
+      "supportNodes": [],
+      "evidence": {
+        "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]": "failure"
+      }
+    },
+    "tests/test_jobs_api.py::test_patch_scheduled_qq_action_is_strict_and_editable": {
+      "kind": "strict-red",
+      "redNodes": [
+        "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]"
+      ],
+      "blockingFact": "Canonical PUT accepts invalid fixed QQ target and commits revision 2 (200). Test fails before no-write assertion.",
+      "sharedSymbols": [
+        "packages/jobs/final_contracts.py::_check_job_references",
+        "packages/jobs/final_service.py::FinalService._references"
+      ],
+      "minimalCoordination": "Same literal validation as create, using existing CAS/transaction; do not rewrite frozen historical Runs. Full original invalid bot/endpoint/text/session-target matrix still needed.",
+      "status": "gap",
+      "closed": false,
+      "supportNodes": [],
+      "evidence": {
+        "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]": "failure"
+      }
+    },
+    "tests/test_jobs_api.py::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure": {
+      "kind": "partial-evidence",
+      "supportNodes": [
+        "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event"
+      ],
+      "blockingFact": "Actual executor without channel provider records rejected provider_unavailable and one failed Attempt, unchanged on dispatch replay. Production has no bound channel provider. Not a real QQ plugin response.",
+      "sharedSymbols": [
+        "packages/jobs/final_service.py::FinalService.__init__",
+        "packages/jobs/final_service.py::FinalService._install_product_actions",
+        "packages/actions/typed_executor.py::TypedExecutor._channel"
+      ],
+      "minimalCoordination": "MA to bind real owned plugin transport to canonical channel provider with trusted bot selection; then test success/reject receipt on actual transport and manual cause, without fake provider.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "evidence": {
+        "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event": "passed"
+      }
+    },
+    "tests/test_jobs_api.py::test_scheduled_qq_backlog_retry_runs_without_session_target": {
+      "kind": "missing-provider-retry-proof",
+      "blockingFact": "No production channel provider/receipt lookup. Product retry requires cleanup proof; cannot claim same QQ effect recovery by changing policy on a test-only Action.",
+      "sharedSymbols": [
+        "packages/jobs/final_service.py::FinalService.control_run",
+        "packages/actions/typed_executor.py::TypedExecutor._channel"
+      ],
+      "minimalCoordination": "Agree versioned channel idempotency/rejection proof and original effect lookup. Test explicit rejected retry with same Run/Step/effectKey and new Attempt; unknown stays query-only. Do not restore undeliveredFires.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "supportNodes": [],
+      "evidence": {}
+    },
+    "tests/test_jobs_api.py::test_post_requires_existing_session": {
+      "kind": "strict-red",
+      "redNodes": [
+        "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit"
+      ],
+      "supportNodes": [
+        "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning"
+      ],
+      "blockingFact": "Missing Session fixed literal accepted at POST (201); real WorkerSessionProvider rejects at execution, creates no Session/Worker and no Session bytes change. Runtime rejection does not prove write-time rejection.",
+      "sharedSymbols": [
+        "packages/jobs/final_service.py::FinalService._references",
+        "packages/actions/typed_executor.py::WorkerSessionProvider.send_session"
+      ],
+      "minimalCoordination": "MA to approve read-only literal Session existence validation before commit; do not check dynamic bindings prematurely or start Worker at validation.",
+      "status": "gap",
+      "closed": false,
+      "evidence": {
+        "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit": "failure",
+        "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning": "passed"
+      }
+    },
+    "tests/test_authorization_runtime.py::test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt": {
+      "kind": "missing-bound-recovery-policy",
+      "blockingFact": "FinalService._references always rejects automatic=true with capability_unsupported. No bound automatic policy to revoke after first Attempt; unsupported test is not a budget/revocation successor.",
+      "sharedSymbols": [
+        "packages/jobs/final_service.py::FinalService._references",
+        "packages/jobs/final_service.py::FinalService._guard_effect"
+      ],
+      "minimalCoordination": "Needs separate MA design/authorization for bound policy, permission recheck and budget transaction. Do not remove unsupported guard to make test run.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "supportNodes": [],
+      "evidence": {}
+    },
+    "tests/test_quota_policy_http.py::test_quota_policy_owned_http_default_unavailable_is_unknown_real_http": {
+      "kind": "real-tcp-support-only",
+      "supportNodes": [
+        "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence"
+      ],
+      "blockingFact": "Real TCP CAS/auth/persistence pass; active canonical owner fences both once/monitor95 query-jobs at 409 before query. No canonical unknown query terminal. Listener reopened, not process/lifespan restart.",
+      "sharedSymbols": [
+        "packages/automation/api.py::install.quota_query_job",
+        "packages/automation/quota_policy.py::Runtime.create_monitor",
+        "packages/automation/quota_policy.py::Runtime.ensure_job",
+        "packages/automation/quota_policy.py::Runtime._ensure_job"
+      ],
+      "minimalCoordination": "MA to migrate monitor/query admission to native Action/Job/Creator with original policy identity; preserve legacy_writer gate. Correcting old fixture NameError alone would still assert retired writer success.",
+      "status": "gap",
+      "closed": false,
+      "redNodes": [],
+      "evidence": {
+        "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence": "passed"
+      }
+    }
+  },
+  "commands": {
+    "provider-boundaries-first": {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retirement_provider_boundaries.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\provider-boundaries-first.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+      "exit": 1,
+      "elapsedSeconds": 2.29,
+      "nodes": [
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event",
+          "status": "passed"
+        }
+      ],
+      "counts": {
+        "passed": 1,
+        "failure": 4,
+        "error": 0,
+        "skipped": 0
+      }
+    },
+    "provider-boundaries-final": {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retirement_provider_boundaries.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\provider-boundaries-final.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+      "exit": 1,
+      "elapsedSeconds": 2.315,
+      "nodes": [
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event",
+          "status": "passed"
+        }
+      ],
+      "counts": {
+        "passed": 2,
+        "failure": 3,
+        "error": 0,
+        "skipped": 0
+      }
+    },
+    "quota-transport": {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retirement_quota_transport.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\quota-transport.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+      "exit": 0,
+      "elapsedSeconds": 8.119,
+      "nodes": [
+        {
+          "node": "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+          "status": "passed"
+        }
+      ],
+      "counts": {
+        "passed": 1,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      }
+    },
+    "remaining-nine-native": {
+      "command": [
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+        "--",
+        "D:/project/Pan-main/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_job_retirement_provider_boundaries.py",
+        "tests/test_job_retirement_quota_transport.py",
+        "-q",
+        "--tb=short",
+        "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\remaining-nine-native.xml"
+      ],
+      "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+      "exit": 1,
+      "elapsedSeconds": 9.689,
+      "nodes": [
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[create]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_qq_untrusted_literal_must_be_rejected_before_committing[update]",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_missing_session_must_be_rejected_before_job_definition_commit",
+          "status": "failure"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_actual_worker_provider_rejects_missing_session_without_creating_or_spawning",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retirement_provider_boundaries.py::test_channel_without_bound_plugin_records_failure_and_never_invents_time_event",
+          "status": "passed"
+        },
+        {
+          "node": "tests/test_job_retirement_quota_transport.py::test_quota_real_tcp_cas_reopen_and_legacy_writer_fence",
+          "status": "passed"
+        }
+      ],
+      "counts": {
+        "passed": 3,
+        "failure": 3,
+        "error": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "sourceSha256": {
+    "tests/job_retirement_native_fixture.py": "720af91b75437724ad0151dd5706d5ff95a3574e562cb911b7349a9ccfe8ad22",
+    "tests/test_job_retirement_provider_boundaries.py": "4c4a482b71e3dbb354e3d7513960fe60ea11dfd19989379810815fdb423e468d",
+    "tests/test_job_retirement_quota_transport.py": "ceead6eb9e86656dab6162f468f25399906f24b7c055717b30fc525795a6fa73",
+    "packages/jobs/final_service.py": "c5fb3a094a7ce1188c47375126d14c6395f7087b3a4bd11329fe51d1338e2549",
+    "packages/jobs/final_contracts.py": "ad2ab0ff65b297083996a67e3daa38e6293369e949c861c0946960ad3c5990af",
+    "packages/actions/typed_executor.py": "b5e6ad93ddd4fd623b7a10bd186bf33338b06ce3ba76ad0fa8229ec1546b098e",
+    "packages/actions/executor.py": "e2a3266973275196c04029a92f2c5597f7f3ffbbc8871ee711481f95c2d1049a",
+    "packages/automation/api.py": "eb544e1a8268501a5c42ad94595803066f1c93224b2cf914f952c3d10f8495d5",
+    "packages/automation/quota_policy.py": "37b5459c1c923f2b60f1c637c272c329a993aa32cd32edf93131ab3a31ba6006"
+  },
+  "artifacts": {
+    "provider-boundaries-final-command.json": "fcf401dcbc083d765cf1de32eb9d9bfbfffb96fe27d016d7f57984967314cde6",
+    "provider-boundaries-final.log": "ba8be682e57ce9c2d829605979ea172f4e95cb5be45a4f73063175922b6f7cb8",
+    "provider-boundaries-final.xml": "c4d9dfffe481f798585a22ada9004928d570c6650cb7df475b4aa734baa2c90a",
+    "provider-boundaries-first-command.json": "200ef8ce62342fe73e655e2e53c1c0240357c278679be4495d3ff11a78b7c77f",
+    "provider-boundaries-first.log": "7894b9c0b71cd96cafcea8f647db7c6f752e2138d931ac9d9b0ea3960dec8ede",
+    "provider-boundaries-first.xml": "813d5e3482511130e2060b54c379fd0237b6df0afb42de387f84aafa75225e43",
+    "quota-transport-command.json": "b047ed752f2eb1d64d1e485ff09c8287717397ca76602a3777da10dd66a08d92",
+    "quota-transport.log": "9470d28e2288b736706935209249c815a2d87ad885253d0250418804faa1d810",
+    "quota-transport.xml": "8d87fc98ef3450396e1d72d76dbb2223357aeb244078b51f213cbcfa79cf267f",
+    "remaining-nine-native-command.json": "ee0b8864ce1980ecbe5346201981c704890b00dd6c7cd6e5f921429073ebbfb7",
+    "remaining-nine-native.log": "a9fb7d71b77173e35fa441c082ac3ba7917c43a7f009363f1542351f02d2f55a",
+    "remaining-nine-native.xml": "1ba32af671c5445a19aa3a2601a8b40ce84c6c80fe0364eb85d5df336745a2f0"
+  },
+  "limits": "ASGI real canonical store/worker adapter and real quota TCP; no real plugin/QQ, real cohort or full lifespan acceptance."
+}

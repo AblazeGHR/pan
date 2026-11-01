@@ -1,0 +1,14 @@
+{
+  "base": "00593314f3ac093eab43544ce5f4964258486bcd",
+  "branch": "r6/quota-minimal-closure-20261028-a",
+  "interpreter": "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\python.exe",
+  "python": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
+  "files": {
+    "packages/actions/typed_executor.py": "43aece7616cadf35d306d34a4b8a7952f262b9a6ca517aea6157d9bd39bfecf5",
+    "packages/automation/api.py": "04e64a8a040231c46daf6564634329734d12de4597e5fedcf92a00b6c05638f4",
+    "packages/automation/quota_policy.py": "34c79c3afb88ff70deffc850d5a7ca190a005834d2d3026d4278e0a6069a381c",
+    "packages/jobs/final_service.py": "058d45c12d31d379fad518d7fd19747dd0c3bc59620ec16cd3f590449876abe6",
+    "packages/automation/quota_native.py": "0a30e83aff88f739d43ab20b5d51f834a0105939f63267b2348cd5bf6fff2ef9",
+    "tests/test_quota_native_admission.py": "3679b5ad0be507c44823035417a45f17c9a8c8875e8884e66d3120ebb6005936"
+  }
+}

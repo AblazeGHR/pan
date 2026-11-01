@@ -1,0 +1,12 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p23-retained-safety-20261027
+............                                                             [100%]
+============================== warnings summary ===============================
+tests/test_job_retained_safety_public.py::test_default_pending_cold_reopen_resolves_original_uncertain_attempt
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_retained_safety_public.py::test_default_pending_cold_reopen_resolves_original_uncertain_attempt
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

@@ -1,0 +1,1008 @@
+{
+  "requests": [
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_81447ac38f3f2fa25558acbef9cd8504ae148cb4829845324110271793411d70",
+      "requestMs": 2175.599,
+      "responseMs": 2273.435,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-inbox",
+      "id": "card_26852c2b685ba9cc0f5593b1c78e455e977a4111f1a33c4a0f5f2367b7e4ecfd",
+      "requestMs": 2567.787,
+      "responseMs": 2583.45,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-inbox",
+      "id": "card_6378ff6b0a95651bc61e071d97c0e94e7d0c24c18623d081d8f6abc12b44b373",
+      "requestMs": 2568.807,
+      "responseMs": 2655.228,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-inbox",
+      "id": "card_df30ff006048aadcc2d00a40ca8878f7740492cd20a1e43aff4c90e80f6006e7",
+      "requestMs": 2568.832,
+      "responseMs": 2664.33,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_bb0aeb44126791dc0820e8b49b1b7007d5ae8d0fcc7b3e76496cc5419ddc5640",
+      "requestMs": 2568.851,
+      "responseMs": 2655.169,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_4e309abc1b1bc2a9376a08518c403ad70b256237d696da183b2851a431315e1e",
+      "requestMs": 2568.862,
+      "responseMs": 2590.396,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_bdb107c9b4c19791112a00678cb546331bf8349e528d5104cbbd09ccdeaddf22",
+      "requestMs": 2568.875,
+      "responseMs": 2664.479,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_2c5a2ae8dd696bcd305285751a53a049e1b80400d0dc370acd7b8761ca138121",
+      "requestMs": 2568.894,
+      "responseMs": 2728.869,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_42cdaa30337752c3b5ed23f7835c6f897c6d299b9aab74843d4d546ab84abcfe",
+      "requestMs": 2568.905,
+      "responseMs": 2729.088,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_04ab15847d08e512d6bb0367d40d56eeef55ce77f18835daf33e7ac81d11c452",
+      "requestMs": 2568.916,
+      "responseMs": 2664.489,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9bf89121bef763b69207f38dddc2ed582fb5531e89dcffddc32206aee6c14573",
+      "requestMs": 2568.941,
+      "responseMs": 2664.597,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8dbe344053653bc4291e594a9ec2942d5047b81256fb057108379067e07f7583",
+      "requestMs": 2568.965,
+      "responseMs": 2729.076,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_2aaf7e5934b51ceeba31ac342ef7771615ba3e42a8642136782dbfa792b86039",
+      "requestMs": 2568.977,
+      "responseMs": 2729.144,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8d806aa62983544b84da64f80d25d7a4fb926e2efb731e26f5ee098a0208ad81",
+      "requestMs": 2568.995,
+      "responseMs": 2738.64,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8c44a1a545996310cd0691dabc00a4d8c9ff50df8411cbd82f6b7b6dacb13365",
+      "requestMs": 2569.007,
+      "responseMs": 2738.99,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_b1fc16e99895c8d0a44fd1d8c96e28945ee1d0a2696397e49e252a91f444f649",
+      "requestMs": 2569.024,
+      "responseMs": 2804.393,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_30f5e7006742ba4a6dbfa5653ab272995cc07007bbbcff656bea785ae2e50a99",
+      "requestMs": 2569.039,
+      "responseMs": 2804.371,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e9254d1907cb836c44b7f422976e52d4803f2c03e1bae57ccb10b12118fe0127",
+      "requestMs": 2569.066,
+      "responseMs": 2804.384,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_b799ac664c390c1171a9d3933cc65f5834f1f4066748447902f05857e937be31",
+      "requestMs": 2569.103,
+      "responseMs": 2804.126,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_46db7688584adbe0e165ef29a207ac509c9725af416d3745bb5dcb70d8ad2f1f",
+      "requestMs": 2569.116,
+      "responseMs": 2804.582,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_b528c33910da3f7cf759b3ae7aedb081e55500a90bff1d37307fa31e9c0b52f6",
+      "requestMs": 2569.128,
+      "responseMs": 2872.022,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9a5a49b3b15d65f9abfe302e5b132210fdc23517deb5a39e41a7d4df22af16ed",
+      "requestMs": 2569.141,
+      "responseMs": 2882.997,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_f5536ec2e00a81f2a29f50a8b938800861d735b381d46851f5e51ac0054e992f",
+      "requestMs": 2569.158,
+      "responseMs": 2872.111,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1809527bbcd9324e50d48a6b68a3682174ab04a199a65912510f6c29a697938a",
+      "requestMs": 2569.181,
+      "responseMs": 2804.402,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_363d328e174cc90e90c4b872244c40e064ce49891722cc02aa6e932bd247106d",
+      "requestMs": 2569.193,
+      "responseMs": 2872.128,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1a0aced9a7ee13b47705fc5bfc8373163bec3f7dae2cc26c87a2138a26546829",
+      "requestMs": 2569.209,
+      "responseMs": 2947.795,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_f88aa43064de9097ff00b966d104e6bcc15b62ef8f8facb6206bb314051a288f",
+      "requestMs": 2569.22,
+      "responseMs": 2948.051,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9f03ae8e208f4a2fb693656a0d964d5d2b120fbc95ce0fbd9fe8acc209f5c6ae",
+      "requestMs": 2569.243,
+      "responseMs": 2882.884,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1dd41d8fc6ae8084e0468b46b31daba74b9f6ee0e2833311213dbeaf4008ebf5",
+      "requestMs": 2569.253,
+      "responseMs": 2882.954,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e257416266931ca56130f53f3c4f4d6ae50bcedba5950b2ec9a7ac1a20e3d7d4",
+      "requestMs": 2569.269,
+      "responseMs": 2948.282,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_f20ad97e980ba0ea7d89a3b56370399e241547aa9b49cfd3146a0960e691c938",
+      "requestMs": 2570.136,
+      "responseMs": 2948.38,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_292aa608f142fe80c768d10c5629e84b1a947905eabca5bcb3c544e9be9d5c6e",
+      "requestMs": 2570.151,
+      "responseMs": 2948.343,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_2d38417d913eef8d08e02ff05a409e1318e9d824434efed08b522a3424aff7ea",
+      "requestMs": 2570.166,
+      "responseMs": 2948.661,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_3865b71a243bd2fe2d2132475314659e3af6255b60c299595c84135294c91588",
+      "requestMs": 2570.187,
+      "responseMs": 2948.601,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_3c28c683db988c755362b157b382d874e530dbef393e839862f001a3ce412d52",
+      "requestMs": 2570.199,
+      "responseMs": 3035.875,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_99be327151f78fa46666e14990f1ae1f2fd554b765513af6076fe2425d01bca4",
+      "requestMs": 2570.21,
+      "responseMs": 3035.97,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_98900b47de1dfa0edee1dbcc9ae44f9b42378fce1b7751915b101b9e2384c1fe",
+      "requestMs": 2570.221,
+      "responseMs": 3037.356,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_633d9c62b4cd4c0bd5f5ddb1ac8d57dbaac9029f21d3ea554132541c48978f20",
+      "requestMs": 2570.233,
+      "responseMs": 3037.386,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_36f5ddfb992025777fa5a723030ef937a4c7958948d06163dc15dd48a5000403",
+      "requestMs": 2570.244,
+      "responseMs": 3055.476,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_f6b4f49ecccbe41f007cf9c232c5d31c951dd6382a14dcbfc58a559dc1773dcd",
+      "requestMs": 2570.255,
+      "responseMs": 3055.376,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_55ab14b8ab1bf62b534c85f0f4a9a88d832efec00381e24a61c5a83a2e8765b1",
+      "requestMs": 2570.268,
+      "responseMs": 3055.465,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_c238b87f6b3e51338aebc9050622c58a154639c4ee0457a019b89c4e7c53615d",
+      "requestMs": 2570.28,
+      "responseMs": 3055.53,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_37adee976accf2c9eefcd27f7be95348824eb98e222247a537d49bffd8a154ce",
+      "requestMs": 2570.292,
+      "responseMs": 3153.115,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_caa4f0b7f8e2921a7f45ba7ac281a45756ef9aeb0427f1a32767c9f1b73cd208",
+      "requestMs": 2570.302,
+      "responseMs": 3153.747,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_fe3550b37397d66b8f41eaed3e4786dc54d4c05cf1c6d1473efcef07d92e780d",
+      "requestMs": 2570.316,
+      "responseMs": 3154.162,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8c61d00a642f8a4ceadb5f441c9c1fe736b6fab2c31bf88a6cd1cf0ad2a328eb",
+      "requestMs": 2570.328,
+      "responseMs": 3154.323,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_3af666c4f77a687e80b65a39e1705a34968b7beaffc9e06c9eda8f1fad4fdd5e",
+      "requestMs": 2570.342,
+      "responseMs": 3154.234,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_fc5992f0ceda3c85ae4899937ea8c6706938677c2a652fab3e0f2c4b6c651d46",
+      "requestMs": 2570.353,
+      "responseMs": 3154.277,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_4a537e64acf473b665d599eab1334757d80db1b01bff0f31cc5494f357607ba2",
+      "requestMs": 2570.366,
+      "responseMs": 3154.552,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_c38c2a52ee35e0a01aaa2c081d617df0c980cefc8a5fef46d3a423f2bafc522b",
+      "requestMs": 2570.375,
+      "responseMs": 3154.477,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_111ad35d5f167b7770b714388fdc46146b807dee670c7cf5aa78c248f91b882a",
+      "requestMs": 2570.385,
+      "responseMs": 3154.742,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_923e6ae1ced64576cd191ffe852dc5acde0341a3641eff402ce16a7ec5f47aac",
+      "requestMs": 2570.397,
+      "responseMs": 3154.614,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_987cc7674d97bb62d997bc4c57b6b3669d5fb376441c27edf0fa806097478990",
+      "requestMs": 2570.407,
+      "responseMs": 3263.154,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_ce8c2869f611fe29ac3a9c2b8e3200a7c5c1f9b4f239a4124d19daf7ef96df77",
+      "requestMs": 2570.416,
+      "responseMs": 3263.071,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_7b05c552d70bb39cf421efd150e36ba2f0e7c9b22cf783d12ae3edc5326639ee",
+      "requestMs": 2570.426,
+      "responseMs": 3263.262,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_efc36cdbf5c1c15d20c2c691cd45dff07c5d062b0c9de1e50282f13faf18aaee",
+      "requestMs": 2570.438,
+      "responseMs": 3263.196,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_416a3a0f49731828fbd3fc77f1b97a64837d7c7b713c3d83d5c002d8f7e63a23",
+      "requestMs": 2570.448,
+      "responseMs": 3263.42,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_6fbf65c27e025e1a20a72d41d2152013d167b536c82a0747787e10e5a0b9a331",
+      "requestMs": 2570.457,
+      "responseMs": 3263.672,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_91e9f5a96584310507ed2ec92c62b14db809791e3174543d29ad468007a3250b",
+      "requestMs": 2570.467,
+      "responseMs": 3263.62,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_591aceed41bdb95f86aafd4f4219c9979edd6f3ec0538b25f5cf60bc04087be5",
+      "requestMs": 2570.479,
+      "responseMs": 3263.575,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_42f8070dcef22cfd8b5dbdb400d344cbbc98bb94c09a319168e1249fc24f2df7",
+      "requestMs": 2570.492,
+      "responseMs": 3263.825,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_92b5773d12287dddbcfc5d73b2ec9ef89f781e1ad21e119afd3f4b3b29562d4a",
+      "requestMs": 2570.503,
+      "responseMs": 3364.415,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_a98804d1b3124963bd8a7bbca242f1ef30c2c54f77e83fc7d5e5baac67c12473",
+      "requestMs": 2570.516,
+      "responseMs": 3263.87,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_092a761b33d9911596b60dc7c0075c7f6e8976c4d2c9afe37491e28e5b7b4141",
+      "requestMs": 2570.526,
+      "responseMs": 3364.618,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_4e00fbd32c8d1c43e6c9f2cd293a9abd647503b0287fd93da33298a2c5f14458",
+      "requestMs": 2570.536,
+      "responseMs": 3364.659,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_4d1fafcf3f4760150a2cac9954449c05c3d01c353f184def9da5a0f151989aae",
+      "requestMs": 2570.545,
+      "responseMs": 3364.563,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e924693dee592b821554fa5c3f119a99d302d399e55aaed7da29c7b023352c7a",
+      "requestMs": 2571.298,
+      "responseMs": 3365.211,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8006e0ff92992b87dc1512edf1cba1fb8e465121184a6911aa6b1f9672b16eed",
+      "requestMs": 2571.313,
+      "responseMs": 3365.351,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_702e034c2399ff89be60ed23456156fc71711303e7e51230af8c11fdbdc27eca",
+      "requestMs": 2571.327,
+      "responseMs": 3365.261,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_62b24a9a33c0cf4cae6376fdc0594cbb393e0600068b09cfd724cb2f2ac0df67",
+      "requestMs": 2571.347,
+      "responseMs": 3365.318,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_a5b7ffdf54bf525ed4d4fc4ba1be74ab410599dfec2a2fcb654c985893fc1124",
+      "requestMs": 2571.359,
+      "responseMs": 3461.952,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e656266edb269fda578b00e01508d0347f0818a39b533f1b5274bb6b1b413c20",
+      "requestMs": 2571.371,
+      "responseMs": 3463.23,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_608cd787b17c1ce54238e9cbd7b655d04fc683fa4be9ddc3770d6a2ffc0aadde",
+      "requestMs": 2571.385,
+      "responseMs": 3365.503,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_4b7efb48e18ef7f7d7afddcf5d65238739cf9eaf77fc53cb0d8ebb572916732f",
+      "requestMs": 2571.399,
+      "responseMs": 3463.325,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_ebfaad19cdc4ee07cd9081344da210d4981a4e35e8183ffbb5a0a02b539c9db6",
+      "requestMs": 2571.413,
+      "responseMs": 3464.849,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1323d6697561f798df1d6884f3fa701c27bfe226796bcf5eb368106a51a06b48",
+      "requestMs": 2571.426,
+      "responseMs": 3464.941,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_de53e077028fb487ded978a7e3185889aeac2fcdb5bee0851d312bfba292cc08",
+      "requestMs": 2571.447,
+      "responseMs": 3465.307,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_341238d8a0e17361f40bd04dcc532348c854999bae12b102804784f1e0ad628a",
+      "requestMs": 2571.464,
+      "responseMs": 3564.327,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_88761572ffce1730b19548f7a532ba77b0797c706df1962b4976f152111e0057",
+      "requestMs": 2571.475,
+      "responseMs": 3464.95,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_3cb630576b2ed183312774c00d75406d8303ea50db68a5cd17f48bde9b65e2fc",
+      "requestMs": 2571.49,
+      "responseMs": 3465.502,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1f8af5232edacccf1eb9e475267e8cae3369cb7d2a845fedf7737f2ce7cabc8e",
+      "requestMs": 2571.53,
+      "responseMs": 3564.605,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_26d3f6e0d95002e7045e608f48d0a236ac13f1ccb43957ddb197d48abdb01cd6",
+      "requestMs": 2571.545,
+      "responseMs": 3564.364,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_29e4af60e720c0cbf762adcc94579e24666523f24999605881a9d727223d3721",
+      "requestMs": 2571.562,
+      "responseMs": 3564.384,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_fd1dfddf8c7e7ef9d85f710df9a526e9461bf82b0b8d3479341c1520d8866ef6",
+      "requestMs": 2571.578,
+      "responseMs": 3564.627,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_23110bad4b4a178a26b63d17f692d4c193bb90a74b28ac474132763ded2cb0b1",
+      "requestMs": 2571.589,
+      "responseMs": 3564.813,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_61e493516839d92cf8c962cd73b31f599fb9e65cbf3f40f4ac7bb858ffd46a01",
+      "requestMs": 2571.601,
+      "responseMs": 3564.645,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e2e40c8b1be87cbe30548d45fb8947ab6c3ace60bb63c30eac767369fb85d068",
+      "requestMs": 2571.622,
+      "responseMs": 3564.846,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_e9b59d87530f39a23a8289e7effee96a0594d117b613a848edcf48d863da9a03",
+      "requestMs": 2571.639,
+      "responseMs": 3564.83,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_907c7303423761be40c8b97c4b79c38b7f4619aa444f6451eea5ba30b1181e3c",
+      "requestMs": 2571.653,
+      "responseMs": 3686.716,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_ce89b8c32805e3daff22799d090b1209c27df81c9495def803c5ac58f8039342",
+      "requestMs": 2571.667,
+      "responseMs": 3686.873,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_be6adbcdcfc8a064ce8ac3a8d926eb7d3153180a2a6a34009636939bd54e7910",
+      "requestMs": 2572.339,
+      "responseMs": 3687.004,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_b7487e3eeb463e8d72a5dea4d6fbfb3a06e252042f8635b97fe39f7601455f86",
+      "requestMs": 2572.36,
+      "responseMs": 3687.193,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_c0057ab5029e9bc1b2fab9f14e76aab9a2d5508a259107b2c99800a3cab72007",
+      "requestMs": 2572.374,
+      "responseMs": 3687.216,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_d0176ad4324ad0524a7884f88825857b780ef280764654d29d7305e0214191f7",
+      "requestMs": 2572.387,
+      "responseMs": 3687.389,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_0fb042cdec50b2940fc810d50081bbcfd3d35149024fb5cfbe2db3308710ece0",
+      "requestMs": 2572.401,
+      "responseMs": 3687.41,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_379a9da2877aa30588f14101d864bb8cc950992141dbcf3c6d3e3fbebbebb004",
+      "requestMs": 2572.419,
+      "responseMs": 3687.567,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9d285b160e3035e42a96df126d5fc9dc957a9f15562d9705158e30a64333783c",
+      "requestMs": 2572.43,
+      "responseMs": 3687.769,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_b30bec4d73b037ff771dff60e59889c990d54fa929f26ee409aeef7d0f0a746f",
+      "requestMs": 2572.459,
+      "responseMs": 3687.587,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_51f175114bbda3ec04f7a886b27c451180d032a39e4aac3e692d3247669a8623",
+      "requestMs": 2572.473,
+      "responseMs": 3792.188,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_cb61a6ea42467584ffc1056deb27eb5481661cf6e24757447ce10287df46c6e8",
+      "requestMs": 2572.483,
+      "responseMs": 3687.749,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1e34e43c176e24c49713cebf9ab4d9e00826f39d7ea149524da17ddbd0139bfb",
+      "requestMs": 2572.494,
+      "responseMs": 3687.85,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_7f0cb53884e0f078ea0ff765a428cbba0526bb79b31a0edf1250791a229c55b6",
+      "requestMs": 2572.507,
+      "responseMs": 3792.435,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_6fff353031da502ede92cd9f4e96043bbc559f1d1b7a131d707c3bf17d6f1abd",
+      "requestMs": 2572.517,
+      "responseMs": 3792.243,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8de633f66ee6e08aed7eaabbbec1534f47d31315e0e1d2715f2460848a7ea1da",
+      "requestMs": 2572.527,
+      "responseMs": 3792.727,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_11538e22b67a88d0de1228253a3630ebcbbc83f862100158779e4ec130879c5a",
+      "requestMs": 2572.538,
+      "responseMs": 3792.574,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_a5cc94c847c73eaa0f4ca76588df78a32b4198c45db59b190b350efa284256e0",
+      "requestMs": 2572.551,
+      "responseMs": 3792.496,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_45499b9b67e34fb524a1438e05a7897d0ee5241e6644812cd82a170e21e39bac",
+      "requestMs": 2572.564,
+      "responseMs": 3792.805,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9b7751ce68fb9f0f7aff00d85dcff9d3f7e7cb144f8ab4556c8eceb133efe77e",
+      "requestMs": 2572.589,
+      "responseMs": 3793.083,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_f3748fb6927c3b8a7a002255bd215fca516cb427011e6228165990bfd92a1eef",
+      "requestMs": 2572.604,
+      "responseMs": 3792.848,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_1375930de29f6ab4d4714a5ca6ad941620aef787282b5444d5f45840316dda7a",
+      "requestMs": 2572.617,
+      "responseMs": 3879.802,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_9b67716846800c03d1dee490fc583fb5eb499845ccc17fb3882c606c3e4f93bb",
+      "requestMs": 2572.626,
+      "responseMs": 3878.309,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_ca4bd8a820f58a05e1af2a32b729d001edf603f168b7db3535ccca7d559101a6",
+      "requestMs": 2572.636,
+      "responseMs": 3880,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_91d0a2096b51db6894ca5d107afd22e9b34a791b3b484a167fe257329b31ec7c",
+      "requestMs": 2572.648,
+      "responseMs": 3879.991,
+      "status": 200,
+      "failed": false
+    },
+    {
+      "kind": "user-locker-messages",
+      "id": "lmsg_8904c6d753e27003d454826d8159e453eb782173362daf9973dc199027bc86f7",
+      "requestMs": 5308.815,
+      "responseMs": 5338.636,
+      "status": 200,
+      "failed": false
+    }
+  ],
+  "samples": [
+    {
+      "ms": 1519.702,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 1944.456,
+      "ordinary": 110,
+      "cards": 3
+    },
+    {
+      "ms": 2030.492,
+      "ordinary": 110,
+      "cards": 3
+    },
+    {
+      "ms": 2374.323,
+      "ordinary": 109,
+      "cards": 3
+    },
+    {
+      "ms": 2545.036,
+      "ordinary": 109,
+      "cards": 3
+    },
+    {
+      "ms": 2804.605,
+      "ordinary": 101,
+      "cards": 0
+    },
+    {
+      "ms": 3153.551,
+      "ordinary": 86,
+      "cards": 0
+    },
+    {
+      "ms": 3365.122,
+      "ordinary": 71,
+      "cards": 0
+    },
+    {
+      "ms": 3683.492,
+      "ordinary": 42,
+      "cards": 0
+    },
+    {
+      "ms": 3879.978,
+      "ordinary": 25,
+      "cards": 0
+    },
+    {
+      "ms": 4161.549,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 4377.24,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 4690.6,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 4914.144,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 5269.443,
+      "ordinary": 1,
+      "cards": 0
+    },
+    {
+      "ms": 5453.947,
+      "ordinary": 0,
+      "cards": 0
+    },
+    {
+      "ms": 6018.231,
+      "ordinary": 0,
+      "cards": 0
+    }
+  ],
+  "counts": {
+    "issued": 114,
+    "responses": 114,
+    "failed": 0
+  }
+}

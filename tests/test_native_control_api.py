@@ -13,6 +13,10 @@ from packages.web import native_control_api as api
 
 @pytest.fixture
 def target(monkeypatch, request):
+    # These tests exercise the transport contract on any host. Platform denial
+    # is tested separately below without weakening the transport assertions.
+    from packages.core import platform
+    monkeypatch.setattr(platform, "supports", lambda name: True)
     app = FastAPI()
     app.include_router(api.router)
     s = session.Session(id="ses-native-api", name="native", adapter=getattr(request, "param", "codex"))
@@ -31,6 +35,20 @@ def request(app, method, path="", **kwargs):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as c:
             return await c.request(method, "/api/sessions/ses-native-api/native-control" + path, **kwargs)
     return asyncio.run(run())
+
+
+def test_explicit_platform_denial_precedes_configuration_side_effects(target, monkeypatch):
+    from packages.core import platform
+    app, s, w = target
+    monkeypatch.setattr(platform, "supports", lambda name: False)
+    save = AsyncMock(side_effect=AssertionError("must not save"))
+    monkeypatch.setattr(session, "save_async", save)
+    before = dict(s.adapter_config)
+    response = request(app, "POST", "/configuration", json={"enabled": True})
+    assert response.status_code == 501
+    assert response.json()["error"]["code"] == "unsupported_platform"
+    assert s.adapter_config == before
+    save.assert_not_awaited()
 
 
 def test_passthrough_saved_offline_and_strict_codex_only(target, monkeypatch):

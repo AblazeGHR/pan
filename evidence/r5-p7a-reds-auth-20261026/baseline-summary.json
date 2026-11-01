@@ -1,0 +1,18 @@
+{
+  "sha": "7f303faa",
+  "sameIdentityPassed": 62,
+  "absentAtBaseline": [
+    "tests.test_job_action_chain::test_restart_boundary_reuses_original_run_and_never_reruns_completed",
+    "tests.test_job_action_chain::test_system_shell_steps_have_distinct_trusted_child_admissions",
+    "tests.test_job_action_chain::test_real_owned_commands_pass_structured_output_without_server",
+    "tests.test_job_action_chain::test_admitted_fixed_template_step_uses_original_template_revision",
+    "tests.test_job_chain_phase5_e2e::test_real_mcp_legacy_message_and_process_become_action_jobs",
+    "tests.test_job_chain_phase5_e2e::test_owned_host_crash_retains_unknown_identity_and_unmappable_legacy",
+    "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id",
+    "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime",
+    "tests.test_scheduler_legacy_bridge::test_switched_task_flows_event_trigger_job_and_system_action_audit"
+  ],
+  "initialEnvironmentFailures": 8,
+  "environmentRetryPassed": 9,
+  "existingProductFailures": 0
+}

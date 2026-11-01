@@ -1,0 +1,48 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-fast-gates-20261027
+F........                                                                [100%]
+================================== FAILURES ===================================
+______ test_exit_job_records_choice_and_exact_pre_exit_running_snapshot _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025B376ED6E0>
+
+    def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+            SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+            SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        created_tasks = []
+    
+        def capture_task(coro, **kwargs):
+            created_tasks.append(kwargs.get("name"))
+            coro.close()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+    
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+        assert result["ok"] is True
+        assert job["options"] == {
+            "exitStrategy": "ask",
+            "markRunningSessionsOffline": False,
+            "runningSessionIds": ["running-a", "running-b"],
+        }
+>       assert created_tasks == ["pan-main-exit"]
+E       AssertionError: assert [] == ['pan-main-exit']
+E         
+E         Right contains one more item: 'pan-main-exit'
+E         Use -v to get more diff
+
+tests\test_main_service_exit.py:68: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_main_service_exit.py::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot

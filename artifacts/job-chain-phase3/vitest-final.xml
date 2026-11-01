@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="98" failures="0" errors="0" time="7.176">
+    <testsuite name="services/api.legacyJobs.test.ts" timestamp="2026-10-25T08:18:04.217Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.0109052">
+        <testcase classname="services/api.legacyJobs.test.ts" name="retains JSON content type and current Bearer on legacy create/edit after user login" time="0.0063232">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="uses original endpoints for legacy get/cancel/retry/delete without Action auth" time="0.001387">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0013435">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0004271">
+        </testcase>
+        <testcase classname="services/api.legacyJobs.test.ts" name="propagates old API errors and does not fall back to new execution" time="0.0006994">
+        </testcase>
+    </testsuite>
+    <testsuite name="stores/actionRegistryStore.test.ts" timestamp="2026-10-25T08:18:04.226Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="0.019409">
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; dedupes concurrent first loads and keeps secondary resources lazy" time="0.0060184">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; serves a fresh cache on re-entry and revalidates only after the TTL" time="0.000971">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; keeps the last usable registry when a background refresh fails" time="0.0008019">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; drops a late GET that started before a successful mutation" time="0.0008143">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="action registry cache &gt; serializes mutations so an older response cannot overwrite a newer one" time="0.0006009">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; ends refreshing when a cached refresh is invalidated by a later mutation" time="0.0008768">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; keeps a binding applied during an in-flight refresh" time="0.001061">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; does not regress on a lower-revision response and allows another Refresh" time="0.0005442">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="registry busy convergence and stale responses &gt; does not let an older refresh clear a newer refresh busy state" time="0.0008021">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; loads Sessions lazily and keeps cached rows on failure" time="0.0012927">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; caches Session detail per id and ignores a late response for a switched id" time="0.0009492">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops an in-flight Session detail response after cache reset" time="0.000423">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a late catalog response after a force refresh" time="0.0008126">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a build-time catalog invalidation response and still accepts the next force load" time="0.0006608">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops a late Session list response after a force refresh" time="0.0005801">
+        </testcase>
+        <testcase classname="stores/actionRegistryStore.test.ts" name="auxiliary caches &gt; drops an in-flight Session list response after cache reset" time="0.0004592">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/ActionsView.test.tsx" timestamp="2026-10-25T08:18:04.233Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="3.6158902">
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; loads only the registry first and renders the compact list" time="0.1861837">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; filters and clears without another request" time="0.1097434">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; keeps cached rows and shows a retry banner when refresh fails" time="0.1191366">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query" time="0.6654663">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits, duplicates and saves a Session Operation without changing its original or Group release" time="0.5833087">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates Session Operation in the new editor and rejects invalid Event targets without posting" time="0.2830074">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; blocks Group build for enabled Session Operation while preserving membership and build APIs" time="0.0898313">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates an Action without a client ID and returns to the list" time="0.2080323">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; duplicates through POST without an ID, opens the copy, and never touches Group references" time="0.2954421">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; uses a clear suffixed default name when the first copy name already exists" time="0.1082457">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; keeps the draft and shows the write error" time="0.1681453">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; does not submit malformed advanced JSON and keeps the text for repair" time="0.1241697">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; guards a dirty draft before returning to the list" time="0.1755723">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; builds and unbuilds a Group through the existing mutation paths" time="0.1557269">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; preserves other plugin bindings and sends the expected revision" time="0.2334466">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; disables unbuild while a running Session blocks the Group" time="0.1089101">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationView.test.tsx" timestamp="2026-10-25T08:18:04.236Z" hostname="ablaze" tests="14" failures="0" errors="0" skipped="0" time="2.6285198">
+        <testcase classname="views/AutomationView.test.tsx" name="creates a disabled serial draft with user Bearer, OR Events and typed parameters, preserving draft across tabs" time="0.4655854">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="requires an explicit Action/parameter review before enable and clears auth on 401 without losing draft" time="0.2639817">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves a conflicting draft and offers explicit comparison/rebase, keeping metadata out of writes" time="0.3238438">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="does not let a delayed save overwrite a different editor" time="0.2052364">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="deduplicates refresh and rejects an old read after mutation invalidation" time="0.0012406">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="sends Bearer for cancel and never retries rejected effects" time="0.0012265">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="preserves Event field parameters and nested OR/NOT conditions in the request" time="0.2578579">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="creates the Event target template as a normal Action using the registry revision" time="0.1039016">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="a late unauthorized response cannot clear a newer login" time="0.0007773">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="shares Action loads, adopts template mutation without extra reads, and fences late registry replies" time="0.0011715">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards dirty New/Edit/Close and route departure, cancellation keeps the draft, saving clears dirty" time="0.21154">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="guards accepted switching, but blocks departure and duplicate submits while saving" time="0.2073066">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="posts the displayed surviving literal after deletion and preserves invalid text during conflict rebase" time="0.3013542">
+        </testcase>
+        <testcase classname="views/AutomationView.test.tsx" name="loading a conflicting server configuration replaces local literal text and resets dirty" time="0.2824564">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/AutomationWorkspace.test.tsx" timestamp="2026-10-25T08:18:04.239Z" hostname="ablaze" tests="12" failures="0" errors="0" skipped="0" time="2.6429301">
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="navigates exactly three accessible tabs by keyboard and follows Job/Trigger/Scheduler links" time="0.3264449">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="adds, reorders and removes steps without changing stable IDs and rejects forward output references" time="0.3975456">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="keeps literal JSON typed and maps Job input or Event fields" time="0.229344">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="selects an existing Scheduler by search and submits its revision with the Job" time="0.2409155">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="creates a new Scheduler through one recoverable operation and retries with the same key" time="0.3460598">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="shows source impact, requires review, and preserves a conflicting draft" time="0.1559188">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="disables a source without touching Job lifecycle and deletes only unreferenced disabled sources" time="0.1784783">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="generates stable random IDs on remote HTTP contexts without randomUUID" time="0.001655">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="keeps existing timing controls on pre-composition Jobs while allowing chain edits" time="0.1085596">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="preserves existing chain literals, trusted mappings and parallel policy in the Trigger editor" time="0.1551672">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="explicitly rebases a source conflict and requires impact review again" time="0.2466322">
+        </testcase>
+        <testcase classname="views/AutomationWorkspace.test.tsx" name="uses one navigation guard for simultaneous drafts on different subpages" time="0.2551577">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/JobsView.bulk-search.test.tsx" timestamp="2026-10-25T08:18:04.242Z" hostname="ablaze" tests="25" failures="0" errors="0" skipped="0" time="3.5060818">
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps legacy records and their projections out of the new Job tab" time="0.3711734">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps the opened config revision when WS replaces a dirty unified Job" time="0.2504379">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a pin through lifecycle events and restores ordinary ordering after unpin" time="0.1192579">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows unavailable pin metadata, disables pin, and leaves ordinary filters usable" time="0.1824255">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows metadata failure for an empty list via the list envelope" time="0.0558156">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; clears a cached pin when an update explicitly reports unknown metadata" time="0.078107">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; matches Completed and Timeout only to their persisted API statuses" time="0.1198345">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads retention settings from the server and saves the edited values" time="0.1308252">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads blank retention days from server defaults" time="0.1388622">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; loads and saves failed, timeout, cancelled, and log retention independently" time="0.1724341">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps a cleared day count blank when saving an enabled rule" time="0.0929695">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows invalid persisted rule feedback and keeps that switch off" time="0.0661446">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; shows settings load and save errors" time="0.1700735">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; combines case-insensitive name, ID, and description search with status and kind filters" time="0.1853027">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; keeps controls and counts outside the dedicated row scroll container" time="0.0969634">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; selects and deselects visible results without opening a detail drawer; row menus stay isolated" time="0.1236167">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; pauses unpaused jobs with paused=true, reports partial failure, and retries only failures" time="0.1716892">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; blocks duplicate bulk submission while per-job pause requests are pending" time="0.1216259">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; cancels batch delete without requests and confirms the displayed quantity" time="0.1322148">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; removes WS-deleted selection before confirmation and retries only a failed DELETE" time="0.1952327">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="JobsView search, status filters, and bulk actions &gt; supports searching by kind payload ID and description while retaining kind filters" time="0.0556369">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; retains a failed cancellation and prevents duplicate requests" time="0.1472449">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="Job cancellation and ordering &gt; sorts equal timestamps by ID and persists direction while live updates reorder" time="0.0874668">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="sorts created time and actual kind safely with missing legacy times last" time="0.0948554">
+        </testcase>
+        <testcase classname="views/JobsView.bulk-search.test.tsx" name="keeps accepted asynchronous cancellation disabled until the live terminal event" time="0.1443237">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/JobsView.schedule-shapes.test.tsx" timestamp="2026-10-25T08:18:04.247Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.9339016">
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; reproduces a historical object schedule from the initial REST list" time="0.1526224">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; opens details for object, missing, null, and scalar schedules safely" time="0.4399033">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; keeps a message Job object schedule read-only without pause controls" time="0.1501259">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; renders scheduled-task entry arrays and keeps their controls available" time="0.1396487">
+        </testcase>
+        <testcase classname="views/JobsView.schedule-shapes.test.tsx" name="JobsView schedule payload compatibility &gt; accepts object schedule updates arriving over WebSocket" time="0.0506067">
+        </testcase>
+    </testsuite>
+    <testsuite name="components/automation/fields.test.tsx" timestamp="2026-10-25T08:18:04.249Z" hostname="ablaze" tests="5" failures="0" errors="0" skipped="0" time="0.1291042">
+        <testcase classname="components/automation/fields.test.tsx" name="keeps the surviving literal display equal to the condition after deleting its predecessor" time="0.0786864">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="syncs an external literal and clears obsolete custom validity" time="0.0067739">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="retains unfinished invalid text on the surviving condition and on unrelated rerenders" time="0.0157219">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="preserves a valid unnormalized lexeme through its own edit and a sibling edit" time="0.015745">
+        </testcase>
+        <testcase classname="components/automation/fields.test.tsx" name="replacing the condition structure resets obsolete literal buffers and validity" time="0.0113738">
+        </testcase>
+    </testsuite>
+</testsuites>

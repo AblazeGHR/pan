@@ -1,0 +1,36 @@
+{
+  "schema": "pan.r6e.history-read/v1",
+  "base": "28ed7ccd7908bf30b1dc33b48fdf4dbf21cc2d6d",
+  "branch": "r5/p17-r6-history-read-20261025",
+  "result": "task history replacement accepted by isolated tests; host deletion remains blocked",
+  "finalTests": {
+    "passed": 396,
+    "skipped": 0,
+    "failed": 0,
+    "exit": 0
+  },
+  "collection": {
+    "collected": 7110,
+    "errors": 4,
+    "exit": 1,
+    "reason": "Missing Python playwright"
+  },
+  "hostImports": {
+    "packages.scheduler.store": 31,
+    "packages.scheduler.time_events": 10,
+    "packages.scheduler.cron": 5,
+    "packages.scheduler.engine": 7,
+    "packages.scheduler.legacy_bridge": 3
+  },
+  "parseErrors": 0,
+  "runtimeProof": "No listener or lifespan; ASGI plus MCP wrapper integration only",
+  "files": {
+    "packages/jobs/migration_history.py": "98988beb30e5cf6b1fe5f906301f26c16a9cf79970c5ee53f2be5b1b803ff795",
+    "packages/scheduler/history.py": "0af81d8f0d0630f3fcc6803f276237611516897b4d8ece8d7bcc11bd9e49a796",
+    "packages/scheduler/api.py": "eb0efe26e8793e6015d0088919d55882073cad3637fab237e962fa3de5076a3b",
+    "packages/scheduler/engine.py": "da5559a1413630744b1426cc15827c1923f632682a5be0a1f96e166eb1f9a86c",
+    "packages/scheduler/event_api.py": "e869290175fabe0ae43ca0b52e1626eb97e04820d9afa4654f336e7f3d917148",
+    "packages/mcp/server.py": "36174def4969a9935333d4a2a443287701e78285cee84b80dfd5275500dabb9f",
+    "tests/test_scheduler_history_read.py": "77088c2cd07968309e177ceb91df34983d3dcb3b544d36682889a300c0e43925"
+  }
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="5" time="0.684" timestamp="2026-10-29T11:37:19.340517+08:00" hostname="ablaze"><testcase classname="tests.test_jobs_api" name="test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates" time="0.053"><failure message="KeyError: 'ok'">tests\test_jobs_api.py:339: in test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'</failure></testcase><testcase classname="tests.test_jobs_api" name="test_resume_legal_running_empty_scan_is_successful_noop" time="0.020"><failure message="KeyError: 'ok'">tests\test_jobs_api.py:395: in test_resume_legal_running_empty_scan_is_successful_noop
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'</failure></testcase><testcase classname="tests.test_jobs_api" name="test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged" time="0.008"><failure message="KeyError: 'ok'">tests\test_jobs_api.py:418: in test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'</failure></testcase><testcase classname="tests.test_jobs_api" name="test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text" time="0.009"><failure message="KeyError: 'ok'">tests\test_jobs_api.py:444: in test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text
+    assert created["ok"] is True
+           ^^^^^^^^^^^^^
+E   KeyError: 'ok'</failure></testcase><testcase classname="tests.test_jobs_api" name="test_resume_legal_running_keeps_per_fire_client_message_id_stable" time="0.002"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime">tests\test_jobs_api.py:485: in test_resume_legal_running_keeps_per_fire_client_message_id_stable
+    first = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\retired.py:14: in missing
+    raise RetiredEntryPoint(
+E   packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint _execute_job_action retired; use canonical FinalService/FinalRuntime/CreatorRuntime</failure></testcase></testsuite></testsuites>

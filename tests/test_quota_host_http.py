@@ -1,25 +1,54 @@
-"""Real owned HTTP and fake CLI; no real auth/profile/provider or Worker."""
+"""Host policy config persists independently of legacy query-host execution."""
+import asyncio
+from types import SimpleNamespace
+from packages.automation.api import install
+from packages.automation.quota_policy import Store
+from tests.test_automation_canonical import canonical
+
+
+def test_owned_host_configuration_read_projection_and_restart(canonical):
+    h = canonical
+    install(SimpleNamespace(app=h.app))
+    url = '/api/automation/quota-policy'
+    state = h.client.get(url).json()
+    assert state['host'] == {'enabled':False, 'sessionRoles':{}}
+    assert state['adapter'] == 'unavailable'
+    body = {'enabled':True, 'sessionRoles':{'owned-target':'ta'}, 'expectedRevision':state['revision']}
+    assert h.client.put(url + '/host', json=body, headers={'Authorization':'Bearer invalid'}).status_code == 401
+    for invalid in ({**body, 'effectsEnabled':True}, {**body, 'enabled':'true'},
+                    {**body, 'sessionRoles':{'owned-target':'guess-from-name'}}):
+        assert h.client.put(url + '/host', json=invalid).status_code == 400
+    assert h.client.put(url + '/host', json=body).status_code == 200
+    assert h.client.put(url + '/host', json=body).status_code == 409
+    state = h.client.get(url).json()
+    assert state['host'] == {'enabled':True, 'sessionRoles':{'owned-target':'ta'}}
+    # Enabling policy configuration cannot manufacture a business effect port.
+    snapshot = asyncio.run(h.automation.quota_policy.query())
+    assert snapshot['status'] == 'unknown'
+    assert not h.automation.quota_policy.store.read()['commands']
+    restored = Store(h.automation.ledger.path.parent).read()
+    assert restored['host'] == state['host']
+    assert not h.provider.calls
+
+# Main-side real HTTP imports retained after conflict resolution.
 import json
 from pathlib import Path
 import socket
 import time
-
 import httpx
+from packages.core.codex_quota_store import CodexProfile, CodexQuotaStore
+from tests import test_real_queue_http_e2e as real_http
+from tests.test_quota_host import limits, stamp
 
-from packages.core.codex_quota_store import CodexProfile,CodexQuotaStore
-from tests import test_real_queue_http_e2e as h
-from tests.test_quota_host import limits,stamp
-
-
-def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypatch):
-    assert h.PORT not in (8767,8768)
-    monkeypatch.setattr(h,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
-    rt=h._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
+def test_owned_host_configuration_read_projection_and_restart_real_http(tmp_path,monkeypatch):
+    assert real_http.PORT not in (8767,8768)
+    monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/quota_host_http_server.py')
+    rt=real_http._PanRuntime(tmp_path/'host-http');rt.data_root.mkdir()
     now=float(int(time.time()))
     profile=CodexProfile(rt.data_root/'fixture-codex','native-fixture','native-fixture','fixture-profile')
     store=CodexQuotaStore(profile,root=rt.data_root/'quota-fixture')
     store.update(limits(now),observed_at=stamp(now),received_at=stamp(now))
-    before=store.path.read_bytes();evidence={'port':h.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
+    before=store.path.read_bytes();evidence={'port':real_http.PORT,'profile':str(rt.data_root),'realProviderCalls':0,'realEffects':0}
     try:
         rt.start();evidence['serverPid']=rt.process.pid
         key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
@@ -44,8 +73,8 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
             def done():
                 value=client.get(url).json()
                 return value if value.get('hostObservation') else None
-            state=h._wait_for(done,label='host read-only projection')
-            state=h._wait_for(lambda: (v if (v:=client.get(url).json())['quota']['status']=='known' else None),label='provider quota persisted')
+            state=real_http._wait_for(done,label='host read-only projection')
+            state=real_http._wait_for(lambda: (v if (v:=client.get(url).json())['quota']['status']=='known' else None),label='provider quota persisted')
             assert state['adapter']=='host-readonly' and state['quota']['identityDomain']=='cc-switch-provider:codex'
             assert state['quota']['currentAccountId']=='provider-a'
             assert state['hostObservation']['native']['status']=='known'
@@ -61,7 +90,7 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
                 body['expectedRevision']=client.get(url).json()['revision']
                 result=client.put(url+'/host',json=body,headers=headers)
                 return result if result.status_code==200 else None
-            h._wait_for(disable,label='user host disable after query')
+            real_http._wait_for(disable,label='user host disable after query')
             rt.stop();rt.start();evidence['restartedServerPid']=rt.process.pid
             recovered=client.get(url).json()
             assert recovered['host']=={'enabled':False,'sessionRoles':{'explicit-target':'ta'}}
@@ -77,7 +106,8 @@ def test_owned_host_configuration_read_projection_and_restart(tmp_path,monkeypat
             assert 'fixture-secret' not in json.dumps(evidence) and 'private-label' not in json.dumps(evidence)
     finally:
         rt.stop()
-        with socket.socket() as probe:probe.bind(('127.0.0.1',h.PORT));evidence['portReleased']=True
+        with socket.socket() as probe:probe.bind(('127.0.0.1',real_http.PORT));evidence['portReleased']=True
         evidence['ownedServerStopped']=rt.process is None or rt.process.poll() is not None
         out=Path('artifacts/quota-provider');out.mkdir(exist_ok=True,parents=True)
         (out/'http-evidence.json').write_text(json.dumps(evidence,indent=2),encoding='utf-8')
+

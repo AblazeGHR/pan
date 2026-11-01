@@ -17,6 +17,13 @@ import type { StreamEvent, WorkerEvent, Message, UserInputQuestion } from '@/typ
 import type { Job } from '@/types/jobs';
 import { inheritMessageIdentity, rememberMessageIdentity } from '@/utils/messageIdentity';
 import { openSessionFromNotification } from '@/utils/session-deeplink';
+import { partialJobNotificationMessage } from './partialJobNotification';
+
+// A terminal notification can be observed again after reconnect. Keep the
+// visible partial-failure notice tied to the existing outbox identity so the
+// same effect never creates a second toast in one browser session.
+const partialJobNotifications = new Set<string>();
+
 
 function clearInteractiveRequests(sessionId?: string): void {
   if (!sessionId) return;
@@ -924,6 +931,18 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('job.updated', (e: StreamEvent) => {
       const job = (e as unknown as { job?: Job }).job;
       if (job) useJobStore.getState().upsertJob(job, { epoch: e.serverEpoch || e.eventEpoch, seq: e.eventSeq });
+      const event = e as StreamEvent & { outboxId?: string; failedTargets?: string[]; targetResults?: unknown[] };
+      if (event.status === 'uncertain' && typeof event.outboxId === 'string' &&
+          Array.isArray(event.failedTargets) && event.failedTargets.length > 0) {
+        const identity = event.outboxId;
+        if (!partialJobNotifications.has(identity)) {
+          partialJobNotifications.add(identity);
+          useUIStore.getState().showToast(
+            partialJobNotificationMessage(event.failedTargets),
+            'warning',
+          );
+        }
+      }
     }));
     unsubscribers.push(wsClient.on('job.deleted', (e: StreamEvent) => {
       const jobId = (e as unknown as { jobId?: string }).jobId;

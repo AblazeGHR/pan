@@ -133,7 +133,6 @@ from packages.core import notifications, reminders
 from packages.core import platform as platform_layer
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
-from packages.scheduler import engine as scheduler_engine
 
 # ── logging ──
 
@@ -220,10 +219,25 @@ async def _shutdown_summary_projection_backfill(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Fence before watchdogs, retention, plugins or legacy recovery can start.
+    # A failed startup keeps the durable cutover; it never reopens old writers.
+    from packages.jobs.runtime_owner import OwnerFence
+    owner = OwnerFence(sess.SESSION_DIR.parent)
+    status = owner.status()
+    owner.claim(status["epoch"] if status else 0)
+    try:
+        async with _owned_lifespan(app, owner):
+            yield
+    finally:
+        owner.release()
+
+
+@asynccontextmanager
+async def _owned_lifespan(app: FastAPI, owner):
     """Startup: load all saved sessions (don't auto-spawn Workers).
     Shutdown: kill all child processes."""
     sessions = sess.list_all(load_history=False)
-    interrupted_restarts = _recover_interrupted_main_restart_jobs()
+    interrupted_restarts = 0  # R4: legacy lifecycle records remain read-only.
     if interrupted_restarts:
         _log(
             "[main-restart] marked "
@@ -265,17 +279,11 @@ async def lifespan(app: FastAPI):
     from packages.core import source_notifications
     source_notifications.start(_send_scheduled_qq, broadcast)
     worker.start_global_watchdog()
-    background_jobs.register_scheduled_tasks(qq_send=_send_scheduled_qq)
-    background_jobs.start_recovery_loop()
     global _DATA_RETENTION_LOOP
     _DATA_RETENTION_LOOP = asyncio.get_running_loop()
     _get_data_retention_service().start()
     reminder_task = asyncio.create_task(_reminder_loop())
-    # 定时任务调度循环（同 background_jobs：拿不到 leader 锁的实例只服务读请求）
-    try:
-        await scheduler_engine.start_loop(on_event=scheduler_api.on_event)
-    except Exception as e:
-        _log(f"[Pan] Scheduler loop not started: {e}")
+    # R4: the canonical Creator runtime is the sole time producer.
     
     # Init CharacterManager with manifest
     global _character_manager
@@ -319,10 +327,21 @@ async def lifespan(app: FastAPI):
                     await lan.operation("startup")
                     from packages.automation.service import Service as AutomationService
                     automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
+                    from packages.jobs.final_api import CanonicalUserAuth
+                    automation.auth = CanonicalUserAuth(automation.auth.path.parent)
+                    automation.engine.authorization = automation.auth.permission_allowed
                     app.state.automation = automation
+                    from packages.jobs.final_service import bind as bind_final_jobs
+                    final_jobs = None
                     from packages.automation.authorization import bind_objects
                     bind_objects(plugin_runtime, app)
                     try:
+                        final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
+                        _bind_qq_channel_provider(final_jobs)
+                        async def send_final_notice(row):
+                            return await _send_final_notice(row)
+                        final_jobs.outbox_sender = send_final_notice
+                        await final_jobs.start(activation=load_config().get('job_runtime_activation'))
                         await automation.start()
                         from packages.interactions.runtime import bind as bind_interactions
                         if getattr(app.state, 'interaction_trigger_adapter', None) is None:
@@ -350,7 +369,15 @@ async def lifespan(app: FastAPI):
                             try:
                                 await plugin_runtime.unbind_events()
                             finally:
-                                await automation.close()
+                                try:
+                                    await automation.close()
+                                finally:
+                                    try:
+                                        if final_jobs is not None:
+                                            await final_jobs.close()
+                                    finally:
+                                        app.state.job_final_service = None
+                                        automation.final_jobs = None
                         finally:
                             app.state.automation = None
                             from packages.web.native_file_picker import native_file_picker
@@ -376,7 +403,6 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(_get_data_retention_service().stop)
     _DATA_RETENTION_LOOP = None
     worker.stop_global_watchdog()
-    await scheduler_engine.stop_loop()
     await background_jobs.stop_recovery_loop()
     # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
     # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
@@ -461,6 +487,18 @@ async def _deliver_due_reminders() -> int:
     return delivered
 
 ws_clients: set[WebSocket] = set()
+
+
+async def _send_final_notice(row):
+    """Existing canonical outbox -> original browser/Session delivery adapter."""
+    if row['channel'] == 'ws':
+        await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                         'outboxId': row['outboxId'], **row['summary']})
+        return {'outcome': 'succeeded'}
+    if row['channel'] == 'session':
+        from packages.jobs.notification_delivery import enqueue_session_notice
+        return await enqueue_session_notice(row)
+    return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
 agent_clients: set[WebSocket] = set()
 
 # agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
@@ -627,6 +665,7 @@ _main_exit_request_id: str | None = None
 _main_exit_stage = "idle"
 _main_exit_error: str | None = None
 _lifecycle_operation_lock = asyncio.Lock()
+_canonical_lifecycle_pending: dict[str, dict[str, Any]] = {}
 
 _MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
 _MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline", "preserveRunningIllegal"})
@@ -810,6 +849,27 @@ def _main_restart_job_view(job: dict | None) -> dict:
     }
 
 
+def _canonical_lifecycle_status(operation: str) -> dict:
+    """Project the in-process Action receipt for legacy status readers."""
+    from packages.core import lifecycle_action
+    from packages.jobs.independent_executor import ExecutionStore
+    for item in _canonical_lifecycle_pending.values():
+        if item.get("operation") != operation:
+            continue
+        try:
+            doc = ExecutionStore(lifecycle_action.receipt_root(_PROJECT_DIR)).get(item["effectId"])
+        except (KeyError, OSError, ValueError):
+            doc = None
+        result = (doc or {}).get("result") if doc else None
+        receipt = (result or {}).get("receipt") or {}
+        return {**item, "pending": result is None, "phase": (doc or {}).get("phase") or receipt.get("phase"),
+                "jobStatus": "running" if result is None else ("completed" if result.get("outcome") == "succeeded" else "uncertain"),
+                "newPid": receipt.get("readyProof", {}).get("newPid"),
+                "newPidCreatedAt": receipt.get("readyProof", {}).get("newPidCreatedAt"),
+                "oldPid": receipt.get("oldPid"), "oldPidCreatedAt": receipt.get("oldPidCreatedAt")}
+    return {}
+
+
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     launcher_module = Path(launcher.__file__).resolve()
@@ -840,6 +900,9 @@ def _main_restart_status() -> dict:
         "platform": os.name,
         "port": port,
     }
+    canonical = _canonical_lifecycle_status("restart")
+    if canonical:
+        result.update(canonical)
     job = active_job or latest_job
     if job:
         result.update(_main_restart_job_view(job))
@@ -994,6 +1057,9 @@ def _main_exit_status() -> dict:
         "platform": os.name,
         "port": port,
     }
+    canonical = _canonical_lifecycle_status("exit")
+    if canonical:
+        result.update(canonical)
     job = active_job or latest_job
     if job:
         result.update(_main_restart_job_view(job))
@@ -2287,7 +2353,7 @@ def _session_to_api(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
-        "nativeControlCapable": adapter_supports_native_control(s.adapter),
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
         "model": s.model or a.default_model,
         "permissionMode": s.permission_mode or config.get("permission_mode") or None,
         # Canonical nested capability object; the flat keys below are kept as
@@ -2668,7 +2734,7 @@ def _session_summary(
         "adapter": s.adapter,
         "cliSessionId": s.cli_session_id,
         "nativeControl": ac.get("native_control") is True,
-        "nativeControlCapable": adapter_supports_native_control(s.adapter),
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
         "workerStatus": worker_status,
         "workerId": worker_id,
         "workerGeneration": worker_generation,
@@ -3179,6 +3245,13 @@ def _build_session_params(
                      f"'{a.name}': {_exc}")
                 _effort = ""
 
+    if "nativeControl" in data:
+        if (type(data["nativeControl"]) is not bool
+                or not adapter_supports_native_control(adapter_name)):
+            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
+        if data["nativeControl"] and not platform_layer.supports("terminal.native"):
+            raise ValueError("unsupported_platform: Native Terminal TUI requires terminal.native")
+
     params = {
         "name": name,
         # User's explicit adapter wins, then the template's (a no-adapter
@@ -3221,9 +3294,6 @@ def _build_session_params(
             raise ValueError("A Session can belong to at most one Workspace")
         params["workspace_ids"] = list(requested_workspace_ids)
     if "nativeControl" in data:
-        if (type(data["nativeControl"]) is not bool
-                or not adapter_supports_native_control(adapter_name)):
-            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
         if data["nativeControl"]:
             params["adapter_config"]["native_control"] = True
     # These are deliberately added only when explicitly supplied.  In
@@ -3940,6 +4010,189 @@ async def api_main_identity():
             "root": str(_PROJECT_DIR), "version": __version__, "console": console.snapshot()}
 
 
+async def _canonical_lifecycle_handoff(operation: str, options: dict,
+                                       request_id: str, old_pid: int,
+                                       old_created_at: float) -> dict:
+    """Submit exactly one protected fixed system Action for this instance."""
+    from packages.core import lifecycle_action
+    from packages.actions.typed_executor import TypedExecutor
+    from packages.core.main_lifecycle import ProtectedLifecycleExecutor
+    from packages.jobs.independent_executor import ExecutionStore, effect_id
+
+    root = str(_PROJECT_DIR.expanduser().resolve())
+    port = _main_restart_port()
+    job_id, identity, plan = lifecycle_action.protected_plan(
+        root=root, port=port, old_pid=old_pid, old_pid_created_at=old_created_at,
+        operation=operation, options=options, request_id=request_id,
+    )
+    expected = {"jobId": job_id, "runId": identity["effectKey"]["runId"],
+                "stepId": identity["effectKey"]["stepId"],
+                "operation": plan["operation"], "root": root,
+                "port": port, "stepCount": 1}
+    grant = lambda scope: dict(expected) if scope == expected else {"denied": True}
+    protected = ProtectedLifecycleExecutor(
+        job_id=job_id, store=ExecutionStore(lifecycle_action.receipt_root(root)),
+        authorize=grant,
+    )
+    async def prepare_original_lifecycle(document):
+        """The sealed original plan precedes the Worker gate and shutdown."""
+        frozen = document["frozenPlan"]["arguments"]["options"]
+        mark_offline = _resolve_main_lifecycle_job_choice(frozen, operation)
+        running_ids = list(frozen["runningSessionIds"])
+        await worker.shutdown_all(
+            mark_legal_offline=True,
+            mark_legal_offline_session_ids=running_ids if mark_offline else (),
+            preserve_legal_running_session_ids=() if mark_offline else running_ids,
+            legal_state_source="pan/main-" + operation,
+        )
+    def schedule_original_lifecycle(coro, eid, attempt, token):
+        tasks = getattr(app.state, "canonical_lifecycle_tasks", None)
+        if tasks is None:
+            tasks = app.state.canonical_lifecycle_tasks = set()
+        task = asyncio.create_task(coro, name="pan-main-" + operation)
+        tasks.add(task)
+        def observe(done):
+            tasks.discard(done)
+            if done.cancelled():
+                # A task cancelled before its first instruction cannot run its
+                # own failure handler. Token/fence rules prevent overwriting a
+                # launched or claimed execution.
+                try:
+                    protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                        error={"type": "CancelledError", "message": ""})
+                except Exception as exc:
+                    # The running coroutine may already have settled, claimed,
+                    # or started launch; never overwrite those original facts.
+                    try:
+                        doc = protected.store.get(eid)
+                        if doc.get("launchAttempted") and doc.get("result") is None:
+                            protected.store.launch_failed(eid, attempt)
+                    except Exception as inspect_exc:
+                        _log(f"[main-lifecycle] cancelled task receipt unavailable: {inspect_exc}")
+                    _log(f"[main-lifecycle] cancelled task prelaunch settlement: {type(exc).__name__}")
+                return
+            error = done.exception()
+            if error is not None:
+                _log(f"[main-lifecycle] preparation task failed: {type(error).__name__}: {error}")
+                try:
+                    doc = protected.store.get(eid)
+                    if doc.get("result") is None and doc.get("claim") is None:
+                        if doc.get("launchAttempted"):
+                            protected.store.launch_failed(eid, attempt)
+                        else:
+                            protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                                error={"type": type(error).__name__, "message": str(error)})
+                except Exception as inspect_exc:
+                    _log(f"[main-lifecycle] task failure settlement unavailable: {inspect_exc}")
+        task.add_done_callback(observe)
+    protected.prepare_start = lambda _document: worker.begin_shutdown()
+    protected.prepare = prepare_original_lifecycle
+    protected.schedule_preparation = schedule_original_lifecycle
+    result = await TypedExecutor(lifecycle_executor=protected).execute(
+        attempt=identity["attempt"], effect_key=identity["effectKey"],
+        frozen_plan=plan,
+    )
+    return {"ok": result.get("outcome") in {"succeeded", "unknown"},
+            "accepted": True, "actionId": lifecycle_action.ACTION_ID,
+            "jobId": job_id, "requestId": request_id,
+            "effectId": effect_id(identity["effectKey"]),
+            "operation": operation, "receipt": result}
+
+
+@app.post("/api/system-actions/main-lifecycle")
+async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = None):
+    """Fixed product-owned lifecycle Action entrypoint.
+
+    Only the immutable ``system_main_lifecycle`` definition can reach this
+    route; arbitrary high-risk Actions remain rejected by FinalService.
+    """
+    from packages.core import lifecycle_action
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail={"code": "invalid_lifecycle_request"})
+    unknown = sorted(set(payload) - {"operation", "options", "pid", "createdAt"})
+    if unknown:
+        raise HTTPException(status_code=400, detail={"code": "unsupported_lifecycle_request_fields",
+                                                      "fields": unknown})
+    operation = lifecycle_action.validate_operation(payload.get("operation"))
+    if operation == "start":
+        raise HTTPException(status_code=409, detail={"code": "service_online", "message": "start is a host-local Action"})
+    options = _parse_main_lifecycle_options({"options": payload.get("options", {})}, operation)
+    if operation in lifecycle_action.PROTECTED_OPERATIONS and not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service " + operation)
+    current_pid = os.getpid()
+    current_birth = launcher.process_create_time(current_pid)
+    if current_birth is None:
+        raise HTTPException(status_code=409, detail={"code": "identity_unavailable"})
+    if payload.get("pid") is not None and payload.get("pid") != current_pid:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if payload.get("createdAt") is not None and payload.get("createdAt") != current_birth:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if operation in {"show", "hide"}:
+        from packages.core.host_console import console, ConsoleError
+        try:
+            return {"ok": True, "actionId": lifecycle_action.ACTION_ID,
+                    "operation": operation, "console": console.change(operation)}
+        except (ConsoleError, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    async with _lifecycle_operation_lock:
+        for pending in _canonical_lifecycle_pending.values():
+            # Both operations share one service and Worker gate. Even a
+            # different choice or operation must query the original effect.
+            return {**pending, "ok": False, "accepted": False, "status": "busy", "pending": True}
+        # In-memory state can be lost independently of the durable intent.
+        # Derive both operations' original identities for this same host and
+        # consult the existing store before admitting or preparing anything.
+        # Never create a store solely to perform this duplicate lookup.
+        from packages.jobs.independent_executor import ExecutionStore, effect_id
+        root = _PROJECT_DIR.expanduser().resolve()
+        port = _main_restart_port()
+        receipt_root = lifecycle_action.receipt_root(root)
+        if (receipt_root / "executions.sqlite3").is_file():
+            store = ExecutionStore(receipt_root)
+            for existing_operation in ("exit", "restart"):
+                existing_request = "request_" + hashlib.sha256(
+                    f"main-lifecycle:{root}:{port}:{existing_operation}:{current_pid}:{current_birth}".encode("utf-8")
+                ).hexdigest()[:24]
+                _, existing_identity, _ = lifecycle_action.protected_plan(
+                    root=root, port=port, old_pid=current_pid, old_pid_created_at=current_birth,
+                    operation=existing_operation, options={}, request_id=existing_request)
+                try:
+                    existing = store.get(effect_id(existing_identity["effectKey"]))
+                except KeyError:
+                    continue
+                pending = {"ok": False, "accepted": False, "status": "busy", "pending": True,
+                           "actionId": lifecycle_action.ACTION_ID, "operation": existing_operation,
+                           "requestId": existing_request, "jobId": existing["jobId"],
+                           "effectId": existing["effectId"]}
+                _canonical_lifecycle_pending[existing["effectId"]] = pending
+                return pending
+        options = await _snapshot_main_lifecycle_options(options, operation)
+        # Stable across a lost HTTP response/reloaded host; the canonical
+        # effect fence then returns the original receipt instead of relaunching.
+        request_id = "request_" + hashlib.sha256(
+            f"main-lifecycle:{root}:{port}:{operation}:{current_pid}:{current_birth}".encode("utf-8")
+        ).hexdigest()[:24]
+        result = await _canonical_lifecycle_handoff(
+            operation, options, request_id, current_pid, float(current_birth),
+        )
+        receipt = result.get("receipt") or {}
+        if (receipt.get("outcome") == "rejected"
+                or (receipt.get("outcome") == "unknown"
+                    and (receipt.get("receipt") or {}).get("code") != "execution_pending")):
+            pending = {"ok": False, "accepted": False, "actionId": lifecycle_action.ACTION_ID,
+                       "operation": operation, "requestId": request_id, "jobId": result["jobId"],
+                       "effectId": result["effectId"], "error": receipt.get("receipt", {})}
+            _canonical_lifecycle_pending[result["effectId"]] = pending
+            return pending
+        pending = {"ok": True, "accepted": True,
+                   "actionId": lifecycle_action.ACTION_ID, "operation": operation, "status": "scheduled",
+                   "requestId": request_id, "jobId": result["jobId"],
+                   "effectId": result["effectId"]}
+        _canonical_lifecycle_pending[result["effectId"]] = pending
+        return pending
+
+
 class CLIInstanceGuardMiddleware:
     """Fence lifecycle writes without task/stream relays on ordinary requests."""
 
@@ -3948,7 +4201,7 @@ class CLIInstanceGuardMiddleware:
 
     async def __call__(self, scope, receive, send):
         if (scope["type"] == "http" and scope["method"] == "POST"
-                and scope["path"] in {"/api/main/exit", "/api/main/restart"}):
+                and scope["path"] == "/api/system-actions/main-lifecycle"):
             headers = dict(scope.get("headers", []))
             pid = headers.get(b"x-pan-expected-pid")
             created = headers.get(b"x-pan-expected-created-at")
@@ -4009,22 +4262,6 @@ async def api_runtime_issue_schema():
 async def api_main_restart_status():
     """Report whether the safe Windows main-service restart is available."""
     return _main_restart_status()
-
-
-@app.post("/api/main/restart")
-async def api_main_restart(payload: Annotated[dict | None, Body()] = None):
-    """Accept a durable detached restart of this Pan instance.
-
-    Returning before the supervisor stops this process is essential: waiting
-    for stop/start inside this request would turn the expected disconnect into
-    an HTTP failure in the browser. The detached Python lifecycle supervisor
-    owns the subsequent launcher stop/start chain.
-    """
-    if not platform_layer.supports("service.lifecycle"):
-        return _unsupported_platform("Main service restart")
-    options = _parse_main_lifecycle_options(payload, "restart")
-    async with _lifecycle_operation_lock:
-        return await _schedule_main_restart(options)
 
 
 async def _schedule_main_restart(options: dict) -> dict:
@@ -4343,21 +4580,6 @@ async def _perform_main_exit(request_id: str) -> None:
 async def api_main_exit_status():
     """Report stop-only Pan exit availability and pending stage."""
     return _main_exit_status()
-
-
-@app.post("/api/main/exit")
-async def api_main_exit(payload: Annotated[dict | None, Body()] = None):
-    """Schedule a legal, stop-only shutdown of this Pan instance.
-
-    The HTTP response is returned before Worker draining and service stop.  No
-    health-recovery wait follows: this operation intentionally makes the
-    service unavailable.
-    """
-    if not platform_layer.supports("service.lifecycle"):
-        return _unsupported_platform("Main service exit")
-    options = _parse_main_lifecycle_options(payload, "exit")
-    async with _lifecycle_operation_lock:
-        return await _schedule_main_exit(options)
 
 
 async def _schedule_main_exit(options: dict) -> dict:
@@ -10901,29 +11123,59 @@ async def api_sessions_wake(data: dict):
 
 # ── Durable background jobs ──
 
-@app.post("/api/background-jobs")
-async def api_background_job_start(data: dict):
-    """Create a durable process Job with independent creator/target fields."""
-    target = data.get("targetSessionId")
-    argv = data.get("argv")
-    cwd = data.get("cwd")
-    try:
-        return background_jobs.start(
-            target, argv, cwd, label=data.get("label"), name=data.get("name"),
-            hide_window=data.get("hideWindow", True),
-            creator_session_id=data.get("creatorSessionId"),
-        )
-    except ValueError as exc:
-        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
-    except OSError as exc:
-        return {"ok": False, "error": {"code": "runner_spawn_failed", "message": str(exc)}}
+# ── R5: retire the pre-canonical durable Job writes ──
+# R6-B: only explicit 410 tombstones remain for the four removed writers.
+# Reads and cancel stay available while historical owners drain.
+RETIRED_LEGACY_WRITE = {"code": "retired",
+                        "message": "Legacy Job write entrypoint retired; use the canonical /api API"}
+
+
+async def _retired_legacy_write(request: Request):
+    """Refuse a pre-canonical durable Job mutation after authenticating it.
+
+    Only trusted local MCP could ever reach these writers, so the provenance
+    check runs first and fails closed: an untrusted caller gets 401 instead of
+    falling through to a Runner spawn. A trusted caller then gets the explicit
+    retirement, before any store, process or redelivery is touched.
+    """
+    authorized = await _legacy_mcp_authority(request, "write", action=True)
+    if authorized is None:
+        raise HTTPException(status_code=401,
+                            detail="User Bearer or trusted MCP transport required")
+    raise HTTPException(status_code=410, detail=RETIRED_LEGACY_WRITE)
+
+
+_retired_legacy_write.retirement_boundary = True
+
+
+async def _legacy_mcp_authority(request: Request, capability: str, *, action: bool = False):
+    """Authenticate only the private MCP compatibility transport.
+
+    Legacy tools retain their existing Session access gates. Their internal
+    Action representation must not add the opt-in four-object permissions to
+    the old tool contract. The private IPC marker and Pan plugin binding still
+    establish provenance; explicit Action/Job tools use their normal grants.
+    """
+    from packages.automation.authorization import delegated
+    if request is None or not delegated(request):
+        return None
+    return {'type': 'legacy-mcp'}
+
+
+async def _legacy_action_job(kind: str, fields: dict, request: Request):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
 
 
 @app.get("/api/background-jobs")
-async def api_background_job_list(targetSessionId: str | None = None):
+async def api_background_job_list(targetSessionId: str | None = None, request: Request = None):
     # Service lifecycle Jobs share the durable Registry but are not ordinary
     # Session-targeted background commands and must not leak into this API.
-    jobs = [job for job in background_jobs.list_jobs()
+    if request is not None:
+        await _legacy_mcp_authority(request, 'read')
+    from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+    jobs = [legacy_view(job) if is_legacy_action_job(job) else job for job in background_jobs.list_jobs()
             if job.get("kind") in {background_jobs.BACKGROUND_PROCESS_KIND,
                                     background_jobs.SESSION_MESSAGE_KIND,
                                     background_jobs.SESSION_BROADCAST_KIND}
@@ -10935,93 +11187,48 @@ async def api_background_job_list(targetSessionId: str | None = None):
 
 
 @app.get("/api/background-jobs/{job_id}")
-async def api_background_job_get(job_id: str):
+async def api_background_job_get(job_id: str, request: Request = None):
+    await _legacy_mcp_authority(request, 'read')
     job = background_jobs.get(job_id)
+    from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+    if is_legacy_action_job(job):
+        job = legacy_view(job)
     return job or {"ok": False, "error": {"code": "job_not_found", "message": "job not found"}}
 
 
 @app.post("/api/background-jobs/{job_id}/cancel")
-async def api_background_job_cancel(job_id: str):
+async def api_background_job_cancel(job_id: str, request: Request = None):
     try:
+        job = background_jobs.get(job_id)
+        if job and getattr(job, 'get', lambda *_: None)('legacyCompat'):
+            from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+            if is_legacy_action_job(job):
+                auth = await _legacy_mcp_authority(request, 'lifecycle')
+                if auth is None:
+                    raise ValueError('legacy Action cancellation requires trusted MCP transport')
+                runtime = request.app.state.automation.job_runtime
+                if (job.get('legacyCompat') == background_jobs.BACKGROUND_PROCESS_KIND
+                        and job.get('processAdmissionId') and not runtime.live_for(job_id)
+                        and job.get('status') in {'unknown', 'uncertain'}):
+                    # Recovery has no in-memory waiter to cancel the detached
+                    # Runner. Reuse the original PID/create-time guarded path.
+                    await asyncio.to_thread(background_jobs.cancel, job_id, runtime.root)
+                return legacy_view(await runtime.cancel(job_id, job['configRevision']))
         return background_jobs.cancel(job_id)
     except ValueError as exc:
         code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}
 
 
-@app.post("/api/session-message-jobs")
-async def api_session_message_job_start(data: dict):
-    """Create a durable Session message or scheduled broadcast.
-
-    ``text`` is delivered as message text; it is never an OS command.
-    """
-    target = data.get("targetSessionId")
-    target_ids = data.get("targetSessionIds")
-    text = data.get("text")
-    source_type, source_session_id, source_error = _request_source_metadata(data)
-    if source_error:
-        return source_error
-    if target_ids is not None and target is not None:
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "provide targetSessionId or targetSessionIds, not both"}}
-    if target_ids is None:
-        target_ids = [target] if isinstance(target, str) else None
-    if not isinstance(target_ids, list) or not target_ids:
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "targetSessionId or targetSessionIds is required"}}
-    if any(not isinstance(target_id, str) or not target_id.strip()
-           for target_id in target_ids):
-        return {"ok": False, "error": {"code": "invalid_job",
-                                         "message": "target session IDs must be non-empty strings"}}
-    target_ids = list(dict.fromkeys(target_ids))
-    for target_id in target_ids:
-        target_session = sess.get(target_id) if isinstance(target_id, str) else None
-        if not target_session:
-            return {"ok": False, "error": {"code": "invalid_job",
-                                             "message": "target session does not exist"}}
-        denied = _source_access_error(target_session, source_session_id)
-        if denied:
-            return denied
-    try:
-        common = {
-            "description": data.get("description", data.get("label")),
-            "source": source_type, "source_session_id": source_session_id,
-            "creator_session_id": data.get("creatorSessionId") or source_session_id,
-        }
-        if len(target_ids) == 1 and data.get("targetSessionIds") is None:
-            return background_jobs.start_message(
-                target_ids[0], text, data.get("schedule"), **common)
-        return background_jobs.start_broadcast(
-            target_ids, text, data.get("schedule"), **common)
-    except ValueError as exc:
-        return {"ok": False, "error": {"code": "invalid_job", "message": str(exc)}}
-
-
-@app.patch("/api/background-jobs/{job_id}")
-async def api_background_job_update(job_id: str, data: dict):
-    try:
-        job = background_jobs.get(job_id)
-        if not job or job.get("kind") not in {
-            background_jobs.SESSION_MESSAGE_KIND,
-            background_jobs.SESSION_BROADCAST_KIND,
-        }:
-            raise ValueError("message Job not found")
-        return background_jobs.update_message(
-            job_id, text=data.get("text"), schedule=data.get("schedule"),
-            description=data.get("description"),
-            target_session_ids=data.get("targetSessionIds"))
-    except ValueError as exc:
-        code = "job_not_found" if "not found" in str(exc) else "invalid_job"
-        return {"ok": False, "error": {"code": code, "message": str(exc)}}
-
-
-@app.post("/api/background-jobs/{job_id}/retry")
-async def api_background_job_retry(job_id: str):
-    try:
-        return background_jobs.retry(job_id)
-    except ValueError as exc:
-        code = "job_not_retryable" if "cannot be retried" in str(exc) else "invalid_job"
-        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+# Explicit negative controls only: none of these routes owns a producer.
+for _path, _method in (("/api/background-jobs", "POST"),
+                       ("/api/session-message-jobs", "POST"),
+                       ("/api/background-jobs/{job_id}", "PATCH"),
+                       ("/api/background-jobs/{job_id}/retry", "POST")):
+    app.add_api_route(_path, _retired_legacy_write, methods=[_method],
+                      name="retired_legacy_" + _method.lower() + "_" +
+                           _path.strip("/").replace("/", "_").replace("{", "").replace("}", ""),
+                      tags=["retired"], deprecated=True)
 
 
 # ── 定时任务（scheduler 插件） ──
@@ -11033,8 +11240,8 @@ from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启�
 
 jobs_api.bind(broadcast=broadcast)
 from packages.jobs.action_api import router as action_jobs_router
-app.include_router(action_jobs_router)
-app.include_router(jobs_api.router)
+from packages.jobs.final_api import install as install_canonical_jobs
+install_canonical_jobs(app, action_jobs_router, jobs_api.router)
 
 # ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
 from packages.web import terminal_api  # noqa: E402  延迟导入避免启动期循环
@@ -12293,7 +12500,7 @@ async def api_task(data: dict):
     if data.get("taskId") is not None:
         send_kwargs["task_id"] = data.get("taskId")
     elif data.get("inheritTaskId") and source_type == "agent" and session_id:
-        # agent_send_force uses this legacy task route after restarting.  Keep
+        # Legacy task callers can inherit the same context as agent_send. Keep
         # the same enqueue-time snapshot as /api/send without turning the
         # inherited id into a second assign idempotency key.
         send_kwargs["task_id"] = target.active_task_id if target else None
@@ -13035,6 +13242,9 @@ async def _qq_plugin_post(path: str, body: dict) -> dict:
             f"{plugin_url}{path}", json=body)
         response.raise_for_status()
         payload = response.json()
+        if path == "/api/qq/send" and isinstance(payload, dict):
+            from packages.actions.qq_channel_provider import QQSendResponse
+            return QQSendResponse(payload, body)
         return payload if isinstance(payload, dict) else {
             "ok": False, "error": {"code": "invalid_response",
                                     "message": "QQ plugin returned a non-object response"}}
@@ -13064,6 +13274,14 @@ async def _send_scheduled_qq(*, target_type: str, target_id: str,
     if bot_uin:
         body["bot_uin"] = bot_uin
     return await _qq_plugin_post("/api/qq/send", body)
+
+
+def _bind_qq_channel_provider(final_jobs):
+    """Bind the canonical Action to the existing QQ plugin sender once."""
+    if getattr(final_jobs.executor, "channel_provider", None) is None:
+        from packages.actions.qq_channel_provider import QQChannelProvider
+        final_jobs.executor.channel_provider = QQChannelProvider(_send_scheduled_qq)
+    return final_jobs.executor.channel_provider
 
 
 _wechat_plugin_client: httpx.AsyncClient | None = None
@@ -13500,8 +13718,6 @@ async def api_cbc_projects():
         recent_days=recent_days, min_resume_bytes=min_resume_bytes
     )
     return {"projects": projects}
-
-
 
 
 @app.get("/api/cbc/sessions")

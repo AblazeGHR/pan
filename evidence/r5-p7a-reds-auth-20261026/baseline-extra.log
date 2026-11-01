@@ -1,0 +1,5 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p7a-baseline-7f303faa-20261026
+
+no tests ran in 0.05s
+ERROR: file or directory not found: tests/test_job_action_chain.py::test_system_shell_steps_have_distinct_trusted_child_admissions
+

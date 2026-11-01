@@ -1,0 +1,5 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\xplat-job-posix-safety-20261027
+..................ssssssssssssssssss..s................................. [ 45%]
+........................................................................ [ 91%]
+..............                                                           [100%]
+139 passed, 19 skipped in 4.07s

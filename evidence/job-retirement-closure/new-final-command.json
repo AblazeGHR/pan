@@ -1,0 +1,66 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_closure_successors.py",
+    "tests/test_job_retirement_closure_gate.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\new-final.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 1,
+  "elapsedSeconds": 2.701,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_rename_description_roundtrip_cas_and_original_operation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[ ]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_blank_name_rejection_preserves_definition_operation_and_disk[\\t\\n]",
+      "status": "failure"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_relative_and_aliased_dynamic_imports_are_visible",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_empty_inventory_cannot_authorize_deletion",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_parse_failure_and_missing_entrypoints_are_not_zero_dependencies",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_mapping_covers_every_original_node_and_inventory_identity",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_data_directories_are_never_inventory_inputs",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 8,
+    "failure": 2,
+    "error": 0,
+    "skipped": 0
+  }
+}

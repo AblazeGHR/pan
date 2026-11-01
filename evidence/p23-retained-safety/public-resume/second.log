@@ -1,0 +1,30 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-p23-retained-safety-20261027
+.FE.........                                                             [100%]
+=================================== ERRORS ====================================
+____ ERROR at teardown of test_real_owned_tree_delete_http_successor[True] ____
+tests\test_job_retained_safety_canonical.py:53: in canonical
+    assert not state.dispatch.is_alive()
+E   AssertionError: assert not True
+E    +  where True = is_alive()
+E    +    where is_alive = <Thread(Thread-49 (dispatch), started daemon 36272)>.is_alive
+E    +      where <Thread(Thread-49 (dispatch), started daemon 36272)> = namespace(service=<packages.jobs.final_service.FinalService object at 0x000002075F47E490>, client=<httpx.Client object...Id': 'owned'}], 'triggerLinks': [], 'updatedAt': '2026-10-27T03:14:04.785530Z'}, run_id='run_191cae3f4eaa45f2b64557f9').dispatch
+================================== FAILURES ===================================
+______________ test_real_owned_tree_delete_http_successor[True] _______________
+tests\test_job_retained_safety_canonical.py:173: in test_real_owned_tree_delete_http_successor
+    final = exercise_cleanup(o, first_unknown, request_cleanup=canonical_cleanup,
+tests\test_job_retained_safety_owned.py:218: in exercise_cleanup
+    assert (recheck_cleanup or (lambda: client.cleanup_execution(identity, attempt)))()["cleanupRequest"]["revision"] == 2
+E   assert 1 == 2
+============================== warnings summary ===============================
+tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\websockets\legacy\__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[False]
+  C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\uvicorn\protocols\websockets\websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]
+ERROR tests/test_job_retained_safety_canonical.py::test_real_owned_tree_delete_http_successor[True]

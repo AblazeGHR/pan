@@ -1,0 +1,45 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_retirement_closure_gate.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\remaining-nine-mapping.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 0.604,
+  "nodes": [
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_relative_and_aliased_dynamic_imports_are_visible",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_empty_inventory_cannot_authorize_deletion",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_parse_failure_and_missing_entrypoints_are_not_zero_dependencies",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_mapping_covers_every_original_node_and_inventory_identity",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_gate.py::test_data_directories_are_never_inventory_inputs",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 5,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

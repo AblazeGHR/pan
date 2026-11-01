@@ -1,0 +1,152 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+    "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+    "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+    "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback",
+    "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+    "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs",
+    "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice",
+    "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+    "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts",
+    "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown",
+    "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+    "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused",
+    "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct",
+    "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition",
+    "tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent",
+    "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-closure\\revision3-strict.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 5.573,
+  "nodes": [
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_real_crud_cas_idempotency_persisted_after_reload",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_action_disable_after_admission_prevents_effect",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_definition_retire_preserves_already_admitted_run",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-legacyCompat]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[job-enabled]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-actionId]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-steps]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-retry]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[trigger-maxConcurrency]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[action-input_schema]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[template-enabled]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-producedCount]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_run_and_six_operations_use_same_wp02_identities",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_retirement_closure_successors.py::test_target_and_text_edit_only_changes_future_frozen_runs",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_r5_concurrent_same_effect_does_not_send_twice",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_http_service.py::test_ft01_creator_trigger_template_and_retire_real_storage",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe03_session_fanout_returns_per_target_receipts",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[succeeded-acked]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_admission.py::test_fa03_notification_ack_uses_original_outbox_identity_and_never_resends_unknown[unknown-uncertain]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe01_owned_process_preserves_argv_and_cleanup_proof",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe05_lifecycle_and_shell_are_explicitly_refused",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_executors.py::test_fe04_qq_typed_error_and_timeout_are_distinct",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs04_shared_reference_cas_phase_recovery_and_template_composition",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_contracts.py::test_fc03_trigger_target_and_job_links_must_stay_consistent",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_source_migration.py::test_canonical_retirement_keeps_original_identity_links_requests_and_event_history",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 28,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

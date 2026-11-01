@@ -1,0 +1,8 @@
+{
+  "mcpToolDeclarationsUnchanged": true,
+  "toolCount": 84,
+  "productFiles": [
+    "packages/automation/authorization.py",
+    "packages/mcp/server.py"
+  ]
+}

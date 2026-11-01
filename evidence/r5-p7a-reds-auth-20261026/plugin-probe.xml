@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="10" time="13.043" timestamp="2026-10-26T14:53:32.217270+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_events" name="test_catalog_event_contract_and_legacy" time="0.012" /><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[standalone]" time="0.852"><failure message="KeyError: 'status'">tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in &lt;lambda&gt;
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'</failure></testcase><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[pan_native]" time="0.690"><failure message="KeyError: 'status'">tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in &lt;lambda&gt;
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'</failure></testcase><testcase classname="tests.test_plugin_events" name="test_real_external_fanout_action_and_shared_session_lifetime[gateway]" time="0.819"><failure message="KeyError: 'status'">tests\test_plugin_events.py:165: in test_real_external_fanout_action_and_shared_session_lifetime
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:127: in run
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+tests\test_plugin_events.py:52: in until
+    while not (value := fn()):
+                        ^^^^
+tests\test_plugin_events.py:127: in &lt;lambda&gt;
+    await until(lambda: host.service.final.runs(host.job['id'])[0]['status'] == 'completed')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'status'</failure></testcase><testcase classname="tests.test_plugin_events" name="test_external_rejections_disconnect_and_queue_restore" time="1.011"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_plugin_events.py:214: in test_external_rejections_disconnect_and_queue_restore
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:203: in run
+    svc.ledger.append(run)
+packages\automation\store.py:172: in append
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:153: in synchronous
+    with owner.legacy_pass() if reservation else owner.writer():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_plugin_events" name="test_slow_external_subscriber_isolated_and_bounded" time="4.405" /><testcase classname="tests.test_plugin_events" name="test_service_restart_restores_queued_only_after_actual_plugin_ready" time="0.265"><failure message="packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer">tests\test_plugin_events.py:283: in test_service_restart_restores_queued_only_after_actual_plugin_ready
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_events.py:259: in run
+    svc.ledger.append({'id': 'persisted', 'triggerId': 't', 'triggerRevision': 1, 'actionId': 'pause',
+packages\automation\store.py:172: in append
+    return self.mutate(change)
+           ^^^^^^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:153: in synchronous
+    with owner.legacy_pass() if reservation else owner.writer():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+packages\jobs\runtime_owner.py:73: in writer
+    self._check(db, token)
+packages\jobs\runtime_owner.py:67: in _check
+    refused("Job runtime owner epoch fence rejected writer")
+packages\jobs\runtime_owner.py:22: in refused
+    raise ContractError("revision_conflict", message)
+E   packages.jobs.final_contracts.ContractError: Job runtime owner epoch fence rejected writer</failure></testcase><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[standalone-standalone]" time="1.520" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[pan_native-native]" time="1.401" /><testcase classname="tests.test_plugin_events" name="test_example_real_mcp_projection_and_events_share_lifecycle[gateway-gateway]" time="1.279" /></testsuite></testsuites>

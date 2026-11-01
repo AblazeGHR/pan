@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="13" time="6.192" timestamp="2026-10-25T15:59:28.154386+08:00" hostname="ablaze"><testcase classname="tests.test_automation_job_links" name="test_new_flow_idempotency_and_existing_flow_do_not_merge_sources" time="0.495" /><testcase classname="tests.test_automation_job_links" name="test_failure_quarantines_drafts_and_retry_reuses_objects[trigger]" time="0.308" /><testcase classname="tests.test_automation_job_links" name="test_failure_quarantines_drafts_and_retry_reuses_objects[activation]" time="0.351" /><testcase classname="tests.test_automation_job_links" name="test_job_disable_and_delete_preserve_shared_source_and_owner_is_protected" time="0.349" /><testcase classname="tests.test_automation_job_links" name="test_job_and_source_revision_conflicts_are_explicit" time="0.282" /><testcase classname="tests.test_automation_job_links" name="test_managed_trigger_launches_chain_twice_without_direct_event_subscription" time="0.705" /><testcase classname="tests.test_automation_job_links" name="test_persistent_rollback_write_failure_cannot_publish_or_run_half_setup" time="0.501" /><testcase classname="tests.test_automation_job_links" name="test_multiple_links_retain_trigger_ids_and_only_remove_detached_link" time="0.480" /><testcase classname="tests.test_automation_job_links" name="test_disabling_source_does_not_cancel_admitted_job_chain" time="0.490" /><testcase classname="tests.test_automation_job_links" name="test_composition_http_auth_owner_protection_impact_and_creation_retry" time="0.390" /><testcase classname="tests.test_automation_job_links" name="test_existing_source_failure_retry_does_not_disable_shared_source" time="0.443" /><testcase classname="tests.test_automation_job_links" name="test_existing_action_job_timing_is_preserved_and_not_silently_migrated" time="0.185" /><testcase classname="tests.test_automation_job_links" name="test_job_target_mapping_is_frozen_per_admission_and_authorization_still_applies" time="0.318"><failure message="AssertionError: assert 1 == 2&#10; +  where 1 = len(['mapped'])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-4578/test_job_target_mapping_is_fro0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000029052F662D0&gt;
+
+    @async_test
+    async def test_job_target_mapping_is_frozen_per_admission_and_authorization_still_applies(tmp_path,monkeypatch):
+        from packages.actions import executor
+        svc,jobs,sources=await setup(tmp_path)
+        calls=[]
+        async def execute(action,args,*unused):calls.append(args['value']);return {'ok':True}
+        monkeypatch.setattr(executor,'execute_dynamic',execute)
+        cfg=_config([{'stepId':'one','actionId':'one','arguments':{'value':{'from':'input','path':'message'}}}],arguments={'message':'base'})
+        cfg['trigger']={'kind':'manual'}
+        try:
+            target=jobs.create(cfg,True)
+            svc.ledger.put(dict(id='mapped',name='Mapped Job',eventTypes=['workers.all_idle'],enabled=True,actionId='one',targetJobId=target['jobId'],arguments={'message':{'from':'literal','value':'mapped'}}),0,True)
+            ev=svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'mapped_event')
+            await svc.accept(ev);await svc.deliver(svc.events.pending()[0]);await settled(svc.engine,1)
+            async def done():return jobs.get(target['jobId']).get('lastStatus')=='completed'
+            await until(done)
+            assert calls==['mapped'] and jobs.get(target['jobId'])['config']['arguments']=={'message':'base'}
+            # A revoked delegated target never obtains user-owned Job authority.
+            svc.ledger.put(dict(id='revoked',name='Revoked target',eventTypes=['workers.all_idle'],enabled=True,actionId='one',targetJobId=target['jobId'],arguments={}),0,True,authority={'type':'agent'})
+            svc.engine.authorization=lambda *args:(False,2)
+            await svc.engine.match(svc.bus.prepare(svc.core,'workers.all_idle',{'runningCount':0},'denied_event'))
+            await settled(svc.engine,3)
+&gt;           assert len(calls)==2  # Only the independently authorized mapped Trigger ran.
+            ^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: assert 1 == 2
+E            +  where 1 = len(['mapped'])
+
+tests\test_automation_job_links.py:283: AssertionError</failure></testcase></testsuite></testsuites>

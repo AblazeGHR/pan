@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="1.966" timestamp="2026-10-28T18:07:44.285794+08:00" hostname="ablaze"><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-False]" time="0.354"><failure message="packages.interactions.contracts.InteractionError: Approved canonical graph unavailable">packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable</failure></testcase><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[False-True]" time="0.301"><failure message="packages.interactions.contracts.InteractionError: Approved canonical graph unavailable">packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable</failure></testcase><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-False]" time="0.305"><failure message="packages.interactions.contracts.InteractionError: Approved canonical graph unavailable">packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable</failure></testcase><testcase classname="tests.test_p7a_successors" name="test_legacy_locker_choice_never_reenters_retired_execution[True-True]" time="0.304"><failure message="packages.interactions.contracts.InteractionError: Approved canonical graph unavailable">packages\interactions\canonical_read.py:31: in read_fixed_graph
+    trigger = host._get(db, 'trigger', trigger_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:132: in _get
+    raise KeyError(object_id)
+E   KeyError: 'selected'
+
+The above exception was the direct cause of the following exception:
+tests\test_p7a_successors.py:129: in test_legacy_locker_choice_never_reenters_retired_execution
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_p7a_successors.py:83: in check
+    card = create(svc, store, {'ownerSessionId': owner.id, 'recipientId': 'user',
+packages\interactions\trusted.py:114: in create
+    return store.create(request, bindings=resolve(service, request), producer_id=producer_id, related_message_id=related)
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:66: in resolve
+    target[choice['id']] = canonical_binding(service, request, choice['triggerRef'])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\trusted.py:47: in canonical_binding
+    graph = read_fixed_graph(canonical_host(service), ref['id'], expected_revision=ref.get('revision'))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\interactions\canonical_read.py:80: in read_fixed_graph
+    raise InteractionError('incomplete', 'Approved canonical graph unavailable') from exc
+E   packages.interactions.contracts.InteractionError: Approved canonical graph unavailable</failure></testcase></testsuite></testsuites>

@@ -4,11 +4,13 @@ on:
   push:
     branches: [main, test, "feat/**"]
   pull_request:
+  # Explicitly authorized manual runs can select integration/feature refs.
+  # The workflow must first be registered on the default branch (see CP_X1 report).
+  workflow_dispatch:
 
 jobs:
   pytest:
-    # Project is Windows-centric (npm .CMD shim resolution, drive-letter paths
-    # as test data, process-tree handling); run on Windows for fidelity.
+    # Keep both existing Windows full-suite gates alongside the three-OS fast layer.
     strategy:
       fail-fast: false
       matrix:
@@ -71,15 +73,75 @@ jobs:
           path: pytest-results.xml
           if-no-files-found: warn
 
-  posix-fast:
-    # Cross-platform Phase A fast layer (docs/plans&overviews/CROSS_PLATFORM_PLAN_20261025.md):
-    # import the real server, collect, and run the platform unit subset on real
-    # macOS/Linux. The Windows job above stays the fidelity/full-suite gate.
-    name: posix-fast (${{ matrix.os }})
+  ubuntu-browser:
+    name: ubuntu-browser (authenticated production HTTP, Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare fresh browser evidence
+        # These are generated fixture outputs in this disposable checkout only.
+        # Remove checked-in historical evidence before any setup can fail, so
+        # always-upload cannot mistake an old browser result for this run.
+        run: |
+          mkdir -p evidence/cp-x1-ubuntu-browser
+          rm -rf -- artifacts/notification-error-exclusions/http artifacts/history-terminal/http
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.7.0"
+
+      - name: Install Python browser test dependencies
+        run: >
+          python -m pip install -r minimal-requirements.txt
+          -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
+
+      - name: Build production React bundle
+        working-directory: packages/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Install Chromium and Linux system dependencies
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+        run: python -m playwright install --with-deps --only-shell chromium
+
+      - name: Run owned authenticated HTTP and production Chromium tests
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+          PYTHONIOENCODING: utf-8
+        shell: bash
+        run: |
+          python scripts/run_tests_isolated.py -- python -m pytest tests/test_notification_http.py tests/test_history_terminal_http.py -q -ra --junitxml=evidence/cp-x1-ubuntu-browser/pytest.xml 2>&1 | tee evidence/cp-x1-ubuntu-browser/pytest.log
+
+      - name: Upload fresh Ubuntu browser results and owned cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-browser-py312
+          path: |
+            evidence/cp-x1-ubuntu-browser/
+            artifacts/notification-error-exclusions/http/
+            artifacts/history-terminal/http/
+          if-no-files-found: warn
+
+  platform-fast:
+    name: platform-fast (${{ matrix.os }}, Python 3.12)
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -88,27 +150,48 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r minimal-requirements.txt
-          pip install pytest-timeout
-
-      - name: Import server on POSIX
-        run: python -c "import packages.web.server"
-
-      - name: Collect platform subset
+      - name: Install fast gate and full-collection dependencies
+        # No browser download, Node build or provider CLI needed in this layer.
         run: >
-          python -m pytest --collect-only -q
-          tests/test_platform_layer.py
-          tests/test_platform_api.py
-          tests/test_platform_import_chain.py
-          tests/test_portability_paths.py
+          python -m pip install -r minimal-requirements.txt
+          -r packages/qq/requirements.txt pytest pytest-timeout playwright==1.63.0
 
-      - name: Run platform subset
-        run: >
-          python -m pytest -q
-          tests/test_platform_layer.py
-          tests/test_platform_api.py
-          tests/test_platform_import_chain.py
-          tests/test_portability_paths.py
+      - name: Real server import, full collection and core contracts
+        run: python scripts/platform_fast_gate.py --output evidence/cp-x1-ci
+
+      - name: Upload fast gate logs, collection errors and platform skips
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-fast-${{ matrix.os }}-py312
+          path: evidence/cp-x1-ci/
+          if-no-files-found: warn
+
+
+  windows-owned-combination:
+    name: windows-owned-combination (Python ${{ matrix.python-version }})
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install bounded ownership gate dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout
+      - name: Run original controller, hidden desktop and lifetime identity gates
+        run: python scripts/run_tests_isolated.py -- python -m pytest tests/test_lifecycle_followthrough.py tests/test_lifecycle_controller_publication.py tests/test_platform_process_windows_hidden.py -q -ra --junitxml=owned-combination.xml
+      - name: Upload original gate results and process proofs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-owned-combination-${{ matrix.python-version }}
+          path: |
+            owned-combination.xml
+            evidence/cp-x1-strict-successors-20261029/controller/
+            evidence/cp-x2-windows-hidden-20261028/proof/
+          if-no-files-found: warn

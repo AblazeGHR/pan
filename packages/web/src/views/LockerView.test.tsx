@@ -865,10 +865,59 @@ describe('attached reminders and entry window', () => {
     const ids = [...document.querySelectorAll('[data-locker-entry]')].map((element) => (element as HTMLElement).dataset.lockerEntry);
     expect(ids).toEqual(['a', 'uc', 'b']);
     expect(document.querySelector('[data-parent-id="a"]')).not.toBeNull();
-    expect(screen.getAllByRole('button', {name: '创建提醒卡'})).toHaveLength(3);
+    expect(screen.getAllByRole('button', {name: 'Attach a reminder card'})).toHaveLength(2);
+    expect(within(document.querySelector('[data-locker-entry="a"]') as HTMLElement)
+      .queryByRole('button', {name: 'Attach a reminder card'})).toBeNull();
+    // Being linked does not prevent attaching the next card in the chain.
+    expect(within(document.querySelector('[data-locker-entry="uc"]') as HTMLElement)
+      .getByRole('button', {name: 'Attach a reminder card'})).toBeTruthy();
+    const chain = screen.getByLabelText('Attached to interaction_card a');
+    expect(chain.className).toBe('locker-parent-chain');
+    expect(chain.querySelector('.locker-parent-chain-line')?.getAttribute('aria-hidden')).toBe('true');
+    expect(chain.querySelector('.locker-parent-chain-label')?.textContent).toBe('a');
     fireEvent.click(within(document.querySelector('[data-card-id="b"]') as HTMLElement).getByRole('button', {name: 'Mark card as read'}));
     await waitFor(() => expect(screen.queryByRole('separator')).toBeNull());
     // Only the chronological parent was marked; attached unread retains its own state.
     expect(userCards[0]!.read).toBe(false);
+  });
+  it('attaches only once and allows a linked leaf to attach the next reminder', async () => {
+    cards = [card('a')];
+    const originalFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (...args) => {
+      const [path, init] = args;
+      if (path === '/api/reminding-cards' && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body));
+        calls.push({path, method: init.method, body});
+        const created = {...reverseCard(), id: `child-${userCards.length}`, parent: body.parent,
+          body: body.body, status: 'pending' as const, answer: null, answeredAt: null, read: true};
+        userCards.push(created);
+        return {ok: true, json: async () => ({card: created})} as Response;
+      }
+      return originalFetch(...args);
+    });
+    mount();
+    await screen.findByRole('heading', {name: 'Card a'});
+    const root = document.querySelector('[data-locker-entry="a"]') as HTMLElement;
+    fireEvent.click(within(root).getByRole('button', {name: 'Attach a reminder card'}));
+    const form = within(root).getByRole('form', {name: 'Attach a reminder card'});
+    expect(within(form).getByLabelText('Reminder type')).toBeTruthy();
+    expect(within(form).getByRole('option', {name: 'Question'})).toBeTruthy();
+    expect(within(form).getByRole('option', {name: 'Task'})).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText('Reminder body'), {target: {value: 'First reminder'}});
+    const create = within(form).getByRole('button', {name: 'Create'});
+    fireEvent.click(create);
+    fireEvent.click(create);
+    await waitFor(() => expect(within(root).queryByRole('button', {name: 'Attach a reminder card'})).toBeNull());
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+    const leaf = document.querySelector('[data-locker-entry="child-0"]') as HTMLElement;
+    expect(leaf.dataset.parentId).toBe('a');
+    fireEvent.click(within(leaf).getByRole('button', {name: 'Attach a reminder card'}));
+    fireEvent.change(within(leaf).getByLabelText('Reminder body'), {target: {value: 'Next reminder'}});
+    fireEvent.click(within(leaf).getByRole('button', {name: 'Create'}));
+    await waitFor(() => expect(within(leaf).queryByRole('button', {name: 'Attach a reminder card'})).toBeNull());
+    expect(calls.filter((call) => call.method === 'POST').map((call) => call.body.parent)).toEqual([
+      {type: 'interaction_card', id: 'a'}, {type: 'user_card', id: 'child-0'},
+    ]);
+    expect(document.querySelector('[data-locker-entry="child-1"]')?.getAttribute('data-parent-id')).toBe('child-0');
   });
 });

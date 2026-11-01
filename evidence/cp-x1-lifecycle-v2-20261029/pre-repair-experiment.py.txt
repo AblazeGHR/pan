@@ -1,0 +1,168 @@
+"""CP-X1 v2: canonical lifecycle observation and owned-host/controller fixtures.
+
+These tests are fixture-owned. They read canonical receipts and execute owned
+temporary processes; they do not reopen legacy registries or claim production
+service lifecycle success.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import time
+import uuid
+
+import httpx
+import psutil
+
+from packages.core import lifecycle_action
+from packages.jobs.independent_executor import ExecutionHost, ExecutionStore, effect_id
+from packages.jobs.window import command_window_options
+
+
+def _attempt(run="run_lifecycle", step="step_main"):
+    return {"attemptId": "attempt_lifecycle", "runId": run, "stepId": step,
+            "leaseId": "lease_lifecycle", "ownerEpoch": 1, "generation": 1,
+            "state": "running"}
+
+
+def _key(run="run_lifecycle", step="step_main"):
+    return {"runId": run, "stepId": step, "targetId": "main", "operationOrdinal": 0}
+
+
+class LifecycleObservation:
+    """Read-only projection from deterministic canonical lifecycle identity."""
+
+    def __init__(self, root: Path):
+        self.root = root
+        self.store = ExecutionStore(lifecycle_action.receipt_root(root))
+
+    def read(self, *, request_id: str, root: Path, port: int, old_pid: int,
+             old_birth: float, operation: str, options: dict):
+        job_id, identity, plan = lifecycle_action.protected_plan(
+            root=root, port=port, old_pid=old_pid, old_pid_created_at=old_birth,
+            operation=operation, options=options, request_id=request_id,
+        )
+        document = self.store.get(effect_id(identity["effectKey"]))
+        return {"requestId": request_id, "jobId": job_id,
+                "runId": identity["effectKey"]["runId"],
+                "effectId": document["effectId"], "operation": plan["operation"],
+                "options": plan["arguments"]["options"], "phase": document["phase"],
+                "result": document["result"], "attempt": document["attempt"]}
+
+
+def test_canonical_lifecycle_observation_reads_original_identity_and_options(tmp_path):
+    root = tmp_path / "owned-profile"
+    root.mkdir()
+    old_pid = os.getpid()
+    old_birth = psutil.Process(old_pid).create_time()
+    request_id = "request-observation-fixed"
+    options = {"exitStrategy": "ask", "markRunningSessionsOffline": False,
+               "runningSessionIds": ["running-a", "running-b"]}
+    job_id, identity, plan = lifecycle_action.protected_plan(
+        root=root, port=0xBEEF, old_pid=old_pid, old_pid_created_at=old_birth,
+        operation="exit", options=options, request_id=request_id,
+    )
+    store = ExecutionStore(lifecycle_action.receipt_root(root))
+    document, created = store.admit(job_id=job_id, attempt=identity["attempt"],
+                                    effect_key=identity["effectKey"], frozen_plan=plan)
+    assert created is True and document["phase"] == "admitted"
+    before = document["updatedAt"]
+    projection = LifecycleObservation(root).read(
+        request_id=request_id, root=root, port=0xBEEF, old_pid=old_pid,
+        old_birth=old_birth, operation="exit", options=options,
+    )
+    assert projection["effectId"] == document["effectId"]
+    assert projection["jobId"] == job_id and projection["runId"] == identity["effectKey"]["runId"]
+    assert projection["options"] == options and projection["result"] is None
+    assert store.get(document["effectId"])["updatedAt"] == before
+
+
+def test_canonical_controller_fixture_owns_real_tree_and_receipt(tmp_path):
+    store = ExecutionStore(tmp_path / "executions")
+    marker = tmp_path / "effect-count.txt"
+    child_report = tmp_path / "child.json"
+    child_code = (
+        "import json, subprocess, sys, time, os\n"
+        "grand=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)'])\n"
+        "open(sys.argv[1],'w').write(json.dumps({'child_pid':os.getpid(),'grandchild_pid':grand.pid}))\n"
+        "time.sleep(0.2)\n"
+    )
+    command = [sys.executable, "-c", child_code, str(child_report)]
+    plan = {"operation": "process", "argv": command, "cwd": str(tmp_path)}
+    request = {"jobId": "job_lifecycle_controller", "attempt": _attempt(),
+               "effectKey": _key(), "frozenPlan": plan}
+    document = ExecutionHost(store).submit_execution(request)
+    deadline = time.monotonic() + 15
+    final = document
+    while time.monotonic() < deadline:
+        final = store.get(document["effectId"])
+        if final["result"] is not None:
+            break
+        time.sleep(.05)
+    assert final["result"] is not None, final
+    assert final["result"]["outcome"] == "succeeded", final
+    assert final["attempt"] == _attempt()
+    proof = final["result"]["cleanupProof"]
+    assert proof["confirmed"] is True and proof["ownedTree"]["confirmed"] is True
+    assert proof["ownedTree"]["remaining"] == []
+    assert final["supervisorIdentity"]["pid"] != final["result"]["receipt"]["processIdentity"]["pid"]
+    assert len(store.events()["events"]) == 1
+
+
+def test_owned_pan_server_shutdown_diagnostic_captures_response_identity_and_cleanup(tmp_path):
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    assert port not in {8767, 8768}
+    request_id = "request-owned-shutdown-" + uuid.uuid4().hex[:12]
+    effect = "effect-owned-shutdown-" + uuid.uuid4().hex[:12]
+    script = tmp_path / "owned_pan_host.py"
+    script.write_text(
+        "import asyncio,sys\n"
+        "from fastapi import FastAPI\n"
+        "from packages.core.host_server import PanServer\n"
+        "import uvicorn\n"
+        "app=FastAPI()\n"
+        "host=None\n"
+        "@app.post('/api/internal/main/shutdown')\n"
+        "async def shutdown():\n"
+        "    host.should_exit=True\n"
+        "    return {'ok':True,'status':'stopping','requestId':sys.argv[2],'effectId':sys.argv[3]}\n"
+        "host=PanServer(uvicorn.Config(app,host='127.0.0.1',port=int(sys.argv[1]),log_level='error'))\n"
+        "host.run()\n",
+        encoding="utf-8",
+    )
+    process = subprocess.Popen([sys.executable, str(script), str(port), request_id, effect],
+                                cwd=str(Path(__file__).resolve().parents[1]),
+                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL, **command_window_options())
+    before = {"pid": process.pid, "birth": psutil.Process(process.pid).create_time(),
+              "listenerOwner": None}
+    try:
+        deadline = time.monotonic() + 15
+        response = None
+        while time.monotonic() < deadline:
+            try:
+                response = httpx.post(f"http://127.0.0.1:{port}/api/internal/main/shutdown",
+                                      timeout=.5, trust_env=False)
+                break
+            except httpx.HTTPError:
+                time.sleep(.05)
+        assert response is not None and response.status_code == 200
+        body = response.json()
+        assert body == {"ok": True, "status": "stopping", "requestId": request_id,
+                        "effectId": effect}
+        process.wait(timeout=15)
+        before["exitCode"] = process.returncode
+        before["shouldExitResponse"] = body["status"]
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+    with socket.socket() as probe:
+        before["portReleased"] = probe.connect_ex(("127.0.0.1", port)) != 0
+    assert before["exitCode"] == 0 and before["portReleased"] is True

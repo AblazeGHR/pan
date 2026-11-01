@@ -1,0 +1,29 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_retirement_rev6_resume_native.py",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\resume-native.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 1.562,
+  "nodes": [
+    {
+      "node": "tests/test_retirement_rev6_resume_native.py::test_native_rescan_wake_per_fire_identity_and_empty_noop_without_provider_doubles",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 1,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

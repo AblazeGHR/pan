@@ -1,0 +1,123 @@
+async def _redeliver_undelivered(job: dict, registry_root: str | Path | None) -> int:
+    """target session 恢复/切换后，重投积压的未投递派发（PLAN §10）。"""
+    job_id = job.get("jobId")
+    notes = list(job.get("undeliveredFires") or [])
+    if not isinstance(job_id, str) or not notes:
+        return 0
+
+    def same_note(left: dict, right: dict) -> bool:
+        left_key = left.get("dispatchKey")
+        right_key = right.get("dispatchKey")
+        if isinstance(left_key, str) and left_key:
+            return left_key == right_key
+        return left == right
+
+    delivered: list[tuple[dict, dict, dict]] = []
+    qq_attempts: list[tuple[dict, dict, dict]] = []
+    for stale_note in notes:
+        # tick_scheduled_tasks iterates a list snapshot.  A concurrent process
+        # can retarget, edit, pause, disable, or cancel the Job after that
+        # snapshot was captured, so reload separately at each replay's send
+        # reservation boundary.  Once _run_job_action starts, an in-flight
+        # send cannot be recalled.
+        current = get(job_id, registry_root=registry_root)
+        if (not current or current.get("kind") != SCHEDULED_TASK_KIND
+                or current.get("status") not in {"pending", "scheduled"}
+                or not current.get("enabled", True) or current.get("paused")):
+            break
+        action = current.get("action")
+        if isinstance(action, dict) and action.get("api") == "shell":
+            # These notes came from a Session action. Never reinterpret them as
+            # a shell command after a concurrent action edit or migration.
+            break
+
+        current_notes = current.get("undeliveredFires")
+        if not isinstance(current_notes, list):
+            break
+        note = next((candidate for candidate in current_notes
+                     if isinstance(candidate, dict)
+                     and same_note(candidate, stale_note)), None)
+        if note is None:
+            # Another scheduler may already have removed this fire.
+            continue
+
+        target = current.get("targetSessionId")
+        action_api = action.get("api", "assign") if isinstance(action, dict) else "assign"
+        target_required = action_api not in {
+            "shell", RESUME_LEGAL_RUNNING_ACTION, "send_qq",
+        }
+        if target_required and not target:
+            # target 仍缺失（可能被清空）：便条原样保留。
+            break
+        if target and _sessions.get(target) is None:
+            break
+        try:
+            result = await _run_job_action(
+                current, target, note.get("dispatchKey"),
+                fire_at=note.get("fireAt"), entry_id=note.get("entryId"),
+                registry_root=registry_root)
+        except Exception as exc:
+            result = {"status": "error", "result": str(exc)}
+        if action_api == "send_qq":
+            qq_attempts.append((dict(note), current, result))
+        if (isinstance(result, dict)
+                and str(result.get("status")) not in {"error", "failed", "cancelled"}):
+            delivered.append((dict(note), current, result))
+
+    if delivered or qq_attempts:
+        # Remove only the notes this pass actually delivered from the latest
+        # record; preserve fires concurrently appended by another scheduler.
+        with _lock, _job_lock(job_id, registry_root):
+            path = _job_path(job_id, registry_root)
+            latest = _load_path(path)
+            if not latest:
+                return 0
+            remaining = list(latest.get("undeliveredFires") or [])
+            for delivered_note, _, _ in delivered:
+                for index, current_note in enumerate(remaining):
+                    if isinstance(current_note, dict) and same_note(
+                            current_note, delivered_note):
+                        remaining.pop(index)
+                        break
+            if delivered:
+                latest["undeliveredFires"] = remaining
+            if qq_attempts:
+                _, _, last_result = qq_attempts[-1]
+                last_error = (None if str(last_result.get("status"))
+                              not in {"error", "failed", "cancelled"}
+                              else str(last_result.get("error")
+                                       or last_result.get("result")
+                                       or "QQ send failed"))
+                latest.update(lastStatus="error" if last_error else "completed",
+                              lastError=last_error, lastDelivery=last_result,
+                              updatedAt=time.time())
+            elif delivered:
+                latest.update(lastStatus="dispatched", lastError=None,
+                              updatedAt=time.time())
+            _write_job(path, latest)
+        for note, delivered_job, result in delivered:
+            fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
+            is_qq = (isinstance(delivered_job.get("action"), dict)
+                     and delivered_job["action"].get("api") == "send_qq")
+            if is_qq:
+                _append_task_run(delivered_job,
+                                 delivered_job.get("taskId") or job_id, fire_dt,
+                                 note.get("dispatchKey") or "", "completed", None,
+                                 registry_root, entry_id=note.get("entryId"),
+                                 result=result)
+            else:
+                _append_task_run(delivered_job,
+                                 delivered_job.get("taskId") or job_id, fire_dt,
+                                 note.get("dispatchKey") or "", "dispatched", None,
+                                 registry_root, entry_id=note.get("entryId"))
+        for note, attempted_job, result in qq_attempts:
+            if str(result.get("status")) not in {"error", "failed", "cancelled"}:
+                continue  # successful QQ sends were recorded with delivered notes above
+            fire_dt = _job_cron.parse_datetime(note.get("fireAt")) or datetime.now()
+            error = str(result.get("error") or result.get("result") or "QQ send failed")
+            _append_task_run(attempted_job,
+                             attempted_job.get("taskId") or job_id, fire_dt,
+                             note.get("dispatchKey") or "", "error", error,
+                             registry_root, entry_id=note.get("entryId"),
+                             result=result)
+    return len(delivered)

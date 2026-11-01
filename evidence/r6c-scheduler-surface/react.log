@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/job-p15-r6-scheduler-surface-20261025/packages/web/src
+
+ ✓ stores/automationSession.test.tsx (8 tests) 117ms
+ ✓ views/CanonicalJobsView.test.tsx (18 tests) 1420ms
+ ✓ views/AutomationWorkspace.test.tsx (12 tests) 1816ms
+   ✓ creates a new Scheduler through one recoverable operation and retries with the same key 310ms
+
+ Test Files  3 passed (3)
+      Tests  38 passed (38)
+   Start at  20:37:17
+   Duration  4.43s (transform 431ms, setup 32ms, collect 1.66s, tests 3.35s, environment 2.57s, prepare 456ms)

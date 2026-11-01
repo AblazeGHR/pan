@@ -1,0 +1,325 @@
+{
+  "title": "Run record",
+  "description": "One logical business execution with a frozen plan digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "runId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "profileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "configRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "deliveryRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "declaration": {
+          "$ref": "common.schema.json#/$defs/DeliveryRuntime"
+        },
+        "steps": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "pendingFires": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "dispatchKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^\\S(?:.*\\S)?$"
+                    },
+                    "fireAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "enum": [
+                        "known-no-attempt",
+                        "sending",
+                        "unknown",
+                        "rejected"
+                      ]
+                    },
+                    "automaticDelivery": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "dispatchKey",
+                    "fireAt",
+                    "text",
+                    "error",
+                    "status",
+                    "automaticDelivery"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "declaration",
+        "steps"
+      ]
+    },
+    "notifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "outboxId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "transitionSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recipientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:.*\\S)?$"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "sending",
+              "acked",
+              "uncertain",
+              "suppressed",
+              "not_applicable"
+            ]
+          },
+          "targetRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "payloadDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "summary": {
+            "type": "object"
+          },
+          "receipt": {
+            "type": "object"
+          },
+          "notificationRuntime": {
+            "type": "object"
+          },
+          "runtimeOperationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "outboxId",
+          "transitionSeq",
+          "recipientId",
+          "status",
+          "summary"
+        ]
+      }
+    },
+    "admissionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "cause": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "manual"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "event"
+            },
+            "eventId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            "triggerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            }
+          },
+          "required": [
+            "type",
+            "eventId",
+            "triggerId"
+          ]
+        }
+      ]
+    },
+    "rerunOf": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "retry_wait",
+        "paused_at_boundary",
+        "cancelling",
+        "settling",
+        "uncertain",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "transitionSeq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "createdAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "startedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "finishedAt": {
+      "$ref": "common.schema.json#/$defs/Timestamp"
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "invalid_schema",
+            "invalid_condition",
+            "unsupported_operation",
+            "unauthenticated",
+            "authorization_denied",
+            "not_found",
+            "revision_conflict",
+            "idempotency_conflict",
+            "reference_conflict",
+            "pending_publication",
+            "reconciliation_required",
+            "not_retryable",
+            "cancellation_window_closed",
+            "capability_unsupported",
+            "unsupported_schema_version",
+            "capacity_exceeded",
+            "provider_unavailable",
+            "storage_unavailable"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    }
+  },
+  "required": [
+    "runId",
+    "profileId",
+    "jobId",
+    "configRevision",
+    "planDigest",
+    "admissionId",
+    "cause",
+    "state",
+    "stateRevision",
+    "transitionSeq",
+    "createdAt"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pan.local/pan/job-final/v2/run.schema.json",
+  "$comment": "Generated from packages/jobs/final_contracts.py; do not edit by hand. Run python -m packages.jobs.final_contracts --write."
+}

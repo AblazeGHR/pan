@@ -1,0 +1,156 @@
+{
+  "command": [
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\scripts\\run_tests_isolated.py",
+    "--",
+    "D:/project/Pan-main/.venv/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "tests/test_job_final_independent_execution.py::test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent",
+    "tests/test_job_final_independent_execution.py::test_fe02_real_worker_survives_the_admitting_host_process_exit",
+    "tests/test_scheduler_canonical_migration.py",
+    "tests/test_job_final_creators.py::test_fs01_decimal_grid_weekly_seconds_once_and_cron",
+    "tests/test_job_final_creators.py::test_fs01_iana_zone_matrix_keeps_offsets_and_fold_ordinals",
+    "tests/test_job_final_creators.py::test_fs01_cron_dst_gap_and_impossible_search_have_explicit_results",
+    "tests/test_job_final_creators.py::test_fs01_utc_and_fixed_offset_do_not_require_zoneinfo",
+    "tests/test_job_final_creators.py::test_fs01_named_zone_without_tzdata_is_explicitly_unavailable",
+    "-q",
+    "--tb=short",
+    "--junitxml=D:\\project\\pan-worktrees\\job-retirement-closure-20261027\\evidence\\job-retirement-rev6-20261029\\independent-scheduler.xml"
+  ],
+  "cwd": "D:\\project\\pan-worktrees\\job-retirement-closure-20261027",
+  "exit": 0,
+  "elapsedSeconds": 15.536,
+  "nodes": [
+    {
+      "node": "tests/test_job_final_independent_execution.py::test_fe02_real_detached_worker_keeps_identity_while_pan_is_absent",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_independent_execution.py::test_fe02_real_worker_survives_the_admitting_host_process_exit",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_historical_reads_are_read_only_even_for_missing_stores",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_cutover_fences_old_pass_and_all_source_mutations[active]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_cutover_fences_old_pass_and_all_source_mutations[closed]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_cutover_fences_old_pass_and_all_source_mutations[failed]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_entire_legacy_publication_pass_blocks_owner_activation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_store_engine_bridge_imports_and_old_api_reads_survive_cutover",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_old_http_reads_remain_available_after_canonical_owner_activation",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_explicit_history_import_preserves_pending_links_cursor_and_never_replays",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_import_refuses_foreign_profile_and_rolls_back_on_fault",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_composition_adopts_cursor_links_and_restarts_without_historical_replay",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[pending]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[pin]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[extension]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[blocked]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[setup]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[cursor]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[shared]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_ambiguous_migrations_stay_history_and_cannot_activate[missing_link]",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_revision_edits_retain_cursor_on_every_update",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_cron_fold_second_remains_due_after_first_wall_time_has_passed",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_publication_requires_frozen_fence_and_reserved_occurrence",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_one_hundred_decimal_occurrences_multi_rule_contenders_and_disk_restarts",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_legacy_zone_conversion_is_explicit_and_dst_ambiguity_stays_historical",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_scheduler_canonical_migration.py::test_compatibility_consumers_and_web_server_still_import",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_decimal_grid_weekly_seconds_once_and_cron",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_iana_zone_matrix_keeps_offsets_and_fold_ordinals",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_cron_dst_gap_and_impossible_search_have_explicit_results",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_utc_and_fixed_offset_do_not_require_zoneinfo",
+      "status": "passed"
+    },
+    {
+      "node": "tests/test_job_final_creators.py::test_fs01_named_zone_without_tzdata_is_explicitly_unavailable",
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 31,
+    "failure": 0,
+    "error": 0,
+    "skipped": 0
+  }
+}

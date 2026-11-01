@@ -1,0 +1,1225 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="204" time="118.888" timestamp="2026-10-31T20:50:01.914033+08:00" hostname="ablaze"><testcase classname="tests.test_job_final_contracts" name="test_fc01_each_definition_object_accepts_a_minimal_valid_definition[action]" time="0.014"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_each_definition_object_accepts_a_minimal_valid_definition[event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_each_definition_object_accepts_a_minimal_valid_definition[job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_each_definition_object_accepts_a_minimal_valid_definition[template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_each_definition_object_accepts_a_minimal_valid_definition[trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_event_publish_envelope_is_valid_and_has_no_editable_definition" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_missing_required_field_is_rejected[action-effectClass]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_missing_required_field_is_rejected[trigger-targetJobId]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_missing_required_field_is_rejected[event_creator-configSchemaRef]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_missing_required_field_is_rejected[job-steps]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_missing_required_field_is_rejected[template-composition]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_unknown_field_is_rejected[action]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_unknown_field_is_rejected[event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_unknown_field_is_rejected[job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_unknown_field_is_rejected[template]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_unknown_field_is_rejected[trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_enum_or_type_is_rejected[action-effect-class]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_enum_or_type_is_rejected[job-overlap-mode]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_enum_or_type_is_rejected[creator-provider-type]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_enum_or_type_is_rejected[job-binding-source]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_enum_or_type_is_rejected[job-contract-type]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_variant_is_rejected[empty-contracts]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_variant_is_rejected[selector-mode]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_invalid_variant_is_rejected[literal-extra-key]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_condition_errors_use_the_condition_error_code" time="0.002"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[id-action]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[id-event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[id-job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[id-template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[id-trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[profileId-action]" time="0.002"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[profileId-event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[profileId-job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[profileId-template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[profileId-trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[createdAt-action]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[createdAt-event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[createdAt-job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[createdAt-template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[createdAt-trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[updatedAt-action]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[updatedAt-event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[updatedAt-job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[updatedAt-template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[updatedAt-trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[stateRevision-action]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[stateRevision-event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[stateRevision-job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[stateRevision-template]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_server_fields_are_read_only[stateRevision-trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_write_body_accepts_only_definition_revision_and_request_key[action]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_write_body_accepts_only_definition_revision_and_request_key[event_creator]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_write_body_accepts_only_definition_revision_and_request_key[job]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_write_body_accepts_only_definition_revision_and_request_key[template]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_write_body_accepts_only_definition_revision_and_request_key[trigger]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_object_envelopes_validate_for_all_six_objects" time="0.006"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_runtime_records_use_the_declared_state_vocabulary" time="0.009"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_capacity_limits_are_explicit" time="0.069"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_committed_schema_artifacts_match_the_generator" time="0.139"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_design_document_job_example_parses_and_validates" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc01_json_input_rejects_duplicate_keys_and_non_finite_numbers" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_schema_version_must_be_exactly_two[1]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_schema_version_must_be_exactly_two[3]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_schema_version_must_be_exactly_two[2]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_schema_version_must_be_exactly_two[True]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_schema_version_must_be_exactly_two[None]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_expected_revision_rules_for_create_and_update" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_revision_conflict_reports_current_revision" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_content_and_publish_increment_revision_state_ops_do_not" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_idempotent_replay_for_same_key_and_content" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_idempotency_conflict_for_same_key_different_content" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_idempotency_scope_is_per_principal_and_pending_records_are_not_purged" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_request_key_bounds[empty]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_request_key_bounds[too-long]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_request_key_bounds[control-character]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_request_key_bounds[surrounding-space]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc02_event_receipts_replay_or_conflict_on_the_fact_digest" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_tagged_union_accepts_the_five_declared_forms" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_rejects_forward_and_malformed_references[forward-step]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_rejects_forward_and_malformed_references[literal-extra-key]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_rejects_forward_and_malformed_references[missing-path]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_rejects_self_reference" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_binding_rejects_undeclared_input_paths_and_unknown_system_fields" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_trigger_bindings_reject_step_and_input_sources[step-source]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_trigger_bindings_reject_step_and_input_sources[input-source]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_action_reference_requires_published_exact_revision_and_digest" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_disabled_action_blocks_admission_but_not_definition_editing" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_step_completion_contract_must_be_declared_and_parameters_validated" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_template_composition_requires_unique_and_resolvable_local_keys" time="0.010"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_template_cannot_embed_trigger_links_or_unfilled_parameter_holes" time="0.007"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc03_trigger_target_and_job_links_must_stay_consistent" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[action]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[event]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[event_creator]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[job]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[template]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_supported_object_operations_are_accepted[trigger]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[action-pause]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[action-resume]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[action-retry]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[action-cancel]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[trigger-retry]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[trigger-cancel]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[template-pause]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[template-resume]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[template-enable]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[job-publish]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[event_creator-publish]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[event-enable]" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[event-pause]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[event-retire]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_unsupported_operations_return_explicit_errors[run-publish]" time="0.005"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_definition_transition_violations_are_explicit" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_run_layer_transitions_require_the_declared_operation" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[job-kind]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[job-schedule]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[job-legacyCompat]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[job-enabled]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[trigger-actionId]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[trigger-steps]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[trigger-retry]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[trigger-maxConcurrency]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[action-input_schema]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[template-enabled]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-cursor]" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_fields_are_rejected_without_fallback[event_creator-producedCount]" time="0.004"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_legacy_event_wire_names_are_rejected" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_error_codes_are_a_closed_set_with_http_mapping" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_contracts" name="test_fc04_operation_result_requires_the_documented_envelope" time="0.003"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_real_crud_cas_idempotency_persisted_after_reload" time="0.507"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_run_and_six_operations_use_same_wp02_identities" time="0.862"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_run_request_key_replays_after_restart_without_new_run" time="0.616"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_creator_trigger_template_and_retire_real_storage" time="0.575"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_wp04_driver_admits_once_and_wp03_projection_is_durable" time="0.707"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_revoke_between_steps_prevents_next_effect" time="0.435"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_system_grant_and_high_risk_remain_separate" time="0.592"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_unknown_is_not_retried_or_replayed_on_restart" time="0.743"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_service_invalid_definitions_do_not_write[kind-background-process]" time="0.435"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_service_invalid_definitions_do_not_write[source-user]" time="0.373"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_service_invalid_definitions_do_not_write[enabled-True]" time="0.467"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_service_invalid_definitions_do_not_write[authorization-value3]" time="0.382"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_service_invalid_definitions_do_not_write[configRevision-999]" time="0.497"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_real_http_401_403_404_409_and_cookie_same_origin" time="0.679"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_concurrent_cas_allows_exactly_one_writer" time="0.509"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_failed_creator_or_cross_reference_rolls_back_every_table" time="0.587"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft03_old_facade_retires_writes_and_keeps_reads" time="0.612"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_core_event_enters_canonical_trigger_port_and_automation_receipt" time="0.841"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_new_trigger_never_consumes_old_wp04_event" time="0.702"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_action_disable_after_admission_prevents_effect" time="0.477"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_definition_retire_preserves_already_admitted_run" time="0.552"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_forbid_is_durable_skipped_admission_not_a_second_run" time="0.503"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_creator_runtime_rechecks_lifecycle_grant_before_new_publication" time="0.603"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_real_agent_http_uses_existing_matrix_and_scoped_operations" time="0.365"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_bound_background_driver_survives_reload_without_resend" time="0.858"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft02_unbound_automatic_recovery_is_explicit_unsupported" time="0.367"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_recovery_never_reports_lost_cancelling_effect_as_cancelled" time="0.684"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_queue_keeps_admission_order_after_sorted_json_reload" time="0.651"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_unknown_effect_holds_queue_capacity_but_queued_cancel_can_settle" time="0.646"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_event_projection_replay_after_trigger_retire_uses_original_identity" time="0.695"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_all_definition_kinds_update_retire_and_reload_over_http[triggers]" time="0.847"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_all_definition_kinds_update_retire_and_reload_over_http[event-creators]" time="0.797"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_job_final_http_service" name="test_ft01_all_definition_kinds_update_retire_and_reload_over_http[job-templates]" time="0.819"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[session-message]" time="2.593"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[assign]" time="2.206"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[session-broadcast]" time="2.478"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_product_missing_target_rejects_without_spawn" time="2.205"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-message]" time="2.443"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[assign]" time="2.606"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-broadcast]" time="2.303"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_assign_connection_failure_cold_query_stays_unknown" time="2.477"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_product_fanout_partial_unknown_cold_reopen_never_resends" time="2.205"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_payload_source_cannot_authenticate_http_or_delegate_identity" time="2.336"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_handoff_only_declared_targets_preserves_nested_payload_and_frozen_run" time="2.288"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_session_product_closure" name="test_process_log_publication_additive_immutable_idempotent" time="2.404"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[assign]" time="2.435"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[session-message]" time="2.513"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_local_shutdown_gate_preserves_unsent_same_attempt_until_queue_returns[session-broadcast]" time="2.466"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[assign]" time="2.614"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[session-message]" time="2.373"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_queued_missing_target_cold_current_target_text_same_run_attempt_effect[session-broadcast]" time="2.740"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[pause]" time="2.615"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[revoke]" time="2.301"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_current_gate_after_first_real_acceptance_prevents_next_child_and_no_new_attempt[cancel]" time="2.472"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_lost_native_assign_ack_queries_effective_reservation_not_later_target" time="2.459"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_and_proven_unsent_cold_retarget_same_live_attempt" time="2.701"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]" time="3.146"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]" time="2.966"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]" time="3.058"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]" time="3.011"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[missing-children]" time="2.736"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[wrong-lease]" time="3.014"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[reserved-is-not-unsent]" time="3.018"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_unknown_and_unsent_only_unsent_retargets[True]" time="2.522"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_mixed_accepted_unknown_and_unsent_only_unsent_retargets[False]" time="2.723"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_additive_runtime_release_does_not_change_v2_and_api_marks_frozen_vs_runtime" time="2.336"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_old_release_cannot_gain_runtime_from_job_declaration_and_rejection_has_no_write" time="2.221"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_equal_no_attempt_dictionary_after_actual_enqueue_never_authorizes_resend" time="2.519"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_real_http_concurrent_cas_during_first_acceptance_selects_only_winning_unsent_values" time="3.986"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_form" name="test_runtime_form_rejects_bad_values_before_any_definition_operation_or_composition[string-runtime]" time="0.407"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_form" name="test_runtime_form_rejects_bad_values_before_any_definition_operation_or_composition[missing-session]" time="0.437"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_form" name="test_runtime_form_rejects_bad_values_before_any_definition_operation_or_composition[conflict]" time="0.519"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_form" name="test_runtime_form_rejects_bad_values_before_any_definition_operation_or_composition[extra]" time="0.486"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_form" name="test_real_form_instance_clear_target_pending_restore_preserves_business_task_and_frozen_plan" time="0.750"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase><testcase classname="tests.test_retirement_rev25_monitoring" name="test_real_delegated_monitoring_revocation_preserves_attempt_budget_deadline_and_original_effect" time="1.318"><system-out>--------------------------------- Captured Log ---------------------------------
+
+--------------------------------- Captured Out ---------------------------------
+
+</system-out><system-err>--------------------------------- Captured Err ---------------------------------
+
+</system-err></testcase></testsuite></testsuites>
