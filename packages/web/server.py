@@ -35,7 +35,7 @@ import time
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any, Callable
 from urllib.parse import parse_qs, quote, unquote, urlsplit
@@ -351,6 +351,7 @@ async def _owned_lifespan(app: FastAPI, owner):
                         async def send_final_notice(row):
                             return await _send_final_notice(row)
                         final_jobs.outbox_sender = send_final_notice
+                        _bind_final_change_notifications(final_jobs)
                         await final_jobs.start(activation=load_config().get('job_runtime_activation'))
                         await automation.start()
                         from packages.interactions.runtime import bind as bind_interactions
@@ -499,6 +500,35 @@ async def _deliver_due_reminders() -> int:
     return delivered
 
 ws_clients: set[WebSocket] = set()
+
+
+def _bind_final_change_notifications(service):
+    """Coalesce committed observations into content-free dashboard refreshes."""
+    loop = asyncio.get_running_loop()
+    pending = False
+
+    async def publish():
+        nonlocal pending
+        try:
+            if not service.closed:
+                await broadcast({'type': 'canonical.changed'})
+        except Exception as exc:
+            service.diagnostics.append({'at': datetime.now(timezone.utc).isoformat(),
+                'code': 'change_publication_failed', 'message': str(exc)})
+        finally:
+            pending = False
+
+    def schedule():
+        nonlocal pending
+        if not pending and not service.closed:
+            pending = True
+            loop.create_task(publish(), name='canonical-change-notification')
+
+    def committed(_snapshot):
+        if not loop.is_closed() and not service.closed:
+            loop.call_soon_threadsafe(schedule)
+
+    service.on_committed_change = committed
 
 
 class _WsBroadcastPreparationFailed(RuntimeError):

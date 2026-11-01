@@ -47,6 +47,8 @@ def app_for(root, *, seed_time_template_target=False, time_test_host_zone=None):
     app.include_router(scheduler_router)
     @asynccontextmanager
     async def lifespan(app):
+        from packages.web import server
+        server._bind_final_change_notifications(final)
         await final.start()
         try:
             yield
@@ -71,12 +73,19 @@ def app_for(root, *, seed_time_template_target=False, time_test_host_zone=None):
         return {"sessions":[],"workspaces":[],"panels":[],"adapters":[],"jobs":[],"items":[],"nextCursor":None}
     @app.websocket("/ws")
     async def ws(socket: WebSocket):
+        from packages.web import server
         await socket.accept()
+        server.ws_clients.add(socket)
         try:
             while True:
                 await socket.receive_text()
         except WebSocketDisconnect:
             pass
+        finally:
+            server.ws_clients.discard(socket)
+            channel = server._ws_outbound.pop(socket, None)
+            if channel:
+                await channel.close_now()
     dist = Path(__file__).resolve().parents[2] / "packages" / "web" / "dist"
     @app.get("/react/{path:path}")
     def react(path: str):

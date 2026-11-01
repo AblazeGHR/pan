@@ -1,3 +1,4 @@
+import { wsClient } from '@/services/ws';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiRequestError } from '@/services/api';
@@ -23,7 +24,10 @@ import type {
 } from '@/types/canonicalJobs';
 import { newId, type EventCreator } from '@/types/automationJobs';
 import { useAutomationDraft } from '@/components/automation/DraftBoundary';
-import { CanonicalDefinitionFields, canonicalFormErrors } from '@/components/automation/CanonicalDefinitionFields';
+import {
+  CanonicalDefinitionFields,
+  canonicalFormErrors,
+} from '@/components/automation/CanonicalDefinitionFields';
 import { TimeTemplateFields } from '@/components/automation/TimeTemplateFields';
 import { SimpleTemplateForm } from '@/components/automation/SimpleTemplateForm';
 import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
@@ -71,7 +75,13 @@ const examples: Record<CanonicalKind, JsonObject> = {
     composition: { creators: [], triggers: [] },
   },
 };
-function previewObject(text: string): JsonObject { try { return objectJson(text); } catch { return {}; } }
+function previewObject(text: string): JsonObject {
+  try {
+    return objectJson(text);
+  } catch {
+    return {};
+  }
+}
 function objectJson(text: string): JsonObject {
   const value: unknown = JSON.parse(text);
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -102,7 +112,7 @@ export default function CanonicalJobsView() {
         <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold">Canonical Jobs</h1>
-            <p className="text-sm text-text-secondary">统一定义与 Run 管理 · 手动刷新</p>
+            <p className="text-sm text-text-secondary">统一定义与 Run 管理</p>
           </div>
           <nav className="flex flex-wrap gap-3 text-sm">
             <Link to="/automation">Automation</Link>
@@ -135,7 +145,23 @@ function Workspace() {
     </>
   );
 }
-export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jobs = [], reviewSourceRefs = false, refreshToken }: { kind: CanonicalKind; focusId?: string; onChanged?: () => Promise<void>; sources?: EventCreator[]; jobs?: CanonicalObject[]; reviewSourceRefs?: boolean; refreshToken?: CanonicalObject[] }) {
+export function CanonicalCollection({
+  kind,
+  focusId,
+  onChanged,
+  sources = [],
+  jobs = [],
+  reviewSourceRefs = false,
+  refreshToken,
+}: {
+  kind: CanonicalKind;
+  focusId?: string;
+  onChanged?: () => Promise<void>;
+  sources?: EventCreator[];
+  jobs?: CanonicalObject[];
+  reviewSourceRefs?: boolean;
+  refreshToken?: CanonicalObject[];
+}) {
   const [items, setItems] = useState<CanonicalObject[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -189,6 +215,13 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
       controller.abort();
     };
   }, [load, refreshToken]);
+  useEffect(
+    () =>
+      wsClient.on('canonical.changed', () => {
+        if (!mutationActive.current) void load();
+      }),
+    [load],
+  );
   async function mutate(operation: string, task: (key: string) => Promise<CanonicalReceipt>) {
     if (busy || mutationActive.current) return;
     mutationActive.current = true;
@@ -235,15 +268,25 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           onClick={() => {
             const definition = { ...examples[kind] };
             delete definition.name;
-            setAdvancedEditing(false); setStructuredEdited(false); setConflict(false); setCreatorRevisions({}); setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
+            setAdvancedEditing(false);
+            setStructuredEdited(false);
+            setConflict(false);
+            setCreatorRevisions({});
+            setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
           }}
         >
           创建 {labels[kind]}
         </Button>
-        {kind === 'job-templates' && (['assign', 'shell'] as const).map((value) => <Button key={value}
-          disabled={busy || !!editor || !!simpleKind} onClick={() => setSimpleKind(value)}>
-          {value === 'assign' ? 'New assign Template' : 'New shell Template'}
-        </Button>)}
+        {kind === 'job-templates' &&
+          (['assign', 'shell'] as const).map((value) => (
+            <Button
+              key={value}
+              disabled={busy || !!editor || !!simpleKind}
+              onClick={() => setSimpleKind(value)}
+            >
+              {value === 'assign' ? 'New assign Template' : 'New shell Template'}
+            </Button>
+          ))}
       </div>
       {loading && <p role="status">加载中…</p>}
       {error && (
@@ -268,9 +311,17 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           }}
         />
       )}
-      {simpleKind && <SimpleTemplateForm key={simpleKind} kind={simpleKind} busy={busy}
-        onCancel={() => setSimpleKind(null)}
-        onSubmit={(definition, form) => void mutate('create', (key) => canonicalJobs.writeFormTemplate(definition, form, key))} />}
+      {simpleKind && (
+        <SimpleTemplateForm
+          key={simpleKind}
+          kind={simpleKind}
+          busy={busy}
+          onCancel={() => setSimpleKind(null)}
+          onSubmit={(definition, form) =>
+            void mutate('create', (key) => canonicalJobs.writeFormTemplate(definition, form, key))
+          }
+        />
+      )}
       {editor && (
         <form
           aria-label={`编辑 ${labels[kind]}`}
@@ -280,9 +331,17 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
             try {
               const definition: JsonObject = { ...objectJson(editor.json), name: editor.name };
               if (kind === 'jobs' && !editor.item && !editor.name.trim()) delete definition.name;
-              if (structuredEdited && canonicalFormErrors(kind, definition).length) throw new Error(canonicalFormErrors(kind, definition).join(' '));
+              if (structuredEdited && canonicalFormErrors(kind, definition).length)
+                throw new Error(canonicalFormErrors(kind, definition).join(' '));
               void mutate(editor.item ? 'update' : 'create', (key) =>
-                canonicalJobs.write(kind, editor.item, definition, key, undefined, kind === 'triggers' && reviewSourceRefs ? creatorRevisions : undefined),
+                canonicalJobs.write(
+                  kind,
+                  editor.item,
+                  definition,
+                  key,
+                  undefined,
+                  kind === 'triggers' && reviewSourceRefs ? creatorRevisions : undefined,
+                ),
               );
             } catch (failure) {
               setError(canonicalError(failure));
@@ -300,27 +359,83 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               onChange={(e) => setEditor({ ...editor, name: e.target.value })}
             />
           </label>
-          {(kind === 'jobs' || kind === 'triggers') && <fieldset hidden={advancedEditing} disabled={busy || advancedEditing} className="min-w-0">
-            {(() => { try { return <CanonicalDefinitionFields kind={kind} value={objectJson(editor.json)} targetJob={jobs.find((job) => job.id === objectJson(editor.json).targetJobId)} onChange={(value) => { setStructuredEdited(true); setEditor({ ...editor, json: JSON.stringify(value, null, 2) }); }} />; } catch { return <p role="status">Fix the advanced definition before using the form. Your draft is retained.</p>; } })()}
-          </fieldset>}
-          {kind === 'job-templates' && !!previewObject(editor.json).jobDefinition && !!previewObject(editor.json).composition && <fieldset hidden={advancedEditing} disabled={busy || advancedEditing}>
-            <TimeTemplateFields value={previewObject(editor.json)} onChange={(value) => {
-              setStructuredEdited(true); setEditor({ ...editor, json: JSON.stringify(value, null, 2) });
-            }} />
-          </fieldset>}
-          <details><summary>Advanced definition JSON</summary><label className="block text-sm">
-            定义 JSON（名称单独填写）
-            <textarea
-              disabled={busy}
-              spellCheck={false}
-              className={`${field} h-72 font-mono`}
-              value={editor.json}
-              onChange={(e) => { setAdvancedEditing(true); setStructuredEdited(false); setEditor({ ...editor, json: e.target.value }); }}
-            />
-          </label>{advancedEditing && <Button type="button" disabled={busy} onClick={() => { try { objectJson(editor.json); setAdvancedEditing(false); } catch (failure) { setError(canonicalError(failure)); } }}>Use structured form</Button>}</details>
+          {(kind === 'jobs' || kind === 'triggers') && (
+            <fieldset
+              hidden={advancedEditing}
+              disabled={busy || advancedEditing}
+              className="min-w-0"
+            >
+              {(() => {
+                try {
+                  return (
+                    <CanonicalDefinitionFields
+                      kind={kind}
+                      value={objectJson(editor.json)}
+                      targetJob={jobs.find((job) => job.id === objectJson(editor.json).targetJobId)}
+                      onChange={(value) => {
+                        setStructuredEdited(true);
+                        setEditor({ ...editor, json: JSON.stringify(value, null, 2) });
+                      }}
+                    />
+                  );
+                } catch {
+                  return (
+                    <p role="status">
+                      Fix the advanced definition before using the form. Your draft is retained.
+                    </p>
+                  );
+                }
+              })()}
+            </fieldset>
+          )}
+          {kind === 'job-templates' &&
+            !!previewObject(editor.json).jobDefinition &&
+            !!previewObject(editor.json).composition && (
+              <fieldset hidden={advancedEditing} disabled={busy || advancedEditing}>
+                <TimeTemplateFields
+                  value={previewObject(editor.json)}
+                  onChange={(value) => {
+                    setStructuredEdited(true);
+                    setEditor({ ...editor, json: JSON.stringify(value, null, 2) });
+                  }}
+                />
+              </fieldset>
+            )}
+          <details>
+            <summary>Advanced definition JSON</summary>
+            <label className="block text-sm">
+              定义 JSON（名称单独填写）
+              <textarea
+                disabled={busy}
+                spellCheck={false}
+                className={`${field} h-72 font-mono`}
+                value={editor.json}
+                onChange={(e) => {
+                  setAdvancedEditing(true);
+                  setStructuredEdited(false);
+                  setEditor({ ...editor, json: e.target.value });
+                }}
+              />
+            </label>
+            {advancedEditing && (
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  try {
+                    objectJson(editor.json);
+                    setAdvancedEditing(false);
+                  } catch (failure) {
+                    setError(canonicalError(failure));
+                  }
+                }}
+              >
+                Use structured form
+              </Button>
+            )}
+          </details>
           <p className="text-xs text-text-secondary">
-            保存使用打开时的定义版本{' '}
-            {editor.item ? revisionOf(editor.item) : 0}。
+            保存使用打开时的定义版本 {editor.item ? revisionOf(editor.item) : 0}。
           </p>
           <details>
             <summary>定义字段与约束</summary>
@@ -328,54 +443,297 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               {JSON.stringify(definitionSchemas[kind], null, 2)}
             </pre>
           </details>
-          {conflict && editor.item && <section aria-label="Compare canonical configuration" className="space-y-2">
-            <p>The draft is retained. Compare the current server definition before explicitly rebasing.</p>
-            <Button type="button" disabled={busy} onClick={() => {
-              const id = editor.item!.id;
-              void canonicalJobs.get(kind, id).then((current) => {
-                if (!alive.current) return;
-                setItems((old) => old.map((item) => item.id === id ? current : item));
-              }).catch((failure: unknown) => setError(canonicalError(failure)));
-            }}>Compare server definition</Button>
-            <pre className="max-w-full whitespace-pre-wrap break-all text-xs">{JSON.stringify(items.find((item) => item.id === editor.item?.id), null, 2)}</pre>
-            <Button type="button" disabled={busy} onClick={() => {
-              const current = items.find((item) => item.id === editor.item?.id);
-              if (current) { setEditor({ ...editor, item: current }); setConflict(false); setPending(null); }
-            }}>Keep draft against server revision</Button>
-            <Button type="button" disabled={busy} onClick={() => {
-              const current = items.find((item) => item.id === editor.item?.id);
-              if (current) { const value = definitionOf(kind, current); delete value.name; setEditor({ item: current, name: current.name, json: JSON.stringify(value, null, 2) }); setConflict(false); setPending(null); }
-            }}>Load server definition</Button>
-          </section>}
+          {conflict && editor.item && (
+            <section aria-label="Compare canonical configuration" className="space-y-2">
+              <p>
+                The draft is retained. Compare the current server definition before explicitly
+                rebasing.
+              </p>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const id = editor.item!.id;
+                  void canonicalJobs
+                    .get(kind, id)
+                    .then((current) => {
+                      if (!alive.current) return;
+                      setItems((old) => old.map((item) => (item.id === id ? current : item)));
+                    })
+                    .catch((failure: unknown) => setError(canonicalError(failure)));
+                }}
+              >
+                Compare server definition
+              </Button>
+              <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+                {JSON.stringify(
+                  items.find((item) => item.id === editor.item?.id),
+                  null,
+                  2,
+                )}
+              </pre>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const current = items.find((item) => item.id === editor.item?.id);
+                  if (current) {
+                    setEditor({ ...editor, item: current });
+                    setConflict(false);
+                    setPending(null);
+                  }
+                }}
+              >
+                Keep draft against server revision
+              </Button>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const current = items.find((item) => item.id === editor.item?.id);
+                  if (current) {
+                    const value = definitionOf(kind, current);
+                    delete value.name;
+                    setEditor({
+                      item: current,
+                      name: current.name,
+                      json: JSON.stringify(value, null, 2),
+                    });
+                    setConflict(false);
+                    setPending(null);
+                  }
+                }}
+              >
+                Load server definition
+              </Button>
+            </section>
+          )}
           {kind === 'jobs' && <ActionCatalog />}
-          {kind === 'triggers' && <fieldset disabled={busy} className="min-w-0 space-y-3">
-            <label className="block">Target canonical Job<select aria-label="Target canonical Job" className={field} value={String(previewObject(editor.json).targetJobId ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), targetJobId: e.target.value }, null, 2) })}><option value="">Choose a Job</option>{jobs.map((job) => <option key={job.id} value={job.id} disabled={job.state === 'draft' || job.state === 'retired'}>{job.name} · {job.state}</option>)}</select></label>
-            <label className="block">Creator selection<select aria-label="Creator selection" className={field} value={String((previewObject(editor.json).creatorSelector as { mode?: string })?.mode ?? 'ids')} onChange={(e) => { setCreatorRevisions({}); setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), creatorSelector: e.target.value === 'ids' ? { mode: 'ids', ids: [] } : { mode: 'registeredType', providerType: 'time' } }, null, 2) }); }}><option value="ids">Selected source instances</option><option value="registeredType">Registered provider type</option></select></label>
-            {(previewObject(editor.json).creatorSelector as { mode?: string })?.mode === 'registeredType' ? <label className="block">Provider type<input required className={field} value={String((previewObject(editor.json).creatorSelector as { providerType?: string })?.providerType ?? '')} onChange={(e) => setEditor({ ...editor, json: JSON.stringify({ ...objectJson(editor.json), creatorSelector: { ...(objectJson(editor.json).creatorSelector as object), providerType: e.target.value } }, null, 2) })} /></label> : <>
-            <label className="block">Scheduler sources<select aria-label="Scheduler sources" multiple className={field} value={((previewObject(editor.json).creatorSelector as { ids?: string[] })?.ids ?? [])} onChange={(e) => { const ids = Array.from(e.target.selectedOptions, (o) => o.value); setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); const value = previewObject(editor.json); setEditor({ ...editor, json: JSON.stringify({ ...value, creatorSelector: { mode: 'ids', ids }, eventTypes: [...new Set([...(Array.isArray(value.eventTypes) ? value.eventTypes as string[] : []), ...sources.filter((s) => ids.includes(s.id)).flatMap((s) => s.eventTypes)])] }, null, 2) }); }}>
-              {sources.map((source) => <option key={source.id} value={source.id}>{source.name} · Revision {source.revision} · {source.state}</option>)}
-            </select></label></>}
-            {reviewSourceRefs && <Button type="button" disabled={busy} onClick={() => {
-              const ids = (previewObject(editor.json).creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
-              setCreatorRevisions(Object.fromEntries(sources.filter((source) => ids.includes(source.id)).map((source) => [source.id, source.revision])));
-            }}>Review selected source revisions</Button>}
-          </fieldset>}
+          {kind === 'triggers' && (
+            <fieldset disabled={busy} className="min-w-0 space-y-3">
+              <label className="block">
+                Target canonical Job
+                <select
+                  aria-label="Target canonical Job"
+                  className={field}
+                  value={String(previewObject(editor.json).targetJobId ?? '')}
+                  onChange={(e) =>
+                    setEditor({
+                      ...editor,
+                      json: JSON.stringify(
+                        { ...objectJson(editor.json), targetJobId: e.target.value },
+                        null,
+                        2,
+                      ),
+                    })
+                  }
+                >
+                  <option value="">Choose a Job</option>
+                  {jobs.map((job) => (
+                    <option
+                      key={job.id}
+                      value={job.id}
+                      disabled={job.state === 'draft' || job.state === 'retired'}
+                    >
+                      {job.name} · {job.state}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                Creator selection
+                <select
+                  aria-label="Creator selection"
+                  className={field}
+                  value={String(
+                    (previewObject(editor.json).creatorSelector as { mode?: string })?.mode ??
+                      'ids',
+                  )}
+                  onChange={(e) => {
+                    setCreatorRevisions({});
+                    setEditor({
+                      ...editor,
+                      json: JSON.stringify(
+                        {
+                          ...objectJson(editor.json),
+                          creatorSelector:
+                            e.target.value === 'ids'
+                              ? { mode: 'ids', ids: [] }
+                              : { mode: 'registeredType', providerType: 'time' },
+                        },
+                        null,
+                        2,
+                      ),
+                    });
+                  }}
+                >
+                  <option value="ids">Selected source instances</option>
+                  <option value="registeredType">Registered provider type</option>
+                </select>
+              </label>
+              {(previewObject(editor.json).creatorSelector as { mode?: string })?.mode ===
+              'registeredType' ? (
+                <label className="block">
+                  Provider type
+                  <input
+                    required
+                    className={field}
+                    value={String(
+                      (previewObject(editor.json).creatorSelector as { providerType?: string })
+                        ?.providerType ?? '',
+                    )}
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        json: JSON.stringify(
+                          {
+                            ...objectJson(editor.json),
+                            creatorSelector: {
+                              ...(objectJson(editor.json).creatorSelector as object),
+                              providerType: e.target.value,
+                            },
+                          },
+                          null,
+                          2,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+              ) : (
+                <>
+                  <label className="block">
+                    Scheduler sources
+                    <select
+                      aria-label="Scheduler sources"
+                      multiple
+                      className={field}
+                      value={
+                        (previewObject(editor.json).creatorSelector as { ids?: string[] })?.ids ??
+                        []
+                      }
+                      onChange={(e) => {
+                        const ids = Array.from(e.target.selectedOptions, (o) => o.value);
+                        setCreatorRevisions(
+                          Object.fromEntries(
+                            sources
+                              .filter((s) => ids.includes(s.id))
+                              .map((s) => [s.id, s.revision]),
+                          ),
+                        );
+                        const value = previewObject(editor.json);
+                        setEditor({
+                          ...editor,
+                          json: JSON.stringify(
+                            {
+                              ...value,
+                              creatorSelector: { mode: 'ids', ids },
+                              eventTypes: [
+                                ...new Set([
+                                  ...(Array.isArray(value.eventTypes)
+                                    ? (value.eventTypes as string[])
+                                    : []),
+                                  ...sources
+                                    .filter((s) => ids.includes(s.id))
+                                    .flatMap((s) => s.eventTypes),
+                                ]),
+                              ],
+                            },
+                            null,
+                            2,
+                          ),
+                        });
+                      }}
+                    >
+                      {sources.map((source) => (
+                        <option key={source.id} value={source.id}>
+                          {source.name} · Revision {source.revision} · {source.state}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+              {reviewSourceRefs && (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    const ids =
+                      (previewObject(editor.json).creatorSelector as { ids?: string[] } | undefined)
+                        ?.ids ?? [];
+                    setCreatorRevisions(
+                      Object.fromEntries(
+                        sources
+                          .filter((source) => ids.includes(source.id))
+                          .map((source) => [source.id, source.revision]),
+                      ),
+                    );
+                  }}
+                >
+                  Review selected source revisions
+                </Button>
+              )}
+            </fieldset>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={busy || (structuredEdited && canonicalFormErrors(kind, previewObject(editor.json)).length > 0)}>
+            <Button
+              type="submit"
+              disabled={
+                busy ||
+                (structuredEdited &&
+                  canonicalFormErrors(kind, previewObject(editor.json)).length > 0)
+              }
+            >
               保存定义
             </Button>
-            <Button type="button" disabled={busy} onClick={() => { if (window.confirm('Discard this definition draft?')) { setEditor(null); setConflict(false); } }}>
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm('Discard this definition draft?')) {
+                  setEditor(null);
+                  setConflict(false);
+                }
+              }}
+            >
               关闭编辑
             </Button>
           </div>
         </form>
       )}
-      {enabling && <section aria-label="Review before enabling" className={`${card} space-y-3`}>
-        <h3>Review {enabling.name} before enabling</h3>
-        <pre className="max-w-full whitespace-pre-wrap break-all text-xs">{JSON.stringify(definitionOf(kind, enabling), null, 2)}</pre>
-        <label><input type="checkbox" disabled={busy} checked={enableReviewed} onChange={(event) => setEnableReviewed(event.target.checked)} />I reviewed this definition, Actions, parameters and source references.</label>
-        <div className="flex gap-2"><Button disabled={busy || !enableReviewed} onClick={() => void mutate('enable', (key) => canonicalJobs.controlDefinition(kind, enabling, 'enable', key))}>Confirm enable</Button><Button disabled={busy} onClick={() => setEnabling(null)}>Cancel enable review</Button></div>
-      </section>}
+      {enabling && (
+        <section aria-label="Review before enabling" className={`${card} space-y-3`}>
+          <h3>Review {enabling.name} before enabling</h3>
+          <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+            {JSON.stringify(definitionOf(kind, enabling), null, 2)}
+          </pre>
+          <label>
+            <input
+              type="checkbox"
+              disabled={busy}
+              checked={enableReviewed}
+              onChange={(event) => setEnableReviewed(event.target.checked)}
+            />
+            I reviewed this definition, Actions, parameters and source references.
+          </label>
+          <div className="flex gap-2">
+            <Button
+              disabled={busy || !enableReviewed}
+              onClick={() =>
+                void mutate('enable', (key) =>
+                  canonicalJobs.controlDefinition(kind, enabling, 'enable', key),
+                )
+              }
+            >
+              Confirm enable
+            </Button>
+            <Button disabled={busy} onClick={() => setEnabling(null)}>
+              Cancel enable review
+            </Button>
+          </div>
+        </section>
+      )}
       {retiring && (
         <section aria-label="确认 retire" className={`${card} space-y-2`}>
           <p className="break-all">
@@ -397,14 +755,36 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           </div>
         </section>
       )}
-      {instantiating && <section aria-label="Instantiate Template" className={`${card} space-y-3`}>
-        <p>Create a new Job and any configured Scheduler/subscriptions from {instantiating.name}. The Job is not run immediately.</p>
-        <label><input type="checkbox" checked={activateTemplate} disabled={busy}
-          onChange={(e) => setActivateTemplate(e.target.checked)} />Enable Job and configured subscriptions</label>
-        <Button disabled={busy} onClick={() => void mutate('instantiate-template', (key) =>
-          canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate))}>Create from Template</Button>
-        <Button disabled={busy} onClick={() => setInstantiating(null)}>Cancel instantiation</Button>
-      </section>}
+      {instantiating && (
+        <section aria-label="Instantiate Template" className={`${card} space-y-3`}>
+          <p>
+            Create a new Job and any configured Scheduler/subscriptions from {instantiating.name}.
+            The Job is not run immediately.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={activateTemplate}
+              disabled={busy}
+              onChange={(e) => setActivateTemplate(e.target.checked)}
+            />
+            Enable Job and configured subscriptions
+          </label>
+          <Button
+            disabled={busy}
+            onClick={() =>
+              void mutate('instantiate-template', (key) =>
+                canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate),
+              )
+            }
+          >
+            Create from Template
+          </Button>
+          <Button disabled={busy} onClick={() => setInstantiating(null)}>
+            Cancel instantiation
+          </Button>
+        </section>
+      )}
       {!loading && !items.length && <p>暂无 canonical {labels[kind]}。</p>}
       <div className="grid min-w-0 gap-3 md:grid-cols-2">
         {items.map((item) => (
@@ -420,28 +800,103 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
               {item.state} · 定义版本 {revisionOf(item)} · 状态版本 {item.stateRevision}
             </p>
             <div className="flex flex-wrap gap-2">
-              {kind === 'job-templates' && <>
-                {item.state === 'draft' && <Button disabled={busy || !!editor} onClick={() =>
-                  void mutate('publish', (key) => canonicalJobs.controlDefinition(kind, item, 'publish', key))}>Publish {item.name}</Button>}
-                {item.state === 'published' && <Button disabled={busy || !!editor || !!instantiating} onClick={() => {
-                  setActivateTemplate(false); setInstantiating(item);
-                }}>Instantiate {item.name}</Button>}
-              </>}
-              {kind !== 'job-templates' && <>
-                {(item.state === 'draft' || item.state === 'disabled') && <Button disabled={busy || !!editor || !!enabling} onClick={() => { setEnableReviewed(false); setEnabling(item); }}>Enable {item.name}</Button>}
-                {item.state === 'enabled' && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('pause', (key) => canonicalJobs.controlDefinition(kind, item, 'pause', key))}>Pause {item.name}</Button>}
-                {item.state === 'paused' && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('resume', (key) => canonicalJobs.controlDefinition(kind, item, 'resume', key))}>Resume {item.name}</Button>}
-                {(item.state === 'enabled' || item.state === 'paused') && <Button disabled={busy || !!editor || !!enabling} onClick={() => void mutate('disable', (key) => canonicalJobs.controlDefinition(kind, item, 'disable', key))}>Disable {item.name}</Button>}
-              </>}
+              {kind === 'job-templates' && (
+                <>
+                  {item.state === 'draft' && (
+                    <Button
+                      disabled={busy || !!editor}
+                      onClick={() =>
+                        void mutate('publish', (key) =>
+                          canonicalJobs.controlDefinition(kind, item, 'publish', key),
+                        )
+                      }
+                    >
+                      Publish {item.name}
+                    </Button>
+                  )}
+                  {item.state === 'published' && (
+                    <Button
+                      disabled={busy || !!editor || !!instantiating}
+                      onClick={() => {
+                        setActivateTemplate(false);
+                        setInstantiating(item);
+                      }}
+                    >
+                      Instantiate {item.name}
+                    </Button>
+                  )}
+                </>
+              )}
+              {kind !== 'job-templates' && (
+                <>
+                  {(item.state === 'draft' || item.state === 'disabled') && (
+                    <Button
+                      disabled={busy || !!editor || !!enabling}
+                      onClick={() => {
+                        setEnableReviewed(false);
+                        setEnabling(item);
+                      }}
+                    >
+                      Enable {item.name}
+                    </Button>
+                  )}
+                  {item.state === 'enabled' && (
+                    <Button
+                      disabled={busy || !!editor || !!enabling}
+                      onClick={() =>
+                        void mutate('pause', (key) =>
+                          canonicalJobs.controlDefinition(kind, item, 'pause', key),
+                        )
+                      }
+                    >
+                      Pause {item.name}
+                    </Button>
+                  )}
+                  {item.state === 'paused' && (
+                    <Button
+                      disabled={busy || !!editor || !!enabling}
+                      onClick={() =>
+                        void mutate('resume', (key) =>
+                          canonicalJobs.controlDefinition(kind, item, 'resume', key),
+                        )
+                      }
+                    >
+                      Resume {item.name}
+                    </Button>
+                  )}
+                  {(item.state === 'enabled' || item.state === 'paused') && (
+                    <Button
+                      disabled={busy || !!editor || !!enabling}
+                      onClick={() =>
+                        void mutate('disable', (key) =>
+                          canonicalJobs.controlDefinition(kind, item, 'disable', key),
+                        )
+                      }
+                    >
+                      Disable {item.name}
+                    </Button>
+                  )}
+                </>
+              )}
               <Button
                 type="button"
                 aria-label={`编辑 ${item.name}`}
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling}
                 onClick={() => {
-                  setAdvancedEditing(false); setStructuredEdited(false); setConflict(false); const definition = definitionOf(kind, item);
+                  setAdvancedEditing(false);
+                  setStructuredEdited(false);
+                  setConflict(false);
+                  const definition = definitionOf(kind, item);
                   delete definition.name;
-                  const ids = (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? []; setCreatorRevisions(Object.fromEntries(sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]))); setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
+                  const ids =
+                    (definition.creatorSelector as { ids?: string[] } | undefined)?.ids ?? [];
+                  setCreatorRevisions(
+                    Object.fromEntries(
+                      sources.filter((s) => ids.includes(s.id)).map((s) => [s.id, s.revision]),
+                    ),
+                  );
+                  setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
                 }}
               >
                 编辑
@@ -656,16 +1111,24 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
           <p className="break-all">
             {run.runId} · {run.state} · 状态版本 {run.stateRevision}
           </p>
-          {!!run.deliveryRuntime && <details aria-label={`Delivery receipts ${run.runId}`}>
+          {!!run.deliveryRuntime && (
+            <details aria-label={`Delivery receipts ${run.runId}`}>
               <summary>Delivery Manager · runtime reservation receipts</summary>
               <pre>{JSON.stringify(run.deliveryRuntime, null, 2)}</pre>
-            </details>}
-          {Array.isArray(run.notifications) && run.notifications.length > 0 &&
+            </details>
+          )}
+          {Array.isArray(run.notifications) && run.notifications.length > 0 && (
             <details aria-label={`Notification receipts ${run.runId}`}>
               <summary>Notification Manager · original delivery receipts</summary>
-              <p>Only proven unsent pending notices may select a current target. Accepted and unknown notices keep the original identity.</p>
-              <pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(run.notifications, null, 2)}</pre>
-            </details>}
+              <p>
+                Only proven unsent pending notices may select a current target. Accepted and unknown
+                notices keep the original identity.
+              </p>
+              <pre className="whitespace-pre-wrap break-all text-xs">
+                {JSON.stringify(run.notifications, null, 2)}
+              </pre>
+            </details>
+          )}
           <div className="flex flex-wrap gap-2">
             {runOperations.map((operation) => (
               <Button

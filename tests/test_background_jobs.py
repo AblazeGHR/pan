@@ -559,32 +559,10 @@ def test_hidden_runner_claim_finishes_already_accepted_cancel(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["single", "broadcast"])
-def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
-    _session(tmp_path)
-    _session(tmp_path, "ses_other")
-    events = []
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
-    schedule = {"type": "interval", "intervalSeconds": 3600}
-    if kind == "single":
-        job = jobs.start_message("ses_target", "context", schedule)
-    else:
-        job = jobs.start_broadcast(["ses_target", "ses_other"], "context", schedule)
-    assert events[-1]["type"] == "job.created"
-    assert events[-1]["job"]["target"]["sessionId"] == "ses_target"
-    original = events[-1]["job"]
-    jobs.update_job_field(job["jobId"], {"target": {"sessionId": "ses_other"}})
-    assert events[-1]["job"]["target"]["sessionId"] == "ses_other"
-    assert original["target"]["sessionId"] == "ses_target", "freeze prior snapshots"
-    async def send(*args, **kwargs):
-        assert events[-1]["job"]["status"] == "running", "publish claim before delivery"
-        return {"status": "queued"}
-    monkeypatch.setattr(worker, "send_session", send)
-    asyncio.run(jobs.run_due_message_jobs(now=jobs.time.time() + 7200))
-    assert any(e["job"]["status"] == "running" for e in events)
-    assert events[-1]["job"]["status"] == "scheduled"
-    jobs.cancel(job["jobId"])
-    assert events[-1]["job"]["status"] == "cancelled"
-    assert all(isinstance(e["job"]["source"], dict) and "target" in e["job"] for e in events)
+def test_agent_message_job_registry_commits_publish_full_lifecycle(behavior_h, monkeypatch, kind):
+    from tests.test_job_committed_changes import test_committed_lifecycle_snapshots_and_rollback_never_publish
+    operation = 'session-message' if kind == 'single' else 'session-broadcast'
+    test_committed_lifecycle_snapshots_and_rollback_never_publish(behavior_h, monkeypatch, operation)
 
 
 def test_failed_job_commit_does_not_publish_live_state(monkeypatch, tmp_path):

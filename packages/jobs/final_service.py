@@ -12,6 +12,7 @@ import copy
 import json
 import os
 import re
+import threading
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
 from contextlib import contextmanager
@@ -190,6 +191,8 @@ class FinalService:
         self._dispatch_lock = asyncio.Lock()
         self.state_reader = None
         self.outbox_sender = None
+        self.on_committed_change = None
+        self._change_local = threading.local()
         self._outbox_lock = asyncio.Lock()
         self.owner = owner or OwnerFence(self.root.parent)
         if self.owner.root != self.root.parent:
@@ -219,8 +222,30 @@ class FinalService:
             with self.creators.connection(readonly=True) as db:
                 yield db
         else:
-            with self.owner.writer(canonical=True), self.creators.transaction() as db:
-                yield db
+            outer = getattr(self._change_local, "pending", None) is None
+            if outer:
+                self._change_local.pending = []
+            changes = self._change_local.pending
+            try:
+                with self.owner.writer(canonical=True), self.creators.transaction() as db:
+                    yield db
+                    if outer and changes:
+                        committed = copy.deepcopy(changes)
+                        self.creators.after_commit(lambda: self._publish_committed_changes(committed))
+            finally:
+                if outer:
+                    del self._change_local.pending
+
+    def _publish_committed_changes(self, changes):
+        # These immutable observations cannot execute or settle anything.
+        if self.on_committed_change is not None:
+            for change in changes:
+                try:
+                    self.on_committed_change(copy.deepcopy(change))
+                except Exception as exc:
+                    self.diagnostics.append({"at": now(), "code": "change_publication_failed",
+                                             "message": str(exc)})
+                    del self.diagnostics[:-100]
 
     @staticmethod
     def _get(db, kind, object_id):
@@ -229,9 +254,22 @@ class FinalService:
             raise KeyError(object_id)
         return json.loads(row[0])
 
-    @staticmethod
-    def _save(db, kind, object_id, value):
+    def _save(self, db, kind, object_id, value):
+        pending = getattr(self._change_local, "pending", None)
+        change = None
+        if pending is not None and self.on_committed_change is not None:
+            def projection(document):
+                result = {"kind": kind, "object": self._public(kind, document)}
+                if kind == "job":
+                    result["runs"] = list(copy.deepcopy(document.get("finalRuntime", {}).get("runs", {})).values())
+                return result
+            change = projection(value)
+            row = db.execute("SELECT document FROM final_documents WHERE kind=? AND id=?", (kind, object_id)).fetchone()
+            if row is not None and projection(json.loads(row[0])) == change:
+                change = None
         db.execute("INSERT OR REPLACE INTO final_documents VALUES(?,?,?)", (kind, object_id, fc.canonical_json(value)))
+        if change is not None:
+            pending.append(copy.deepcopy(change))
 
     @staticmethod
     def _all(db, kind):

@@ -1,3 +1,4 @@
+import { wsClient } from '@/services/ws';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { automationRequest, useAutomationAuth } from './automationStore';
 import { canonicalError, canonicalJobs } from '@/services/canonicalJobs';
@@ -6,7 +7,8 @@ import type { CreatorReferences, EventCreator, SchedulerProvider } from '@/types
 import type { AutomationSnapshot } from '@/types/automation';
 
 export async function canonicalCollection(kind: CanonicalKind): Promise<CanonicalObject[]> {
-  const items: CanonicalObject[] = [], seen = new Set<string>();
+  const items: CanonicalObject[] = [],
+    seen = new Set<string>();
   let cursor: string | null = null;
   do {
     const page = await canonicalJobs.list(kind, cursor);
@@ -20,29 +22,71 @@ export async function canonicalCollection(kind: CanonicalKind): Promise<Canonica
 
 export function useAutomationWorkspace() {
   const authorization = useAutomationAuth((s) => s.token || s.authenticated);
-  const [snapshot, setSnapshot] = useState<{ jobs: CanonicalObject[]; triggers: CanonicalObject[]; sources: EventCreator[]; references: Record<string, CreatorReferences>; providers: SchedulerProvider[] }>({ jobs: [], triggers: [], sources: [], references: {}, providers: [] });
-  const [error, setError] = useState(''), [loading, setLoading] = useState(false);
-  const [observations, setObservations] = useState<Pick<AutomationSnapshot, 'definitions' | 'diagnostics'>>({ definitions: [], diagnostics: [] });
+  const [snapshot, setSnapshot] = useState<{
+    jobs: CanonicalObject[];
+    triggers: CanonicalObject[];
+    sources: EventCreator[];
+    references: Record<string, CreatorReferences>;
+    providers: SchedulerProvider[];
+  }>({ jobs: [], triggers: [], sources: [], references: {}, providers: [] });
+  const [error, setError] = useState(''),
+    [loading, setLoading] = useState(false);
+  const [observations, setObservations] = useState<
+    Pick<AutomationSnapshot, 'definitions' | 'diagnostics'>
+  >({ definitions: [], diagnostics: [] });
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     const version = ++generation.current;
-    if (!authorization) { setSnapshot({ jobs: [], triggers: [], sources: [], references: {}, providers: [] }); setObservations({ definitions: [], diagnostics: [] }); setLoading(false); return; }
-    setLoading(true); setError('');
+    if (!authorization) {
+      setSnapshot({ jobs: [], triggers: [], sources: [], references: {}, providers: [] });
+      setObservations({ definitions: [], diagnostics: [] });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
     try {
       const [jobs, creators, triggers, providers] = await Promise.all([
-        canonicalCollection('jobs'), canonicalCollection('event-creators'), canonicalCollection('triggers'), canonicalJobs.creatorProviders(),
+        canonicalCollection('jobs'),
+        canonicalCollection('event-creators'),
+        canonicalCollection('triggers'),
+        canonicalJobs.creatorProviders(),
       ]);
       const sources = creators.filter((s) => {
         const provider = s.providerRef as { type?: string; id?: string } | undefined;
         return s.state !== 'retired' && provider?.type === 'time' && provider.id === 'scheduler';
       }) as EventCreator[];
-      const references = Object.fromEntries(await Promise.all(sources.map(async (s) => [s.id, await canonicalJobs.creatorReferences(s.id)] as const)));
-      if (version === generation.current) setSnapshot({ jobs, triggers, sources, references, providers: providers.items });
+      const references = Object.fromEntries(
+        await Promise.all(
+          sources.map(async (s) => [s.id, await canonicalJobs.creatorReferences(s.id)] as const),
+        ),
+      );
+      if (version === generation.current)
+        setSnapshot({ jobs, triggers, sources, references, providers: providers.items });
       const observed = await automationRequest<AutomationSnapshot>('automation');
-      if (version === generation.current) setObservations({ definitions: observed.definitions ?? [], diagnostics: observed.diagnostics ?? [] });
-    } catch (e) { if (version === generation.current) setError(canonicalError(e)); }
-    finally { if (version === generation.current) setLoading(false); }
+      if (version === generation.current)
+        setObservations({
+          definitions: observed.definitions ?? [],
+          diagnostics: observed.diagnostics ?? [],
+        });
+    } catch (e) {
+      if (version === generation.current) setError(canonicalError(e));
+    } finally {
+      if (version === generation.current) setLoading(false);
+    }
   }, [authorization]);
-  useEffect(() => { void refresh(); return () => { generation.current++; }; }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    return () => {
+      generation.current++;
+    };
+  }, [refresh]);
+  useEffect(
+    () =>
+      wsClient.on('canonical.changed', () => {
+        if (authorization) void refresh();
+      }),
+    [authorization, refresh],
+  );
   return { ...snapshot, ...observations, error, loading, refresh };
 }

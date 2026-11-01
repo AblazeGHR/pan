@@ -247,16 +247,30 @@ class CreatorStore:
         Borrowing is thread-local and scoped; nested provider/store calls use
         the caller's transaction without committing an intermediate phase.
         """
+        callbacks = None
         with self.connection() as db:
             if getattr(self._joined, "db", None) is not None:
                 yield db
                 return
             db.execute("BEGIN IMMEDIATE")
             self._joined.db = db
+            self._joined.after_commit = []
             try:
                 yield db
+                callbacks = self._joined.after_commit
             finally:
                 del self._joined.db
+                del self._joined.after_commit
+        # The outer connection context has committed, including any joined
+        # canonical composition. Rollback exits before this notification point.
+        for callback in callbacks or []:
+            callback()
+
+    def after_commit(self, callback):
+        callbacks = getattr(self._joined, "after_commit", None)
+        if callbacks is None:
+            raise RuntimeError("Commit observation requires an owned transaction")
+        callbacks.append(callback)
 
     @staticmethod
     def _read(db, creator_id):

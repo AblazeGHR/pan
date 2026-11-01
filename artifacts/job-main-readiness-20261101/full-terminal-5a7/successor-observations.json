@@ -1834,5 +1834,17 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/browser-host-followthrough/browser-structured-dst-green.xml"
     ]
+  },
+  "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[single]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-change-successors/lifecycle-complete-green.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-change-successors/lifecycle-complete-green.xml"
+    ]
   }
 }

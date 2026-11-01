@@ -1,0 +1,10 @@
+[
+  {
+    "name": "browser-host",
+    "exitCode": 0
+  },
+  {
+    "name": "notification-ws",
+    "exitCode": 0
+  }
+]

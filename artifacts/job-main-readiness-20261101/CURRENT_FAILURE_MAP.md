@@ -375,3 +375,7 @@ f96e complete affected result72pass + JobsAPI43pass11fail/sourceDrift[] preserve
 ## Production browser and optional explicit DST policy
 
 Four original browser identities now pass. Missing owned-session fixture seed and generic Template/native input labels corrected without assertion weakening. Actual UI inability to choose explicit DST policy repaired through existing rule field, keeping default absent. UI38pass/build88assets/productionstructured2pass; management+nativeTemplate2pass retained separately. Shared notification fixture uses original PanServer after exact Proactor10054 teardown evidence. See browser-host-followthrough/README.md. Map260/263; two real lifecycle broadcast original reds plus1existingplatformskip remain. Final exactSHA CI outstanding.
+
+## Canonical lifecycle real-time capability closure
+
+Two remaining original single/broadcast lifecycle identities now have post-commit/running-before-real-send/cold-safe snapshot/cancel successors, with actual HTTP/WS and two-client production Chromium refresh/logout evidence. Outer Creator transaction rollback/commit and observererror diagnostic tested. Existing SQLite and native WS paths only; content-free refresh refetches permission-filtered current API. Details lifecycle-change-successors/README.md. Map262/263; sole remaining original existing platform skip is not counted pass. Full final-SHA CI still required and may expose composition regressions. Previous46d6 fullbrowser15+notification28pass/sourceDrift[] retained.

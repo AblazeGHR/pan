@@ -1,3 +1,4 @@
+import { wsClient } from '@/services/ws';
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -65,7 +66,8 @@ beforeEach(() => {
       if (url === '/api/job-maintenance/records') return response({ items: [], message: '' });
       if (failure) return response({ error: { code: 'authorization_denied' } }, failure);
       if (url.includes('operations')) return response(receipt());
-      if (url === '/api/jobs/actions') return response({ items: [], references: {}, nextCursor: null });
+      if (url === '/api/jobs/actions')
+        return response({ items: [], references: {}, nextCursor: null });
       if (url.includes('/runs?'))
         return response({
           items: [
@@ -105,16 +107,23 @@ it('blocks repeat Template instantiation after a lost receipt and queries the or
     click('JobTemplates');
     await screen.findByRole('button', { name: 'Instantiate Example' });
     click('Instantiate Example');
-    expect((screen.getByLabelText('Enable Job and configured subscriptions') as HTMLInputElement).checked).toBe(false);
+    expect(
+      (screen.getByLabelText('Enable Job and configured subscriptions') as HTMLInputElement)
+        .checked,
+    ).toBe(false);
     networkFailure = true;
     click('Create from Template');
     await screen.findByText('请求结果未确认，请按原身份查询。');
     expect(writes).toHaveLength(1);
     expect(writes[0]!.body).toMatchObject({ activate: false });
-    expect((screen.getByRole('button', { name: 'Create from Template' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Create from Template' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     networkFailure = false;
     click('查询原操作');
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Instantiate Template' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Instantiate Template' })).toBeNull(),
+    );
     expect(writes).toHaveLength(1);
   } finally {
     item.state = 'draft';
@@ -258,9 +267,9 @@ it('shows accepted as pending effect and queries by operationId', async () => {
   );
   click('查询原操作');
   await screen.findByText('操作状态：completed');
-  expect(
-    vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/operations/op%2Fone'),
-  ).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/operations/op%2Fone')).toBe(
+    true,
+  );
 });
 it('renders loading and list errors with a retry', async () => {
   let resolve!: (value: Response) => void;
@@ -269,7 +278,9 @@ it('renders loading and list errors with a retry', async () => {
   vi.mocked(fetch).mockImplementation((url, init) => {
     if (!delayed && String(url).startsWith('/api/jobs?')) {
       delayed = true;
-      return new Promise<Response>((done) => { resolve = done; });
+      return new Promise<Response>((done) => {
+        resolve = done;
+      });
     }
     return original(url, init);
   });
@@ -284,9 +295,17 @@ it('keeps canonical navigation and performs no legacy transport requests', async
   host();
   await screen.findByText('Example');
   expect(screen.getByRole('link', { name: 'Automation' }).getAttribute('href')).toBe('/automation');
-  expect(vi.mocked(fetch).mock.calls.every(([url]) => url === '/api/job-maintenance/records' || /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(String(url)))).toBe(
-    true,
-  );
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.every(
+        ([url]) =>
+          url === '/api/job-maintenance/records' ||
+          /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(
+            String(url),
+          ),
+      ),
+  ).toBe(true);
 });
 it('clears canonical data on logout and blocks unauthenticated reads', async () => {
   host();
@@ -301,9 +320,29 @@ it('allows an omitted name only for new Jobs and sends the convenience input unc
   await screen.findByRole('heading', { name: 'Canonical Jobs', level: 2 });
   click('创建 Jobs');
   expect((screen.getByLabelText('名称') as HTMLInputElement).required).toBe(false);
-  fireEvent.change(screen.getByLabelText('定义 JSON（名称单独填写）'), { target: { value: '{"description":"unnamed"}' } });
+  fireEvent.change(screen.getByLabelText('定义 JSON（名称单独填写）'), {
+    target: { value: '{"description":"unnamed"}' },
+  });
   click('保存定义');
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.body.definition).toEqual({ description: 'unnamed' });
   expect(writes[0]!.body).toMatchObject({ expectedRevision: 0 });
+});
+
+it('refreshes canonical data from committed change signals and unsubscribes on unmount', async () => {
+  let changed: (() => void) | undefined;
+  const unsubscribe = vi.fn();
+  vi.spyOn(wsClient, 'on').mockImplementation((type, handler) => {
+    if (type === 'canonical.changed') changed = () => handler({ type });
+    return unsubscribe;
+  });
+  const view = host();
+  await screen.findByText('Example');
+  expect(changed).toBeDefined();
+  const before = vi.mocked(fetch).mock.calls.length;
+  changed!();
+  await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(before));
+  expect(writes).toHaveLength(0);
+  view.unmount();
+  expect(unsubscribe).toHaveBeenCalled();
 });

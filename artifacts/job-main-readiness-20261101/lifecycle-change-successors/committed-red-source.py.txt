@@ -1,0 +1,39 @@
+"""Post-commit canonical metadata/runtime observations, never execution authority."""
+import copy
+import pytest
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h  # noqa: F401
+from tests.test_retirement_session_runtime import admitted, edit
+from packages.jobs.final_service import definition
+from tests.test_job_final_http_service import control
+
+
+@pytest.mark.parametrize('op', ['session-message', 'session-broadcast'])
+def test_committed_lifecycle_snapshots_and_rollback_never_publish(h, op):
+    observations = []
+    h.service.on_committed_change = observations.append
+    job, rid, _ = admitted(h, op)
+    assert observations, 'canonical creation/admission must publish after commit'
+    original = copy.deepcopy(observations)
+    target = ['ses_b'] if op == 'session-broadcast' else 'ses_b'
+    job = edit(h, job, target, 'changed body', 'new-target')
+    assert observations[:len(original)] == original
+    assert any(row['object']['arguments']['delivery']['target'] == target for row in observations)
+    before = copy.deepcopy(observations)
+    with pytest.raises(RuntimeError, match='rollback'):
+        with h.service.transaction() as db:
+            raw = h.service._get(db, 'job', job['id'])
+            raw['canonical']['name'] = 'must not publish'
+            h.service._save(db, 'job', job['id'], raw)
+            raise RuntimeError('rollback')
+    assert observations == before
+    assert h.client.get('/api/jobs/' + job['id']).json()['name'] != 'must not publish'
+    import asyncio
+    asyncio.run(h.service.dispatch_once())
+    states = [run['state'] for row in observations for run in row.get('runs', []) if run['runId'] == rid]
+    assert 'running' in states and 'completed' in states
+    completed = copy.deepcopy(observations)
+    result = control(h, 'jobs', job, 'retire', 'retire')
+    assert result.status_code == 200, result.text
+    assert observations[-1]['object']['state'] == 'retired'
+    assert observations[:len(completed)] == completed

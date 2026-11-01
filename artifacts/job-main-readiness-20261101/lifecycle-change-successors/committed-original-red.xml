@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="3.379" timestamp="2026-11-02T06:11:09.229262+08:00" hostname="ablaze"><testcase classname="tests.test_job_committed_changes" name="test_committed_lifecycle_snapshots_and_rollback_never_publish[session-message]" time="1.410"><failure message="AssertionError: canonical creation/admission must publish after commit&#10;assert []">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000018C2CA530E0&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6787/test_committed_lifecycle_snaps0'))
+op = 'session-message'
+
+    @pytest.mark.parametrize('op', ['session-message', 'session-broadcast'])
+    def test_committed_lifecycle_snapshots_and_rollback_never_publish(h, op):
+        observations = []
+        h.service.on_committed_change = observations.append
+        job, rid, _ = admitted(h, op)
+&gt;       assert observations, 'canonical creation/admission must publish after commit'
+E       AssertionError: canonical creation/admission must publish after commit
+E       assert []
+
+tests\test_job_committed_changes.py:16: AssertionError</failure></testcase><testcase classname="tests.test_job_committed_changes" name="test_committed_lifecycle_snapshots_and_rollback_never_publish[session-broadcast]" time="1.506"><failure message="AssertionError: canonical creation/admission must publish after commit&#10;assert []">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000018C2CD68D70&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6787/test_committed_lifecycle_snaps1'))
+op = 'session-broadcast'
+
+    @pytest.mark.parametrize('op', ['session-message', 'session-broadcast'])
+    def test_committed_lifecycle_snapshots_and_rollback_never_publish(h, op):
+        observations = []
+        h.service.on_committed_change = observations.append
+        job, rid, _ = admitted(h, op)
+&gt;       assert observations, 'canonical creation/admission must publish after commit'
+E       AssertionError: canonical creation/admission must publish after commit
+E       assert []
+
+tests\test_job_committed_changes.py:16: AssertionError</failure></testcase></testsuite></testsuites>
