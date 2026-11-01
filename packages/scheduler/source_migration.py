@@ -72,6 +72,15 @@ class SourceMigration:
             db.execute("INSERT OR IGNORE INTO final_authorities VALUES(?,?,?)", ("event_creator", cid, value))
         return result
 
+    def adopt_json_pending(self, *, occurrence, import_key, actor):
+        """Offline stopped-writer adapter; v1 scheduler adoption stays unchanged."""
+        user(self.service, actor, "create")
+        user(self.service, actor, "lifecycle")
+        return self.port.adopt_json_occurrence(
+            occurrence=occurrence, import_key=import_key,
+            actor_digest=fc.digest(actor),
+        )
+
     def status(self, creator_id, *, actor):
         user(self.service, actor, "read")
         return self.port.status(creator_id)

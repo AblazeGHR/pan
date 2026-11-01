@@ -43,10 +43,160 @@ class PendingPublicationAdoption:
             fail("revision_conflict", "Canonical owner required for pending adoption")
         if (self.events.path.resolve().parent != self.creators.root
                 or self.events.owner_fence is not owner
-                or self.legacy_events.path.resolve().parent.parent != owner.root):
+                or (self.legacy_events is not None
+                    and self.legacy_events.path.resolve().parent.parent != owner.root)):
             fail("reference_conflict", "Pending adoption stores belong to another profile or owner")
         with owner.writer(canonical=True):
             yield
+
+    @staticmethod
+    def _json_occurrence_parts(occurrence):
+        """Validate an offline stopped-writer occurrence without v1 envelope reuse."""
+        if not isinstance(occurrence, dict) or set(occurrence) != {
+                "source", "note", "writerStop", "classification"}:
+            fail("invalid_schema", "JSON pending occurrence shape is incomplete")
+        source, note, stopped = occurrence["source"], occurrence["note"], occurrence["writerStop"]
+        if (not isinstance(source, dict) or set(source) != {
+                "profileRoot", "snapshot", "snapshotDigest", "noteDigest"}
+                or not isinstance(source["snapshot"], dict)):
+            fail("invalid_schema", "JSON pending source snapshot is incomplete")
+        snapshot = source["snapshot"]
+        required_snapshot = {"jobId", "taskId", "entryId", "dispatchKey", "fireAt", "runCount"}
+        if set(snapshot) != required_snapshot or not all(isinstance(snapshot[key], str)
+                and snapshot[key] for key in ("jobId", "taskId", "entryId", "dispatchKey", "fireAt")):
+            fail("invalid_schema", "JSON pending source identity is incomplete")
+        if type(snapshot["runCount"]) is not int or snapshot["runCount"] < 0:
+            fail("invalid_schema", "JSON pending runCount is invalid")
+        if not isinstance(note, dict) or set(note) != {"entryId", "fireAt", "dispatchKey", "text", "error"}:
+            fail("invalid_schema", "JSON pending note fields are incomplete")
+        if (note["entryId"] != snapshot["entryId"] or note["fireAt"] != snapshot["fireAt"]
+                or note["dispatchKey"] != snapshot["dispatchKey"] or not isinstance(note["text"], str)):
+            fail("reference_conflict", "JSON pending note does not match source snapshot")
+        from packages.jobs import final_contracts as fc
+        if (source["snapshotDigest"] != fc.digest(snapshot)
+                or source["noteDigest"] != fc.digest(note)):
+            fail("reference_conflict", "JSON pending source or note digest mismatch")
+        if (not isinstance(stopped, dict) or set(stopped) != {
+                "proofKind", "pid", "birth", "treeDigest", "treeEnded", "sourceDigest"}
+                or stopped["proofKind"] != "owned-process-tree-v1"
+                or type(stopped["pid"]) is not int or stopped["pid"] <= 0
+                or not isinstance(stopped["birth"], str) or not stopped["birth"]
+                or stopped["treeEnded"] is not True
+                or stopped["sourceDigest"] != source["snapshotDigest"]
+                or stopped["treeDigest"] != fc.digest({"pid": stopped["pid"],
+                    "birth": stopped["birth"], "treeEnded": True})):
+            fail("revision_conflict", "Stopped legacy writer proof is not source-bound")
+        if occurrence["classification"] not in {"never-attempted", "known-no-send", "accepted", "unknown", "partial"}:
+            fail("invalid_schema", "Unknown JSON pending classification")
+        return source, snapshot, note, stopped
+
+    def adopt_json_occurrence(self, *, occurrence, import_key, actor_digest):
+        """Reserve a first canonical occurrence from an offline stopped source.
+
+        This is additive to the scheduler.time.v1 adoption path. It creates no
+        legacy Event and never treats a JSON note as an old committed envelope.
+        """
+        from packages.scheduler.providers import time_definition, timestamp
+        source, snapshot, note, stopped = self._json_occurrence_parts(occurrence)
+        if occurrence["classification"] in {"accepted", "unknown", "partial"}:
+            return {"state": "preserved_only", "executable": False,
+                    "reason": "accepted/unknown/partial legacy effect is query/preservation only",
+                    "originalDispatchKey": snapshot["dispatchKey"]}
+        source_key = f"{snapshot['jobId']}:{snapshot['entryId']}"
+        with self.owned():
+            if self.creators.root.parent.resolve() != __import__("pathlib").Path(source["profileRoot"]).resolve():
+                fail("reference_conflict", "JSON pending source profile differs from canonical owner")
+            with self.creators.transaction() as db:
+                existing = db.execute("SELECT importKey,creatorId FROM legacy_scheduler_adoptions WHERE sourceId=?",
+                                      (source_key,)).fetchone()
+                if existing and existing[0] != import_key:
+                    fail("reference_conflict", "JSON pending source already has another owner")
+                creator_id = "creator_" + fc.digest({"sourceKey": source_key,
+                    "dispatchKey": snapshot["dispatchKey"], "profile": self.creators.profile_id})[:24]
+                item = self.creators._read(db, creator_id)
+                if item:
+                    adoption = item.get("pendingAdoption") or {}
+                    origin = adoption.get("origin") or {}
+                    if (adoption.get("sourceDigest") != source["snapshotDigest"]
+                            or origin.get("noteDigest") != source["noteDigest"]):
+                        fail("idempotency_conflict", "JSON pending source digest changed")
+                    if adoption.get("state") == "adopted_pending" and adoption.get("phase") != "adopted":
+                        self._adopt_event(item)
+                        with self.creators.transaction() as retry_db:
+                            retry_item = self.creators._read_db(retry_db, creator_id)
+                            retry_item["pendingAdoption"]["phase"] = "adopted"
+                            self.creators._write(retry_db, retry_item)
+                    return {"creatorId": creator_id, "eventId": adoption.get("identity", {}).get("eventId"),
+                            "state": adoption.get("state"), "duplicate": True,
+                            "originalDispatchKey": snapshot["dispatchKey"]}
+                definition = time_definition(
+                    "Recovered pending " + snapshot["dispatchKey"],
+                    {"rules": [{"ruleId": "legacy-pending", "type": "once", "at": snapshot["fireAt"]}],
+                     "misfirePolicy": "fire_now", "graceSeconds": "60", "pausePolicy": "advance"},
+                    event_type="scheduler.pending-occurrence.v1")
+                item = self.creators.create(definition, request_key="json-pending:" + source_key,
+                                            creator_id=creator_id, state="disabled", at=snapshot["fireAt"])
+                identity = {"sourceKey": source_key, "dispatchKey": snapshot["dispatchKey"],
+                            "entryId": snapshot["entryId"], "firstCreated": True}
+                if occurrence["classification"] == "known-no-send":
+                    item["pendingAdoption"] = {"recordType": "json_pending_occurrence", "version": 1,
+                        "identity": identity, "sourceDigest": source["snapshotDigest"],
+                        "origin": {"importKey": import_key, "profileRoot": source["profileRoot"],
+                                   "sourceDigest": source["snapshotDigest"],
+                                   "noteDigest": source["noteDigest"]},
+                        "note": copy.deepcopy(note), "writerStop": copy.deepcopy(stopped),
+                        "state": "preserved_only", "execution": "preserved_only",
+                        "admissionAllowed": False, "publicationSettled": False}
+                    self.creators._write(db, item)
+                    db.execute("INSERT INTO legacy_scheduler_adoptions VALUES(?,?,?)",
+                               (source_key, import_key, creator_id))
+                    return {"creatorId": creator_id, "state": "preserved_only", "duplicate": False,
+                            "originalDispatchKey": snapshot["dispatchKey"]}
+                event_id = "evt_pending_" + fc.digest({"sourceKey": source_key,
+                    "dispatchKey": snapshot["dispatchKey"], "digest": source["snapshotDigest"]})[:48]
+                emitted = timestamp(snapshot["fireAt"])
+                envelope = {"schemaVersion": 2, "eventId": event_id,
+                    "eventType": "scheduler.pending-occurrence.v1", "eventSchemaRevision": 1,
+                    "creatorId": creator_id, "creatorRevision": item["revision"],
+                    "occurrenceKey": "legacy-pending:" + snapshot["dispatchKey"],
+                    "occurredAt": emitted, "emittedAt": emitted,
+                    "payload": {"originalDispatchKey": snapshot["dispatchKey"],
+                                "entryId": snapshot["entryId"], "fireAt": snapshot["fireAt"],
+                                "text": note["text"]}}
+                fc.validate_event_publish(envelope)
+                drive = {"driveId": "drive_pending_" + event_id[12:], "eventId": event_id,
+                         "driveSeq": 1, "occurrenceKey": envelope["occurrenceKey"],
+                         "actualDriveAt": emitted, "scheduledAt": snapshot["fireAt"],
+                         "reason": "legacy-pending-first-creation", "ruleId": "legacy-pending",
+                         "outcome": "reserved", "originalDispatchKey": snapshot["dispatchKey"]}
+                item["drives"] = [drive]
+                item["pendingPublication"] = {"drive": drive, "envelope": envelope,
+                    "ruleId": "legacy-pending", "nextOccurrence": None,
+                    "rule": {"ruleId": "legacy-pending", "type": "once", "at": snapshot["fireAt"]},
+                    "fence": {"revision": item["revision"], "epoch": item["ownerEpoch"],
+                              "generation": item["providerGeneration"], "driveId": drive["driveId"]}}
+                item["pendingAdoption"] = {"recordType": "json_pending_occurrence", "version": 1,
+                    "identity": {**identity, "eventId": event_id},
+                    "sourceDigest": source["snapshotDigest"],
+                    "origin": {"importKey": import_key, "profileRoot": source["profileRoot"],
+                               "sourceDigest": source["snapshotDigest"],
+                               "noteDigest": source["noteDigest"]},
+                    "note": copy.deepcopy(note),
+                    "writerStop": copy.deepcopy(stopped), "envelope": envelope,
+                    "state": "adopted_pending", "phase": "prepared", "admissionAllowed": True,
+                    "execution": "not_requested", "publicationSettled": False,
+                    "cursorAdvanced": False, "legacyEvidence": {"state": "absent", "eventId": event_id}}
+                self.creators._write(db, item)
+                db.execute("INSERT INTO legacy_scheduler_adoptions VALUES(?,?,?)",
+                           (source_key, import_key, creator_id))
+            self._adopt_event(item)
+            with self.creators.transaction() as db:
+                item = self.creators._read_db(db, creator_id)
+                item["pendingAdoption"]["phase"] = "adopted"
+                self.creators._write(db, item)
+            return {"creatorId": creator_id, "eventId": event_id, "state": "adopted_pending",
+                    "duplicate": False, "originalDispatchKey": snapshot["dispatchKey"],
+                    "firstCreated": True}
 
     def legacy_evidence(self, event_id):
         """One read snapshot, including real commit/dispatch/pin evidence."""
