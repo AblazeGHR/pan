@@ -9,6 +9,8 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from tests.test_job_automatic_recovery import env  # noqa: F401
+from tests.test_job_process_logs import live as canonical_live  # noqa: F401
 
 from packages.core import background_jobs as jobs
 from packages.core import session as sess
@@ -35,46 +37,21 @@ def _session(tmp_path, sid="ses_target"):
     return s
 
 
-def test_accepted_cancel_wins_runner_exit_race(monkeypatch, tmp_path):
-    _session(tmp_path)
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
-    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
-                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
-    monkeypatch.setattr(jobs, "_owns_process", lambda fact: Mock(pid=fact["pid"]))
-    def killed(proc):
-        assert jobs.get(job["jobId"])["cancelRequestedAt"]
-        jobs.runner_update(job["jobId"], status="failed", exitCode=15)
-    monkeypatch.setattr(jobs, "_kill_tree", killed)
-    result = jobs.cancel(job["jobId"])
-    assert result["status"] == "cancelled" and result["exitCode"] is None
-    assert result["terminalEventId"] == job["jobId"] + ":terminal"
+def test_accepted_cancel_wins_runner_exit_race(tmp_path):
+    _cancel_original_before_effect(tmp_path, claimed=True, cold=False)
 
 
-def test_runner_finishes_accepted_cancel_if_canceller_disappears(monkeypatch, tmp_path):
-    _session(tmp_path)
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
-    jobs._update(job["jobId"], {"status": "running", "cancelRequestedAt": 1})
-    result = jobs.runner_update(job["jobId"], status="completed", exitCode=0)
-    assert result["status"] == "cancelled" and result["exitCode"] is None
+def test_runner_finishes_accepted_cancel_if_canceller_disappears(tmp_path):
+    _cancel_original_before_effect(tmp_path, claimed=True, cold=True)
 
 
-def test_cancel_survives_runner_disappearing_during_tree_lookup(monkeypatch, tmp_path):
-    import psutil
-
-    _session(tmp_path)
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", ["owned-command"], str(tmp_path), name="Validate background jobs")
-    jobs._update(job["jobId"], {"status": "running", "pid": 123, "processCreatedAt": 1,
-                              "runnerPid": 456, "runnerProcessCreatedAt": 1})
-    task, runner = Mock(pid=123), Mock(pid=456)
-    task.children.return_value = []
-    runner.children.side_effect = psutil.NoSuchProcess(456)
-    monkeypatch.setattr(jobs, "_owns_process", lambda fact: task if fact["pid"] == 123 else runner)
-    result = jobs.cancel(job["jobId"])
-    assert result["status"] == "cancelled" and result["exitCode"] is None
-    task.kill.assert_called_once_with()
+def test_cancel_survives_runner_disappearing_during_tree_lookup(canonical_live, monkeypatch):
+    from tests.test_job_process_logs import test_failed_and_cancelled_real_output_survives_and_no_rerun
+    # The retained native owner replaces the old runner/PID tree walk. The
+    # canonical cancel must work without that retired, racy lookup boundary.
+    monkeypatch.setattr(jobs, '_owns_process', lambda *a, **k: pytest.fail('legacy PID lookup'))
+    monkeypatch.setattr(jobs, '_kill_tree', lambda *a, **k: pytest.fail('legacy tree walk'))
+    test_failed_and_cancelled_real_output_survives_and_no_rerun(canonical_live, 0)
 
 
 def test_tree_cleanup_continues_after_one_descendant_disappears():
@@ -110,9 +87,21 @@ def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("argv,cwd", [([], "x"), (["python"], ""), (["python"], "missing")])
 def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):
-    _session(tmp_path)
-    with pytest.raises(ValueError):
-        jobs.start("ses_target", argv, cwd, name="Validate background jobs")
+    from packages.actions.typed_executor import TypedExecutor
+    from packages.jobs.final_contracts import ContractError
+    calls = []
+    class ForbiddenOwner:
+        def spawn(self, *args, **kwargs):
+            calls.append((args, kwargs))
+            pytest.fail('invalid argv/cwd must never reach the native owner')
+    receipts = {}
+    executor = TypedExecutor(process_owner=ForbiddenOwner(), receipt_store=receipts)
+    key = {'runId': 'original', 'stepId': 'process', 'targetId': 'process', 'operationOrdinal': 0}
+    with pytest.raises(ContractError) as caught:
+        asyncio.run(executor._process(key, {'operation': 'process',
+            'arguments': {'argv': argv, 'cwd': cwd}}))
+    assert caught.value.code == 'invalid_schema' and caught.value.path in {'argv', 'cwd'}
+    assert calls == [] and receipts == {}
 
 
 def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):
@@ -343,37 +332,63 @@ def test_reconcile_running_orphan_becomes_failed_without_kill(monkeypatch, tmp_p
     assert "orphaned" in result["error"]
 
 
-def test_retry_rejects_running_job(tmp_path):
-    _session(tmp_path)
-    jobs._save({"jobId": "job_running", "targetSessionId": "ses_target", "status": "running",
-                "argv": ["python"], "cwd": str(tmp_path), "createdAt": 1})
-    with pytest.raises(ValueError, match="cannot be retried"):
-        jobs.retry("job_running")
+def test_retry_rejects_running_job(env):
+    import copy
+    from tests.test_job_automatic_recovery import job_definition, create, drive_until
+    h = env
+    gate = h.tmp / 'release-retry-negative'
+    cfg = job_definition(h, {'automatic': False}, code=(
+        "import time;from pathlib import Path\n"
+        f"while not Path({str(gate)!r}).exists(): time.sleep(.02)"))
+    jid, rid = create(h, cfg)
+    try:
+        asyncio.run(h.service.dispatch_once())
+        before = copy.deepcopy(h.service.final.store.get(jid))
+        state = before['finalRuntime']
+        assert state['runs'][rid]['state'] == 'running' and len(state['attempts']) == 1
+        response = h.client.post('/api/job-runs/' + rid + '/operations', json={'operation': 'retry',
+            'expectedStateRevision': state['runs'][rid]['stateRevision'], 'requestKey': 'running-retry'})
+        assert response.status_code == 409 and response.json()['error']['code'] == 'not_retryable'
+        assert h.service.final.store.get(jid) == before
+    finally:
+        gate.write_text('release')
+        asyncio.run(drive_until(h, jid, rid, 'completed'))
 
 
-def test_retry_inherits_creator_and_target(monkeypatch, tmp_path):
-    _session(tmp_path)
-    jobs._save({
-        "jobId": "job_finished", "targetSessionId": "ses_target",
-        "creatorSessionId": "ses_creator", "status": "failed",
-        "argv": ["python", "job.py"], "cwd": str(tmp_path), "createdAt": 1,
-    })
-    calls = []
-
-    def fake_start(target, argv, cwd, *, name, label=None, creator_session_id=None, hide_window=True):
-        assert name == jobs.get("job_finished")["name"]
-        assert hide_window is True
-        calls.append((target, argv, cwd, label, creator_session_id))
-        retry = {"jobId": "job_retry", "targetSessionId": target,
-                 "creatorSessionId": creator_session_id, "status": "running"}
-        jobs._save(retry)
-        return retry
-
-    monkeypatch.setattr(jobs, "start", fake_start)
-    result = jobs.retry("job_finished")
-    assert result["retryOf"] == "job_finished"
-    assert calls == [("ses_target", ["python", "job.py"], str(tmp_path),
-                      None, "ses_creator")]
+def test_retry_inherits_creator_and_target(env):
+    import copy
+    from tests.test_job_automatic_recovery import job_definition, create, drive_until
+    h = env
+    target = _session(h.tmp)
+    sess.save(target)
+    grants = h.auth._default_permissions()
+    grants['job'].update({k: True for k in grants['job']})
+    grants['action'].update({k: True for k in grants['action']})
+    h.auth.change_permissions(grants, 0)
+    creator = {'type': 'agent', 'id': 'ses_creator', 'revision': 1}
+    counter = h.tmp / 'retry-counter'
+    code = ("from pathlib import Path; p=Path(" + repr(str(counter)) + "); "
+        "n=int(p.read_text()) if p.exists() else 0;p.write_text(str(n+1));raise SystemExit(7 if n==0 else 0)")
+    cfg = job_definition(h, {'automatic': False}, code=code)
+    cfg['notification'] = {'on': ['failed', 'completed'], 'recipients': [
+        {'recipientId': 'target', 'channelId': 'session', 'targetRef': target.id}]}
+    jid, rid = create(h, cfg, actor=creator)
+    asyncio.run(drive_until(h, jid, rid, 'failed'))
+    before = h.service.final.get(jid)
+    frozen = copy.deepcopy(h.service.final.store.get(jid)['finalRuntime']['plans'][rid]['frozen'])
+    response = h.client.post('/api/job-runs/' + rid + '/operations', json={'operation': 'retry',
+        'expectedStateRevision': before['runs'][rid]['stateRevision'], 'requestKey': 'original-retry'})
+    assert response.status_code == 202, response.text
+    asyncio.run(drive_until(h, jid, rid, 'completed'))
+    after = h.service.final.get(jid)
+    assert set(after['runs']) == {rid} and len(after['attempts']) == len(after['effects']) == 2
+    assert after['effects'][0]['effectKey'] == after['effects'][1]['effectKey']
+    assert after['effects'][0]['attemptId'] != after['effects'][1]['attemptId']
+    assert counter.read_text() == '2'
+    assert h.service.final.store.get(jid)['finalRuntime']['plans'][rid]['frozen'] == frozen
+    assert frozen['authority'] == creator
+    rows = [r for r in h.service.final.history(jid)['outbox'] if r['channel'] == 'session']
+    assert len(rows) == 2 and all(r['targetRef'] == target.id and r['summary']['creatorSessionId'] == 'ses_creator' for r in rows)
 
 
 def test_concurrent_read_modify_write_preserves_updates(tmp_path):
@@ -720,33 +735,30 @@ def test_reconcile_preserves_concurrent_runner_terminal(monkeypatch, tmp_path, t
     assert jobs.get('job_reconcile_race')['status'] == terminal
 
 @pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')
-def test_hidden_runner_claim_is_once_and_refuses_unknown(monkeypatch, tmp_path):
-    import os
-    from packages.core.terminal.identity import probe_process
-    _session(tmp_path)
-    monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
-    job = jobs.start('ses_target', ['owned-command'], str(tmp_path), name="Validate background jobs")
-    assert jobs.claim_hidden_runner(job['jobId']) is True
-    fact = jobs.get(job['jobId'])
-    assert fact['runnerPid'] == os.getpid()
-    assert fact['runnerFiletime'] == str(probe_process(os.getpid()).identity.created_at_filetime)
-    assert jobs.claim_hidden_runner(job['jobId']) is False
-    assert jobs.get(job['jobId'])['runnerClaim'] == fact['runnerClaim']
-    jobs._update(job['jobId'], {'status': 'UNKNOWN', 'runnerClaim': None})
-    assert jobs.claim_hidden_runner(job['jobId']) is False
-    with pytest.raises(ValueError, match='not retryable'): jobs.retry(job['jobId'])
+def test_hidden_runner_claim_is_once_and_refuses_unknown(tmp_path):
+    from packages.jobs.independent_executor import ExecutionStore, ExecutionConflict
+    from packages.actions.typed_executor import EffectReceipt
+    from tests.test_job_final_independent_execution import admit, attempt, key, process_plan
+    store = ExecutionStore(tmp_path / 'canonical-executions')
+    doc, _ = admit(store, process_plan(tmp_path))
+    supervisor = {'pid': 7, 'birth': 'original-owned-fixture-birth'}
+    claimed = store.claim(doc['effectId'], attempt(), supervisor)
+    assert claimed['supervisorIdentity'] == supervisor and claimed['claim']
+    with pytest.raises(ExecutionConflict):
+        store.claim(doc['effectId'], attempt(), supervisor)
+    assert store.get(doc['effectId']) == claimed
+    unknown = EffectReceipt(key(), 'unknown', {'code': 'original_result_unavailable'}).as_dict()
+    settled = store.finish(doc['effectId'], attempt(), claimed['claim'], unknown)
+    with pytest.raises(ExecutionConflict):
+        store.claim(doc['effectId'], attempt(), supervisor)
+    with pytest.raises(ExecutionConflict):
+        admit(store, process_plan(tmp_path), attempt(attemptId='new-attempt', generation=2), retry=True)
+    assert store.get(doc['effectId']) == settled
 
 
 @pytest.mark.skipif(os.name != 'nt', reason='Windows hidden runner identity')
-def test_hidden_runner_claim_finishes_already_accepted_cancel(monkeypatch, tmp_path):
-    _session(tmp_path)
-    monkeypatch.setattr(jobs, '_spawn_background_runner', lambda job, **kwargs: job)
-    job = jobs.start('ses_target', ['owned-command'], str(tmp_path), name="Validate background jobs")
-    jobs._update(job['jobId'], {'cancelRequestedAt': 1})
-    assert jobs.claim_hidden_runner(job['jobId']) is False
-    result = jobs.get(job['jobId'])
-    assert result['status'] == 'cancelled'
-    assert result['notificationState'] == 'pending'
+def test_hidden_runner_claim_finishes_already_accepted_cancel(tmp_path):
+    _cancel_original_before_effect(tmp_path, claimed=False, cold=True)
 
 
 @pytest.mark.parametrize("kind", ["single", "broadcast"])
@@ -790,7 +802,57 @@ def test_failed_job_commit_does_not_publish_live_state(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("name", [None, "", "   ", "x" * 201])
-def test_process_creation_requires_explicit_bounded_name(tmp_path, monkeypatch, name):
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda *a, **k: pytest.fail("must not spawn"))
-    with pytest.raises(ValueError, match="name"):
-        jobs.start("ses_target", ["owned-command"], str(tmp_path), name=name)
+def test_process_creation_requires_explicit_bounded_name(env, monkeypatch, name):
+    from tests.test_job_automatic_recovery import job_definition
+    h = env
+    value = job_definition(h, {'automatic': False})
+    value['name'] = name  # explicit null/blank/overlong is distinct from omission
+    before = h.client.get('/api/jobs').json()
+    monkeypatch.setattr(subprocess, 'Popen', lambda *a, **k: pytest.fail('invalid creation must not spawn'))
+    response = h.client.post('/api/jobs', json={'definition': value,
+        'expectedRevision': 0, 'requestKey': 'invalid-explicit-name'})
+    assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+    assert response.json()['error']['path'] in {'name', 'definition.name'}
+    assert h.client.get('/api/jobs').json() == before
+
+
+def _cancel_original_before_effect(tmp_path, *, claimed, cold):
+    from packages.jobs.independent_executor import ExecutionStore, ExecutionConflict
+    from packages.jobs.independent_execution_runner import execute_claimed
+    from packages.actions.typed_executor import EffectReceipt
+    from tests.test_job_final_independent_execution import admit, attempt, key, process_plan
+    root = tmp_path / 'canonical-executions'
+    store = ExecutionStore(root)
+    original, _ = admit(store, process_plan(tmp_path))
+    if claimed:
+        original = store.claim(original['effectId'], attempt(), {'pid': 7, 'birth': 'owned-fixture-birth'})
+    cancelled = store.cancel(original['effectId'], attempt())
+    assert cancelled['phase'] == 'cancelled'
+    assert cancelled['result']['receipt']['code'] == 'cancelled_before_effect'
+    assert cancelled['result']['cleanupProof'] == {'confirmed': True, 'effectStarted': False}
+    if cold:
+        store = ExecutionStore(root)
+    if claimed:
+        class Forbidden:
+            async def execute(self, **kwargs):
+                pytest.fail('accepted cancellation must prevent execution after cold reopen')
+        assert asyncio.run(execute_claimed(store, original, executor=Forbidden())) == cancelled
+        # A competing late runner result cannot overwrite the original receipt.
+        with pytest.raises(ExecutionConflict):
+            store.finish(original['effectId'], attempt(), original['claim'],
+                EffectReceipt(key(), 'succeeded', {'exitCode': 0}).as_dict())
+    else:
+        with pytest.raises(ExecutionConflict):
+            store.claim(original['effectId'], attempt(), {'pid': 7, 'birth': 'owned-fixture-birth'})
+    assert store.get(original['effectId']) == cancelled
+    events = store.events()['events']
+    assert len(events) == 1 and events[0]['result'] == cancelled['result']
+    assert events[0]['attempt'] == attempt() and events[0]['effectId'] == original['effectId']
+    # Once execution has crossed its fence, cancellation alone proves nothing.
+    other, _ = store.admit(job_id='other', attempt=attempt(runId='other'),
+        effect_key={**key(), 'runId': 'other'}, frozen_plan=process_plan(tmp_path))
+    other = store.claim(other['effectId'], other['attempt'], {'pid': 8, 'birth': 'other-fixture-birth'})
+    other = store.phase(other['effectId'], other['attempt'], other['claim'], 'executing')
+    with pytest.raises(ExecutionConflict):
+        store.cancel(other['effectId'], other['attempt'])
+    assert store.get(other['effectId']) == other and other['result'] is None

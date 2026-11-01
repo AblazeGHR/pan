@@ -363,3 +363,7 @@ bb18 native186pass1existing skip/browser2pass1teardownfail/sourceDrift[] preserv
 ## Jobs API creation, actual QQ and read-only preview
 
 f96e complete affected result72pass + JobsAPI43pass11fail/sourceDrift[] preserved. All11 remaining API originals now have individual successors, documented jobs-api-create-preview-successors/README.md. Actual missing planned Creator preview405 repaired via existing provider only; unknown assign fallback explicitly conflicts FinalModel7.1.4 and is now noexecute/preservation negative. QQ uses real original plugin/OneBot HTTP, exact success/rejected/unknown, cold no-replay; all original strict invalid field classes retained. Current234/263 mapped,29remainingincl1existingplatformskip. No final wholeCI green claim.
+
+## Background validation, canonical cancel/claim and Retry
+
+15 original identities now mapped (name4,typed-parameter3,periodiccursor1,claim/cancel4,actualnativecancel/retry3); exact phase/proof distinctions and original fake-PID unsafe inference are explicit in background-validation-successors/README.md. fdbd frozen137+84pass/sourceDrift[] retained in cohortfdbd-terminal. Current249/263 mapped;14remainwithoutmappedgreen (background9,UI4,existingplatformskip1). No final fullgate/CI acceptance.

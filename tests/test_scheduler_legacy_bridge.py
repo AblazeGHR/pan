@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h as behavior_h  # noqa: F401
 
 from packages.actions.store import Store
 from packages.automation.service import Service
@@ -83,18 +85,8 @@ async def test_unmappable_unknown_action_stays_legacy(tmp_path, monkeypatch):
         await jobs.close(); await svc.bus.close()
 
 
-@async_test
-async def test_run_now_does_not_move_periodic_next_fire(tmp_path, monkeypatch):
-    svc, jobs = await setup(tmp_path, monkeypatch)
-    async def completed(*args, **kwargs): return {'status': 'completed', 'ok': True}
-    monkeypatch.setattr(system_actions, 'execute', completed)
-    try:
-        task = store.create_task(payload(tmp_path, 'sch_manual'))
-        await svc.scheduler_compat.switch(task['id'])
-        before = store.get_task(task['id'])['next_fire_at']
-        result = await svc.scheduler_compat.run_now(task['id'])
-        assert result['taskId'] == task['id'] and result['status'] == 'dispatched'
-        assert store.get_task(task['id'])['next_fire_at'] == before
-        assert store.list_runs(task['id'])
-    finally:
-        await jobs.close(); await svc.bus.close()
+def test_run_now_does_not_move_periodic_next_fire(behavior_h):
+    # Existing manual public Run and independent Creator cursor: no old loader
+    # or implicit migration is required to preserve this user capability.
+    from tests.test_jobs_api import test_runs_and_next_and_run_now
+    test_runs_and_next_and_run_now(behavior_h)

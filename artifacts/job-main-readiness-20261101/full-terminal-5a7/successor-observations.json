@@ -1678,5 +1678,95 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-real-fire-manual.xml"
     ]
+  },
+  "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[None]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-bridge.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-bridge.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[   ]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-bridge.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_process_creation_requires_explicit_bounded_name[name3]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-bridge.xml"
+    ]
+  },
+  "tests.test_scheduler_legacy_bridge::test_run_now_does_not_move_periodic_next_fire": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-bridge.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv0-x]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-green.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv1-]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-green.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_rejects_invalid_command_and_cwd[argv2-missing]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-validation-green.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_accepted_cancel_wins_runner_exit_race": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-claim-cancel.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_runner_finishes_accepted_cancel_if_canceller_disappears": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-claim-cancel.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_hidden_runner_claim_finishes_already_accepted_cancel": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-claim-cancel.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_hidden_runner_claim_is_once_and_refuses_unknown": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-claim-cancel.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_cancel_survives_runner_disappearing_during_tree_lookup": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-native-cancel-retry.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_retry_rejects_running_job": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-native-cancel-retry.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_retry_inherits_creator_and_target": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-validation-successors/background-native-cancel-retry.xml"
+    ]
   }
 }
