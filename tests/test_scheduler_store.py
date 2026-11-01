@@ -18,7 +18,7 @@ from packages.scheduler import store
 
 
 @pytest.fixture(autouse=True)
-def isolated(tmp_path, monkeypatch):
+def isolated(tmp_path, monkeypatch, isolate_session_storage):
     monkeypatch.delenv("PAN_SCHEDULER_DIR", raising=False)
     monkeypatch.delenv("PAN_BACKGROUND_JOBS_DIR", raising=False)
     monkeypatch.setattr(store, "DEFAULT_ROOT", tmp_path / "scheduler")

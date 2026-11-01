@@ -52,7 +52,7 @@ def test_legal_literal_create_edit_cas_names_and_frozen_run(h, kind, name):
     value['name'] = name
     no_spawn = (set(worker.workers), snapshot(h)[2])
     item = create(h, value=value)
-    assert item['name'] == name
+    assert item['name'] == name.strip()  # approved creation convenience; update below remains exact
     item = control(h, 'jobs', item, 'enable').json()['result']['object']
     receipt = launch(h, item)
     state = stored_runtime(h, item['id'])

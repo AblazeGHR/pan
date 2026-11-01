@@ -1,0 +1,294 @@
+{
+  "tests.test_event_trigger_reliability": [
+    {
+      "name": "test_pending_unavailable_subscriptions_do_not_starve_next_page",
+      "message": "assert 0 == 65"
+    }
+  ],
+  "tests.test_job_final_transports": [
+    {
+      "name": "test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes",
+      "message": "AssertionError: assert 38 == 37\n[+1 more line; full report in element text]"
+    }
+  ],
+  "tests.test_job_path_flip": [
+    {
+      "name": "test_production_route_snapshot_and_same_handler_aliases",
+      "message": "AssertionError: assert {'methodPathC...: True}, ...]} == {'methodPathC...: True}, ...]}\n  \n  Omitting 1 identical items, use -vv to show\n  Differing items:\n[+5 more lines; full report in element text]"
+    }
+  ],
+  "tests.test_job_retirement_literal_validation": [
+    {
+      "name": "test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -message]",
+      "message": "AssertionError: assert '合法 English' == '  合法 English  '\n  \n  -   合法 English  \n  ? --          --\n  + 合法 English"
+    },
+    {
+      "name": "test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -broadcast]",
+      "message": "AssertionError: assert '合法 English' == '  合法 English  '\n  \n  -   合法 English  \n  ? --          --\n  + 合法 English"
+    },
+    {
+      "name": "test_legal_literal_create_edit_cas_names_and_frozen_run[  \\u5408\\u6cd5 English  -qq]",
+      "message": "AssertionError: assert '合法 English' == '  合法 English  '\n  \n  -   合法 English  \n  ? --          --\n  + 合法 English"
+    }
+  ],
+  "tests.test_notification_http": [
+    {
+      "name": "test_notification_settings_live_and_background_delivery",
+      "message": "AssertionError: node:internal/modules/run_main:107\n      triggerUncaughtException(\n      ^\n  \n  ExpectError: expect(locator).not.toBeChecked() failed\n  \n  Locator:  getByRole('dialog', { name: 'App Settings', exact: true }).getByTestId('session-error-bridge-section').getByRole('checkbox', { name: /Send Session errors/ })\n  Expected: not checked\n  Received: checked\n  Timeout:  5000ms\n  \n  Call log:\n[+47 more lines; full report in element text]"
+    }
+  ],
+  "tests.test_retirement_rev25_qq_runtime": [
+    {
+      "name": "test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-reservation-completed-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_qq_hard_crash_owner_handoff_original_identity_only[before-invoke-uncertain-0]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-qq-uncertain-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_qq_hard_crash_owner_handoff_original_identity_only[after-receipt-completed-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    }
+  ],
+  "tests.test_retirement_rev7_write_validation": [
+    {
+      "name": "test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_message]",
+      "message": "AssertionError: assert 'source-aware 合法' == '  source-aware 合法  '\n  \n  -   source-aware 合法  \n  ? --               --\n  + source-aware 合法"
+    },
+    {
+      "name": "test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_broadcast]",
+      "message": "AssertionError: assert 'source-aware 合法' == '  source-aware 合法  '\n  \n  -   source-aware 合法  \n  ? --               --\n  + source-aware 合法"
+    },
+    {
+      "name": "test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[assign]",
+      "message": "AssertionError: assert 'source-aware 合法' == '  source-aware 合法  '\n  \n  -   source-aware 合法  \n  ? --               --\n  + source-aware 合法"
+    }
+  ],
+  "tests.test_retirement_session_runtime": [
+    {
+      "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[missing-children]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[wrong-lease]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    },
+    {
+      "name": "test_missing_or_corrupt_child_facts_never_resume_an_assumed_unsent_effect[reserved-is-not-unsent]",
+      "message": "AssertionError: Isolated test child: inherited PAN_* removed; cwd=D:\\project\\pan-worktrees\\job-main-readiness-20261101\n  Traceback (most recent call last):\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\retirement_runtime_crash_child.py\", line 82, in <module>\n      asyncio.run(service.dispatch_once())\n      ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n    File \"C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py\", line 204, in run\n[+20 more lines; full report in element text]"
+    }
+  ],
+  "tests.test_scheduler_store": [
+    {
+      "name": "test_data_root_redirected",
+      "message": "AssertionError: assert WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6794/test_data_root_redirected0/background_jobs') == (WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6794/test_data_root_redirected0') / 'scheduler')\n +  where WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6794/test_data_root_redirected0/background_jobs') = <function data_root at 0x000001CA0B124460>()\n[+1 more line; full report in element text]"
+    }
+  ],
+  "tests.test_terminal_composition": [
+    {
+      "name": "test_composition_r2_engine_close_budget_owner_retryable",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    }
+  ],
+  "tests.test_terminal_durable_ma": [
+    {
+      "name": "test_refused_host_skip_requires_verified_cleanup_and_releases_resources",
+      "message": "AssertionError: Regex pattern did not match.\n  Expected regex: 'actual ancestor Job'\n  Actual message: 'sidecar dependencies absent'"
+    }
+  ],
+  "tests.test_terminal_emulator": [
+    {
+      "name": "test_construct_ready_identity_and_close",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_start_cursor_beyond_53_bits_travels_as_string",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_main_screen_matrix_and_recovery",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_alternate_screen_matrix_and_recovery",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_split_utf8_1_4_rest_matches_continuous",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_holdback_split_csi_and_protocol_a_recovery",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_holdback_split_osc_degrades_partial_and_recovers",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_snapshot_cursor_excludes_pending_tail",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_resize_queue_ordering_matches_reference",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_browserless_large_output_and_log_cursor_eviction",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_snapshot_cursor_is_applied_not_producer_frontier",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_expired_control_never_executes_late",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_enqueue_never_waits_for_node",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_overflow_is_sticky_degraded_and_bounded",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_control_queue_overflow_is_visible",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_unknown_sequence_after_event_saturation_is_detected",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_engine_op_error_is_sticky_degraded",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_reset_baseline_uses_execution_position_not_future_frontier",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_reset_clears_old_gap_and_never_fakes_full",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_duplicate_feed_bytes_not_double_consumed",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_sidecar_crash_is_visible_and_close_converges",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_close_failure_retains_resources_then_retry_converges",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_guard_close_failure_is_retryable",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_runner_hard_death_kills_sidecar_via_job",
+      "message": "AssertionError: Traceback (most recent call last):\n    File \"<string>\", line 4, in <module>\n      emu = HeadlessEmulator(startup_timeout=30.0)\n    File \"D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator.py\", line 785, in __init__\n      raise EmulatorStartupError(\n      ...<5 lines>...\n      )\n[+4 more lines; full report in element text]"
+    },
+    {
+      "name": "test_no_process_leaks_after_close",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_stderr_join_failure_is_accounted_and_retryable",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_stream_close_failure_is_accounted_and_retryable",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_assign_phase_membership_gate_fail_closed[is_member_false]",
+      "message": "AssertionError: spy 未捕获 sidecar 进程\nassert []"
+    },
+    {
+      "name": "test_assign_phase_membership_gate_fail_closed[is_member_raises]",
+      "message": "AssertionError: spy 未捕获 sidecar 进程\nassert []"
+    },
+    {
+      "name": "test_assign_phase_membership_gate_fail_closed[active_none]",
+      "message": "AssertionError: spy 未捕获 sidecar 进程\nassert []"
+    },
+    {
+      "name": "test_assign_phase_membership_gate_fail_closed[active_raises]",
+      "message": "AssertionError: spy 未捕获 sidecar 进程\nassert []"
+    },
+    {
+      "name": "test_assign_phase_membership_gate_fail_closed[active_zero]",
+      "message": "AssertionError: spy 未捕获 sidecar 进程\nassert []"
+    },
+    {
+      "name": "test_resize_wait_confirmation_surface",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_close_timeout_bounds_total_call_including_lock_wait",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_kill_timeout_wired_to_remaining_budget",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_batching_merges_adjacent_feeds",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_batching_stops_at_gap_and_control",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_batching_prefix_split_utf8_csi_osc_equivalence",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_batching_error_ack_binds_batch",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    },
+    {
+      "name": "test_feed_batching_accounting_in_flight_and_close",
+      "message": "packages.core.terminal.emulator.EmulatorStartupError: sidecar 依赖未安装：@xterm/addon-serialize, @xterm/headless；请在 D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\terminal\\emulator_sidecar 执行 npm ci（exact pin），不要在仓库根安装"
+    }
+  ],
+  "tests.test_terminal_tools_api": [
+    {
+      "name": "test_real_stdio_mcp_conpty_roundtrip",
+      "message": "AssertionError(\"{'ok': False, 'error': {'code': 'terminal-tool-failed'}}\\nassert False\") [single exception in ExceptionGroup]"
+    }
+  ],
+  "tests.test_web_frontend": [
+    {
+      "name": "test_root_redirects_to_react_when_dist_exists",
+      "message": "RuntimeError: queue retry cancellation failed: Event loop is closed; Worker worker-1 process stop failed: Task <Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=<TaskHandle._run_coro() running at D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Lib\\site-packages\\anyio\\_core\\_tasks.py:327> cb=[TaskGroup._spawn.<locals>.task_done() at D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Lib\\site-packages\\anyio\\_backends\\_asyncio.py:89...\n[truncated; full report in element text]"
+    }
+  ]
+}

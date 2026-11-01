@@ -36,7 +36,7 @@ class CrashService(FinalService):
     boundary = False
 
     def _save(self, db, kind, object_id, value):
-        FinalService._save(db, kind, object_id, value)
+        super()._save(db, kind, object_id, value)
         if kind != 'job' or object_id != cfg['job']:
             return
         reserved = value.get('finalRuntime', {}).get('plans', {}).get(cfg['run'], {}).get('runtimeDelivery', {}).get('send', {})

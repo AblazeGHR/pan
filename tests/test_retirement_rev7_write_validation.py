@@ -35,7 +35,7 @@ def test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_re
     monkeypatch.setattr(session, 'get', shallow)  # delegate to real storage
     before = snapshot(h)[1:]
     item = create(h, value=value)
-    assert item['name'] == value['name']
+    assert item['name'] == value['name'].strip()  # creation-only normalization
     item = control(h, 'jobs', item, 'enable').json()['result']['object']
     receipt = launch(h, item)
     frozen = copy.deepcopy(h.service.final.store.get(item['id'])['finalRuntime'])

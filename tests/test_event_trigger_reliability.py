@@ -36,13 +36,18 @@ def test_pending_unavailable_subscriptions_do_not_starve_next_page(canonical):
     h = canonical
     job, target = subscription(h)
     svc = h.automation
+    # Missing/retired targets are terminally skipped by the approved policy.
+    # A live temporarily unavailable subscription must remain pending.
+    _, blocked = subscription(h, job, key='blocked-live',
+        condition={'field':'workers.runningCount','op':'eq','value':0})
+    h.service.state_reader = None
     for i in range(65):
         svc.events.append(canonical_fact(h, 'blocked-' + str(i)),
-            [{'id':'missing-historical-trigger', '_final':True, 'revision':1}])
+            [{**blocked, '_final':True}])
     async def check():
         await svc.start()
         try:
-            await svc.bus.publish_async(svc.core, 'workers.all_idle', {'runningCount':0}, 'ready')
+            svc.events.append(canonical_fact(h, 'ready'), [{**target, '_final':True}])
             async def done():
                 row = svc.events.lookup('ready')
                 return row and row['status'] == 'delivered'

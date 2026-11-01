@@ -1,0 +1,12 @@
+{
+  "mode": "venv-inner",
+  "phase": "post-create",
+  "outerPid": 45840,
+  "outerBirth": "134380453097149278",
+  "innerPid": 51960,
+  "innerBirth": "134380453097487808",
+  "childDead": true,
+  "innerDead": true,
+  "desktopGone": true,
+  "markerExecuted": false
+}

@@ -1,0 +1,12 @@
+{
+  "mode": "base",
+  "phase": "post-create",
+  "outerPid": 46536,
+  "outerBirth": "134380453093966993",
+  "innerPid": 46536,
+  "innerBirth": "134380453093966993",
+  "childDead": true,
+  "innerDead": true,
+  "desktopGone": true,
+  "markerExecuted": false
+}

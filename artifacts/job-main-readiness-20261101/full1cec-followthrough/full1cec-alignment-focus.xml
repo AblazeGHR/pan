@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="16" time="14.118" timestamp="2026-11-02T07:30:12.738405+08:00" hostname="ablaze"><testcase classname="tests.test_event_trigger_reliability" name="test_pending_unavailable_subscriptions_do_not_starve_next_page" time="6.164"><failure message="TimeoutError">fut = &lt;coroutine object until at 0x000001BC9B7A6960&gt;, timeout = 5
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:488: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_automation_core.py:46: in until
+    await asyncio.sleep(.01)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+delay = 0.01, result = None
+
+    async def sleep(delay, result=None):
+        """Coroutine that completes after a given time (in seconds)."""
+        if delay &lt;= 0:
+            await __sleep0()
+            return result
+    
+        if math.isnan(delay):
+            raise ValueError("Invalid delay: NaN (not a number)")
+    
+        loop = events.get_running_loop()
+        future = loop.create_future()
+        h = loop.call_later(delay,
+                            futures._set_result_unless_cancelled,
+                            future, result)
+        try:
+&gt;           return await future
+                   ^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:702: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001BC9B46C980&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='FOKI5wys8LPKefynQtIqzExwYpAGx4MMRDQE2LSQdsA')
+
+    def test_pending_unavailable_subscriptions_do_not_starve_next_page(canonical):
+        h = canonical
+        job, target = subscription(h)
+        svc = h.automation
+        # Missing/retired targets are terminally skipped by the approved policy.
+        # A live temporarily unavailable subscription must remain pending.
+        _, blocked = subscription(h, job, key='blocked-live',
+            condition={'field':'workers.runningCount','op':'eq','value':0})
+        h.service.state_reader = None
+        for i in range(65):
+            svc.events.append(canonical_fact(h, 'blocked-' + str(i)),
+                [{**blocked, '_final':True}])
+        async def check():
+            await svc.start()
+            try:
+                await svc.bus.publish_async(svc.core, 'workers.all_idle', {'runningCount':0}, 'ready')
+                async def done():
+                    row = svc.events.lookup('ready')
+                    return row and row['status'] == 'delivered'
+                from tests.test_automation_core import until
+                await asyncio.wait_for(until(done), 5)
+                assert svc.events.stats()['pending'] == 65
+                assert len(h.service.final.runs(job['id'])) == 1
+                assert h.service.final.runs(job['id'])[0]['cause']['eventId'] == 'ready'
+                assert not h.provider.calls
+            finally:
+                await svc.close()
+&gt;       asyncio.run(check())
+
+tests\test_event_trigger_reliability.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_event_trigger_reliability.py:55: in check
+    await asyncio.wait_for(until(done), 5)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\tasks.py:487: in wait_for
+    async with timeouts.timeout(timeout):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x000001BC9B0E2440&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -&gt; bool | None:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is not None:
+                # Since there are no new cancel requests, we're
+                # handling this.
+                if issubclass(exc_type, exceptions.CancelledError):
+&gt;                   raise TimeoutError from exc_val
+E                   TimeoutError
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\timeouts.py:114: TimeoutError</failure></testcase><testcase classname="tests.test_job_final_transports" name="test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes" time="0.036" /><testcase classname="tests.test_job_path_flip" name="test_production_route_snapshot_and_same_handler_aliases" time="0.303" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-message]" time="0.406" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-broadcast]" time="0.564" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[Legal English-qq]" time="0.484" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-message]" time="0.574" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-broadcast]" time="0.536" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[\u5408\u6cd5\u4e2d\u6587-qq]" time="0.495" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -message]" time="0.550" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -broadcast]" time="0.451" /><testcase classname="tests.test_job_retirement_literal_validation" name="test_legal_literal_create_edit_cas_names_and_frozen_run[  \u5408\u6cd5 English  -qq]" time="0.632" /><testcase classname="tests.test_retirement_rev7_write_validation" name="test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_message]" time="0.645" /><testcase classname="tests.test_retirement_rev7_write_validation" name="test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[session_broadcast]" time="0.514" /><testcase classname="tests.test_retirement_rev7_write_validation" name="test_source_aware_existing_targets_create_edit_cas_frozen_run_and_shallow_read[assign]" time="0.608" /><testcase classname="tests.test_scheduler_store" name="test_data_root_redirected" time="0.002" /></testsuite></testsuites>

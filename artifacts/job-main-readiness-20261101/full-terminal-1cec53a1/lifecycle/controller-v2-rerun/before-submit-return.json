@@ -1,0 +1,100 @@
+{
+  "controller": {
+    "pid": 52444,
+    "birth": 1793573190.504728,
+    "stage": "before-submit-return"
+  },
+  "controllerWrapperPid": 23900,
+  "controllerWrapperBirth": 1793573190.4829867,
+  "supervisor": {
+    "schema": "pan.process-identity/1",
+    "platform": "windows",
+    "pid": 45476,
+    "kind": "filetime",
+    "birth": "134380467907797317",
+    "boot_id": null,
+    "pgid": null,
+    "image": null
+  },
+  "members": [
+    {
+      "pid": 46536,
+      "birth": 1793573191.0363
+    },
+    {
+      "pid": 5604,
+      "birth": 1793573191.086326
+    }
+  ],
+  "attempt": {
+    "attemptId": "attempt_lifecycle",
+    "runId": "run_lifecycle",
+    "stepId": "step_main",
+    "leaseId": "lease_lifecycle",
+    "ownerEpoch": 1,
+    "generation": 1,
+    "state": "running"
+  },
+  "effectId": "effect_8a1e6b58aac0f6f85d29d6f43f1306cf72722639ed2b2a6efe2ac2b566a9a658",
+  "phase": "rejected",
+  "resultOutcome": "rejected",
+  "cleanupRequest": {
+    "revision": 1,
+    "status": "confirmed",
+    "proof": {
+      "confirmed": true,
+      "rootExited": true,
+      "identityCheck": {
+        "status": "alive",
+        "ours": true,
+        "expected": {
+          "pid": 52428,
+          "kind": "filetime",
+          "birth": "134380467910122364",
+          "platform": "windows",
+          "boot_id": null,
+          "pgid": null,
+          "image": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe"
+        },
+        "observed": {
+          "pid": 52428,
+          "kind": "filetime",
+          "birth": "134380467910122364",
+          "platform": "windows",
+          "boot_id": null,
+          "pgid": null,
+          "image": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe"
+        },
+        "detail": "FILETIME \u7cbe\u786e\u5339\u914d"
+      },
+      "ownedTree": {
+        "owned": [
+          5604,
+          36200,
+          46536,
+          50464,
+          52428
+        ],
+        "remaining": [],
+        "confirmed": true,
+        "detail": "TerminateJobObject + active==0 \u53cc\u8bc1\u636e"
+      }
+    }
+  },
+  "supervisorExit": {
+    "confirmed": true,
+    "reason": "pid_absent",
+    "identity": {
+      "schema": "pan.process-identity/1",
+      "platform": "windows",
+      "pid": 45476,
+      "kind": "filetime",
+      "birth": "134380467907797317",
+      "boot_id": null,
+      "pgid": null,
+      "image": null
+    }
+  },
+  "membersExited": true,
+  "outboxEvents": 1
+}

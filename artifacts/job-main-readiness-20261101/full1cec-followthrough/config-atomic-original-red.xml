@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.181" timestamp="2026-11-02T07:33:47.444211+08:00" hostname="ablaze"><testcase classname="tests.test_config_atomic_write" name="test_windows_replace_contention_retries_original_atomic_candidate" time="0.011"><failure message="PermissionError: owned Windows sharing contention">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6798/test_windows_replace_contentio0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D582DD35C0&gt;
+
+    def test_windows_replace_contention_retries_original_atomic_candidate(tmp_path, monkeypatch):
+        path=tmp_path/'config.json'
+        monkeypatch.setattr(config,'CONFIG_FILE',path)
+        path.write_text('{"before":true}',encoding='utf8')
+        replace=config.os.replace
+        calls=[]
+        def contended(source,target):
+            calls.append(str(source))
+            if len(calls)==1:
+                assert json.loads(path.read_text())=={'before':True}
+                error=PermissionError('owned Windows sharing contention');error.winerror=5
+                raise error
+            replace(source,target)
+        monkeypatch.setattr(config.os,'replace',contended)
+&gt;       config.save_config({'after':'原文'})
+
+tests\test_config_atomic_write.py:21: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\config.py:488: in save_config
+    os.replace(tmp_path, CONFIG_FILE)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+source = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6798/test_windows_replace_contentio0/config.json.tmp')
+target = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6798/test_windows_replace_contentio0/config.json')
+
+    def contended(source,target):
+        calls.append(str(source))
+        if len(calls)==1:
+            assert json.loads(path.read_text())=={'before':True}
+            error=PermissionError('owned Windows sharing contention');error.winerror=5
+&gt;           raise error
+E           PermissionError: owned Windows sharing contention
+
+tests\test_config_atomic_write.py:18: PermissionError</failure></testcase><testcase classname="tests.test_config_atomic_write" name="test_persistent_replace_failure_is_not_reported_as_success" time="0.004" /></testsuite></testsuites>

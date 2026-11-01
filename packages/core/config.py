@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config.json"
@@ -485,4 +486,14 @@ def save_config(config: dict) -> None:
         json.dumps(config, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    os.replace(tmp_path, CONFIG_FILE)
+    for attempt in range(8):
+        try:
+            os.replace(tmp_path, CONFIG_FILE)
+            break
+        except PermissionError as exc:
+            # Windows readers/scanners can briefly deny atomic replacement.
+            # Bounded retries preserve the original candidate; ordinary POSIX
+            # permission errors and persistent failures remain explicit.
+            if getattr(exc, "winerror", None) not in {5, 32, 33} or attempt == 7:
+                raise
+            time.sleep(.01 * (attempt + 1))

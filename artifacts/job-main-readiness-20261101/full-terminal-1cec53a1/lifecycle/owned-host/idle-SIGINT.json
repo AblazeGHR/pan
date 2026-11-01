@@ -1,0 +1,87 @@
+[
+  {
+    "point": "started",
+    "port": 55703,
+    "popenPid": 33616,
+    "exitCode": null,
+    "listenerOwner": 23768,
+    "popenBirth": 1793573035.9448493,
+    "listenerBirth": 1793573035.9672318,
+    "serviceIdentity": {
+      "pid": 23768,
+      "createdAt": 1793573035.9672318,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "before_cleanup",
+    "port": 55703,
+    "popenPid": 33616,
+    "exitCode": 0,
+    "listenerOwner": null,
+    "popenBirth": null,
+    "listenerBirth": null,
+    "shouldExit": "unavailable",
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  },
+  {
+    "point": "started",
+    "port": 55703,
+    "popenPid": 26632,
+    "exitCode": null,
+    "listenerOwner": 30376,
+    "popenBirth": 1793573042.505648,
+    "listenerBirth": 1793573042.5339088,
+    "serviceIdentity": {
+      "pid": 30376,
+      "createdAt": 1793573042.5339088,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "before_cleanup",
+    "port": 55703,
+    "popenPid": 26632,
+    "exitCode": null,
+    "listenerOwner": 30376,
+    "popenBirth": 1793573042.505648,
+    "listenerBirth": 1793573042.5339088,
+    "serviceIdentity": {
+      "pid": 30376,
+      "createdAt": 1793573042.5339088,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  }
+]

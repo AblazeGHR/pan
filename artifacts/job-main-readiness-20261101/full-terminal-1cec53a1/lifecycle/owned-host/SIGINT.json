@@ -1,0 +1,87 @@
+[
+  {
+    "point": "started",
+    "port": 56762,
+    "popenPid": 30844,
+    "exitCode": null,
+    "listenerOwner": 45760,
+    "popenBirth": 1793573010.0848804,
+    "listenerBirth": 1793573010.1085455,
+    "serviceIdentity": {
+      "pid": 45760,
+      "createdAt": 1793573010.1085455,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "before_cleanup",
+    "port": 56762,
+    "popenPid": 30844,
+    "exitCode": 0,
+    "listenerOwner": null,
+    "popenBirth": null,
+    "listenerBirth": null,
+    "shouldExit": "unavailable",
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  },
+  {
+    "point": "started",
+    "port": 56762,
+    "popenPid": 5644,
+    "exitCode": null,
+    "listenerOwner": 37168,
+    "popenBirth": 1793573016.542422,
+    "listenerBirth": 1793573016.563303,
+    "serviceIdentity": {
+      "pid": 37168,
+      "createdAt": 1793573016.563303,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "before_cleanup",
+    "port": 56762,
+    "popenPid": 5644,
+    "exitCode": null,
+    "listenerOwner": 37168,
+    "popenBirth": 1793573016.542422,
+    "listenerBirth": 1793573016.563303,
+    "serviceIdentity": {
+      "pid": 37168,
+      "createdAt": 1793573016.563303,
+      "rootMarker": false,
+      "entryMarker": false,
+      "commandMarker": true,
+      "ok": false,
+      "error": "process is outside the target checkout"
+    },
+    "shouldExit": false,
+    "internalShutdown": "not_observed",
+    "receipts": []
+  },
+  {
+    "point": "cleanup",
+    "ok": true,
+    "listenerOwner": null
+  }
+]

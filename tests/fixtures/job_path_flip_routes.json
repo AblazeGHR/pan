@@ -546,6 +546,14 @@
       "deprecated": false
     },
     {
+      "path": "/api/event-creators/preview",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.creator_preview",
+      "deprecated": false
+    },
+    {
       "path": "/api/event-creators/time-input/resolve",
       "methods": [
         "POST"
@@ -839,6 +847,14 @@
         "GET"
       ],
       "handler": "packages.jobs.final_api.creator_providers",
+      "deprecated": true
+    },
+    {
+      "path": "/api/final/event-creators/preview",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.jobs.final_api.creator_preview",
       "deprecated": true
     },
     {
