@@ -51,8 +51,20 @@ def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypat
         tools = {t.name for t in await mcp_server.mcp.list_tools()}
         assert tools & set(REMOVED_TOOLS) == set()
         assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
-        with pytest.raises(ToolError, match='Unknown tool: ' + name):
-            await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+        # Approved rev16 contract: undiscoverable legacy names return a
+        # structured refusal before any transport, never a legacy dispatcher.
+        # The former exception-only expectations and their 13-red JUnit are
+        # retained in artifacts/job-main-readiness-20261101/original-red/.
+        response = await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+        assert response.isError is True
+        result = response.structuredContent
+        assert result is not None and result['ok'] is False
+        assert result['error']['code'] == 'capability_unsupported'
+        assert result['error']['tool'] == name
+        assert result['error']['guidance'] == mcp_server.LEGACY_MCP_GUIDANCE[name]
+        assert json.loads(response.content[0].text) == result
+        with pytest.raises(ToolError, match='Unknown tool: owned-not-a-tool'):
+            await mcp_server.mcp.call_tool('owned-not-a-tool', {})
     asyncio.run(check())
     assert calls == []
 
@@ -132,7 +144,13 @@ def test_real_stdio_tools_list_and_unknown_calls_without_http(projection, tmp_pa
                     result = await client.call_tool(name, {'task_id': 'sch_old'})
                     assert result.isError is True
                     if projection == 'core':
-                        assert 'Unknown tool: ' + name in result.content[0].text
+                        detail = result.structuredContent
+                        assert detail is not None
+                        assert detail['ok'] is False
+                        assert detail['error']['code'] == 'capability_unsupported'
+                        assert detail['error']['tool'] == name
+                        assert detail['error']['guidance'] == mcp_server.LEGACY_MCP_GUIDANCE[name]
+                        assert json.loads(result.content[0].text) == detail
                     else:
                         # Native projection rejects it in its exact directory
                         # before any plugin or HTTP handler can execute.

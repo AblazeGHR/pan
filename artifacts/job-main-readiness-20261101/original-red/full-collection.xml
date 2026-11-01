@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="3" time="33.394" timestamp="2026-11-01T18:40:10.924368+08:00" hostname="ablaze"><testcase classname="" name="packages.qq.test_channels" time="0.000"><error message="collection failure">ImportError while importing test module 'D:\project\pan-worktrees\job-main-readiness-20261101\packages\qq\test_channels.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\qq\test_channels.py:22: in &lt;module&gt;
+    import nonebot  # noqa: E402
+    ^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'nonebot'</error></testcase><testcase classname="" name="packages.qq.test_qq_api" time="0.000"><error message="collection failure">ImportError while importing test module 'D:\project\pan-worktrees\job-main-readiness-20261101\packages\qq\test_qq_api.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\qq\test_qq_api.py:19: in &lt;module&gt;
+    import nonebot  # noqa: E402
+    ^^^^^^^^^^^^^^
+E   ModuleNotFoundError: No module named 'nonebot'</error></testcase><testcase classname="" name="packages.qq.test_snowluma_accounts" time="0.000"><error message="collection failure">ImportError while importing test module 'D:\project\pan-worktrees\job-main-readiness-20261101\packages\qq\test_snowluma_accounts.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\qq\test_snowluma_accounts.py:5: in &lt;module&gt;
+    from packages.qq.bot import _selected_specs
+packages\qq\bot.py:20: in &lt;module&gt;
+    from nonebot.adapters.onebot.v11 import Adapter as OneBotAdapter
+E   ModuleNotFoundError: No module named 'nonebot'</error></testcase></testsuite></testsuites>

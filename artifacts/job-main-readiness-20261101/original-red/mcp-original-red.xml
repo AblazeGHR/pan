@@ -1,0 +1,564 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="26" time="7.129" timestamp="2026-11-01T18:41:56.936260+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_surface_retirement" name="test_production_route_and_catalog_snapshot" time="0.594" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_create-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CEE60180&gt;
+name = 'scheduler_create', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_create-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF34AB10&gt;
+name = 'scheduler_create', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_update-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF5DFBD0&gt;
+name = 'scheduler_update', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_update-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF930160&gt;
+name = 'scheduler_update', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_delete-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF998D50&gt;
+name = 'scheduler_delete', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_delete-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF999950&gt;
+name = 'scheduler_delete', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_pause-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF928C80&gt;
+name = 'scheduler_pause', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_pause-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF929F40&gt;
+name = 'scheduler_pause', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_resume-None]" time="0.015"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF6165F0&gt;
+name = 'scheduler_resume', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_resume-ses_owned]" time="0.025"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF616A50&gt;
+name = 'scheduler_resume', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_run_now-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF5EB520&gt;
+name = 'scheduler_run_now', identity = None
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_run_now-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000247CF266750&gt;
+name = 'scheduler_run_now', identity = 'ses_owned'
+
+    @pytest.mark.parametrize('identity', [None, 'ses_owned'])
+    @pytest.mark.parametrize('name', REMOVED_TOOLS)
+    def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypatch, name, identity):
+        if identity:
+            monkeypatch.setenv('PAN_AGENT_SESSION_ID', identity)
+        else:
+            monkeypatch.delenv('PAN_AGENT_SESSION_ID', raising=False)
+        calls = []
+        monkeypatch.setattr(mcp_server, '_api', lambda *a, **kw: calls.append((a, kw)))
+        assert name not in vars(mcp_server)
+        assert '_scheduler_task_call' not in vars(mcp_server)
+        async def check():
+            tools = {t.name for t in await mcp_server.mcp.list_tools()}
+            assert tools &amp; set(REMOVED_TOOLS) == set()
+            assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+            with pytest.raises(ToolError, match='Unknown tool: ' + name):
+                await mcp_server.mcp.call_tool(name, {'task_id': 'sch_old'})
+&gt;       asyncio.run(check())
+
+tests\test_scheduler_surface_retirement.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def check():
+        tools = {t.name for t in await mcp_server.mcp.list_tools()}
+        assert tools &amp; set(REMOVED_TOOLS) == set()
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+&gt;       with pytest.raises(ToolError, match='Unknown tool: ' + name):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ToolError
+
+tests\test_scheduler_surface_retirement.py:54: Failed</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[GET]" time="0.111" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[POST]" time="0.093" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[PUT]" time="0.096" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[PATCH]" time="0.086" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[DELETE]" time="0.110" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_production_owner_switch_is_not_a_catchall_or_an_alias" time="0.014" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_no_removed_function_can_register_during_import" time="0.048" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_real_stdio_tools_list_and_unknown_calls_without_http[core]" time="1.290"><failure message="AssertionError('assert (\'Unknown tool: \' + \'scheduler_create\') in \'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\'\n +  where \'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\' = TextContent(type=\'text\', text=\'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fie...-&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\', annotations=None, meta=None).text') [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_scheduler_surface_retirement.py", line 146, in test_real_stdio_tools_list_and_unknown_calls_without_http
+  |     asyncio.run(check())
+  |     ~~~~~~~~~~~^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_scheduler_surface_retirement.py", line 124, in check
+  |     async with stdio_client(parameters) as streams, ClientSession(*streams) as client:
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_scheduler_surface_retirement.py", line 124, in check
+    |     async with stdio_client(parameters) as streams, ClientSession(*streams) as client:
+    |                                                     ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_scheduler_surface_retirement.py", line 135, in check
+      |     assert 'Unknown tool: ' + name in result.content[0].text
+      | AssertionError: assert ('Unknown tool: ' + 'scheduler_create') in '{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}'
+      |  +  where '{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}' = TextContent(type='text', text='{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fie...-&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}', annotations=None, meta=None).text
+      +------------------------------------</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_real_stdio_tools_list_and_unknown_calls_without_http[native]" time="0.947" /><testcase classname="tests.test_retirement_rev12_mcp" name="test_removed_mcp_job_tools_have_structured_unsupported_dispositions" time="0.004" /><testcase classname="tests.test_retirement_rev12_mcp" name="test_compatibility_disposition_is_pure_and_unknown_shape_fails_closed" time="0.003" /><testcase classname="tests.test_retirement_rev12_mcp" name="test_canonical_tools_and_retained_read_cancel_tools_remain_discoverable" time="0.003" /><testcase classname="tests.test_retirement_rev16_mcp_stdio" name="test_retired_names_actual_stdio_boundary_and_authorized_canonical_path" time="2.192" /></testsuite></testsuites>
