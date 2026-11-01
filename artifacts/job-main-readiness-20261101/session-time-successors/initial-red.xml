@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="14" time="29.009" timestamp="2026-11-02T01:25:23.854342+08:00" hostname="ablaze"><testcase classname="tests.test_session_message_jobs" name="test_once_delay_persists_and_dispatches_via_send_semantics" time="1.382"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB4C3A120&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB48EF0E0&gt;)
+
+    def test_once_delay_persists_and_dispatches_via_send_semantics(h):
+        at=point(1);text='////by agent : ses_source | caller\nrun report'
+&gt;       job,creator,_=scheduled(h,[{'ruleId':'once','type':'once','at':at}],text=text,description='T-043 once')
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:56: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB4C3A120&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB48EF0E0&gt;)
+rules = [{'ruleId': 'once', 'type': 'once', 'at': '2026-11-01T17:25:26.331398Z'}]
+targets = None, text = '////by agent : ses_source | caller\nrun report'
+source = 'agent', description = 'T-043 once'
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_absolute_once_and_schedule_edit_are_persisted" time="1.694"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB5057390&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4C386E0&gt;)
+
+    def test_absolute_once_and_schedule_edit_are_persisted(h):
+        old,new=point(300),point(600)
+&gt;       job,creator,_=scheduled(h,[{'ruleId':'once','type':'once','at':old}])
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB5057390&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4C386E0&gt;)
+rules = [{'ruleId': 'once', 'type': 'once', 'at': '2026-11-01T17:30:27.158903Z'}]
+targets = None, text = 'hello', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule0]" time="2.416" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule1]" time="2.094" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule2]" time="2.320" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule3]" time="2.526" /><testcase classname="tests.test_session_message_jobs" name="test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs" time="2.304"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB4F6A9C0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4E5AE40&gt;)
+
+    def test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs(h):
+&gt;       interval_recovery(h)
+
+tests\test_session_message_jobs.py:121: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_session_message_jobs.py:101: in interval_recovery
+    job,creator,_=scheduled(h,[{'ruleId':'interval','type':'interval','seconds':'60','anchor':first,'advanceMode':'grid'}],targets=targets,text='tick')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB4F6A9C0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4E5AE40&gt;)
+rules = [{'ruleId': 'interval', 'type': 'interval', 'seconds': '60', 'anchor': '2026-11-01T17:26:38.73232Z', ...}]
+targets = None, text = 'tick', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_weekly_schedule_accepts_weekday_and_local_time" time="2.369"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB4BD59D0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4F45550&gt;)
+
+    def test_weekly_schedule_accepts_weekday_and_local_time(h):
+        rule={'ruleId':'weekly','type':'weekly','weekday':2,'time':'09:30:00','timezone':'UTC','dstPolicy':'gap-skip-fold-first'}
+&gt;       _,creator,_=scheduled(h,[rule])
+                    ^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:126: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB4BD59D0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4F45550&gt;)
+rules = [{'ruleId': 'weekly', 'type': 'weekly', 'weekday': 2, 'time': '09:30:00', ...}]
+targets = None, text = 'hello', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_stale_running_job_is_requeued_after_service_restart" time="2.277"><failure message="ImportError: cannot import name 'test_lost_worker_ack_reconciles_original_queue_after_cold_restart' from 'tests.test_session_product_closure' (D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_session_product_closure.py)">h = namespace(client=&lt;httpx.Client object at 0x0000026EB376E950&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB50F92B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026EB507C9B0&gt;
+
+    def test_stale_running_job_is_requeued_after_service_restart(h,monkeypatch):
+        # A lost response is queried under the original queue identity. A stale
+        # running flag alone no longer authorizes a second message invocation.
+&gt;       from tests.test_session_product_closure import test_lost_worker_ack_reconciles_original_queue_after_cold_restart
+E       ImportError: cannot import name 'test_lost_worker_ack_reconciles_original_queue_after_cold_restart' from 'tests.test_session_product_closure' (D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_session_product_closure.py)
+
+tests\test_session_message_jobs.py:135: ImportError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_message_job_never_enters_process_runner_retry_path" time="2.229"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB37E5350&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4F47770&gt;)
+
+    def test_message_job_never_enters_process_runner_retry_path(h):
+&gt;       at=point(60);job,_,_=scheduled(h,[{'ruleId':'once','type':'once','at':at}])
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB37E5350&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB4F47770&gt;)
+rules = [{'ruleId': 'once', 'type': 'once', 'at': '2026-11-01T17:26:45.712783Z'}]
+targets = None, text = 'hello', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_deduplicates_and_isolates_target_failures" time="2.203"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB51FE4E0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB51BB8C0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026EB5212A50&gt;
+
+    def test_scheduled_broadcast_deduplicates_and_isolates_target_failures(h,monkeypatch):
+        at=point(60);calls=[];original=worker.send_session
+        async def send(sid,text,**kwargs):
+            calls.append((sid,text,kwargs))
+            if sid=='ses_b':return {'status':'error','result':'target unavailable'}
+            return await original(sid,text,**kwargs)
+        monkeypatch.setattr(worker,'send_session',send)
+&gt;       job,_,_=scheduled(h,[{'ruleId':'once','type':'once','at':at}],targets=['ses_a','ses_b','ses_a','ses_new'],text='scheduled fan-out')
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB51FE4E0&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB51BB8C0&gt;)
+rules = [{'ruleId': 'once', 'type': 'once', 'at': '2026-11-01T17:26:47.90765Z'}]
+targets = ['ses_a', 'ses_b', 'ses_a', 'ses_new'], text = 'scheduled fan-out'
+source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_interval_recovery_and_no_burst" time="2.242"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB5362120&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB50FB770&gt;)
+
+    def test_scheduled_broadcast_interval_recovery_and_no_burst(h):
+&gt;       interval_recovery(h,['ses_a','ses_b'])
+
+tests\test_session_message_jobs.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_session_message_jobs.py:101: in interval_recovery
+    job,creator,_=scheduled(h,[{'ruleId':'interval','type':'interval','seconds':'60','anchor':first,'advanceMode':'grid'}],targets=targets,text='tick')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB5362120&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB50FB770&gt;)
+rules = [{'ruleId': 'interval', 'type': 'interval', 'seconds': '60', 'anchor': '2026-11-01T17:26:50.228673Z', ...}]
+targets = ['ses_a', 'ses_b'], text = 'tick', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_edit_and_cancel_prevent_future_send" time="2.397"><failure message="KeyError: 'result'">h = namespace(client=&lt;httpx.Client object at 0x0000026EB5486A50&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB53E7380&gt;)
+
+    def test_scheduled_broadcast_edit_and_cancel_prevent_future_send(h):
+        old,new=point(60),point(120)
+&gt;       job,creator,_=scheduled(h,[{'ruleId':'once','type':'once','at':old}],targets=['ses_a','ses_b'])
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x0000026EB5486A50&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000026EB53E7380&gt;)
+rules = [{'ruleId': 'once', 'type': 'once', 'at': '2026-11-01T17:26:52.534229Z'}]
+targets = ['ses_a', 'ses_b'], text = 'hello', source = 'agent', description = ''
+
+    def scheduled(h, rules, *, targets=None, text='hello', source='agent', description=''):
+        operation = 'session-broadcast' if isinstance(targets, list) else 'session-message'
+        args = {'sessionIds':targets} if isinstance(targets,list) else {'sessionId':targets or 'ses_a'}
+        value = config(h, operation, **args, text=text, source=source, sourceSessionId='ses_source')
+        value['description'] = description
+        job = enabled(h, value)
+        response = h.client.post('/api/event-creators', json={'definition':time_definition('original clock',time_config(rules)),
+            'expectedRevision':0,'requestKey':'original-clock'})
+        assert response.status_code == 201, response.text
+&gt;       creator = control(h,'event-creators',response.json()['result']['object'],'enable').json()['result']['object']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_session_message_jobs.py:27: KeyError</failure></testcase><testcase classname="tests.test_session_message_jobs" name="test_message_job_default_name_min_vacant" time="0.004"><failure message="NameError: name '_session' is not defined">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026EB4E0D550&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6707/test_message_job_default_name_0')
+
+    def test_message_job_default_name_min_vacant(monkeypatch, tmp_path):
+        """不传 name → job-N（存量最小空缺）；显式名字优先；description 缺省空串。"""
+&gt;       target = _session(tmp_path)
+                 ^^^^^^^^
+E       NameError: name '_session' is not defined
+
+tests\test_session_message_jobs.py:192: NameError</failure></testcase></testsuite></testsuites>

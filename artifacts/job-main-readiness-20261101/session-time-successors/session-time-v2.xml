@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="14" time="32.112" timestamp="2026-11-02T01:26:02.628682+08:00" hostname="ablaze"><testcase classname="tests.test_session_message_jobs" name="test_once_delay_persists_and_dispatches_via_send_semantics" time="1.636" /><testcase classname="tests.test_session_message_jobs" name="test_absolute_once_and_schedule_edit_are_persisted" time="2.326" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule0]" time="2.137" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule1]" time="1.996" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule2]" time="2.187" /><testcase classname="tests.test_session_message_jobs" name="test_invalid_time_schedule_is_rejected[schedule3]" time="2.183" /><testcase classname="tests.test_session_message_jobs" name="test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs" time="2.902" /><testcase classname="tests.test_session_message_jobs" name="test_weekly_schedule_accepts_weekday_and_local_time" time="2.377" /><testcase classname="tests.test_session_message_jobs" name="test_stale_running_job_is_requeued_after_service_restart" time="2.506" /><testcase classname="tests.test_session_message_jobs" name="test_message_job_never_enters_process_runner_retry_path" time="2.965" /><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_deduplicates_and_isolates_target_failures" time="2.640" /><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_interval_recovery_and_no_burst" time="2.997" /><testcase classname="tests.test_session_message_jobs" name="test_scheduled_broadcast_edit_and_cancel_prevent_future_send" time="2.433" /><testcase classname="tests.test_session_message_jobs" name="test_message_job_default_name_min_vacant" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FF1A747590&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6708/test_message_job_default_name_0')
+
+    def test_message_job_default_name_min_vacant(monkeypatch, tmp_path):
+        """不传 name → job-N（存量最小空缺）；显式名字优先；description 缺省空串。"""
+        target = _session(tmp_path)
+        monkeypatch.setattr(sess, "get", lambda sid: target if sid == "ses_target" else None)
+&gt;       first = jobs.start_message("ses_target", "hi",
+                ^^^^^^^^^^^^^^^^^^
+                                   {"type": "interval", "intervalSeconds": 60})
+
+tests\test_session_message_jobs.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_message'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase></testsuite></testsuites>

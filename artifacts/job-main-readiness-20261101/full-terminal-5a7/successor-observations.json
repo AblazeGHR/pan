@@ -984,7 +984,8 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/cohort96-remaining/legacy-mcp-original-successors.xml",
       "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml",
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/public-boundary.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/public-boundary.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/plugin-template-scheduler.xml"
     ]
   },
   "tests.test_background_job_api::test_http_start_reports_missing_session": {
@@ -1166,39 +1167,45 @@
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-combined.xml",
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/bridge-delivery.xml"
     ]
   },
   "tests.test_independent_job_bridge::test_unified_gui_reads_remote_and_refuses_local_metadata_mutation": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-combined.xml",
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/bridge-delivery.xml"
     ]
   },
   "tests.test_job_completion_recovery::test_system_delivery_confirmation_does_not_resend_receipts": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-combined.xml",
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/bridge-delivery-successors-green.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/bridge-delivery.xml"
     ]
   },
   "tests.test_plugin_session_config::test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/plugin-job-successors-v2.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/plugin-job-successors-v2.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/plugin-template-scheduler.xml"
     ]
   },
   "tests.test_plugin_qq_integration::test_qq_job_and_outbox_continue_when_session_tools_are_disabled": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/plugin-job-successors-v2.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/plugin-job-successors-v2.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/plugin-template-scheduler.xml"
     ]
   },
   "tests.test_job_action_templates::test_shared_scheduler_entry_and_misfire_do_not_replay_effects": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/shared-scheduler-successor-v3.xml"
+      "artifacts/job-main-readiness-20261101/bridge-delivery-successors/shared-scheduler-successor-v3.xml",
+      "artifacts/job-main-readiness-20261101/cohort50a3-combined/plugin-template-scheduler.xml"
     ]
   },
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[legacy-exe]": {
@@ -1229,6 +1236,84 @@
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_absolute_once_and_schedule_edit_are_persisted": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule1]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule2]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_invalid_time_schedule_is_rejected[schedule3]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_interval_repeats_after_restart_recovery_and_cancel_stops_future_runs": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_weekly_schedule_accepts_weekday_and_local_time": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_stale_running_job_is_requeued_after_service_restart": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_message_job_never_enters_process_runner_retry_path": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_scheduled_broadcast_deduplicates_and_isolates_target_failures": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_scheduled_broadcast_interval_recovery_and_no_burst": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
+    ]
+  },
+  "tests.test_session_message_jobs::test_scheduled_broadcast_edit_and_cancel_prevent_future_send": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/session-time-successors/session-time-v2.xml"
     ]
   }
 }
