@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.096" timestamp="2026-11-01T19:54:49.143393+08:00" hostname="ablaze"><testcase classname="tests.test_job_process_pending" name="test_non_retrying_process_waits_for_original_receipt_across_cold_lookup" time="0.575"><failure message="AssertionError: assert 'uncertain' == 'running'&#10;  &#10;  - running&#10;  + uncertain">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001A48F2A4590&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001A48F11BB60&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001A48F119550&gt;, serial=1)
+
+    def test_non_retrying_process_waits_for_original_receipt_across_cold_lookup(env):
+        h = env
+        gate, counter = h.tmp / 'release', h.tmp / 'original-process.txt'
+        code = ("import time; from pathlib import Path; "
+                f"Path({str(counter)!r}).open('a').write('once\\n'); "
+                f"gate=Path({str(gate)!r})\nwhile not gate.exists(): time.sleep(.03)")
+        value = job_definition(h, recovery={'automatic': False}, code=code)
+        action = next(a for a in h.service.actions(actor={'type': 'user', 'id': 'local'})['items']
+                      if a['id'] == 'product_process_logs_v1')
+        value['steps'][0]['actionRef'] = object_ref('action', action)
+        jid, rid = create(h, value)
+        try:
+            asyncio.run(h.service.dispatch_once())
+            state = h.service.final.get(jid)
+&gt;           assert state['runs'][rid]['state'] == 'running'
+E           AssertionError: assert 'uncertain' == 'running'
+E             
+E             - running
+E             + uncertain
+
+tests\test_job_process_pending.py:23: AssertionError</failure></testcase></testsuite></testsuites>

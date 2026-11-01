@@ -117,8 +117,15 @@ def start(c, code):
     state = c.service.final.store.get(job["id"])["finalRuntime"]
     c.aid, = state["attempts"]
     c.attempt = state["attempts"][c.aid]
-    row, = state["effects"]
-    c.key = row["effectKey"]
+    if c.attempt['state'] == 'running':
+        # Known pending owns an admission, not a fabricated unknown effect.
+        assert not state['effects']
+        row, = state['effectAdmissions'].values()
+        assert row['attemptId'] == c.aid
+    else:
+        row, = state['effects']
+        assert row['attemptId'] == c.aid
+    c.key = row['effectKey']
     c.store = ExecutionStore(c.root / "executions")
     c.eid = effect_id(c.key)
     c.url = f"/api/job-runs/{c.rid}/attempts/{c.aid}/log"
@@ -307,9 +314,11 @@ asyncio.run(s.close())
     before = c.service.final.store.get(c.job["id"])
     def pending_handoff(job):
         state = job["finalRuntime"]
-        original, = state["effects"]
-        state["effects"] = []
-        state["effectAdmissions"] = {"handoff": {k: v for k, v in original.items() if k != "receipt"}}
+        assert not state['effects']
+        original, = state['effectAdmissions'].values()
+        assert original['attemptId'] == c.aid and original['effectKey'] == c.key
+        assert state['plans'][c.rid].pop('pendingProcessAttempt') == c.aid
+        state['effectAdmissions'] = {'handoff': copy.deepcopy(original)}
     c.service.final.store.mutate(c.job["id"], pending_handoff)
     handoff = c.client.get(f"/api/job-runs/{c.rid}/logs").json()["items"]
     assert handoff == listing.json()["items"]

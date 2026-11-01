@@ -1,0 +1,26 @@
+[
+  {
+    "name": "web-install",
+    "exitCode": 0
+  },
+  {
+    "name": "web-build",
+    "exitCode": 0
+  },
+  {
+    "name": "emulator-install",
+    "exitCode": 0
+  },
+  {
+    "name": "codex-install",
+    "exitCode": 0
+  },
+  {
+    "name": "browser-install",
+    "exitCode": 0
+  },
+  {
+    "name": "full",
+    "exitCode": 1
+  }
+]

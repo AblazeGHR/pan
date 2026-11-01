@@ -478,17 +478,24 @@ def test_real_job_terminal_auto_force_steers_system_notice(make_runtime):
         time.sleep(0.4)
         _enable(runtime, system=True)
 
-        job = runtime.request("POST", "/api/background-jobs", json={
-            "name": "Validate isolated terminal notice",
-            "targetSessionId": manager["id"],
-            "argv": [sys.executable, "-c", "print('job-ok')"],
-            "cwd": manager["workdir"],
-            "label": "auto-force-job",
-        })
-        assert job.get("jobId"), job
-        _wait_for(lambda: any("background_job_terminal" in text
+        from tests.support.canonical_process_http import CanonicalProcessHTTP
+        canonical = CanonicalProcessHTTP(runtime)
+        job, run = canonical.start(manager, "print('job-ok')")
+        completed = _wait_for(lambda: (value if (value := canonical.run(run['runId']))['state'] == 'completed' else None),
+                              timeout=60, label='canonical process completed')
+        _wait_for(lambda: any(run['runId'] in text and 'completed' in text
                               for text in _steer_texts(runtime)),
                   timeout=60, label="job terminal Steer control")
+        notification = _wait_for(lambda: next((n for n in canonical.run(run['runId']).get('notifications', [])
+                                               if n['status'] == 'acked'), None), label='original outbox ack')
+        assert notification['summary']['runId'] == completed['runId'] == run['runId']
+        assert len([text for text in _steer_texts(runtime) if run['runId'] in text]) == 1
+        stored = json.loads((runtime.data_root / 'sessions' / (manager['id'] + '.json')).read_text(encoding='utf8'))
+        notices = [item for item in stored['queue_delivery_ledger'].values()
+                   if item.get('eventId') == notification['outboxId']]
+        assert len(notices) == 1 and notices[0]['noticeKind'] == 'job_terminal'
+        assert notices[0]['jobId'] == job['id']
+        assert notices[0]['deliveryState'] == 'sent_to_cli'
         assert recorder.count("worker.restarted", manager["id"]) == 0
     finally:
         recorder.stop()

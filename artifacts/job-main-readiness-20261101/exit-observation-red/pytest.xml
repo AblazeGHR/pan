@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="7" time="4.053" timestamp="2026-11-01T20:04:18.287956+08:00" hostname="ablaze"><testcase classname="tests.test_job_process_exit_observation" name="test_missing_or_unconfirmed_exit_keeps_original_running[None]" time="0.447" /><testcase classname="tests.test_job_process_exit_observation" name="test_missing_or_unconfirmed_exit_keeps_original_running[proof1]" time="0.440" /><testcase classname="tests.test_job_process_exit_observation" name="test_missing_or_unconfirmed_exit_keeps_original_running[proof2]" time="0.466" /><testcase classname="tests.test_job_process_exit_observation" name="test_exit_proof_must_name_original_supervisor[missing_identity]" time="0.426"><failure message="Failed: DID NOT RAISE ContractError">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000002E4EE0856E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000002E4EE084E90&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000002E4EDF0D2B0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002E4EDFF6AD0&gt;
+change = 'missing_identity'
+
+    @pytest.mark.parametrize('change', ['missing_identity', 'birth', 'pid'])
+    def test_exit_proof_must_name_original_supervisor(env, monkeypatch, change):
+        row = pending(env, monkeypatch)
+        identity = copy.deepcopy(row.doc['supervisorIdentity'])
+        if change == 'birth': identity['birth'] = 'different'
+        elif change == 'pid': identity['pid'] += 1
+        row.doc['supervisorExitProof'] = {'confirmed': True}
+        if change != 'missing_identity': row.doc['supervisorExitProof']['identity'] = identity
+        before = env.service.final.store.get(row.jid)
+&gt;       with pytest.raises(fc.ContractError, match='supervisor exit proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ContractError
+
+tests\test_job_process_exit_observation.py:39: Failed</failure></testcase><testcase classname="tests.test_job_process_exit_observation" name="test_exit_proof_must_name_original_supervisor[birth]" time="0.511"><failure message="Failed: DID NOT RAISE ContractError">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000002E4EE1455B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000002E4EE144E90&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000002E4EE0CDD30&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002E4EE0BD9D0&gt;
+change = 'birth'
+
+    @pytest.mark.parametrize('change', ['missing_identity', 'birth', 'pid'])
+    def test_exit_proof_must_name_original_supervisor(env, monkeypatch, change):
+        row = pending(env, monkeypatch)
+        identity = copy.deepcopy(row.doc['supervisorIdentity'])
+        if change == 'birth': identity['birth'] = 'different'
+        elif change == 'pid': identity['pid'] += 1
+        row.doc['supervisorExitProof'] = {'confirmed': True}
+        if change != 'missing_identity': row.doc['supervisorExitProof']['identity'] = identity
+        before = env.service.final.store.get(row.jid)
+&gt;       with pytest.raises(fc.ContractError, match='supervisor exit proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ContractError
+
+tests\test_job_process_exit_observation.py:39: Failed</failure></testcase><testcase classname="tests.test_job_process_exit_observation" name="test_exit_proof_must_name_original_supervisor[pid]" time="0.669"><failure message="Failed: DID NOT RAISE ContractError">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000002E4EE147BB0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000002E4EE2443B0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000002E4EE1DFB60&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002E4EDF36E50&gt;
+change = 'pid'
+
+    @pytest.mark.parametrize('change', ['missing_identity', 'birth', 'pid'])
+    def test_exit_proof_must_name_original_supervisor(env, monkeypatch, change):
+        row = pending(env, monkeypatch)
+        identity = copy.deepcopy(row.doc['supervisorIdentity'])
+        if change == 'birth': identity['birth'] = 'different'
+        elif change == 'pid': identity['pid'] += 1
+        row.doc['supervisorExitProof'] = {'confirmed': True}
+        if change != 'missing_identity': row.doc['supervisorExitProof']['identity'] = identity
+        before = env.service.final.store.get(row.jid)
+&gt;       with pytest.raises(fc.ContractError, match='supervisor exit proof'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ContractError
+
+tests\test_job_process_exit_observation.py:39: Failed</failure></testcase><testcase classname="tests.test_job_process_exit_observation" name="test_confirmed_exit_without_receipt_is_unknown_once_without_native_result_write" time="0.635" /></testsuite></testsuites>

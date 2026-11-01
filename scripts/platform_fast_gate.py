@@ -36,6 +36,9 @@ FAST_TESTS = (
     "tests/test_plugin_ipc_endpoint.py",
     "tests/test_quota_native_admission.py",
     "tests/test_job_process_logs.py",
+    "tests/test_job_process_pending.py",
+    "tests/test_job_process_exit_observation.py",
+    "tests/test_job_event_deferred_inbox.py",
     "tests/test_job_final_executors.py",
     "tests/test_lifecycle_fast_contract.py",
     # Canonical lifecycle preparation is a cross-platform fast contract: the

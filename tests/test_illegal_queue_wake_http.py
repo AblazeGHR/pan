@@ -72,16 +72,31 @@ def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tm
     sid = s["id"]
     _enqueue(runtime, sid, "hold-A", "active")
     active = _wait_for(lambda: _received(runtime, cwd=s["workdir"], text="hold-A"))[0]
-    job = runtime.request("POST", "/api/background-jobs", json={
-            "name": "Validate isolated terminal notice",
-        "targetSessionId": sid, "creatorSessionId": sid,
-        "argv": [sys.executable, "-u", "-c", "import time; print('JOB_LONG_STARTED', flush=True); time.sleep(86400)"],
-        "cwd": s["workdir"], "label": "isolated shutdown sticky lock"})
-    jid = job["jobId"]
-    running = _wait_for(lambda: (value if (value := runtime.request("GET", f"/api/background-jobs/{jid}")).get("status") == "running" else None))
-    job_pid = running.get("runnerPid") or running.get("pid")
-    assert isinstance(job_pid, int) and job_pid != active["pid"], running
-    roots = [psutil.Process(pid) for pid in {job_pid, active["pid"], runtime.process.pid}]
+    from pathlib import Path
+    from tests.support.canonical_process_http import CanonicalProcessHTTP
+    canonical = CanonicalProcessHTTP(runtime)
+    marker = Path(s['workdir']) / 'owned-process-pid.txt'
+    code = ('import os,time; from pathlib import Path; '
+            f'Path({str(marker)!r}).open("a").write(str(os.getpid())+"\\n"); '
+            "print('JOB_LONG_STARTED', flush=True); time.sleep(86400)")
+    # Missing terminal receipt is uncertainty, not proof of process failure.
+    job, launched = canonical.start(s, code, terminal=('uncertain',))
+    jid, rid = job['id'], launched['runId']
+    job_pid = _wait_for(lambda: int(marker.read_text()) if marker.exists() else None)
+    assert isinstance(job_pid, int) and job_pid != active["pid"], launched
+    from packages.jobs.independent_executor import ExecutionStore
+    store = ExecutionStore(runtime.data_root / 'job-final/executions')
+    with store.connect() as db:
+        executions = [json.loads(row[0]) for row in db.execute('SELECT document FROM executions')]
+    execution = next(item for item in executions if item['attempt']['runId'] == rid)
+    supervisor = execution['supervisorIdentity']
+    from packages.core.platform.execution_host import supervisor_alive
+    assert supervisor_alive(supervisor), 'Original owned supervisor birth must match before crash'
+    assert supervisor_alive(execution['evidence']['processIdentity'])
+    assert canonical.run(rid)['state'] == 'running'
+    supervisor_process = psutil.Process(supervisor['pid'])
+    assert supervisor_process.is_running()
+    roots = [psutil.Process(pid) for pid in {job_pid, supervisor['pid'], active["pid"], runtime.process.pid}]
     owned = {}
     for root in roots:
         for proc in [root, *root.children(recursive=True)]:
@@ -103,8 +118,9 @@ def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tm
         list(pool.map(crash, owned.values()))
     runtime.stop()
     runtime.start()
-    failed = _wait_for(lambda: (value if (value := runtime.request("GET", f"/api/background-jobs/{jid}")).get("status") == "failed" else None))
-    event_id = f"{jid}:terminal"
+    unknown = _wait_for(lambda: (value if (value := canonical.run(rid)).get('state') == 'uncertain' else None))
+    event_id = _wait_for(lambda: next((n['outboxId'] for n in canonical.run(rid).get('notifications', [])
+                                      if n['summary']['status'] == 'uncertain'), None))
     pending = _wait_for(lambda: next((row for row in durable(runtime, sid)["queue_pending"] if row.get("eventId") == event_id), None))
     assert pending["queueLockSource"] == "illegal"
     assert pending["deliveryState"] == "queued"
@@ -122,10 +138,16 @@ def test_pan_and_long_job_crash_notification_stays_locked_until_wake(runtime, tm
     after = durable(runtime, sid)
     receipt = after["queue_delivery_ledger"][pending["id"]]
     assert receipt["deliveryState"] == "sent_to_cli"
+    assert pending['noticeKind'] == 'job_terminal' and pending['jobId'] == jid
+    assert unknown['runId'] == rid and marker.read_text().splitlines() == [str(job_pid)]
+    assert canonical.run(rid)['state'] == 'uncertain'
+    with store.connect() as db:
+        original_executions = [json.loads(row[0]) for row in db.execute('SELECT document FROM executions')]
+    assert len([item for item in original_executions if item['attempt']['runId'] == rid]) == 1
     received = [row for row in _received(runtime, cwd=s["workdir"]) if row["text"] != "hold-A"]
     assert received[0]["text"] == "继续"
     evidence = {"sessionId": sid, "jobId": jid, "port": runtime.base_url,
-                "failedJob": failed, "beforeWake": before, "afterWake": after, "received": received}
+                "unknownRun": unknown, "beforeWake": before, "afterWake": after, "received": received}
     (tmp_path / "sticky-job-crash-result.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8")
     print("STICKY_JOB_CRASH", jid, pending["id"], str(tmp_path))
 

@@ -65,9 +65,15 @@ def test_fa02_trigger_revision_gates_new_admission_but_not_original_lookup(canon
     changed = response.json()['result']['object']
     assert changed['revision'] == 2
     assert admit(h, ev, changed)['runId'] == first['runId']
-    assert admit(h, fact(h, 'stale'), target)['status'] == 'skipped'
+    stale_event = fact(h, 'stale')
+    assert admit(h, stale_event, target) == {'status': 'deferred', 'reason': 'trigger_revision_changed'}
+    assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
+    refreshed = admit(h, stale_event, changed)
+    assert admit(h, stale_event, target)['runId'] == refreshed['runId']
+    assert len(h.service.final.runs(job['id'])) == 2
     second = admit(h, fact(h, 'next'), changed)
-    assert second['runId'] != first['runId'] and len(h.service.final.runs(job['id'])) == 2
+    assert len({second['runId'], first['runId'], refreshed['runId']}) == 3
+    assert len(h.service.final.runs(job['id'])) == 3
 
 
 @pytest.mark.parametrize('state', ['disable', 'pause', 'retire'])
@@ -78,10 +84,23 @@ def test_fa03_trigger_lifecycle_only_gates_future_admission(canonical, state):
     response = control(h, 'triggers', target, state)
     assert response.status_code == 200, response.text
     changed = response.json()['result']['object']
-    assert admit(h, fact(h, 'future'), changed)['status'] == 'skipped'
+    future = fact(h, 'future')
+    for _ in range(2):
+        result = admit(h, future, changed)
+        assert result == ({'status': 'skipped'} if state == 'retire' else
+                          {'status': 'deferred', 'reason': 'trigger_temporarily_inactive'})
+        assert len(h.service.final.runs(job['id'])) == 1 and not h.provider.calls
+    if state != 'retire':
+        response = control(h, 'triggers', changed, 'resume' if state == 'pause' else 'enable')
+        assert response.status_code == 200, response.text
+        current = response.json()['result']['object']
+        restored = FinalService(h.root, h.automation.auth, executor=h.service.executor, owner=h.service.owner)
+        accepted = restored.admit_event(future, current)
+        assert restored.admit_event(future, changed)['runId'] == accepted['runId']
     asyncio.run(h.service.dispatch_once())
     assert run(h, first['runId'])['state'] == 'completed'
-    assert len(h.service.final.runs(job['id'])) == 1 and len(h.provider.calls) == 1
+    assert len(h.service.final.runs(job['id'])) == (1 if state == 'retire' else 2)
+    assert len(h.provider.calls) == 1
 
 
 @pytest.mark.parametrize('committed', [False, True])

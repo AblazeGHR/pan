@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.594" timestamp="2026-11-01T19:47:46.540293+08:00" hostname="ablaze"><testcase classname="tests.test_job_event_deferred_inbox" name="test_inbox_deferred_keeps_original_event_until_same_trigger_resumes[pause-resume]" time="0.581"><failure message="Failed: DID NOT RAISE ValueError">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000020024CA52B0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='lGwGpqfmZ91F8DJ1qq-oVuXwrzFIfzNXw0oWH1ElzDs')
+hold = 'pause', resume = 'resume'
+
+    @pytest.mark.parametrize('hold,resume', [('pause', 'resume'), ('disable', 'enable')])
+    def test_inbox_deferred_keeps_original_event_until_same_trigger_resumes(canonical, hold, resume):
+        h = canonical
+        job, target = subscription(h)
+        svc = h.automation
+        svc.started = True
+        event = fact(h)
+        asyncio.run(svc.accept(event, svc.core))
+        original = copy.deepcopy(svc.events.lookup(event['id']))
+        response = control(h, 'triggers', target, hold)
+        assert response.status_code == 200, response.text
+        held = response.json()['result']['object']
+        for _ in range(2):
+&gt;           with pytest.raises(ValueError, match='trigger_temporarily_inactive'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests\test_job_event_deferred_inbox.py:24: Failed</failure></testcase><testcase classname="tests.test_job_event_deferred_inbox" name="test_inbox_deferred_keeps_original_event_until_same_trigger_resumes[disable-enable]" time="0.535"><failure message="Failed: DID NOT RAISE ValueError">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000020024EBFE00&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='1qr87E1SLYXzCNXCFnUbn3AP3pzbxH0IfX5_4bOQ4uU')
+hold = 'disable', resume = 'enable'
+
+    @pytest.mark.parametrize('hold,resume', [('pause', 'resume'), ('disable', 'enable')])
+    def test_inbox_deferred_keeps_original_event_until_same_trigger_resumes(canonical, hold, resume):
+        h = canonical
+        job, target = subscription(h)
+        svc = h.automation
+        svc.started = True
+        event = fact(h)
+        asyncio.run(svc.accept(event, svc.core))
+        original = copy.deepcopy(svc.events.lookup(event['id']))
+        response = control(h, 'triggers', target, hold)
+        assert response.status_code == 200, response.text
+        held = response.json()['result']['object']
+        for _ in range(2):
+&gt;           with pytest.raises(ValueError, match='trigger_temporarily_inactive'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests\test_job_event_deferred_inbox.py:24: Failed</failure></testcase></testsuite></testsuites>

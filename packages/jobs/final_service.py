@@ -158,7 +158,13 @@ class TriggerAdmission:
         self.service = service
 
     async def admit(self, event, target):
-        return await self.service.admit_event_async(event, target)
+        # The immutable inbox owns target IDs, not a permanently stale policy
+        # revision. Reuse the coordinator's current-target read on retry.
+        targets = await asyncio.to_thread(self.service.targets, event)
+        current = next((item for item in targets if item['id'] == target['id']), None)
+        if current is None:
+            return {'status': 'skipped'}
+        return await self.service.admit_event_async(event, current)
 
 
 class FinalService:
@@ -1824,10 +1830,11 @@ class FinalService:
                 if state["attempts"][attempt["attemptId"]]["state"] != "running":
                     return
                 if (self.executor is self._product_executor and executable["operation"] == "process"
-                        and (self._automatic_policy(state["plans"][run_id])
-                             or step["completion"].get("contract") == "monitoring")
                         and receipt.get("effectKey") == effect_key
-                        and (outcome in {"succeeded", "rejected"} or (outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending"))):
+                        and ((outcome == "unknown" and receipt.get("receipt", {}).get("code") == "execution_pending")
+                             or (outcome in {"succeeded", "rejected"}
+                                 and (self._automatic_policy(state["plans"][run_id])
+                                      or step["completion"].get("contract") == "monitoring")))):
                     # Known default-host pending is a query reference, not a lost
                     # effect. Keep its original running admission until lookup.
                     state["plans"][run_id]["pendingProcessAttempt"] = attempt["attemptId"]
@@ -2093,6 +2100,29 @@ class FinalService:
                         self._validate_process_document(job, targets[0], documents[0])
                         if state["attempts"][pending_aid]["state"] != "running":
                             continue
+                        if (receipt is None and documents[0].get('supervisorIdentity')
+                                and documents[0].get('supervisorExitProof', {}).get('confirmed') is True):
+                            from packages.core.platform.process import ProcessIdentity, IDENTITY_SCHEMA
+                            identity = documents[0]['supervisorIdentity']
+                            proof_identity = documents[0]['supervisorExitProof'].get('identity')
+                            if (not isinstance(identity, dict) or identity.get('schema') != IDENTITY_SCHEMA
+                                    or type(identity.get('pid')) is not int
+                                    or not isinstance(identity.get('birth'), str) or not identity['birth']
+                                    or proof_identity != identity):
+                                error('revision_conflict', 'Original supervisor exit proof identity differs or is incomplete')
+                            try:
+                                ProcessIdentity.from_dict(identity)
+                            except (ValueError, TypeError):
+                                error('revision_conflict', 'Original supervisor exit proof identity is invalid')
+                            # The original supervisor exited without a terminal
+                            # receipt. This is an unknown observation, never an
+                            # invented failed result or permission to execute.
+                            from packages.actions.typed_executor import EffectReceipt
+                            receipt = EffectReceipt(targets[0]['effectKey'], 'unknown', {
+                                'code': 'supervisor_exited_without_receipt',
+                                'supervisorIdentity': documents[0]['supervisorIdentity'],
+                                'supervisorExitProof': documents[0]['supervisorExitProof'],
+                            }, {'confirmed': False}).as_dict()
                         if receipt and receipt.get("outcome") in {"unknown", "partial"}:
                             self.final.ledger.finish_attempt(job, self.root, pending_aid, "uncertain")
                             self.final.ledger.record_effect(job, self.root, pending_aid,

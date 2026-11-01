@@ -225,8 +225,16 @@ def test_trigger_disabled_after_accept_never_resurrects(canonical, state):
     asyncio.run(svc.accept(ev, svc.core))
     response = control(h, 'triggers', target, 'disable' if state == 'disabled' else 'retire')
     assert response.status_code == 200, response.text
-    asyncio.run(svc.deliver(svc.events.lookup(ev['id'])))
-    assert svc.events.subscription_receipts(ev['id'])['trigger:' + target['id']]['admissionResult'] == 'skipped'
+    row = svc.events.lookup(ev['id'])
+    if state == 'disabled':
+        for _ in range(2):
+            with pytest.raises(ValueError, match='trigger_temporarily_inactive'):
+                asyncio.run(svc.deliver(row))
+            receipt = svc.events.subscription_receipts(ev['id'])['trigger:' + target['id']]
+            assert receipt['status'] == 'error' and not receipt.get('runId')
+    else:
+        asyncio.run(svc.deliver(row))
+        assert svc.events.subscription_receipts(ev['id'])['trigger:' + target['id']]['admissionResult'] == 'skipped'
     assert not h.service.final.runs(job['id']) and not h.provider.calls
 
 

@@ -207,6 +207,10 @@ class Service:
                     if final_jobs is None:
                         raise ValueError('Canonical admission service unavailable')
                     result = await final_jobs.admission.admit(copy.deepcopy(event), target)
+                    if result.get('status') == 'deferred':
+                        # Keep this original subscription in the existing retry
+                        # path; a temporary gate is not an admission receipt.
+                        raise ValueError(result['reason'])
                     await self.engine.io(self.events.subscription,eid,key,'admitted',
                         admissionResult=result.get('status'),runId=result.get('runId'),revision=target['revision'])
                     continue
