@@ -26,7 +26,9 @@ def instrument_owned_host(request, monkeypatch):
         yield
         return
     import test_real_queue_http_e2e as real
-    genuine = request.config.getoption("--cpx1-genuine-main")
+    # Normal collection uses the actual copied main entry. The opt-in plugin
+    # still offers the old non-main diagnostic comparison with its False default.
+    genuine = request.config.getoption("--cpx1-genuine-main", default=True)
 
     original_start, original_stop, original_request = real._PanRuntime.start, real._PanRuntime.stop, real._PanRuntime.request
     source = real.SERVER_LAUNCHER.read_text(encoding="utf-8")

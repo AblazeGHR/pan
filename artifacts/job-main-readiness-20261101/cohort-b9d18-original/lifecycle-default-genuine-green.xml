@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="13.540" timestamp="2026-11-02T00:04:25.852480+08:00" hostname="ablaze"><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[safe-api]" time="13.395" /></testsuite></testsuites>

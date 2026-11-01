@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="7" time="104.238" timestamp="2026-11-01T23:59:11.023436+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="13.865"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000225A04A30E0&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:52930')
+bot = None, target_type = 'user', expected_bot = '111111'
+operation = 'send_private_msg'
+
+    @pytest.mark.parametrize('bot,target_type,expected_bot,operation', [
+        (None, 'user', '111111', 'send_private_msg'),
+        ('222222', 'group', '222222', 'send_group_msg')])
+    def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
+            qq_http, bot, target_type, expected_bot, operation):
+        q = qq_http
+        _, item, run = admitted(q, bot, target_type=target_type)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:104: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="15.033" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[None]" time="15.280"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000225A28D6270&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:55675')
+bot = None
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
+        """Strict target for the missing trusted producer proof; keep red raw.
+    
+        Fixture connectivity is observed directly, never used as runtime proof.
+        The product must eventually carry trusted original no-send evidence.
+        """
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        original_bot = channel._bot
+        channel._bot = None
+        _, item, run = admitted(q, bot)
+        asyncio.run(q.h.service.dispatch_once())
+        before = q.h.service.final.get(item['id'])
+        assert not q.rows
+        assert len(before['attempts']) == len(before['effects']) == 1
+        assert before['effects'][0]['receipt']['receipt']['error']['code'] == 'bot_not_connected'
+        channel._bot = original_bot
+        response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'known-no-send-retry',
+            'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
+        assert response.status_code == 202, response.text
+        asyncio.run(q.h.service.dispatch_once())
+        after = q.h.service.final.get(item['id'])
+&gt;       assert after['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:146: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[222222]" time="15.636" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_edit_after_admission_keeps_actual_original_bot_target_text" time="14.787" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]" time="14.537" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]" time="14.768" /></testsuite></testsuites>

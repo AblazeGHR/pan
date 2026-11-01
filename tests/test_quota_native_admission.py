@@ -651,6 +651,14 @@ def test_unknown_production_process_restart_real_http(tmp_path, monkeypatch):
             assert aggregate(jid)['effects']==original['effects']
             assert not Store(rt.data_root/'automation').read()['commands']
             assert not rt.fake_records()
+            assert client.get('/api/automation/session', headers=headers).json()['authenticated'] is True
+            disabled_url = URL + '/disabled-accounts'
+            protected = {'disabledAccountIds': [], 'expectedRevision': client.get(URL).json()['revision']}
+            with httpx.Client(base_url=rt.base_url, timeout=10, trust_env=False) as anonymous:
+                assert anonymous.put(disabled_url, json=protected).status_code == 401
+            assert client.post('/api/automation/logout', headers=headers).json() == {'ok': True}
+            assert client.put(disabled_url, json=protected, headers=headers).status_code == 401
+            assert calls() == before_calls and aggregate(jid)['effects'] == original['effects']
             evidence.update(jobId=jid,runId=rid,attemptId=attempt['attemptId'],effectKey=effect['effectKey'],
                 adapterCalls=before_calls,queryCalls=2,onceExecutionQueries=1,monitorBindingQueries=1,
                 wakeCalls=0,effects=1,attempts=1,unknownPreserved=True,noResendAfterProcessRestart=True)

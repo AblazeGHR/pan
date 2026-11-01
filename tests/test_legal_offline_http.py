@@ -9,6 +9,7 @@ import pytest
 import test_real_queue_http_e2e as real
 from test_real_queue_http_e2e import _PanRuntime, _create, _enqueue, _received, _spawn, _wait_for
 from test_delayed_restart_locked_queue_http import _stop_owned, _read_session_metadata
+from tests.support.lifecycle_host_diagnostic import instrument_owned_host  # noqa: F401
 
 
 @pytest.fixture

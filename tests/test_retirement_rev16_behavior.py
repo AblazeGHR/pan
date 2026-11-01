@@ -48,6 +48,12 @@ def h(native_h, tmp_path):
         server.should_exit = True
         thread.join(6)
         listener.close()
+        if thread.is_alive():
+            # Preserve the real unresolved request identity instead of extending
+            # shutdown timeouts or silently dropping the assertion.
+            print('OWNED_HTTP_TEARDOWN_PENDING=' + repr([
+                {'task': repr(task), 'stack': [(f.f_code.co_filename, f.f_lineno)
+                    for f in task.get_stack()]} for task in server.server_state.tasks]))
         assert not thread.is_alive()
 
 

@@ -1,0 +1,627 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="5" failures="2" skipped="0" tests="7" time="55.720" timestamp="2026-11-02T00:02:13.378840+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="7.697"><error message="failed on teardown with &quot;RuntimeError: Event loop is closed&quot;">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000189895330E0&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6659/test_original_plugin_real_oneb0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000189895F8510&gt;
+
+    @pytest.fixture
+    def qq_http(h, tmp_path, monkeypatch):
+        import nonebot
+        from nonebot.config import Env, Config
+        from nonebot.drivers import combine_driver
+        from nonebot.drivers.fastapi import Driver
+        from nonebot.drivers.httpx import Mixin
+        try:
+            nonebot.get_driver()
+        except ValueError:
+            nonebot.init(driver='~fastapi', _env_file=tmp_path / 'absent.env')
+        from nonebot.adapters.onebot.v11 import Adapter, Bot
+        from packages.qq import channels, plugin
+        from packages.qq.channels.base import ChannelConfig
+        from packages.qq.channels.onebot import OneBotChannel
+        from packages.web import server
+    
+        rows = []
+        fixture = FastAPI()
+        mode = {'value': 'success'}
+    
+        @fixture.post('/{bot}/{operation}')
+        async def onebot(bot: str, operation: str, request: Request):
+            rows.append({'bot': bot, 'operation': operation, 'body': await request.json()})
+            if mode['value'] == 'lost-response':
+                # The external effect has been accepted/recorded above, but the
+                # acknowledgement is lost. Exercise the actual adapter parse error.
+                return Response(content=b'', status_code=200)
+            if mode['value'] == 'missing-id':
+                return {'status': 'ok', 'retcode': 0, 'data': {}}
+            return {'status': 'ok', 'retcode': 0, 'data': {'message_id': 'owned-' + str(len(rows))}}
+    
+        with tcp(fixture) as root:
+            # Real HTTP-capable driver independent of a suite's global NoneBot
+            # driver. This does not change any production configuration.
+            driver = combine_driver(Driver, Mixin)(Env(), Config(_env_file=tmp_path / 'absent.env'))
+            adapter = Adapter(driver)
+            adapter.onebot_config.onebot_api_roots = {
+                '111111': root + '/111111/', '222222': root + '/222222/'}
+            default = OneBotChannel(ChannelConfig(name='owned-default', bot_uin='111111'))
+            selected = OneBotChannel(ChannelConfig(name='owned-selected', bot_uin='222222'))
+            default._bot = Bot(adapter, '111111')
+            selected._bot = Bot(adapter, '222222')
+            monkeypatch.setattr(plugin, '_channel', default)
+            monkeypatch.setattr(channels, '_ACTIVE', default)
+            monkeypatch.setattr(channels, '_ACTIVE_CHANNELS', {
+                'owned-default': default, 'owned-selected': selected})
+            monkeypatch.setattr(plugin, '_HISTORY_DIR', tmp_path / 'qq-history')
+            monkeypatch.setattr(server, '_qq_plugin_client', None)
+            app = FastAPI()
+            plugin._register_qq_api(app)
+            with tcp(app) as url:
+                monkeypatch.setenv('PAN_QQ_API_URL', url)
+                server._bind_qq_channel_provider(h.service)
+                h.service._install_product_actions()
+                try:
+                    yield SimpleNamespace(h=h, rows=rows, mode=mode, default=default,
+                                          selected=selected, url=url)
+                finally:
+                    async def close():
+                        if server._qq_plugin_client is not None:
+                            await server._qq_plugin_client.aclose()
+&gt;                   asyncio.run(close())
+
+tests\test_retirement_rev9_qq_http.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev9_qq_http.py:80: in close
+    await server._qq_plugin_client.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_client.py:1985: in aclose
+    await self._transport.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_transports\default.py:406: in aclose
+    await self._pool.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:353: in aclose
+    await self._close_connections(closing_connections)
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:345: in _close_connections
+    await connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection.py:173: in aclose
+    await self._connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\http11.py:258: in aclose
+    await self._network_stream.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_backends\anyio.py:53: in aclose
+    await self._stream.aclose()
+.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:1499: in aclose
+    self._transport.abort()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:424: in abort
+    self._force_close(None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:152: in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:827: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+
+    def _check_closed(self):
+        if self._closed:
+&gt;           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:550: RuntimeError</error></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="8.597"><error message="failed on teardown with &quot;RuntimeError: Event loop is closed&quot;">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898A763380&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6659/test_original_plugin_real_oneb1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001898A7BBE10&gt;
+
+    @pytest.fixture
+    def qq_http(h, tmp_path, monkeypatch):
+        import nonebot
+        from nonebot.config import Env, Config
+        from nonebot.drivers import combine_driver
+        from nonebot.drivers.fastapi import Driver
+        from nonebot.drivers.httpx import Mixin
+        try:
+            nonebot.get_driver()
+        except ValueError:
+            nonebot.init(driver='~fastapi', _env_file=tmp_path / 'absent.env')
+        from nonebot.adapters.onebot.v11 import Adapter, Bot
+        from packages.qq import channels, plugin
+        from packages.qq.channels.base import ChannelConfig
+        from packages.qq.channels.onebot import OneBotChannel
+        from packages.web import server
+    
+        rows = []
+        fixture = FastAPI()
+        mode = {'value': 'success'}
+    
+        @fixture.post('/{bot}/{operation}')
+        async def onebot(bot: str, operation: str, request: Request):
+            rows.append({'bot': bot, 'operation': operation, 'body': await request.json()})
+            if mode['value'] == 'lost-response':
+                # The external effect has been accepted/recorded above, but the
+                # acknowledgement is lost. Exercise the actual adapter parse error.
+                return Response(content=b'', status_code=200)
+            if mode['value'] == 'missing-id':
+                return {'status': 'ok', 'retcode': 0, 'data': {}}
+            return {'status': 'ok', 'retcode': 0, 'data': {'message_id': 'owned-' + str(len(rows))}}
+    
+        with tcp(fixture) as root:
+            # Real HTTP-capable driver independent of a suite's global NoneBot
+            # driver. This does not change any production configuration.
+            driver = combine_driver(Driver, Mixin)(Env(), Config(_env_file=tmp_path / 'absent.env'))
+            adapter = Adapter(driver)
+            adapter.onebot_config.onebot_api_roots = {
+                '111111': root + '/111111/', '222222': root + '/222222/'}
+            default = OneBotChannel(ChannelConfig(name='owned-default', bot_uin='111111'))
+            selected = OneBotChannel(ChannelConfig(name='owned-selected', bot_uin='222222'))
+            default._bot = Bot(adapter, '111111')
+            selected._bot = Bot(adapter, '222222')
+            monkeypatch.setattr(plugin, '_channel', default)
+            monkeypatch.setattr(channels, '_ACTIVE', default)
+            monkeypatch.setattr(channels, '_ACTIVE_CHANNELS', {
+                'owned-default': default, 'owned-selected': selected})
+            monkeypatch.setattr(plugin, '_HISTORY_DIR', tmp_path / 'qq-history')
+            monkeypatch.setattr(server, '_qq_plugin_client', None)
+            app = FastAPI()
+            plugin._register_qq_api(app)
+            with tcp(app) as url:
+                monkeypatch.setenv('PAN_QQ_API_URL', url)
+                server._bind_qq_channel_provider(h.service)
+                h.service._install_product_actions()
+                try:
+                    yield SimpleNamespace(h=h, rows=rows, mode=mode, default=default,
+                                          selected=selected, url=url)
+                finally:
+                    async def close():
+                        if server._qq_plugin_client is not None:
+                            await server._qq_plugin_client.aclose()
+&gt;                   asyncio.run(close())
+
+tests\test_retirement_rev9_qq_http.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev9_qq_http.py:80: in close
+    await server._qq_plugin_client.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_client.py:1985: in aclose
+    await self._transport.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_transports\default.py:406: in aclose
+    await self._pool.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:353: in aclose
+    await self._close_connections(closing_connections)
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:345: in _close_connections
+    await connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection.py:173: in aclose
+    await self._connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\http11.py:258: in aclose
+    await self._network_stream.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_backends\anyio.py:53: in aclose
+    await self._stream.aclose()
+.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:1499: in aclose
+    self._transport.abort()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:424: in abort
+    self._force_close(None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:152: in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:827: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+
+    def _check_closed(self):
+        if self._closed:
+&gt;           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:550: RuntimeError</error></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[None]" time="6.853"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898A8BA270&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:63712')
+bot = None
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
+        """Strict target for the missing trusted producer proof; keep red raw.
+    
+        Fixture connectivity is observed directly, never used as runtime proof.
+        The product must eventually carry trusted original no-send evidence.
+        """
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        original_bot = channel._bot
+        channel._bot = None
+        _, item, run = admitted(q, bot)
+        asyncio.run(q.h.service.dispatch_once())
+        before = q.h.service.final.get(item['id'])
+        assert not q.rows
+        assert len(before['attempts']) == len(before['effects']) == 1
+        assert before['effects'][0]['receipt']['receipt']['error']['code'] == 'bot_not_connected'
+        channel._bot = original_bot
+        response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'known-no-send-retry',
+            'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
+        assert response.status_code == 202, response.text
+        asyncio.run(q.h.service.dispatch_once())
+        after = q.h.service.final.get(item['id'])
+&gt;       assert after['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:146: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[222222]" time="6.583"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898BF830E0&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:57509')
+bot = '222222'
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
+        """Strict target for the missing trusted producer proof; keep red raw.
+    
+        Fixture connectivity is observed directly, never used as runtime proof.
+        The product must eventually carry trusted original no-send evidence.
+        """
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        original_bot = channel._bot
+        channel._bot = None
+        _, item, run = admitted(q, bot)
+        asyncio.run(q.h.service.dispatch_once())
+        before = q.h.service.final.get(item['id'])
+        assert not q.rows
+        assert len(before['attempts']) == len(before['effects']) == 1
+        assert before['effects'][0]['receipt']['receipt']['error']['code'] == 'bot_not_connected'
+        channel._bot = original_bot
+        response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'known-no-send-retry',
+            'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
+        assert response.status_code == 202, response.text
+        asyncio.run(q.h.service.dispatch_once())
+        after = q.h.service.final.get(item['id'])
+&gt;       assert after['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:146: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_edit_after_admission_keeps_actual_original_bot_target_text" time="8.354"><error message="failed on teardown with &quot;RuntimeError: Event loop is closed&quot;">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898BE70EC0&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6659/test_edit_after_admission_keep0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001898BF4DAE0&gt;
+
+    @pytest.fixture
+    def qq_http(h, tmp_path, monkeypatch):
+        import nonebot
+        from nonebot.config import Env, Config
+        from nonebot.drivers import combine_driver
+        from nonebot.drivers.fastapi import Driver
+        from nonebot.drivers.httpx import Mixin
+        try:
+            nonebot.get_driver()
+        except ValueError:
+            nonebot.init(driver='~fastapi', _env_file=tmp_path / 'absent.env')
+        from nonebot.adapters.onebot.v11 import Adapter, Bot
+        from packages.qq import channels, plugin
+        from packages.qq.channels.base import ChannelConfig
+        from packages.qq.channels.onebot import OneBotChannel
+        from packages.web import server
+    
+        rows = []
+        fixture = FastAPI()
+        mode = {'value': 'success'}
+    
+        @fixture.post('/{bot}/{operation}')
+        async def onebot(bot: str, operation: str, request: Request):
+            rows.append({'bot': bot, 'operation': operation, 'body': await request.json()})
+            if mode['value'] == 'lost-response':
+                # The external effect has been accepted/recorded above, but the
+                # acknowledgement is lost. Exercise the actual adapter parse error.
+                return Response(content=b'', status_code=200)
+            if mode['value'] == 'missing-id':
+                return {'status': 'ok', 'retcode': 0, 'data': {}}
+            return {'status': 'ok', 'retcode': 0, 'data': {'message_id': 'owned-' + str(len(rows))}}
+    
+        with tcp(fixture) as root:
+            # Real HTTP-capable driver independent of a suite's global NoneBot
+            # driver. This does not change any production configuration.
+            driver = combine_driver(Driver, Mixin)(Env(), Config(_env_file=tmp_path / 'absent.env'))
+            adapter = Adapter(driver)
+            adapter.onebot_config.onebot_api_roots = {
+                '111111': root + '/111111/', '222222': root + '/222222/'}
+            default = OneBotChannel(ChannelConfig(name='owned-default', bot_uin='111111'))
+            selected = OneBotChannel(ChannelConfig(name='owned-selected', bot_uin='222222'))
+            default._bot = Bot(adapter, '111111')
+            selected._bot = Bot(adapter, '222222')
+            monkeypatch.setattr(plugin, '_channel', default)
+            monkeypatch.setattr(channels, '_ACTIVE', default)
+            monkeypatch.setattr(channels, '_ACTIVE_CHANNELS', {
+                'owned-default': default, 'owned-selected': selected})
+            monkeypatch.setattr(plugin, '_HISTORY_DIR', tmp_path / 'qq-history')
+            monkeypatch.setattr(server, '_qq_plugin_client', None)
+            app = FastAPI()
+            plugin._register_qq_api(app)
+            with tcp(app) as url:
+                monkeypatch.setenv('PAN_QQ_API_URL', url)
+                server._bind_qq_channel_provider(h.service)
+                h.service._install_product_actions()
+                try:
+                    yield SimpleNamespace(h=h, rows=rows, mode=mode, default=default,
+                                          selected=selected, url=url)
+                finally:
+                    async def close():
+                        if server._qq_plugin_client is not None:
+                            await server._qq_plugin_client.aclose()
+&gt;                   asyncio.run(close())
+
+tests\test_retirement_rev9_qq_http.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev9_qq_http.py:80: in close
+    await server._qq_plugin_client.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_client.py:1985: in aclose
+    await self._transport.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_transports\default.py:406: in aclose
+    await self._pool.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:353: in aclose
+    await self._close_connections(closing_connections)
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:345: in _close_connections
+    await connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection.py:173: in aclose
+    await self._connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\http11.py:258: in aclose
+    await self._network_stream.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_backends\anyio.py:53: in aclose
+    await self._stream.aclose()
+.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:1499: in aclose
+    self._transport.abort()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:424: in abort
+    self._force_close(None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:152: in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:827: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+
+    def _check_closed(self):
+        if self._closed:
+&gt;           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:550: RuntimeError</error></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]" time="8.355"><error message="failed on teardown with &quot;RuntimeError: Event loop is closed&quot;">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898BE72F90&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6659/test_accepted_without_ack_is_u0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001898A8B6150&gt;
+
+    @pytest.fixture
+    def qq_http(h, tmp_path, monkeypatch):
+        import nonebot
+        from nonebot.config import Env, Config
+        from nonebot.drivers import combine_driver
+        from nonebot.drivers.fastapi import Driver
+        from nonebot.drivers.httpx import Mixin
+        try:
+            nonebot.get_driver()
+        except ValueError:
+            nonebot.init(driver='~fastapi', _env_file=tmp_path / 'absent.env')
+        from nonebot.adapters.onebot.v11 import Adapter, Bot
+        from packages.qq import channels, plugin
+        from packages.qq.channels.base import ChannelConfig
+        from packages.qq.channels.onebot import OneBotChannel
+        from packages.web import server
+    
+        rows = []
+        fixture = FastAPI()
+        mode = {'value': 'success'}
+    
+        @fixture.post('/{bot}/{operation}')
+        async def onebot(bot: str, operation: str, request: Request):
+            rows.append({'bot': bot, 'operation': operation, 'body': await request.json()})
+            if mode['value'] == 'lost-response':
+                # The external effect has been accepted/recorded above, but the
+                # acknowledgement is lost. Exercise the actual adapter parse error.
+                return Response(content=b'', status_code=200)
+            if mode['value'] == 'missing-id':
+                return {'status': 'ok', 'retcode': 0, 'data': {}}
+            return {'status': 'ok', 'retcode': 0, 'data': {'message_id': 'owned-' + str(len(rows))}}
+    
+        with tcp(fixture) as root:
+            # Real HTTP-capable driver independent of a suite's global NoneBot
+            # driver. This does not change any production configuration.
+            driver = combine_driver(Driver, Mixin)(Env(), Config(_env_file=tmp_path / 'absent.env'))
+            adapter = Adapter(driver)
+            adapter.onebot_config.onebot_api_roots = {
+                '111111': root + '/111111/', '222222': root + '/222222/'}
+            default = OneBotChannel(ChannelConfig(name='owned-default', bot_uin='111111'))
+            selected = OneBotChannel(ChannelConfig(name='owned-selected', bot_uin='222222'))
+            default._bot = Bot(adapter, '111111')
+            selected._bot = Bot(adapter, '222222')
+            monkeypatch.setattr(plugin, '_channel', default)
+            monkeypatch.setattr(channels, '_ACTIVE', default)
+            monkeypatch.setattr(channels, '_ACTIVE_CHANNELS', {
+                'owned-default': default, 'owned-selected': selected})
+            monkeypatch.setattr(plugin, '_HISTORY_DIR', tmp_path / 'qq-history')
+            monkeypatch.setattr(server, '_qq_plugin_client', None)
+            app = FastAPI()
+            plugin._register_qq_api(app)
+            with tcp(app) as url:
+                monkeypatch.setenv('PAN_QQ_API_URL', url)
+                server._bind_qq_channel_provider(h.service)
+                h.service._install_product_actions()
+                try:
+                    yield SimpleNamespace(h=h, rows=rows, mode=mode, default=default,
+                                          selected=selected, url=url)
+                finally:
+                    async def close():
+                        if server._qq_plugin_client is not None:
+                            await server._qq_plugin_client.aclose()
+&gt;                   asyncio.run(close())
+
+tests\test_retirement_rev9_qq_http.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev9_qq_http.py:80: in close
+    await server._qq_plugin_client.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_client.py:1985: in aclose
+    await self._transport.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_transports\default.py:406: in aclose
+    await self._pool.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:353: in aclose
+    await self._close_connections(closing_connections)
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:345: in _close_connections
+    await connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection.py:173: in aclose
+    await self._connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\http11.py:258: in aclose
+    await self._network_stream.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_backends\anyio.py:53: in aclose
+    await self._stream.aclose()
+.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:1499: in aclose
+    self._transport.abort()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:424: in abort
+    self._force_close(None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:152: in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:827: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+
+    def _check_closed(self):
+        if self._closed:
+&gt;           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:550: RuntimeError</error></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]" time="8.388"><error message="failed on teardown with &quot;RuntimeError: Event loop is closed&quot;">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001898BBF3770&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6659/test_accepted_without_ack_is_u1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001898BF68550&gt;
+
+    @pytest.fixture
+    def qq_http(h, tmp_path, monkeypatch):
+        import nonebot
+        from nonebot.config import Env, Config
+        from nonebot.drivers import combine_driver
+        from nonebot.drivers.fastapi import Driver
+        from nonebot.drivers.httpx import Mixin
+        try:
+            nonebot.get_driver()
+        except ValueError:
+            nonebot.init(driver='~fastapi', _env_file=tmp_path / 'absent.env')
+        from nonebot.adapters.onebot.v11 import Adapter, Bot
+        from packages.qq import channels, plugin
+        from packages.qq.channels.base import ChannelConfig
+        from packages.qq.channels.onebot import OneBotChannel
+        from packages.web import server
+    
+        rows = []
+        fixture = FastAPI()
+        mode = {'value': 'success'}
+    
+        @fixture.post('/{bot}/{operation}')
+        async def onebot(bot: str, operation: str, request: Request):
+            rows.append({'bot': bot, 'operation': operation, 'body': await request.json()})
+            if mode['value'] == 'lost-response':
+                # The external effect has been accepted/recorded above, but the
+                # acknowledgement is lost. Exercise the actual adapter parse error.
+                return Response(content=b'', status_code=200)
+            if mode['value'] == 'missing-id':
+                return {'status': 'ok', 'retcode': 0, 'data': {}}
+            return {'status': 'ok', 'retcode': 0, 'data': {'message_id': 'owned-' + str(len(rows))}}
+    
+        with tcp(fixture) as root:
+            # Real HTTP-capable driver independent of a suite's global NoneBot
+            # driver. This does not change any production configuration.
+            driver = combine_driver(Driver, Mixin)(Env(), Config(_env_file=tmp_path / 'absent.env'))
+            adapter = Adapter(driver)
+            adapter.onebot_config.onebot_api_roots = {
+                '111111': root + '/111111/', '222222': root + '/222222/'}
+            default = OneBotChannel(ChannelConfig(name='owned-default', bot_uin='111111'))
+            selected = OneBotChannel(ChannelConfig(name='owned-selected', bot_uin='222222'))
+            default._bot = Bot(adapter, '111111')
+            selected._bot = Bot(adapter, '222222')
+            monkeypatch.setattr(plugin, '_channel', default)
+            monkeypatch.setattr(channels, '_ACTIVE', default)
+            monkeypatch.setattr(channels, '_ACTIVE_CHANNELS', {
+                'owned-default': default, 'owned-selected': selected})
+            monkeypatch.setattr(plugin, '_HISTORY_DIR', tmp_path / 'qq-history')
+            monkeypatch.setattr(server, '_qq_plugin_client', None)
+            app = FastAPI()
+            plugin._register_qq_api(app)
+            with tcp(app) as url:
+                monkeypatch.setenv('PAN_QQ_API_URL', url)
+                server._bind_qq_channel_provider(h.service)
+                h.service._install_product_actions()
+                try:
+                    yield SimpleNamespace(h=h, rows=rows, mode=mode, default=default,
+                                          selected=selected, url=url)
+                finally:
+                    async def close():
+                        if server._qq_plugin_client is not None:
+                            await server._qq_plugin_client.aclose()
+&gt;                   asyncio.run(close())
+
+tests\test_retirement_rev9_qq_http.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_retirement_rev9_qq_http.py:80: in close
+    await server._qq_plugin_client.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_client.py:1985: in aclose
+    await self._transport.aclose()
+.validation\ci-venv\Lib\site-packages\httpx\_transports\default.py:406: in aclose
+    await self._pool.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:353: in aclose
+    await self._close_connections(closing_connections)
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection_pool.py:345: in _close_connections
+    await connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\connection.py:173: in aclose
+    await self._connection.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_async\http11.py:258: in aclose
+    await self._network_stream.aclose()
+.validation\ci-venv\Lib\site-packages\httpcore\_backends\anyio.py:53: in aclose
+    await self._stream.aclose()
+.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:1499: in aclose
+    self._transport.abort()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:424: in abort
+    self._force_close(None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\proactor_events.py:152: in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:827: in call_soon
+    self._check_closed()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+
+    def _check_closed(self):
+        if self._closed:
+&gt;           raise RuntimeError('Event loop is closed')
+E           RuntimeError: Event loop is closed
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:550: RuntimeError</error></testcase></testsuite></testsuites>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="14.536" timestamp="2026-11-01T23:57:31.513283+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="14.202"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000018750A5E270&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:60407')
+bot = None, target_type = 'user', expected_bot = '111111'
+operation = 'send_private_msg'
+
+    @pytest.mark.parametrize('bot,target_type,expected_bot,operation', [
+        (None, 'user', '111111', 'send_private_msg'),
+        ('222222', 'group', '222222', 'send_group_msg')])
+    def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
+            qq_http, bot, target_type, expected_bot, operation):
+        q = qq_http
+        _, item, run = admitted(q, bot, target_type=target_type)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:104: AssertionError</failure></testcase></testsuite></testsuites>

@@ -78,7 +78,7 @@ def qq_http(h, tmp_path, monkeypatch):
                 async def close():
                     if server._qq_plugin_client is not None:
                         await server._qq_plugin_client.aclose()
-                asyncio.run(close())
+                h.run(close())
                 server._qq_plugin_client = None
 
 
@@ -99,7 +99,7 @@ def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
         qq_http, bot, target_type, expected_bot, operation):
     q = qq_http
     _, item, run = admitted(q, bot, target_type=target_type)
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     state = q.h.service.final.get(item['id'])
     assert state['runs'][run['runId']]['state'] == 'completed'
     assert len(state['attempts']) == len(state['effects']) == len(q.rows) == 1
@@ -109,14 +109,14 @@ def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
     receipt = state['effects'][0]['receipt']
     assert receipt['outcome'] == 'succeeded'
     assert receipt['receipt'] == {'ok': True, 'message_id': 'owned-1'}
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     cold = FinalService(q.h.root, q.h.automation.auth)
     try:
         assert cold.final.get(item['id']) == state
-        asyncio.run(cold.dispatch_once())
+        q.h.run(cold.dispatch_once())
         assert len(q.rows) == 1
     finally:
-        asyncio.run(cold.close())
+        q.h.run(cold.close())
 
 
 @pytest.mark.parametrize('bot', [None, '222222'])
@@ -131,7 +131,7 @@ def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
     original_bot = channel._bot
     channel._bot = None
     _, item, run = admitted(q, bot)
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     before = q.h.service.final.get(item['id'])
     assert not q.rows
     assert len(before['attempts']) == len(before['effects']) == 1
@@ -141,7 +141,7 @@ def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
         'operation': 'retry', 'requestKey': 'known-no-send-retry',
         'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
     assert response.status_code == 202, response.text
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     after = q.h.service.final.get(item['id'])
     assert after['runs'][run['runId']]['state'] == 'completed'
     assert len(after['attempts']) == len(after['effects']) == 2
@@ -162,7 +162,7 @@ def test_edit_after_admission_keeps_actual_original_bot_target_text(qq_http):
         'definition': value, 'expectedRevision': item['configRevision'], 'requestKey': 'edit'})
     assert response.status_code == 200, response.text
     assert q.h.service.final.store.get(item['id'])['finalRuntime']['plans'] == frozen
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     assert q.rows == [{'bot': '222222', 'operation': 'send_private_msg',
                       'body': {'user_id': 123456, 'message': '  原文 [CQ:face,id=1]  '}}]
     assert q.h.service.get_run(run['runId'], actor=USER)['state'] == 'completed'
@@ -173,7 +173,7 @@ def test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send(qq_ht
     q = qq_http
     q.mode['value'] = mode
     _, item, run = admitted(q)
-    asyncio.run(q.h.service.dispatch_once())
+    q.h.run(q.h.service.dispatch_once())
     state = q.h.service.final.get(item['id'])
     assert len(q.rows) == len(state['attempts']) == len(state['effects']) == 1
     assert state['effects'][0]['receipt']['outcome'] == 'unknown'
@@ -185,8 +185,8 @@ def test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send(qq_ht
             cold.control_run(run['runId'], {'operation': 'retry', 'requestKey': 'retry',
                 'expectedStateRevision': original['stateRevision']}, actor=USER)
         assert denied.value.code == 'reconciliation_required'
-        asyncio.run(cold.dispatch_once())
+        q.h.run(cold.dispatch_once())
         assert cold.final.get(item['id']) == state
         assert len(q.rows) == 1
     finally:
-        asyncio.run(cold.close())
+        q.h.run(cold.close())

@@ -79,6 +79,8 @@ def offline_plugin(h, tmp_path, monkeypatch):
         finally:
             # The existing sender owns per-loop transport; no live service is
             # started and no global production listener is used.
+            if server._qq_plugin_client is not None:
+                h.run(server._qq_plugin_client.aclose())
             server._qq_plugin_client = None
 
 
@@ -102,7 +104,7 @@ def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(o
     item = control(h, 'jobs', item, 'enable').json()['result']['object']
     events = copy.deepcopy(h.service.events.stats())
     original = launch(h, item)
-    asyncio.run(h.service.dispatch_once())
+    h.run(h.service.dispatch_once())
     aggregate = h.service.final.get(item['id'])
     assert aggregate['runs'][original['runId']]['state'] == 'failed'
     assert len(aggregate['attempts']) == len(aggregate['effects']) == 1
@@ -115,15 +117,29 @@ def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(o
     assert expected['error']['code'] == code
     assert receipt['receipt'] == expected and receipt['outcome'] == 'rejected'
     assert h.service.events.stats() == events
-    asyncio.run(h.service.dispatch_once())
+    h.run(h.service.dispatch_once())
     assert h.service.final.get(item['id']) == aggregate
-    # Explicit failed QQ retry currently requires proof not supplied by this
-    # original channel. Preserve fence; this is evidence of a retained gap.
+    # The original plugin now supplies identity-bound before-send evidence.
+    # A rejected error code alone is still insufficient (negative proof suite).
+    from packages.actions.qq_channel_provider import reconnectable_no_send
+    prior = aggregate['attempts'][aggregate['effects'][0]['attemptId']]
+    arguments = {k: v['value'] for k, v in value['steps'][0]['arguments'].items()}
+    assert reconnectable_no_send(receipt, prior, aggregate['effects'][0]['effectKey'], arguments)
     run = aggregate['runs'][original['runId']]
-    denied = h.client.post('/api/job-runs/' + original['runId'] + '/operations', json={
+    accepted = h.client.post('/api/job-runs/' + original['runId'] + '/operations', json={
         'operation': 'retry', 'requestKey': 'qq-retry', 'expectedStateRevision': run['stateRevision']})
-    assert denied.status_code == 409, denied.text
-    assert h.service.final.get(item['id']) == aggregate
+    assert accepted.status_code == 202, accepted.text
+    assert accepted.json()['runId'] == original['runId']
+    h.run(h.service.dispatch_once())
+    retried = h.service.final.get(item['id'])
+    assert len(retried['runs']) == 1 and len(retried['attempts']) == len(retried['effects']) == 2
+    assert retried['runs'][original['runId']]['state'] == 'failed'
+    assert retried['effects'][0]['effectKey'] == retried['effects'][1]['effectKey']
+    assert retried['effects'][0]['attemptId'] != retried['effects'][1]['attemptId']
+    assert retried['effects'][1]['receipt']['receipt'] == expected
+    h.run(h.service.dispatch_once())
+    assert h.service.final.get(item['id']) == retried
+    assert h.service.events.stats() == events
 
 
 def test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect(env):
@@ -170,9 +186,9 @@ def test_real_product_qq_edit_preserves_frozen_target_bot_text_and_cas(offline_p
     assert h.service.final.store.get(item['id'])['finalRuntime']['plans'] == frozen
     assert h.client.put(url, json={**body, 'requestKey': 'qq-stale'}).status_code == 409
     assert h.client.get(url).json() == current
-    asyncio.run(h.service.dispatch_once())
+    h.run(h.service.dispatch_once())
     second = launch(h, current, 'after-edit')
-    asyncio.run(h.service.dispatch_once())
+    h.run(h.service.dispatch_once())
     state = h.service.final.get(item['id'])
     assert state['runs'][first['runId']]['configRevision'] == 1
     assert state['runs'][second['runId']]['configRevision'] == 2

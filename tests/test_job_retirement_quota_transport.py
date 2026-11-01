@@ -41,6 +41,8 @@ def owned_tcp(app):
 
 
 def test_quota_real_tcp_cas_reopen_and_legacy_writer_fence(h):
+    from tests.support.quota_unavailable_source import source
+    h.automation.quota_policy.adapter.source = source(h.root / "empty-quota")
     h.service.executor = TypedExecutor()
     install(SimpleNamespace(app=h.app))
     h.service.owner.claim(0)
@@ -60,12 +62,21 @@ def test_quota_real_tcp_cas_reopen_and_legacy_writer_fence(h):
         assert client.put(path, json=update, headers=headers).status_code == 200
         state = client.get(path).json()
         before = copy.deepcopy(h.automation.quota_policy.store.read())
-        for kind in ('monitor95', 'once'):
-            result = client.post(path + '/query-jobs', json={
-                'kind': kind, 'expectedRevision': state['revision']}, headers=headers)
-            assert result.status_code == 409 and 'fence' in result.text
-            assert h.automation.quota_policy.store.read() == before
-        assert client.get('/api/jobs', headers=headers).json()['items'] == []
+        result = client.post(path + '/query-jobs', json={
+            'kind': 'monitor95', 'expectedRevision': state['revision']}, headers=headers)
+        assert result.status_code == 409 and 'quota/current account unknown' in result.text
+        after_monitor = h.automation.quota_policy.store.read()
+        assert after_monitor['commands'] == {} and after_monitor['jobs'] == before['jobs']
+        state = client.get(path).json()
+        accepted = client.post(path + '/query-jobs', json={
+            'kind': 'once', 'expectedRevision': state['revision']}, headers=headers)
+        assert accepted.status_code == 200, accepted.text
+        original = accepted.json()['job']
+        jid = original['jobId']
+        aggregate = h.service.final.get(jid)
+        assert not aggregate['runs'] and not aggregate['attempts'] and not aggregate['effects']
+        assert [row['id'] for row in client.get('/api/jobs', headers=headers).json()['items']] == [jid]
+        before = h.automation.quota_policy.store.read()
         assert before['commands'] == {}
         assert Store(h.automation.ledger.path.parent).read() == before
     # A second actual listener uses the same durable state/auth; this is only
@@ -74,6 +85,8 @@ def test_quota_real_tcp_cas_reopen_and_legacy_writer_fence(h):
         reopened = client.get(path).json()
         assert reopened['mode'] == 'automatic'
         assert reopened['disabledAccountIds'] == ['owned-disabled']
-        assert client.post(path + '/query-jobs', headers=headers, json={
-            'kind': 'once', 'expectedRevision': reopened['revision']}).status_code == 409
+        duplicate = client.post(path + '/query-jobs', headers=headers, json={
+            'kind': 'once', 'expectedRevision': reopened['revision']})
+        assert duplicate.status_code == 200 and duplicate.json()['job'] == original
+        assert h.service.final.get(jid) == aggregate
         assert h.automation.quota_policy.store.read() == before

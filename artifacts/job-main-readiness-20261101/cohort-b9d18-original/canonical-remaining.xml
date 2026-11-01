@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="16" skipped="0" tests="94" time="317.120" timestamp="2026-11-01T23:50:40.758170+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[None-bot_not_connected]" time="10.791"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_fe7a2393c3f1406b885e8c76&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_5b11591738b242c19ca02365&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;c9dc1020cfab0c887df43aff4d18ab8555d7f7151a42ce8ff23acd928691906c&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_3c76299f81ce44448fe6115b&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_fe7a2393c3f1406b885e8c76&quot;},&quot;runId&quot;:&quot;run_3c76299f81ce44448fe6115b&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">offline_plugin = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429B8D46E0&gt;, automation=&lt;packages.automation.service.Se...revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), 'http://127.0.0.1:65299')
+bot = None, code = 'bot_not_connected'
+
+    @pytest.mark.parametrize('bot,code', [(None, 'bot_not_connected'), ('222222', 'bot_not_connected'),
+                                        ('333333', 'unknown_bot_uin')])
+    def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(offline_plugin, bot, code):
+        h, url = offline_plugin
+        value = qq_job(h, bot)
+        item = create(h, value=value)
+        item = control(h, 'jobs', item, 'enable').json()['result']['object']
+        events = copy.deepcopy(h.service.events.stats())
+        original = launch(h, item)
+        asyncio.run(h.service.dispatch_once())
+        aggregate = h.service.final.get(item['id'])
+        assert aggregate['runs'][original['runId']]['state'] == 'failed'
+        assert len(aggregate['attempts']) == len(aggregate['effects']) == 1
+        receipt = aggregate['effects'][0]['receipt']
+        with httpx.Client(base_url=url, trust_env=False) as client:
+            body = {'target_type': 'private', 'target_id': '123456', 'text': 'hello QQ'}
+            if bot is not None:
+                body['bot_uin'] = bot
+            expected = client.post('/api/qq/send', json=body).json()
+        assert expected['error']['code'] == code
+        assert receipt['receipt'] == expected and receipt['outcome'] == 'rejected'
+        assert h.service.events.stats() == events
+        asyncio.run(h.service.dispatch_once())
+        assert h.service.final.get(item['id']) == aggregate
+        # Explicit failed QQ retry currently requires proof not supplied by this
+        # original channel. Preserve fence; this is evidence of a retained gap.
+        run = aggregate['runs'][original['runId']]
+        denied = h.client.post('/api/job-runs/' + original['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'qq-retry', 'expectedStateRevision': run['stateRevision']})
+&gt;       assert denied.status_code == 409, denied.text
+E       AssertionError: {"operationId":"op_fe7a2393c3f1406b885e8c76","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_5b11591738b242c19ca02365","revision":1,"digest":"c9dc1020cfab0c887df43aff4d18ab8555d7f7151a42ce8ff23acd928691906c"}],"result":{"runId":"run_3c76299f81ce44448fe6115b","attemptId":null},"links":{"self":"/api/operations/op_fe7a2393c3f1406b885e8c76"},"runId":"run_3c76299f81ce44448fe6115b"}
+E       assert 202 == 409
+E        +  where 202 = &lt;Response [202 Accepted]&gt;.status_code
+
+tests\test_retirement_rev6_parity.py:125: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[222222-bot_not_connected]" time="11.098"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_f887d0f7bd924f15887529a9&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_8b081e2df3b94b2b8f7c6a2b&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;fe3a92495153e8d5fd9ec4ee9287a78f0a732bc26f8e372d1b14ae973cfd40b8&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_38580f0a318c4396b9cf4166&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_f887d0f7bd924f15887529a9&quot;},&quot;runId&quot;:&quot;run_38580f0a318c4396b9cf4166&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">offline_plugin = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429B8D4590&gt;, automation=&lt;packages.automation.service.Se...revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), 'http://127.0.0.1:63813')
+bot = '222222', code = 'bot_not_connected'
+
+    @pytest.mark.parametrize('bot,code', [(None, 'bot_not_connected'), ('222222', 'bot_not_connected'),
+                                        ('333333', 'unknown_bot_uin')])
+    def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(offline_plugin, bot, code):
+        h, url = offline_plugin
+        value = qq_job(h, bot)
+        item = create(h, value=value)
+        item = control(h, 'jobs', item, 'enable').json()['result']['object']
+        events = copy.deepcopy(h.service.events.stats())
+        original = launch(h, item)
+        asyncio.run(h.service.dispatch_once())
+        aggregate = h.service.final.get(item['id'])
+        assert aggregate['runs'][original['runId']]['state'] == 'failed'
+        assert len(aggregate['attempts']) == len(aggregate['effects']) == 1
+        receipt = aggregate['effects'][0]['receipt']
+        with httpx.Client(base_url=url, trust_env=False) as client:
+            body = {'target_type': 'private', 'target_id': '123456', 'text': 'hello QQ'}
+            if bot is not None:
+                body['bot_uin'] = bot
+            expected = client.post('/api/qq/send', json=body).json()
+        assert expected['error']['code'] == code
+        assert receipt['receipt'] == expected and receipt['outcome'] == 'rejected'
+        assert h.service.events.stats() == events
+        asyncio.run(h.service.dispatch_once())
+        assert h.service.final.get(item['id']) == aggregate
+        # Explicit failed QQ retry currently requires proof not supplied by this
+        # original channel. Preserve fence; this is evidence of a retained gap.
+        run = aggregate['runs'][original['runId']]
+        denied = h.client.post('/api/job-runs/' + original['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'qq-retry', 'expectedStateRevision': run['stateRevision']})
+&gt;       assert denied.status_code == 409, denied.text
+E       AssertionError: {"operationId":"op_f887d0f7bd924f15887529a9","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_8b081e2df3b94b2b8f7c6a2b","revision":1,"digest":"fe3a92495153e8d5fd9ec4ee9287a78f0a732bc26f8e372d1b14ae973cfd40b8"}],"result":{"runId":"run_38580f0a318c4396b9cf4166","attemptId":null},"links":{"self":"/api/operations/op_f887d0f7bd924f15887529a9"},"runId":"run_38580f0a318c4396b9cf4166"}
+E       assert 202 == 409
+E        +  where 202 = &lt;Response [202 Accepted]&gt;.status_code
+
+tests\test_retirement_rev6_parity.py:125: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay[333333-unknown_bot_uin]" time="11.200"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_d61c898878d3401681932a20&quot;,&quot;requestKey&quot;:&quot;qq-retry&quot;,&quot;status&quot;:&quot;accepted&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_964ea57c327743db998f573d&quot;,&quot;revision&quot;:1,&quot;digest&quot;:&quot;23d5dc65d4deb027c7d78148c7783a736d3cc2bf22a6681846cf311c1dac85f0&quot;}],&quot;result&quot;:{&quot;runId&quot;:&quot;run_c6df8941e7e04a3ca1c8278d&quot;,&quot;attemptId&quot;:null},&quot;links&quot;:{&quot;self&quot;:&quot;/api/operations/op_d61c898878d3401681932a20&quot;},&quot;runId&quot;:&quot;run_c6df8941e7e04a3ca1c8278d&quot;}&#10;assert 202 == 409&#10; +  where 202 = &lt;Response [202 Accepted]&gt;.status_code">offline_plugin = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429C74F8C0&gt;, automation=&lt;packages.automation.service.Se...revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), 'http://127.0.0.1:62385')
+bot = '333333', code = 'unknown_bot_uin'
+
+    @pytest.mark.parametrize('bot,code', [(None, 'bot_not_connected'), ('222222', 'bot_not_connected'),
+                                        ('333333', 'unknown_bot_uin')])
+    def test_real_plugin_default_selected_bot_failure_manual_receipt_and_no_replay(offline_plugin, bot, code):
+        h, url = offline_plugin
+        value = qq_job(h, bot)
+        item = create(h, value=value)
+        item = control(h, 'jobs', item, 'enable').json()['result']['object']
+        events = copy.deepcopy(h.service.events.stats())
+        original = launch(h, item)
+        asyncio.run(h.service.dispatch_once())
+        aggregate = h.service.final.get(item['id'])
+        assert aggregate['runs'][original['runId']]['state'] == 'failed'
+        assert len(aggregate['attempts']) == len(aggregate['effects']) == 1
+        receipt = aggregate['effects'][0]['receipt']
+        with httpx.Client(base_url=url, trust_env=False) as client:
+            body = {'target_type': 'private', 'target_id': '123456', 'text': 'hello QQ'}
+            if bot is not None:
+                body['bot_uin'] = bot
+            expected = client.post('/api/qq/send', json=body).json()
+        assert expected['error']['code'] == code
+        assert receipt['receipt'] == expected and receipt['outcome'] == 'rejected'
+        assert h.service.events.stats() == events
+        asyncio.run(h.service.dispatch_once())
+        assert h.service.final.get(item['id']) == aggregate
+        # Explicit failed QQ retry currently requires proof not supplied by this
+        # original channel. Preserve fence; this is evidence of a retained gap.
+        run = aggregate['runs'][original['runId']]
+        denied = h.client.post('/api/job-runs/' + original['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'qq-retry', 'expectedStateRevision': run['stateRevision']})
+&gt;       assert denied.status_code == 409, denied.text
+E       AssertionError: {"operationId":"op_d61c898878d3401681932a20","requestKey":"qq-retry","status":"accepted","objectRefs":[{"id":"job_964ea57c327743db998f573d","revision":1,"digest":"23d5dc65d4deb027c7d78148c7783a736d3cc2bf22a6681846cf311c1dac85f0"}],"result":{"runId":"run_c6df8941e7e04a3ca1c8278d","attemptId":null},"links":{"self":"/api/operations/op_d61c898878d3401681932a20"},"runId":"run_c6df8941e7e04a3ca1c8278d"}
+E       assert 202 == 409
+E        +  where 202 = &lt;Response [202 Accepted]&gt;.status_code
+
+tests\test_retirement_rev6_parity.py:125: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect" time="1.452" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_edit_preserves_frozen_target_bot_text_and_cas" time="9.417"><failure message="KeyError: 'error'">offline_plugin = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429DAE7230&gt;, automation=&lt;packages.automation.service.Se...revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), 'http://127.0.0.1:59259')
+
+    def test_real_product_qq_edit_preserves_frozen_target_bot_text_and_cas(offline_plugin):
+        h, _ = offline_plugin
+        value = qq_job(h, '333333')
+        item = create(h, value=value)
+        item = control(h, 'jobs', item, 'enable').json()['result']['object']
+        first = launch(h, item, 'before-edit')
+        frozen = copy.deepcopy(h.service.final.store.get(item['id'])['finalRuntime']['plans'])
+        edited = copy.deepcopy(value)
+        args = edited['steps'][0]['arguments']
+        for key, v in {'targetType': 'group', 'targetId': '654321', 'botUin': '222222', 'text': 'edited QQ'}.items():
+            args[key]['value'] = v
+        url = '/api/jobs/' + item['id']
+        body = {'definition': edited, 'expectedRevision': 1, 'requestKey': 'qq-edit'}
+        response = h.client.put(url, json=body)
+        assert response.status_code == 200, response.text
+        current = response.json()['result']['object']
+        assert current['steps'] == edited['steps'] and current['configRevision'] == 2
+        assert h.service.final.store.get(item['id'])['finalRuntime']['plans'] == frozen
+        assert h.client.put(url, json={**body, 'requestKey': 'qq-stale'}).status_code == 409
+        assert h.client.get(url).json() == current
+        asyncio.run(h.service.dispatch_once())
+        second = launch(h, current, 'after-edit')
+        asyncio.run(h.service.dispatch_once())
+        state = h.service.final.get(item['id'])
+        assert state['runs'][first['runId']]['configRevision'] == 1
+        assert state['runs'][second['runId']]['configRevision'] == 2
+&gt;       assert [e['receipt']['receipt']['error']['code'] for e in state['effects']] == [
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            'unknown_bot_uin', 'bot_not_connected']
+E       KeyError: 'error'
+
+tests\test_retirement_rev6_parity.py:179: KeyError</failure></testcase><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-create]" time="2.638" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-bad-update]" time="2.700" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-create]" time="2.885" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetId-123-update]" time="2.653" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-create]" time="2.649" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[botUin-untrusted-update]" time="2.666" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-create]" time="2.750" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[targetType-private-update]" time="2.780" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--create]" time="2.757" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text--update]" time="2.744" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -create]" time="2.657" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[text-  -update]" time="2.667" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-create]" time="2.656" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[endpoint-http://untrusted-update]" time="2.647" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-create]" time="2.652" /><testcase classname="tests.test_retirement_rev6_parity" name="test_real_product_qq_invalid_fixed_fields_never_commit_or_invoke_plugin[sessionId-unknown-update]" time="2.699" /><testcase classname="tests.test_retirement_rev6_parity" name="test_scheduled_explicit_shell_argv_preserves_command_cwd_exit_and_no_early_creation" time="1.145" /><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[None-user-111111-send_private_msg]" time="17.570"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429DD98830&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:58661')
+bot = None, target_type = 'user', expected_bot = '111111'
+operation = 'send_private_msg'
+
+    @pytest.mark.parametrize('bot,target_type,expected_bot,operation', [
+        (None, 'user', '111111', 'send_private_msg'),
+        ('222222', 'group', '222222', 'send_group_msg')])
+    def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
+            qq_http, bot, target_type, expected_bot, operation):
+        q = qq_http
+        _, item, run = admitted(q, bot, target_type=target_type)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:104: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_original_plugin_real_onebot_http_success_exact_receipt_single_send[222222-group-222222-send_group_msg]" time="18.021"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429DE18830&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:65487')
+bot = '222222', target_type = 'group', expected_bot = '222222'
+operation = 'send_group_msg'
+
+    @pytest.mark.parametrize('bot,target_type,expected_bot,operation', [
+        (None, 'user', '111111', 'send_private_msg'),
+        ('222222', 'group', '222222', 'send_group_msg')])
+    def test_original_plugin_real_onebot_http_success_exact_receipt_single_send(
+            qq_http, bot, target_type, expected_bot, operation):
+        q = qq_http
+        _, item, run = admitted(q, bot, target_type=target_type)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:104: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[None]" time="11.544"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429DFF1E80&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:56106')
+bot = None
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
+        """Strict target for the missing trusted producer proof; keep red raw.
+    
+        Fixture connectivity is observed directly, never used as runtime proof.
+        The product must eventually carry trusted original no-send evidence.
+        """
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        original_bot = channel._bot
+        channel._bot = None
+        _, item, run = admitted(q, bot)
+        asyncio.run(q.h.service.dispatch_once())
+        before = q.h.service.final.get(item['id'])
+        assert not q.rows
+        assert len(before['attempts']) == len(before['effects']) == 1
+        assert before['effects'][0]['receipt']['receipt']['error']['code'] == 'bot_not_connected'
+        channel._bot = original_bot
+        response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'known-no-send-retry',
+            'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
+        assert response.status_code == 202, response.text
+        asyncio.run(q.h.service.dispatch_once())
+        after = q.h.service.final.get(item['id'])
+&gt;       assert after['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:146: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_local_disconnected_no_send_manual_retry_retained_gap[222222]" time="11.814"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E0AFCB0&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:65003')
+bot = '222222'
+
+    @pytest.mark.parametrize('bot', [None, '222222'])
+    def test_local_disconnected_no_send_manual_retry_retained_gap(qq_http, bot):
+        """Strict target for the missing trusted producer proof; keep red raw.
+    
+        Fixture connectivity is observed directly, never used as runtime proof.
+        The product must eventually carry trusted original no-send evidence.
+        """
+        q = qq_http
+        channel = q.default if bot is None else q.selected
+        original_bot = channel._bot
+        channel._bot = None
+        _, item, run = admitted(q, bot)
+        asyncio.run(q.h.service.dispatch_once())
+        before = q.h.service.final.get(item['id'])
+        assert not q.rows
+        assert len(before['attempts']) == len(before['effects']) == 1
+        assert before['effects'][0]['receipt']['receipt']['error']['code'] == 'bot_not_connected'
+        channel._bot = original_bot
+        response = q.h.client.post('/api/job-runs/' + run['runId'] + '/operations', json={
+            'operation': 'retry', 'requestKey': 'known-no-send-retry',
+            'expectedStateRevision': before['runs'][run['runId']]['stateRevision']})
+        assert response.status_code == 202, response.text
+        asyncio.run(q.h.service.dispatch_once())
+        after = q.h.service.final.get(item['id'])
+&gt;       assert after['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev9_qq_http.py:146: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_edit_after_admission_keeps_actual_original_bot_target_text" time="17.959"><failure message="AssertionError: assert [] == [{'bot': '222...ce,id=1]  '}}]&#10;  &#10;  Right contains one more item: {'bot': '222222', 'operation': 'send_private_msg', 'body': {'user_id': 123456, 'message': '  原文 [CQ:face,id=1]  '}}&#10;  &#10;  Full diff: (-: missing in left side, +: extra in left side)&#10;  + []&#10;  - [&#10;  -     {...&#10;  &#10;  ...Full output truncated, use '-vv' to show">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E1D34D0&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:51499')
+
+    def test_edit_after_admission_keeps_actual_original_bot_target_text(qq_http):
+        q = qq_http
+        value, item, run = admitted(q, '222222')
+        frozen = copy.deepcopy(q.h.service.final.store.get(item['id'])['finalRuntime']['plans'])
+        args = value['steps'][0]['arguments']
+        for field, literal in {'botUin': '111111', 'targetId': '654321',
+                               'targetType': 'group', 'text': 'new text'}.items():
+            args[field]['value'] = literal
+        response = q.h.client.put('/api/jobs/' + item['id'], json={
+            'definition': value, 'expectedRevision': item['configRevision'], 'requestKey': 'edit'})
+        assert response.status_code == 200, response.text
+        assert q.h.service.final.store.get(item['id'])['finalRuntime']['plans'] == frozen
+        asyncio.run(q.h.service.dispatch_once())
+&gt;       assert q.rows == [{'bot': '222222', 'operation': 'send_private_msg',
+                          'body': {'user_id': 123456, 'message': '  原文 [CQ:face,id=1]  '}}]
+E       AssertionError: assert [] == [{'bot': '222...ce,id=1]  '}}]
+E         
+E         Right contains one more item: {'bot': '222222', 'operation': 'send_private_msg', 'body': {'user_id': 123456, 'message': '  原文 [CQ:face,id=1]  '}}
+E         
+E         Full diff: (-: missing in left side, +: extra in left side)
+E         + []
+E         - [
+E         -     {...
+E         
+E         ...Full output truncated, use '-vv' to show
+
+tests\test_retirement_rev9_qq_http.py:166: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[lost-response]" time="18.298"><failure message="AssertionError: assert 0 == 1&#10; +  where 0 = len([])&#10;[+2 more lines; full report in element text]">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E314EC0&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:63134')
+mode = 'lost-response'
+
+    @pytest.mark.parametrize('mode', ['lost-response', 'missing-id'])
+    def test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send(qq_http, mode):
+        q = qq_http
+        q.mode['value'] = mode
+        _, item, run = admitted(q)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert len(q.rows) == len(state['attempts']) == len(state['effects']) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E314EC0&gt;, automation=&lt;packages.automation.service.Service object at 0x000002429DB9C510&gt;, service=&lt;packages.jobs.final_service.FinalService object at 0x000002429E02C950&gt;, client=&lt;starlette.testclient.TestClient object at 0x000002429E2A3BD0&gt;, token='3NIa0CbLPWq9N7ciW692L1MUd0TLs9ULkMZyrNHUPqs', root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6647/test_accepted_without_ack_is_u0/canonical'), action={'id': 'product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), rows=[], mode={'value': 'lost-response'}, default=&lt;OneBotChannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:63134').rows
+E        +  and   1 = len({'attempt_a076eb2a90684f68906de5b6': {'attemptId': 'attempt_a076eb2a90684f68906de5b6', 'endedAt': '2026-11-01T15:53:39.150472Z', 'generation': 1, 'leaseId': 'lease_38138a90131a44318623dc9d', ...}})
+
+tests\test_retirement_rev9_qq_http.py:178: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev9_qq_http" name="test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send[missing-id]" time="17.777"><failure message="AssertionError: assert 0 == 1&#10; +  where 0 = len([])&#10;[+2 more lines; full report in element text]">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E1D3380&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:55032')
+mode = 'missing-id'
+
+    @pytest.mark.parametrize('mode', ['lost-response', 'missing-id'])
+    def test_accepted_without_ack_is_unknown_cold_retry_no_new_attempt_or_send(qq_http, mode):
+        q = qq_http
+        q.mode['value'] = mode
+        _, item, run = admitted(q)
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+&gt;       assert len(q.rows) == len(state['attempts']) == len(state['effects']) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E1D3380&gt;, automation=&lt;packages.automation.service.Service object at 0x000002429DB9DA70&gt;, service=&lt;packages.jobs.final_service.FinalService object at 0x000002429E02D7F0&gt;, client=&lt;starlette.testclient.TestClient object at 0x000002429E419370&gt;, token='g-r6DhILJUNRqWzNucJkwthAAM1udfQTLvwf1xGOcmM', root=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6647/test_accepted_without_ack_is_u1/canonical'), action={'id': 'product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'}), rows=[], mode={'value': 'missing-id'}, default=&lt;OneBotChannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:55032').rows
+E        +  and   1 = len({'attempt_660f0506ae7040b2bac170e6': {'attemptId': 'attempt_660f0506ae7040b2bac170e6', 'endedAt': '2026-11-01T15:53:57.271638Z', 'generation': 1, 'leaseId': 'lease_a0eaad9c50774281ac4a6a2a', ...}})
+
+tests\test_retirement_rev9_qq_http.py:178: AssertionError</failure></testcase><testcase classname="tests.test_retirement_rev17_qq_observation" name="test_selected_bot_owned_http_receipt_observation" time="18.274"><failure message="AssertionError: assert 'uncertain' == 'completed'&#10;  &#10;  - completed&#10;  + uncertain">qq_http = namespace(h=namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E501E80&gt;, automation=&lt;packages.automation...hannel name='owned-default' ws=[]&gt;, selected=&lt;OneBotChannel name='owned-selected' ws=[]&gt;, url='http://127.0.0.1:56017')
+
+    def test_selected_bot_owned_http_receipt_observation(qq_http):
+        q = qq_http
+        _, item, run = admitted(q, '222222', target_type='group')
+        asyncio.run(q.h.service.dispatch_once())
+        state = q.h.service.final.get(item['id'])
+        print('R17_QQ_OBSERVATION=' + json.dumps({'state': state['runs'][run['runId']]['state'],
+            'externalRequests': q.rows, 'receipts': state['effects']}, ensure_ascii=True))
+&gt;       assert state['runs'][run['runId']]['state'] == 'completed'
+E       AssertionError: assert 'uncertain' == 'completed'
+E         
+E         - completed
+E         + uncertain
+
+tests\test_retirement_rev17_qq_observation.py:15: AssertionError</failure></testcase><testcase classname="tests.test_job_retirement_quota_transport" name="test_quota_real_tcp_cas_reopen_and_legacy_writer_fence" time="4.196"><failure message="assert (409 == 409 and 'fence' in '{&quot;detail&quot;:&quot;Cannot bind monitor: quota/current account unknown&quot;}')&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code&#10; +  and   '{&quot;detail&quot;:&quot;Cannot bind monitor: quota/current account unknown&quot;}' = &lt;Response [409 Conflict]&gt;.text">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E5002F0&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+
+    def test_quota_real_tcp_cas_reopen_and_legacy_writer_fence(h):
+        h.service.executor = TypedExecutor()
+        install(SimpleNamespace(app=h.app))
+        h.service.owner.claim(0)
+        h.service.owner.set_state('active')
+        headers = {'Authorization': 'Bearer ' + h.token}
+        path = '/api/automation/quota-policy'
+        with owned_tcp(h.app) as url, httpx.Client(base_url=url, timeout=5, trust_env=False) as client:
+            state = client.get(path).json()
+            assert state['mode'] == 'manual' and state['adapter'] == 'unavailable'
+            disabled = {'disabledAccountIds': ['owned-disabled'], 'expectedRevision': state['revision']}
+            assert client.put(path + '/disabled-accounts', json=disabled).status_code == 401
+            assert client.put(path + '/disabled-accounts', json=disabled, headers=headers).status_code == 200
+            assert client.put(path + '/disabled-accounts', json=disabled, headers=headers).status_code == 409
+            state = client.get(path).json()
+            update = {'mode': 'automatic', 'maSessionId': 'owned-ma', 'expectedRevision': state['revision']}
+            assert client.put(path, json={**update, 'script': 'unsafe'}, headers=headers).status_code == 400
+            assert client.put(path, json=update, headers=headers).status_code == 200
+            state = client.get(path).json()
+            before = copy.deepcopy(h.automation.quota_policy.store.read())
+            for kind in ('monitor95', 'once'):
+                result = client.post(path + '/query-jobs', json={
+                    'kind': kind, 'expectedRevision': state['revision']}, headers=headers)
+&gt;               assert result.status_code == 409 and 'fence' in result.text
+E               assert (409 == 409 and 'fence' in '{"detail":"Cannot bind monitor: quota/current account unknown"}')
+E                +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+E                +  and   '{"detail":"Cannot bind monitor: quota/current account unknown"}' = &lt;Response [409 Conflict]&gt;.text
+
+tests\test_job_retirement_quota_transport.py:66: AssertionError</failure></testcase><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart" time="3.689"><failure message="AssertionError: assert 'known' == 'unknown'&#10;  &#10;  - unknown&#10;  ? --&#10;  + known">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E315160&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='z8CSl40fHdJsFxOA2ah9f6TV2neg5VJ_OiTBPIwfQEY')
+
+    def test_owned_host_configuration_read_projection_and_restart(canonical):
+        h = canonical
+        install(SimpleNamespace(app=h.app))
+        url = '/api/automation/quota-policy'
+        state = h.client.get(url).json()
+        assert state['host'] == {'enabled':False, 'sessionRoles':{}}
+        assert state['adapter'] == 'unavailable'
+        body = {'enabled':True, 'sessionRoles':{'owned-target':'ta'}, 'expectedRevision':state['revision']}
+        assert h.client.put(url + '/host', json=body, headers={'Authorization':'Bearer invalid'}).status_code == 401
+        for invalid in ({**body, 'effectsEnabled':True}, {**body, 'enabled':'true'},
+                        {**body, 'sessionRoles':{'owned-target':'guess-from-name'}}):
+            assert h.client.put(url + '/host', json=invalid).status_code == 400
+        assert h.client.put(url + '/host', json=body).status_code == 200
+        assert h.client.put(url + '/host', json=body).status_code == 409
+        state = h.client.get(url).json()
+        assert state['host'] == {'enabled':True, 'sessionRoles':{'owned-target':'ta'}}
+        # Enabling policy configuration cannot manufacture a business effect port.
+        snapshot = asyncio.run(h.automation.quota_policy.query())
+&gt;       assert snapshot['status'] == 'unknown'
+E       AssertionError: assert 'known' == 'unknown'
+E         
+E         - unknown
+E         ? --
+E         + known
+
+tests\test_quota_host_http.py:27: AssertionError</failure></testcase><testcase classname="tests.test_quota_host_http" name="test_owned_host_configuration_read_projection_and_restart_real_http" time="13.267" /><testcase classname="tests.test_quota_policy_http" name="test_quota_policy_owned_http_default_unavailable_is_unknown" time="0.547"><failure message="assert (200 == 409)&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">canonical = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429DFF2E40&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='oMxx4oLldvoszExZ_ZASNc0rIlgUmdF_M0d9GR5pBaY')
+
+    def test_quota_policy_owned_http_default_unavailable_is_unknown(canonical):
+        h = canonical
+        install(SimpleNamespace(app=h.app))
+        url = '/api/automation/quota-policy'
+        state = h.client.get(url).json()
+        assert state['mode'] == 'manual' and state['adapter'] == 'unavailable'
+        assert state['disabledAccountIds'] == []
+        disabled = {'disabledAccountIds':['owned-disabled'], 'expectedRevision':state['revision']}
+        assert h.client.put(url + '/disabled-accounts', json=disabled,
+            headers={'Authorization':'Bearer invalid'}).status_code == 401
+        assert h.client.put(url + '/disabled-accounts', json={**disabled,
+            'disabledAccountIds':['duplicate', 'duplicate']}).status_code == 400
+        assert h.client.put(url + '/disabled-accounts', json=disabled).status_code == 200
+        assert h.client.put(url + '/disabled-accounts', json=disabled).status_code == 409
+        state = h.client.get(url).json()
+        response = h.client.put(url, json={'mode':'automatic', 'maSessionId':'owned-ma',
+            'expectedRevision':state['revision']})
+        assert response.status_code == 200, response.text
+        state = h.client.get(url).json()
+        before = h.automation.quota_policy.store.read()
+        response = h.client.post(url + '/query-jobs', json={'kind':'once', 'expectedRevision':state['revision']})
+&gt;       assert response.status_code == 409 and 'fence' in response.text
+E       assert (200 == 409)
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests\test_quota_policy_http.py:29: AssertionError</failure></testcase><testcase classname="tests.test_quota_policy_http" name="test_quota_policy_owned_http_default_unavailable_is_unknown_real_http" time="5.769"><failure message="KeyError: 'ok'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6647/test_quota_policy_owned_http_d1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002429E0B5CC0&gt;
+
+    def test_quota_policy_owned_http_default_unavailable_is_unknown_real_http(tmp_path,monkeypatch):
+        assert real_http.PORT not in (8767,8768)
+        monkeypatch.setattr(real_http,'SERVER_LAUNCHER',Path(__file__).parent/'support/automation_http_server.py')
+        rt=real_http._PanRuntime(tmp_path/'owned-quota-http');rt.data_root.mkdir()
+        (rt.data_root/'config.json').write_text(json.dumps({'plugin_manifests':[],'scheduler':{'enabled':True}}),encoding='utf-8')
+        evidence={'port':real_http.PORT,'profile':str(rt.data_root),'providerCalls':0,'switches':0,'restarts':0}
+        try:
+            rt.start();evidence['serverPid']=rt.process.pid
+            key=(rt.data_root/'automation/user.key').read_text(encoding='utf-8')
+            token=rt.request('POST','/api/automation/login',json={'key':key})['token']
+            headers={'Authorization':'Bearer '+token};url=rt.base_url+'/api/automation/quota-policy'
+            with httpx.Client(timeout=10,trust_env=False) as client:
+                state=client.get(url).json();assert state['mode']=='manual' and state['adapter']=='unavailable'
+                assert state['disabledAccountIds']==[] and state['accountConfigRevision']==0
+                disabled_url=url+'/disabled-accounts'
+                disabled={'disabledAccountIds':['disabled-account-three'],'expectedRevision':state['revision']}
+                assert client.put(disabled_url,json=disabled).status_code==401
+                assert client.put(disabled_url,json={**disabled,'enabled':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'disabledAccountIds':['x','x']},headers=headers).status_code==400
+                assert client.put(disabled_url,json={**disabled,'expectedRevision':True},headers=headers).status_code==400
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==200
+                assert client.put(disabled_url,json=disabled,headers=headers).status_code==409
+                state=client.get(url).json()
+                assert state['disabledAccountIds']==['disabled-account-three'] and state['accountConfigRevision']==1
+                body={'mode':'automatic','maSessionId':'owned-ma','expectedRevision':state['revision']}
+                assert client.put(url,json=body).status_code==401
+                assert client.put(url,json={**body,'script':'denied'},headers=headers).status_code==400
+                assert client.put(url,json=body,headers=headers).status_code==200
+                state=client.get(url).json()
+                monitor=client.post(url+'/query-jobs',json={'kind':'monitor95','expectedRevision':state['revision']},headers=headers)
+                assert monitor.status_code==409  # unknown account cannot bind a monitor
+                state=client.get(url).json()
+                response=client.post(url+'/query-jobs',json={'kind':'once','expectedRevision':state['revision']},headers=headers)
+                assert response.status_code==200,response.text
+                jid=response.json()['job']['jobId']
+                for method,path,body in [('PATCH','/api/jobs/'+jid,{'enabled':True}),
+                                         ('POST','/api/jobs/'+jid+'/run-now',{}),
+                                         ('DELETE','/api/jobs/'+jid,None)]:
+                    denied=client.request(method,rt.base_url+path,json=body).json()
+&gt;                   assert denied['ok'] is False and denied['error']['code']=='user_confirmation_required'
+                           ^^^^^^^^^^^^
+E                   KeyError: 'ok'
+
+tests\test_quota_policy_http.py:82: KeyError</failure></testcase><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_canonical_claim_does_not_exclude_original_uncooperative_writer" time="0.122" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_never_attempted_creates_new_pending_occurrence_links_dispatch_and_settles" time="0.195" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_repeat_is_idempotent_stale_digest_and_competing_import_reject" time="0.144" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_crash_after_creator_write_reopens_and_completes_same_pending_adoption" time="0.138" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_no_send_and_effect_states_are_preserved_without_publication[known-no-send]" time="0.140" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_no_send_and_effect_states_are_preserved_without_publication[accepted]" time="0.036" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_no_send_and_effect_states_are_preserved_without_publication[unknown]" time="0.034" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_no_send_and_effect_states_are_preserved_without_publication[partial]" time="0.034" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_existing_legacy_lease_excludes_claim_until_trusted_cooperative_pass_exits" time="0.043" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_existing_creator_document_can_hold_facts_without_new_table_or_publication" time="0.098" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_note_and_operator_claims_cannot_enter_original_v1_protocol[never-attempted]" time="0.002" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_note_and_operator_claims_cannot_enter_original_v1_protocol[known-no-send]" time="0.002" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_note_and_operator_claims_cannot_enter_original_v1_protocol[accepted]" time="0.002" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_note_and_operator_claims_cannot_enter_original_v1_protocol[unknown]" time="0.002" /><testcase classname="tests.test_job_migration_pending_adapter_contract" name="test_json_note_and_operator_claims_cannot_enter_original_v1_protocol[partial]" time="0.002" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_baseline_rejection_and_old_algorithm_characterization" time="0.548" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[0.999999999-False]" time="0.530" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[1-True]" time="0.632" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_before_exact_after_threshold_and_monotonic_attempts[1.000000001-True]" time="0.557" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_decimal_threshold_uses_execution_ticks_not_late_host_clock" time="0.661" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[missing]" time="0.497" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[reversed]" time="0.525" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[bool]" time="0.509" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[invalidTimestamp]" time="0.470" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[negative]" time="0.541" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_untrusted_or_missing_timing_cannot_reset_or_schedule[prose]" time="0.544" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_wait_and_query_lag_never_become_stable_execution" time="0.562" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_cold_reopen_concurrent_pulse_and_lost_lookup_ack" time="0.634" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[revoke]" time="0.662" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[cancel]" time="0.621" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_window_and_deadline_survive_controls_without_attempt[pause]" time="0.612" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[unknown]" time="0.508" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[partial]" time="0.479" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[cleanup]" time="0.503" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[supervisor]" time="0.463" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_elapsed_never_overrides_original_safety[stale]" time="0.530" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_reset_window_rolls_back_with_receipt_commit" time="0.521" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_frozen_reset_policy_is_not_promoted_or_changed" time="0.754" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_window_supported_reasons_still_need_allowlist[timeout]" time="0.594" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_window_supported_reasons_still_need_allowlist[failed]" time="0.648" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_stable_result_denied_reason_never_resets_budget" time="0.529" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_zero_reset_retains_lifetime_budget_even_with_long_execution" time="0.580" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[base]" time="0.668" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[attempt]" time="0.600" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[timing]" time="0.560" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_corrupt_window_cannot_buy_another_attempt[threshold]" time="0.586" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_monitoring_frozen_history_never_executes_as_plain_exit_zero" time="1.472" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_historical_monitoring_pending_exit_zero_without_proof_is_unknown" time="0.453" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_monitoring_is_admitted_and_requires_structured_completion" time="0.958" /><testcase classname="tests.test_job_recovery_stable_reset" name="test_default_detached_http_stable_reset_exceeds_total_cap_without_identity_reuse" time="13.803" /><testcase classname="tests.test_retirement_notification_runtime" name="test_actual_local_shutdown_notice_remains_pending_then_same_outbox_enqueues_once" time="2.277" /><testcase classname="tests.test_retirement_notification_runtime" name="test_null_target_real_no_attempt_cold_explicit_retarget_same_outbox_receipt" time="2.670" /><testcase classname="tests.test_retirement_notification_runtime" name="test_concurrent_cas_then_two_service_reservations_send_one_notice" time="2.579" /><testcase classname="tests.test_retirement_notification_runtime" name="test_runtime_notice_authority_revoked_before_reservation_stays_suppressed" time="2.429" /><testcase classname="tests.test_retirement_notification_runtime" name="test_accepted_notice_lost_response_retarget_remains_unknown_no_resend" time="2.592" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[dictionary-spoof]" time="2.411" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[wrong-binding]" time="2.385" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[partial]" time="2.453" /><testcase classname="tests.test_retirement_notification_runtime" name="test_fresh_production_browser_runtime_edit_and_original_notification_receipt" time="13.825"><error message="failed on teardown with &quot;assert not True&#10; +  where True = is_alive()&#10; +    where is_alive = &lt;Thread(Thread-513 (run), started daemon 5984)&gt;.is_alive&quot;">native_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002429E0E52B0&gt;, automation=&lt;packages.automation.service.Ser...product_session_message', 'revision': 1, 'digest': 'a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575'})
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6647/test_fresh_production_browser_0')
+
+    @pytest.fixture
+    def h(native_h, tmp_path):
+        owned = {}
+        for sid in ('ses_a', 'ses_b', 'ses_notice'):
+            session.save(session.Session(id=sid, name=sid, workdir=str(tmp_path), queue_paused=True))
+            owned[sid] = session.get(sid)
+        listener = socket.socket()
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+        assert port not in {8767, 8768}
+        server = uvicorn.Server(uvicorn.Config(native_h.app, lifespan='off', log_level='error'))
+        thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        for _ in range(200):
+            if server.started: break
+            time.sleep(.01)
+        assert server.started
+        client = httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False,
+                              headers={'Authorization': 'Bearer ' + native_h.token})
+        value = SimpleNamespace(**{**vars(native_h), 'client': client, 'owned': owned, 'tmp': tmp_path})
+        try:
+            yield value
+        finally:
+            client.close()
+            server.should_exit = True
+            thread.join(6)
+            listener.close()
+&gt;           assert not thread.is_alive()
+E           assert not True
+E            +  where True = is_alive()
+E            +    where is_alive = &lt;Thread(Thread-513 (run), started daemon 5984)&gt;.is_alive
+
+tests\test_retirement_rev16_behavior.py:51: AssertionError</error></testcase></testsuite></testsuites>

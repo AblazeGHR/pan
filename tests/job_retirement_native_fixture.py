@@ -13,7 +13,11 @@ from packages.jobs.final_service import bind, object_ref
 
 
 @pytest.fixture
-def h(tmp_path):
+def h(tmp_path, monkeypatch):
+    # This fixture owns only loopback HTTP. Do not discover workstation proxies.
+    monkeypatch.setenv("NO_PROXY", "*")
+    monkeypatch.setenv("no_proxy", "*")
+    runner = asyncio.Runner()
     app = FastAPI()
     automation = Automation(tmp_path / 'automation', worker, None)
     automation.auth = api.CanonicalUserAuth(tmp_path / 'automation')
@@ -28,7 +32,9 @@ def h(tmp_path):
     client = TestClient(app, headers={'Authorization': 'Bearer ' + token})
     try:
         yield SimpleNamespace(app=app, automation=automation, service=service,
-            client=client, token=token, root=tmp_path / 'canonical', action=object_ref('action', action))
+            client=client, token=token, root=tmp_path / 'canonical', action=object_ref('action', action),
+            run=runner.run)
     finally:
         client.close()
-        asyncio.run(service.close())
+        runner.run(service.close())
+        runner.close()

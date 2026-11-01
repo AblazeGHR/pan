@@ -8,6 +8,8 @@ from tests.test_automation_canonical import canonical
 
 def test_owned_host_configuration_read_projection_and_restart(canonical):
     h = canonical
+    from tests.support.quota_unavailable_source import source
+    h.automation.quota_policy.adapter.source = source(h.root / "empty-quota")
     install(SimpleNamespace(app=h.app))
     url = '/api/automation/quota-policy'
     state = h.client.get(url).json()
