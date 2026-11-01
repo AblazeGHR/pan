@@ -355,3 +355,7 @@ Current lifecycle+provider27pass0skip covers all22 lifecycle nodes. Eleven origi
 ## Production PanServer fixture and Resume API followthrough
 
 bb18 native186pass1existing skip/browser2pass1teardownfail/sourceDrift[] preserved. Empty ASGI task diagnostic + precise Proactor close-tail reset led to existing production PanServer handler; bare Uvicorn test host bypassed it. Browser fixtures now use original PanServer, same Proactor and original8sassert, local diagnostics only. Existing peer-reset正负控8+productionbrowser3=11pass0skip. Five original Resume API failures now mapped to existing strong public canonical Wake/selection/identity/emptyfire/current-schema/cold-receipt successors,5pass0skip. Details pan-host-resume-successors/README.md. Mapped211/263,52remainunmappedincl1existingplatformskip; full precise-SHA CI still outstanding.
+
+## Jobs API edit, metadata and Session successors
+
+12 further exact original nodes pass (5+5+2); per-node capability/root cause/contract and new actual blank-text production defect are in jobs-api-edit-successors/README.md. Original red source/JUnits retained; latest15cd41+11pass/51fail1existing skip/sourceDrift[] preserved separately. Current map223/263,40 original identities without mapped green (including1existingplatformskip). Full affected frozen combination and final exactSHA fullCI remain outstanding.

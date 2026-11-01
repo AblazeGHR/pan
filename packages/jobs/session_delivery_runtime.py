@@ -37,6 +37,18 @@ def validate_references(job, actions):
         if (definition.get('system') is not True or PRODUCTS.get(action['id']) != definition['execution']['operation']
                 or not fields <= set(allowed)):
             raise ContractError('reference_conflict', 'Job runtime fields require the explicit immutable runtime Action release')
+        if action['id'] != 'product_channel_runtime_v1' and 'text' in fields:
+            # Current Session defaults are validated at the same fenced write
+            # boundary as QQ defaults. This never changes frozen Run input or
+            # resolves Event/output bindings before their execution boundary.
+            from packages.jobs.chains import resolve
+            binding = step['arguments']['text']
+            try:
+                text = resolve({'text': binding}, job.get('arguments', {}), {}, {})['text']
+            except ValueError as exc:
+                raise ContractError('invalid_schema', 'Runtime Session defaults must supply their declared text path') from exc
+            if not isinstance(text, str) or not text.strip():
+                raise ContractError('invalid_schema', 'Session text must contain a non-whitespace character')
         if action['id'] == 'product_channel_runtime_v1':
             # Validate current fixed defaults with the original QQ validator.
             # Event/output bindings remain execution-time inputs; they are

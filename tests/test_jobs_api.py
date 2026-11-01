@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from tests.test_job_automatic_recovery import env  # noqa: F401
 from tests.test_session_product_closure import h as product_h  # noqa: F401
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h as behavior_h  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -203,13 +205,11 @@ def test_kinds_endpoint(client):
 # ── 结构化 source/target ──
 
 
-def test_structured_identity_new_records(client, monkeypatch, tmp_path):
-    msg = _make_message_job(monkeypatch, tmp_path)
-    body = client.get(f"/api/jobs/{msg['jobId']}").json()
-    source = body["job"]["source"]
-    target = body["job"]["target"]
-    assert source["type"] == "agent"
-    assert target == {"sessionId": "ses_m1"}
+def test_structured_identity_new_records(product_h):
+    from tests.test_session_product_closure import test_product_http_real_queue_source_and_cold_original_query
+    # Public typed arguments/source identity, durable target queue, original
+    # effect identity and cold lookup replace legacy duplicated JSON fields.
+    test_product_http_real_queue_source_and_cold_original_query(product_h, 'session-message')
 
 
 def test_structured_identity_folds_flat_legacy(client):
@@ -266,60 +266,49 @@ def test_patch_blank_name_rejected(env):
     assert env.service.final.store.get(item['id'])==before
 
 
-def test_patch_target_switch_updates_flat_and_struct(
-        client, fake_worker, fake_session_repository):
-    fake_session_repository("ses_t1", "ses_t2")
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}",
-                        json={"target": {"sessionId": "ses_t2"}}).json()
-    assert body["ok"] is True
-    assert body["job"]["target"] == {"sessionId": "ses_t2"}
-    assert body["job"]["targetSessionId"] == "ses_t2"  # 扁平双写
-    # 兼容层视角同步（同一注册表）
-    assert scheduler_store.get_task(task["id"])["target_session_id"] == "ses_t2"
+def test_patch_target_switch_updates_flat_and_struct(behavior_h):
+    # One canonical representation replaces dual-written flat/structured state.
+    # Exact current target/revision is audited and used by the original Run.
+    from tests.test_retirement_session_runtime import test_queued_missing_target_cold_current_target_text_same_run_attempt_effect
+    test_queued_missing_target_cold_current_target_text_same_run_attempt_effect(behavior_h, 'assign')
 
 
-def test_patch_enable_disable_stops_entries(client, fake_worker):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={"enabled": False}).json()
-    assert body["ok"] is True
-    assert body["job"]["status"] == "completed"
-    assert body["job"]["nextFireAt"] is None
-    assert all(e["enabled"] is False for e in body["job"]["schedule"])
+def test_patch_enable_disable_stops_entries(behavior_h):
+    # Creator owns future occurrences; disabling it cannot admit a Run/effect.
+    from tests.test_retirement_rev16_behavior import test_creator_disable_stops_future_events_and_effects
+    test_creator_disable_stops_future_events_and_effects(behavior_h)
 
 
 # ── action 模板 ──
 
 
-def test_action_template_default_assign(client, fake_worker):
-    _register_unified_hooks()
-    _make_scheduled_task()
-    job = scheduler_store._job_for_task(
-        scheduler_store.list_tasks()[0]["id"])
-    # 无 action 字段 → 回落 assign
-    jobs._update(job["jobId"], {
-        "schedule": [{**job["schedule"][0],
-                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
-        registry_root=scheduler_store.data_root())
-    asyncio.run(jobs.run_due_scheduled_tasks())
-    assert any(c["api"] == "assign" for c in fake_worker)
+def test_action_template_default_assign(product_h):
+    from packages.jobs.final_service import normalize_legacy_form_fields
+    from tests.test_session_product_closure import config
+    from tests.test_job_final_http_service import enabled, launch
+    from packages.core import session
+    # Existing pure form adapter chooses assign without an action/kind field.
+    fields = normalize_legacy_form_fields({'target': {'sessionId': 'ses_a'},
+        'text': 'default assign', 'source': 'agent', 'taskId': 'default-action'})
+    assert fields == {'sessionId': 'ses_a', 'text': 'default assign',
+                      'source': 'agent', 'taskId': 'default-action'}
+    job = enabled(product_h, config(product_h, 'assign', **fields))
+    run = launch(product_h, job)
+    asyncio.run(product_h.service.dispatch_once())
+    state = product_h.service.final.get(job['id'])
+    assert state['runs'][run['runId']]['state'] == 'completed'
+    assert len(state['attempts']) == len(state['effects']) == 1
+    row = session.get('ses_a').queue_pending[0]
+    assert row['text'] == fields['text'] and row['taskId'] == 'default-action'
+    assert row['taskIdSource'] == 'assign' and row['source'] == 'agent'
+    asyncio.run(product_h.service.dispatch_once())
+    assert product_h.service.final.get(job['id']) == state
+    assert len(session.get('ses_a').queue_pending) == 1
 
 
-def test_action_template_send_session(client, fake_worker):
-    _register_unified_hooks()
-    _make_scheduled_task()
-    job = scheduler_store._job_for_task(
-        scheduler_store.list_tasks()[0]["id"])
-    jobs._update(job["jobId"], {
-        "action": {"api": "send_session", "args": {}},
-        "schedule": [{**job["schedule"][0],
-                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
-        registry_root=scheduler_store.data_root())
-    asyncio.run(jobs.run_due_scheduled_tasks())
-    assert any(c["api"] == "send_session" for c in fake_worker)
-    assert not any(c["api"] == "assign" for c in fake_worker)
+def test_action_template_send_session(product_h):
+    from tests.test_session_product_closure import test_product_http_real_queue_source_and_cold_original_query
+    test_product_http_real_queue_source_and_cold_original_query(product_h, 'session-message')
 
 
 def test_action_template_unknown_falls_back_to_assign(client, fake_worker):
@@ -449,42 +438,11 @@ def test_delete_running_job_reports_cleanup_pending_failure(client, monkeypatch)
 # ── partial_failed 事件 ──
 
 
-def test_partial_failed_event_emitted(client, monkeypatch, tmp_path):
-    events: list[dict] = []
-    monkeypatch.setattr(jobs, "_scheduled_task_hooks",
-                        {"root_resolver": None, "config_resolver": None,
-                         "on_event": events.append})
-    from packages.core import session as sess
-
-    for sid in ("ses_pa", "ses_pb"):
-        sess._cache[sid] = sess.Session(id=sid, name=sid, workdir=str(tmp_path))
-
-    async def flaky_send(session_id, text, source=None, **kw):
-        if session_id == "ses_pb":
-            return {"status": "error", "result": "worker dead"}
-        return {"status": "queued", "sessionId": session_id}
-
-    monkeypatch.setattr("packages.core.background_jobs._sessions.get",
-                        lambda sid: sess._cache.get(sid))
-    monkeypatch.setattr(core_worker, "send_session", flaky_send)
-
-    # message-job 语义：once 的 at 须未来、delaySeconds 须 > 0 → 1 秒后到期
-    job = jobs.start_broadcast(["ses_pa", "ses_pb"], "群发",
-                               {"type": "once", "delaySeconds": 1})
-
-    async def _wait_and_run():
-        await asyncio.sleep(1.2)
-        return await jobs.run_due_message_jobs()
-
-    delivered = asyncio.run(_wait_and_run())
-    assert delivered == 1
-
-    saved = jobs.get(job["jobId"])
-    assert saved["lastDelivery"]["status"] == "partial"
-    partial_events = [e for e in events if e.get("type") == "job.partial_failed"]
-    assert partial_events, "partial 必须发出即时 toast 事件"
-    assert partial_events[0]["jobId"] == job["jobId"]
-    assert any("ses_pb" in err for err in partial_events[0]["errors"])
+def test_partial_failed_event_emitted(behavior_h):
+    # Partial is not fabricated success/known failure: preserve exact target
+    # receipts plus visible canonical WS/Session notice and cold no-replay.
+    from tests.test_retirement_rev16_behavior import test_partial_failure_terminal_notice_identifies_actual_failed_target
+    test_partial_failure_terminal_notice_identifies_actual_failed_target(behavior_h)
 
 
 # ── POST /api/jobs（创建，多 entry）──
@@ -835,79 +793,69 @@ def test_post_accepts_session_message_and_rejects_empty_schedule(
     assert unknown_action["error"]["code"] == "invalid_argument"
 
 
-def test_post_requires_existing_session(client):
-    body = client.post("/api/jobs", json={
-        "kind": "scheduled-task", "target": {"sessionId": "ses_ghost"},
-        "text": "x", "schedule": {"kind": "interval", "intervalSec": 60}}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "session_not_found"
+def test_post_requires_existing_session(product_h):
+    from tests.test_session_product_closure import config
+    from packages.core import session, worker
+    h = product_h
+    assert session.get('ses_ghost') is None
+    before = h.client.get('/api/jobs').json()
+    workers = set(worker.workers)
+    value = config(h, 'assign', sessionId='ses_ghost', text='x')
+    response = h.client.post('/api/jobs', json={'definition': value,
+        'expectedRevision': 0, 'requestKey': 'missing-session'})
+    assert response.status_code == 400, response.text
+    assert h.client.get('/api/jobs').json() == before
+    assert session.get('ses_ghost') is None and set(worker.workers) == workers
 
 
 # ── PATCH schedule（entry 列表整体替换）──
 
 
-def test_patch_schedule_replaces_entries(client, fake_worker):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={
-        "schedule": [
-            {"kind": "cron", "cron": "30 8 * * *"},
-            {"kind": "interval", "intervalSec": 7200},
-        ]}).json()
-    assert body["ok"] is True, body
-    entries = body["job"]["schedule"]
-    assert [e["kind"] for e in entries] == ["cron", "interval"]
-    assert body["job"]["nextFireAt"] == min(
-        e["nextFireAt"] for e in entries if e["enabled"])
-    refreshed = scheduler_store._job_for_task(task["id"])
-    assert len(refreshed["schedule"]) == 2
+def test_patch_schedule_replaces_entries(behavior_h):
+    from tests.test_retirement_rev16_behavior import test_schedule_replacement_removes_old_rule_and_fires_only_new_real_event
+    test_schedule_replacement_removes_old_rule_and_fires_only_new_real_event(behavior_h)
 
 
-def test_patch_schedule_rejects_bad_spec(client, fake_worker):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={
-        "schedule": [{"kind": "cron", "cron": "not a cron"}]}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "invalid_schedule"
+def test_patch_schedule_rejects_bad_spec(behavior_h):
+    from tests.test_retirement_rev16_behavior import test_literal_empty_or_bad_schedule_update_rejects_without_any_write
+    test_literal_empty_or_bad_schedule_update_rejects_without_any_write(behavior_h, [
+        {'ruleId': 'bad', 'type': 'cron', 'expression': 'not a cron',
+         'timezone': 'UTC', 'dstPolicy': 'gap-skip-fold-first'}])
 
 
 # ── PATCH target 清空 → 短路积压 ─--
 
 
-def test_patch_target_clear_enters_undeliverable(client, fake_worker):
-    _register_unified_hooks()
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}",
-                        json={"target": None}).json()
-    assert body["ok"] is True, body
-    assert body["job"]["target"] == {"sessionId": None}
-    # 到期触发 → 空 target 短路：不派发、直接积压
-    jobs._update(job["jobId"], {
-        "schedule": [{**job["schedule"][0],
-                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
-        registry_root=scheduler_store.data_root())
-    asyncio.run(jobs.run_due_scheduled_tasks())
-    assert fake_worker == [], "空 target 不得派发"
-    refreshed = scheduler_store._job_for_task(task["id"])
-    assert refreshed["lastStatus"] == "undeliverable"
-    assert len(refreshed["undeliveredFires"]) == 1
+def test_patch_target_clear_enters_undeliverable(behavior_h):
+    from tests.test_retirement_session_runtime import test_queued_missing_target_cold_current_target_text_same_run_attempt_effect
+    test_queued_missing_target_cold_current_target_text_same_run_attempt_effect(behavior_h, 'session-message')
 
 
 # ── PATCH text（编辑派发正文）──
 
 
-def test_patch_text_updates_dispatch_body(client, fake_worker):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={"text": "新正文"}).json()
-    assert body["ok"] is True, body
-    assert body["job"]["text"] == "新正文"
-    assert scheduler_store.get_task(task["id"])["text"] == "新正文"
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={"text": "   "}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "invalid_argument"
+def test_patch_text_updates_dispatch_body(behavior_h):
+    import copy
+    from tests.test_retirement_session_runtime import admitted, edit
+    from packages.jobs.final_service import definition
+    from packages.core import session
+    h = behavior_h
+    job, rid, _ = admitted(h, 'assign')
+    job = edit(h, job, 'ses_b', '  新正文\n raw  ', 'text-update')
+    assert h.client.get('/api/jobs/' + job['id']).json()['arguments']['delivery']['text'] == '  新正文\n raw  '
+    before = copy.deepcopy(h.service.final.store.get(job['id']))
+    value = definition('job', job)
+    value['arguments']['delivery']['text'] = '   '
+    response = h.client.put('/api/jobs/' + job['id'], json={'definition': value,
+        'expectedRevision': job['configRevision'], 'requestKey': 'blank-text'})
+    assert response.status_code == 400, response.text
+    assert h.service.final.store.get(job['id']) == before
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.get(job['id'])
+    assert state['runs'][rid]['state'] == 'completed'
+    assert len(state['attempts']) == len(state['effects']) == 1
+    assert session.get('ses_b').queue_pending[0]['text'] == '  新正文\n raw  '
+    assert not session.get('ses_a').queue_pending
 
 
 # ── P4：runs 记录携带 entry_id ──
@@ -949,7 +897,8 @@ def test_pin_failure_keeps_disk_and_emits_nothing(client, monkeypatch):
     monkeypatch.setitem(jobs_api._state, "broadcast", emitted.append)
     def fail(*args):
         raise OSError("disk full")
-    monkeypatch.setattr(jobs, "_atomic_write", fail)
+    from packages.jobs.final_runtime import coordinator
+    monkeypatch.setattr(coordinator, "atomic_write", fail)
     result = client.put("/api/jobs/job_pin/pin", json={"pinned": False}).json()
     assert result["error"]["code"] == "persistence_failed"
     assert emitted == []

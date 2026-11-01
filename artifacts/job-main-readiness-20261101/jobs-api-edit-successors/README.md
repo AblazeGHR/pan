@@ -1,0 +1,22 @@
+# Jobs API editing and Session action successors
+
+Original identities/source and all original red JUnits remain in `../full-terminal-5a7/` and the precise 15cd remaining-node rerun is preserved in `../cohort15cd-terminal/`. This batch covers 12 exact original failing identities; it does not declare the remaining identities retired or the final full gate green.
+
+Authority: FinalModel §2/§10.4 canonical Job/Run, Event Creator, typed Action and operation contracts replace old mutating routes; §3 notification outbox keeps partial target results and original identity; §5/D6 does not authorize unknown execution or automatic migration. These successors preserve actual capabilities through the current public routes and original providers. No skip/xfail, legacy writer or second engine is added.
+
+| Original test in tests/test_jobs_api.py | Root cause / current capability and assertions |
+|---|---|
+| test_patch_enable_disable_stops_entries | Old scheduler entry mutation is retired. Current authenticated Creator disable prevents any future Event-driven Run, effect or Session enqueue. Reuses rev16 behavior's real-clock-fire case. |
+| test_patch_schedule_replaces_entries | Whole Creator CAS edit replaces interval/cron rules, cursor IDs and minimum next fire; old occurrence cannot run; actual new Event carries original creator revision/rule/time and exactly one effect. |
+| test_patch_schedule_rejects_bad_spec | Bad cron rejects before any Creator or operation write, original cursor preserved, no queue effect. |
+| test_partial_failed_event_emitted | Old ephemeral toast hook is retired. Real fanout has one success/one rejection, partial receipt/uncertain parent, exact failed target in visible WS/Session canonical terminal notice; outbox once and cold no-replay. No fake known failure for partial uncertainty. |
+| test_pin_failure_keeps_disk_and_emits_nothing | Fault injection targeted retired payload writer. Now injects OSError at actual JsonPins atomic_write; persistence_failed, original true pin and no broadcast unchanged. Original metadata read compatibility retained. |
+| test_patch_target_switch_updates_flat_and_struct | Canonical single config replaces dual-written fields. Real HTTP runtime audit records current target/text/revision; missing target queues same Run without Attempt/effect, cold reopen targets only new Session, exact original effect identity and frozen plan, accepted effect never redirected. |
+| test_patch_target_clear_enters_undeliverable | Same stronger missing-target/cold restoration contract for session-message; no invented unknown resend. |
+| test_action_template_default_assign | Existing pure normalize_legacy_form_fields default chooses assign with omitted kind/action; result composed with published product Action and admitted through canonical HTTP. Real Worker row carries taskIdSource=assign, original source/body; one Attempt/effect and no duplicate. Adapter does not write old registry. |
+| test_action_template_send_session | Published session-message Action, real Worker queue/source/sourceSessionId, durable row reloaded, original effect query through independent cold service, no duplicate enqueue. |
+| test_structured_identity_new_records | Same public typed source/target and original durable effect identity; no artificial duplicated legacy JSON projection. |
+| test_patch_text_updates_dispatch_body | True production gap: current Session runtime default accepted blank text while original API rejected it. Reproduced red preserved here. validate_references now validates only explicit trusted runtime Session text defaults at existing fenced write boundary, analogous to QQ defaults. Failed blank edit leaves entire aggregate unchanged; valid raw Unicode/whitespace is preserved exactly and dispatched only to new target. Frozen Run input and Event/output bindings unchanged. |
+| test_post_requires_existing_session | Existing literal product Session validation rejects unknown target before Job creation; no registry change, no ghost Session/Worker. First new fixture AttributeError is preserved separately and corrected to real public list, not treated as product defect. |
+
+Focused results: schedule/pin/partial 5 passed, Session/target 5 passed, text/missing 2 passed, all exit 0. Real loopback HTTP/owned paused Sessions prove durable enqueue, not supplier CLI consumption. No React change in this batch. Affected full runtime/behavior and remaining original identities will run frozen after normal commit. Precise-SHA full CI is still required.

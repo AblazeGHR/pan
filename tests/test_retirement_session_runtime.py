@@ -464,3 +464,26 @@ def test_real_http_concurrent_cas_during_first_acceptance_selects_only_winning_u
         assert cold.final.store.get(job['id'])['finalRuntime']['plans'][rid]['frozen'] == frozen
     finally:
         asyncio.run(cold.close())
+
+
+@pytest.mark.parametrize('op', ['session-message', 'session-broadcast'])
+def test_blank_current_text_edit_rejects_without_admission_or_config_change(h, op):
+    job, rid, _ = admitted(h, op)
+    before = copy.deepcopy(h.service.final.store.get(job['id']))
+    cfg = definition('job', job)
+    cfg['arguments']['delivery']['text'] = ' \t\n '
+    with h.service.transaction(readonly=True) as db:
+        operations = db.execute('SELECT count(*) FROM final_operations').fetchone()[0]
+    response = h.client.put('/api/jobs/' + job['id'], json={'definition': cfg,
+        'expectedRevision': job['configRevision'], 'requestKey': 'blank-current-text'})
+    assert response.status_code == 400, response.text
+    assert response.json()['error']['code'] == 'invalid_schema'
+    assert h.service.final.store.get(job['id']) == before
+    with h.service.transaction(readonly=True) as db:
+        assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0] == operations
+    assert not session.get('ses_a').queue_pending and not session.get('ses_b').queue_pending
+    asyncio.run(h.service.dispatch_once())
+    done = h.service.final.get(job['id'])
+    assert done['runs'][rid]['state'] == 'completed'
+    assert len(done['attempts']) == len(done['effects']) == 1
+    assert session.get('ses_a').queue_pending[0]['text'] == 'original'

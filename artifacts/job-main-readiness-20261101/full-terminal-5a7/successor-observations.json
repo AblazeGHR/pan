@@ -1540,5 +1540,77 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
     ]
+  },
+  "tests.test_jobs_api::test_pin_failure_keeps_disk_and_emits_nothing": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-schedule-pin-partial.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_enable_disable_stops_entries": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-schedule-pin-partial.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_schedule_replaces_entries": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-schedule-pin-partial.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_schedule_rejects_bad_spec": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-schedule-pin-partial.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_partial_failed_event_emitted": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-schedule-pin-partial.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_target_switch_updates_flat_and_struct": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-session-target.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_target_clear_enters_undeliverable": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-session-target.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_action_template_send_session": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-session-target.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_action_template_default_assign": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-session-target.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_structured_identity_new_records": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-session-target.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_text_updates_dispatch_body": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-text-missing-green.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_post_requires_existing_session": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-text-missing-green.xml"
+    ]
   }
 }

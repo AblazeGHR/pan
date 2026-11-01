@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="3.752" timestamp="2026-11-02T05:17:13.022374+08:00" hostname="ablaze"><testcase classname="tests.test_jobs_api" name="test_patch_text_updates_dispatch_body" time="1.478"><failure message="AssertionError: {&quot;operationId&quot;:&quot;op_58c21222dc694f6aa4189f8a&quot;,&quot;requestKey&quot;:&quot;blank-text&quot;,&quot;status&quot;:&quot;completed&quot;,&quot;objectRefs&quot;:[{&quot;id&quot;:&quot;job_d7cd07e74f924691a0cb2cf7&quot;,&quot;revision&quot;:3,&quot;digest&quot;:&quot;a23de66add402aff5e0c6b8a8364fe74a7cf784efb86db360f51e80134500a0a&quot;}],&quot;result&quot;:{&quot;object&quot;:{&quot;arguments&quot;:{&quot;delivery&quot;:{&quot;target&quot;:&quot;ses_b&quot;,&quot;text&quot;:&quot;   &quot;}},&quot;deliveryRuntime&quot;:{&quot;allowedStates&quot;:[&quot;pending&quot;,&quot;reserved&quot;],&quot;audit&quot;:&quot;final_operations&quot;,&quot;concurrency&quot;:&quot;job-config-cas+event-receipt&quot;,&quot;inputFields&quot;:[&quot;delivery.target&quot;,&quot;delivery....&#10;[+2 more lines; full report in element text]">behavior_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001D4AB9F0440&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6754/test_patch_text_updates_dispat0'))
+
+    def test_patch_text_updates_dispatch_body(behavior_h):
+        import copy
+        from tests.test_retirement_session_runtime import admitted, edit
+        from packages.jobs.final_service import definition
+        from packages.core import session
+        h = behavior_h
+        job, rid, _ = admitted(h, 'assign')
+        job = edit(h, job, 'ses_b', '  新正文\n raw  ', 'text-update')
+        assert h.client.get('/api/jobs/' + job['id']).json()['arguments']['delivery']['text'] == '  新正文\n raw  '
+        before = copy.deepcopy(h.service.final.store.get(job['id']))
+        value = definition('job', job)
+        value['arguments']['delivery']['text'] = '   '
+        response = h.client.put('/api/jobs/' + job['id'], json={'definition': value,
+            'expectedRevision': job['configRevision'], 'requestKey': 'blank-text'})
+&gt;       assert response.status_code == 400, response.text
+E       AssertionError: {"operationId":"op_58c21222dc694f6aa4189f8a","requestKey":"blank-text","status":"completed","objectRefs":[{"id":"job_d7cd07e74f924691a0cb2cf7","revision":3,"digest":"a23de66add402aff5e0c6b8a8364fe74a7cf784efb86db360f51e80134500a0a"}],"result":{"object":{"arguments":{"delivery":{"target":"ses_b","text":"   "}},"deliveryRuntime":{"allowedStates":["pending","reserved"],"audit":"final_operations","concurrency":"job-config-cas+event-receipt","inputFields":["delivery.target","delivery.text"],"owner":"delivery-manager","phase":"before-reservation","targetMode":"runtime","unknownPolicy":"query-original"},"description":"","inputSchema":{"additionalProperties":false,"properties":{"delivery":{"additionalProperties":false,"properties":{"target":{"type":["string","null"]},"text":{"type":"string"}},"required":["target","text"],"type":"object"}},"required":["delivery"],"type":"object"},"name":"assign","notification":{"on":[],"recipients":[]},"overlap":{"maxActive":1,"maxPending":0,"mode":"forbid"},"recovery":{"automatic":false,"backoffSeconds":["5","15","60"],"maxAttempts":3,"retryIf":[],"stableResetSeconds":"300"},"retention":{"pinned":false,"policyRef":"test"},"steps":[{"actionRef":{"digest":"f31f94f1c5a6be938790ab7d0a9a924bdad7853bbd83258be55aa557f3552ee5","id":"product_assign_runtime_v1","revision":1},"arguments":{"sessionId":{"from":"input","path":"delivery.target"},"source":{"from":"literal","value":"automation"},"text":{"from":"input","path":"delivery.text"}},"completion":{"contract":"durable-queue-accepted"},"stepId":"send"}],"triggerLinks":[],"state":"enabled","profileId":"profile_8b5847068a5f0c7a574cb56c","stateRevision":1,"createdBy":{"id":"local","type":"user"},"updatedAt":"2026-11-01T21:17:14.711661Z","owner":{"id":"local","type":"user"},"schemaVersion":2,"createdAt":"2026-11-01T21:17:14.636254Z","id":"job_d7cd07e74f924691a0cb2cf7","configRevision":3},"runtimeAudit":{"operationId":"op_58c21222dc694f6aa4189f8a","actor":{"type":"user","id":"local"},"fromRevision":2,"toRevision":3,"before":{"inputs":{"delivery.target":"ses_b","delivery.text":"  新正文\n raw  "},"notification":{"on":[],"recipients":[]}},"after":{"inputs":{"delivery.target":"ses_b","delivery.text":"   "},"notification":{"on":[],"recipients":[]}}}},"links":{"self":"/api/operations/op_58c21222dc694f6aa4189f8a"}}
+E       assert 200 == 400
+E        +  where 200 = &lt;Response [200 OK]&gt;.status_code
+
+tests\test_jobs_api.py:851: AssertionError</failure></testcase><testcase classname="tests.test_jobs_api" name="test_post_requires_existing_session" time="1.677"><failure message="AttributeError: 'AggregateStore' object has no attribute 'list'">product_h = namespace(client=&lt;httpx.Client object at 0x000001D4ABF60190&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x000001D4ABE88D70&gt;)
+
+    def test_post_requires_existing_session(product_h):
+        from tests.test_session_product_closure import config
+        from packages.core import session, worker
+        h = product_h
+        assert session.get('ses_ghost') is None
+&gt;       before = h.service.final.store.list()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'AggregateStore' object has no attribute 'list'
+
+tests\test_jobs_api.py:801: AttributeError</failure></testcase></testsuite></testsuites>
