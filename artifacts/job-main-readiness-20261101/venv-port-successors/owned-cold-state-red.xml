@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="5.717" timestamp="2026-11-02T01:55:52.296286+08:00" hostname="ablaze"><testcase classname="tests.test_job_delete_http_owned" name="test_real_owned_tree_delete_http[True]" time="4.481"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;&lt;string&gt;&quot;, line 18, in &lt;module&gt;&#10;      asyncio.run(query())&#10;      ~~~~~~~~~~~^^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 127, in run&#10;      return self._loop.run_until_complete(task)&#10;[+11 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6733/test_real_owned_tree_delete_ht0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000024372CF5E00&gt;
+first_unknown = True
+env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000024372DA2CF0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000024372DA23C0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000024372DA0440&gt;, serial=0)
+
+    @pytest.mark.skipif(os.name!='nt',reason='Windows retained identity / owned Job verification')
+    @pytest.mark.parametrize('first_unknown',[False,True])
+    def test_real_owned_tree_delete_http(tmp_path,monkeypatch,first_unknown,env):
+        ready=tmp_path/'ready.json';counter=tmp_path/'counter'
+        script=tmp_path/'owned.py'
+        script.write_text("import subprocess,sys,time,json,os\nfrom pathlib import Path\np=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\nPath(sys.argv[1]).write_text(json.dumps({'parent':os.getpid(),'child':p.pid}),encoding='utf-8')\nPath(sys.argv[2]).write_text('once',encoding='utf-8')\ntime.sleep(60)\n",encoding='utf-8')
+        value=job_definition(env,{'automatic':False})
+        value['steps'][0]['arguments']['argv']['value']=[sys.executable,str(script),str(ready),str(counter)]
+        job=enabled(env,value);rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+        pids=wait_value(lambda:json.loads(ready.read_text(encoding='utf-8')) if ready.exists() else None,bool)
+        store=ExecutionStore(env.root/'executions')
+        with store.connect() as db:doc=json.loads(db.execute('SELECT document FROM executions').fetchone()[0])
+        retained=[]
+        for pid in {*pids.values(),doc['supervisorIdentity']['pid']}:
+            handle=open_process_for_probe(pid);assert handle
+            retained.append((handle,read_creation_filetime(handle)))
+        sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];assert port not in {8767,8768}
+        server=uvicorn.Server(uvicorn.Config(env.app,lifespan='off',log_level='error'));thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True);thread.start()
+        try:
+            wait_value(lambda:server.started,bool)
+            with httpx.Client(base_url=f'http://127.0.0.1:{port}',headers=dict(env.client.headers),trust_env=False) as client:
+                if first_unknown:
+                    factory=env.service._external_adapter;calls=[]
+                    def unconfirmed(jid):
+                        adapter=factory(jid)
+                        async def denied(**kwargs):
+                            calls.append(copy.deepcopy(kwargs));raise OSError('owned cleanup transport response unknown')
+                        adapter.cleanup_execution=denied
+                        return adapter
+                    monkeypatch.setattr(env.service,'_external_adapter',unconfirmed)
+                    original_run=client.get('/api/job-runs/'+rid).json()
+                    body={'operation':'cancel','expectedStateRevision':original_run['stateRevision'],'requestKey':'original-unknown-cancel'}
+                    response=client.post('/api/job-runs/'+rid+'/operations',json=body)
+                    assert response.status_code==202,response.text
+                    operation=response.json()['operationId']
+                    receipt=client.get('/api/operations/'+operation).json()
+                    assert receipt['status']=='unknown' and receipt['error']['code']=='reconciliation_required'
+                    assert len(calls)==1 and counter.read_text(encoding='utf-8')=='once'
+                    assert all(wait_state(handle) is ProcessStatus.ALIVE for handle,_ in retained)
+                    native=store.get(doc['effectId']);assert native['result'] is None and 'cleanupRequest' not in native
+                    asyncio.run(env.service.close())
+                    from packages.jobs.window import command_window_options
+                    cold_script = """import asyncio,json,sys
+    from pathlib import Path
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_api import CanonicalUserAuth
+    from packages.jobs.independent_executor import ExecutionStore
+    root=Path(sys.argv[1]);service=FinalService(root,CanonicalUserAuth(Path(sys.argv[2])))
+    async def query():
+     try:
+      service.recover()
+      for _ in range(2):await service.dispatch_once()
+      with ExecutionStore(root/'executions').connect() as db:
+       doc=json.loads(db.execute('SELECT document FROM executions').fetchone()[0])
+      assert doc['result'] is None and 'cleanupRequest' not in doc
+      state=service.final.get(doc['jobId'])
+      assert len(state['attempts'])==1 and not state['effects'], {'attempts':state['attempts'],'effects':state['effects'],'runs':state['runs']}
+      print(json.dumps({'originalEffectId':doc['effectId'],'originalAttemptId':doc['attempt']['attemptId'],'noCleanupReplay':True}))
+     finally:await service.close()
+    asyncio.run(query())
+    """
+                    child=subprocess.run([sys.executable,'-c',cold_script,str(env.root),str(env.tmp/'automation')],
+                        capture_output=True,text=True,timeout=20,**command_window_options())
+&gt;                   assert child.returncode==0,child.stdout+child.stderr
+E                   AssertionError: Traceback (most recent call last):
+E                       File "&lt;string&gt;", line 18, in &lt;module&gt;
+E                         asyncio.run(query())
+E                         ~~~~~~~~~~~^^^^^^^^^
+E                       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E                         return runner.run(main)
+E                                ~~~~~~~~~~^^^^^^
+E                       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E                         return self._loop.run_until_complete(task)
+E                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E                       File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E                         return future.result()
+E                                ~~~~~~~~~~~~~^^
+E                       File "&lt;string&gt;", line 15, in query
+E                         assert len(state['attempts'])==1 and not state['effects'], {'attempts':state['attempts'],'effects':state['effects'],'runs':state['runs']}
+E                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                     AssertionError: {'attempts': {'attempt_5da97d5427234405848874ce': {'attemptId': 'attempt_5da97d5427234405848874ce', 'endedAt': '2026-11-01T17:55:56.838529Z', 'generation': 1, 'leaseId': 'lease_71f57e2282694b979c4d3e32', 'ownerEpoch': 1, 'runId': 'run_580bb4f7d7a44e599ec5015d', 'startedAt': '2026-11-01T17:55:53.366872Z', 'state': 'uncertain', 'stepId': 's0'}}, 'effects': [{'attemptId': 'attempt_5da97d5427234405848874ce', 'createdAt': '2026-11-01T17:55:56.838986Z', 'effectKey': {'operationOrdinal': 0, 'runId': 'run_580bb4f7d7a44e599ec5015d', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', 'receipt': {'code': 'host_restarted'}, 'updatedAt': '2026-11-01T17:55:56.838990Z'}], 'runs': {'run_580bb4f7d7a44e599ec5015d': {'admissionId': 'adm_288974c18c19473bb648b469', 'cause': {'type': 'manual'}, 'configRevision': 1, 'createdAt': '2026-11-01T17:55:53.328177Z', 'finishedAt': '2026-11-01T17:55:56.839164Z', 'jobId': 'job_0f1a005f12aa4fe1af8886a4', 'planDigest': '2ff38f81856a4066e1d5337484111c66a17bd50858a681d8b154b7cc561a3968', 'profileId': 'profile_47dd7047ab104270d2300887', 'runId': 'run_580bb4f7d7a44e599ec5015d', 'startedAt': '2026-11-01T17:55:53.352643Z', 'state': 'uncertain', 'stateRevision': 3, 'transitionSeq': 3}}}
+E                     
+E                   assert 1 == 0
+E                    +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python...artedAt\': \'2026-11-01T17:55:53.352643Z\', \'state\': \'uncertain\', \'stateRevision\': 3, \'transitionSeq\': 3}}}\n').returncode
+
+tests\test_job_delete_http_owned.py:76: AssertionError</failure></testcase></testsuite></testsuites>

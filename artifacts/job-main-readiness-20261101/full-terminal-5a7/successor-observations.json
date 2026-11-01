@@ -1349,5 +1349,95 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/cohorte8f6-terminal/remaining-original-87.xml"
     ]
+  },
+  "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[False]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_delete_http_owned::test_real_owned_tree_delete_http[True]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-True-0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[mcp-False-7]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[independent-True-0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_runner_venv::test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/owned-canonical-six-v2.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_mcp_and_http_forward_explicit_visible_option": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_independent_service_persists_and_retries_visible_policy": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_window_policy::test_independent_old_payload_idempotency_does_not_break": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
   }
 }

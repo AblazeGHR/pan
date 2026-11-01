@@ -1,107 +1,122 @@
-"""Real product API + real owned Windows runner/Job/child; random loopback port."""
-import json
-import os
-import socket
-import subprocess
-import sys
-import threading
-import time
+"""Authenticated canonical Cancel Run then retirement of an actual owned tree."""
+import asyncio,copy,json,os,socket,sys,threading,time,subprocess
 from pathlib import Path
-
-import httpx
-import psutil
-import pytest
-import uvicorn
-from fastapi import FastAPI
-from packages.core import background_jobs as jobs, session
-from packages.jobs import api
-from packages.scheduler import store
+import httpx,pytest,uvicorn
+from packages.jobs.final_service import FinalService
+from packages.jobs.independent_executor import ExecutionStore
+from packages.core.terminal.identity import open_process_for_probe,read_creation_filetime,wait_state,ProcessStatus,close_handle_checked
+from tests.test_job_automatic_recovery import env,job_definition
+from tests.test_job_final_http_service import enabled,launch
+from tests.test_job_hidden_production import wait_value
 
 
-@pytest.mark.skipif(os.name != 'nt', reason='Windows retained identity / owned Job verification')
+@pytest.mark.skipif(os.name!='nt',reason='Windows retained identity / owned Job verification')
 @pytest.mark.parametrize('first_unknown',[False,True])
-def test_real_owned_tree_delete_http(tmp_path, monkeypatch,first_unknown):
-    root=tmp_path/'jobs-root'
-    monkeypatch.setattr(jobs,'DEFAULT_ROOT',root)
-    monkeypatch.setattr(store,'DEFAULT_ROOT',root)
-    monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
-    monkeypatch.setenv('PAN_SCHEDULER_DIR',str(root))
-    session._cache['ses_delete_owned']=session.Session(id='ses_delete_owned',name='owned',workdir=str(tmp_path))
-    child_script=tmp_path/'owned.py'
-    ready=tmp_path/'ready.json'
-    child_script.write_text("import subprocess,sys,time,json,os\nfrom pathlib import Path\np=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\nPath(sys.argv[1]).write_text(json.dumps({'parent':os.getpid(),'child':p.pid}),encoding='utf-8')\ntime.sleep(60)\n",encoding='utf-8')
-    app=FastAPI();app.include_router(api.router)
-    sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-    assert port not in (8767,8768)
-    server=uvicorn.Server(uvicorn.Config(app,log_level='error',lifespan='off'))
-    thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True)
-    thread.start()
-    job=None; identities=[]; evidence={'port':port}
+def test_real_owned_tree_delete_http(tmp_path,monkeypatch,first_unknown,env):
+    ready=tmp_path/'ready.json';counter=tmp_path/'counter'
+    script=tmp_path/'owned.py'
+    script.write_text("import subprocess,sys,time,json,os\nfrom pathlib import Path\np=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\nPath(sys.argv[1]).write_text(json.dumps({'parent':os.getpid(),'child':p.pid}),encoding='utf-8')\nPath(sys.argv[2]).write_text('once',encoding='utf-8')\ntime.sleep(60)\n",encoding='utf-8')
+    value=job_definition(env,{'automatic':False})
+    value['steps'][0]['arguments']['argv']['value']=[sys.executable,str(script),str(ready),str(counter)]
+    job=enabled(env,value);rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+    pids=wait_value(lambda:json.loads(ready.read_text(encoding='utf-8')) if ready.exists() else None,bool)
+    store=ExecutionStore(env.root/'executions')
+    with store.connect() as db:doc=json.loads(db.execute('SELECT document FROM executions').fetchone()[0])
+    retained=[]
+    for pid in {*pids.values(),doc['supervisorIdentity']['pid']}:
+        handle=open_process_for_probe(pid);assert handle
+        retained.append((handle,read_creation_filetime(handle)))
+    sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];assert port not in {8767,8768}
+    server=uvicorn.Server(uvicorn.Config(env.app,lifespan='off',log_level='error'));thread=threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True);thread.start()
     try:
-        deadline=time.monotonic()+10
-        while not server.started and time.monotonic()<deadline:time.sleep(.02)
-        assert server.started
-        job=jobs.start('ses_delete_owned',[sys.executable,str(child_script),str(ready)],str(tmp_path),name='owned deletion',registry_root=root)
-        deadline=time.monotonic()+15
-        while time.monotonic()<deadline:
-            job=jobs.get(job['jobId'],root)
-            if ready.exists() and job.get('processJobHandle'):break
-            time.sleep(.02)
-        assert ready.exists(), job
-        assert job.get('processJobHandle'), job
-        pids=json.loads(ready.read_text(encoding='utf-8'))
-        for pid in {*pids.values(),job['runnerPid']}:
-            proc=psutil.Process(pid);identities.append((pid,proc.create_time()))
-        with httpx.Client(base_url=f'http://127.0.0.1:{port}',timeout=10) as client:
+        wait_value(lambda:server.started,bool)
+        with httpx.Client(base_url=f'http://127.0.0.1:{port}',headers=dict(env.client.headers),trust_env=False) as client:
             if first_unknown:
-                from packages.jobs import process_cleanup
-                original = process_cleanup._open_task_guard
-                def denied(*args):
-                    raise psutil.AccessDenied(job['runnerPid'])
-                monkeypatch.setattr(process_cleanup,'_open_task_guard',denied)
-                rejected=client.delete('/api/jobs/'+job['jobId']).json()
-                assert rejected['error']['code']=='job_busy'
-                assert jobs.get(job['jobId'],root)['status']=='cleanup_pending'
-                assert all(psutil.Process(pid).is_running() for pid,_ in identities)
-                # Cold interpreter runs the real recovery loader while this
-                # request is absent; cleanup_pending must remain visible and
-                # cannot relaunch or auto-repeat any deletion effects.
+                factory=env.service._external_adapter;calls=[]
+                def unconfirmed(jid):
+                    adapter=factory(jid)
+                    async def denied(**kwargs):
+                        calls.append(copy.deepcopy(kwargs));raise OSError('owned cleanup transport response unknown')
+                    adapter.cleanup_execution=denied
+                    return adapter
+                monkeypatch.setattr(env.service,'_external_adapter',unconfirmed)
+                original_run=client.get('/api/job-runs/'+rid).json()
+                body={'operation':'cancel','expectedStateRevision':original_run['stateRevision'],'requestKey':'original-unknown-cancel'}
+                response=client.post('/api/job-runs/'+rid+'/operations',json=body)
+                assert response.status_code==202,response.text
+                operation=response.json()['operationId']
+                receipt=client.get('/api/operations/'+operation).json()
+                assert receipt['status']=='unknown' and receipt['error']['code']=='reconciliation_required'
+                assert len(calls)==1 and counter.read_text(encoding='utf-8')=='once'
+                assert all(wait_state(handle) is ProcessStatus.ALIVE for handle,_ in retained)
+                native=store.get(doc['effectId']);assert native['result'] is None and 'cleanupRequest' not in native
+                asyncio.run(env.service.close())
                 from packages.jobs.window import command_window_options
-                cold=subprocess.run([sys.executable,'-c',
-                    "import sys;from packages.core import background_jobs as j;assert j.reconcile_running(sys.argv[1])==0;assert j.get(sys.argv[2],sys.argv[1])['status']=='cleanup_pending';print('cold recovery retained')",
-                    str(root),job['jobId']],capture_output=True,encoding='utf-8',timeout=10,
-                    **command_window_options())
-                assert cold.returncode==0,cold.stderr
-                assert all(psutil.Process(pid).is_running() for pid,_ in identities)
-                evidence['coldRecoveryRetained']=True
-                monkeypatch.setattr(process_cleanup,'_open_task_guard',original)
-                evidence['unknownRetainedThenExplicitRecheck']=True
-            response=client.delete('/api/jobs/'+job['jobId']).json()
-            evidence['response']=response
-            assert response.get('ok'), response
-            assert jobs.get(job['jobId'],root) is None
-            assert not client.delete('/api/jobs/'+job['jobId']).json()['ok']
-        time.sleep(.1)
-        remaining=[]
-        for pid,birth in identities:
-            try:
-                proc=psutil.Process(pid)
-                if proc.create_time()==birth and proc.is_running():remaining.append(pid)
-            except psutil.NoSuchProcess:pass
-        assert not remaining
-        evidence['ownedProcessesRemaining']=remaining
+                cold_script = """import asyncio,json,sys
+from pathlib import Path
+from packages.jobs.final_service import FinalService
+from packages.jobs.final_api import CanonicalUserAuth
+from packages.jobs.independent_executor import ExecutionStore
+root=Path(sys.argv[1]);service=FinalService(root,CanonicalUserAuth(Path(sys.argv[2])))
+async def query():
+ try:
+  service.recover()
+  for _ in range(2):await service.dispatch_once()
+  with ExecutionStore(root/'executions').connect() as db:
+   doc=json.loads(db.execute('SELECT document FROM executions').fetchone()[0])
+  assert doc['result'] is None and 'cleanupRequest' not in doc
+  state=service.final.get(doc['jobId'])
+  assert len(state['attempts'])==len(state['effects'])==1
+  attempt=next(iter(state['attempts'].values()))
+  assert attempt['attemptId']==doc['attempt']['attemptId'] and attempt['state']=='uncertain'
+  effect=state['effects'][0]
+  assert effect['effectKey']==doc['effectKey'] and effect['outcome']=='unknown'
+  assert effect['receipt']=={'code':'host_restarted'}
+  assert state['runs'][doc['attempt']['runId']]['state']=='uncertain'
+  print(json.dumps({'originalEffectId':doc['effectId'],'originalAttemptId':doc['attempt']['attemptId'],'noCleanupReplay':True}))
+ finally:await service.close()
+asyncio.run(query())
+"""
+                child=subprocess.run([sys.executable,'-c',cold_script,str(env.root),str(env.tmp/'automation')],
+                    capture_output=True,text=True,timeout=20,**command_window_options())
+                assert child.returncode==0,child.stdout+child.stderr
+                evidence=json.loads(child.stdout.strip().splitlines()[-1])
+                assert evidence=={'originalEffectId':doc['effectId'],'originalAttemptId':doc['attempt']['attemptId'],'noCleanupReplay':True}
+                cold=FinalService(env.root,env.auth);env.service=cold;env.app.state.job_final_service=cold
+                cold.recover()
+                for _ in range(2):asyncio.run(cold.dispatch_once())
+                assert store.get(doc['effectId'])==native
+                assert counter.read_text(encoding='utf-8')=='once'
+                assert all(wait_state(handle) is ProcessStatus.ALIVE for handle,_ in retained)
+                replay=client.post('/api/job-runs/'+rid+'/operations',json=body)
+                assert replay.status_code==202 and replay.json()['operationId']==operation
+                assert replay.json()['status']=='unknown' and len(calls)==1
+                assert store.get(doc['effectId'])==native
+            run=client.get('/api/job-runs/'+rid).json()
+            response=client.post('/api/job-runs/'+rid+'/operations',json={'operation':'cancel',
+                'expectedStateRevision':run['stateRevision'],'requestKey':'explicit-cleanup-recheck'})
+            assert response.status_code==202,response.text
+            def completed():
+                asyncio.run(env.service.dispatch_once())
+                return client.get('/api/job-runs/'+rid).json()
+            final=wait_value(completed,lambda r:r['state']=='cancelled')
+            native=store.get(doc['effectId'])
+            assert native['cleanupRequest']['status']=='confirmed'
+            assert native['cleanupRequest']['proof']['confirmed'] is True
+            assert native['cleanupRequest']['proof']['ownedTree']['remaining']==[]
+            wait_value(lambda:[wait_state(h) for h,_ in retained],lambda states:all(s is ProcessStatus.DEAD for s in states))
+            assert all(read_creation_filetime(handle)==birth for handle,birth in retained)
+            assert counter.read_text(encoding='utf-8')=='once'
+            current=client.get('/api/jobs/'+job['id']).json()
+            response=client.request('DELETE','/api/jobs/'+job['id'],json={'expectedRevision':current['configRevision'],
+                'expectedStateRevision':current['stateRevision'],'requestKey':'retire-after-proven-cleanup'})
+            assert response.status_code==200,response.text
+            assert response.json()['result']['object']['state']=='retired'
+            # Retirement preserves the original canonical history/receipt. It
+            # never purges unknown effects or fabricates a physical delete.
+            assert client.get('/api/job-runs/'+rid).json()==final
+            assert len(env.service.final.get(job['id'])['attempts'])==1
+            assert store.get(doc['effectId'])==native
     finally:
-        # Cleanup only processes captured from our own runner and child receipt.
-        for pid,birth in identities:
-            try:
-                proc=psutil.Process(pid)
-                if proc.create_time()==birth:
-                    proc.kill();proc.wait(3)
-            except psutil.NoSuchProcess:pass
-        server.should_exit=True;thread.join(5);sock.close()
-        assert not thread.is_alive()
-        with socket.socket() as probe:
-            evidence['portReleased']=probe.connect_ex(('127.0.0.1',port))!=0
-        out=Path('audit/job-delete-main-integration/http-owned-recheck.json' if first_unknown else 'audit/job-delete-main-integration/http-owned.json')
-        out.parent.mkdir(parents=True,exist_ok=True)
-        out.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
+        server.should_exit=True;thread.join(8);sock.close();assert not thread.is_alive()
+        for handle,_ in retained:close_handle_checked(handle)

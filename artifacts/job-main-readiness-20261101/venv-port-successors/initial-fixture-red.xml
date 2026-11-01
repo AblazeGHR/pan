@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="3.779" timestamp="2026-11-02T01:51:29.153574+08:00" hostname="ablaze"><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[mcp-True-0]" time="0.834"><failure message="KeyError: 'effectAdmissions'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6727/test_venv_runner_has_no_window0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000022D1DA0A060&gt;
+entry = 'mcp', hidden = True, exit_code = 0
+env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000022D1DAA6CF0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000022D1DAA63C0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000022D1DAA4440&gt;, serial=0)
+
+    @pytest.mark.parametrize('entry,hidden,exit_code',[('mcp',True,0),('mcp',False,7),('independent',True,0),('scheduled',True,0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path,monkeypatch,entry,hidden,exit_code,env):
+        venv_root=tmp_path/'venv';venv.EnvBuilder(with_pip=False,system_site_packages=True).create(venv_root)
+        (venv_root/'Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf-8')
+        python=str(venv_root/'Scripts/python.exe')
+        observation=tmp_path/'runner';observation.mkdir()
+        helper=Path(__file__).parent/'helpers/runner_startup_probe.py'
+        (venv_root/'Lib/site-packages/sitecustomize.py').write_text('import runpy;runpy.run_path('+repr(str(helper.resolve()))+', init_globals={"OUTPUT_DIRECTORY":'+repr(str(observation))+'})',encoding='utf-8')
+        # Same fixed native launcher and module, hosted in an actual venv. This
+        # changes only this module's interpreter binding, not global sys or argv.
+        from packages.jobs import independent_executor
+        monkeypatch.setattr(independent_executor,'sys',SimpleNamespace(executable=python))
+        output=tmp_path/'payload.json';release=tmp_path/'release'
+        program=('import ctypes,json,os,sys,time;from pathlib import Path;'
+            +'Path('+repr(str(output))+').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));'
+            +'print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);'
+            +'deadline=time.monotonic()+20\nwhile not Path('+repr(str(release))+').exists():\n assert time.monotonic()&lt;deadline;time.sleep(.02)\nsys.exit('+str(exit_code)+')')
+        value=job_definition(env,{'automatic':False},code=program)
+        value['steps'][0]['arguments']['argv']['value']=[python,'-c',program]
+        value['steps'][0]['arguments']['hideWindow']={'from':'literal','value':hidden}
+        job=enabled(env,value)
+        if entry=='scheduled':
+            from packages.scheduler.providers import time_definition
+            from tests.test_job_final_creators import config
+            at=(datetime.now(timezone.utc)+timedelta(seconds=60)).isoformat()
+            response=env.client.post('/api/event-creators',json={'definition':time_definition('venv clock',config([{'ruleId':'original','type':'once','at':at}])), 'expectedRevision':0,'requestKey':'clock'})
+            assert response.status_code==201,response.text
+            creator=control(env,'event-creators',response.json()['result']['object'],'enable','clock-enable').json()['result']['object']
+            response=env.client.post('/api/triggers',json={'definition':{'name':'venv subscription','targetJobId':job['id'],'creatorSelector':{'mode':'ids','ids':[creator['id']]},'eventTypes':['scheduler.time.v2']},'expectedRevision':0,'requestKey':'subscription'})
+            assert response.status_code==201,response.text
+            control(env,'triggers',response.json()['result']['object'],'enable','subscription-enable')
+            env.service.refresh_subscriptions();asyncio.run(env.service.creator_runtime.tick(at=at));asyncio.run(env.service.tick())
+            rid=next(iter(env.service.final.get(job['id'])['runs']))
+        else:
+            rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+        store=ExecutionStore(env.root/'executions');host=ExecutionHost(store)
+        handles=[];doc=None
+        try:
+            files=wait_value(lambda:list(observation.glob('*.json')),bool)
+            assert len(files)==1
+            before=json.loads(files[0].read_text(encoding='utf-8'))
+            assert before['modulesBefore']==[] and before['console']==0
+            assert Path(before['prefix']).resolve()==venv_root.resolve()
+            assert before['pid'] in before['consoleClients'] and before['parent'] in before['consoleClients']
+            for pid,birth in [(before['pid'],before['filetime']),(before['parent'],before['parentFiletime'])]:
+                handle=open_process_for_probe(pid);assert handle
+                handles.append(handle);assert str(read_creation_filetime(handle))==birth
+&gt;           state=env.service.final.get(job['id']);admission=next(iter(state['effectAdmissions'].values()))
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'effectAdmissions'
+
+tests\test_job_runner_venv.py:64: KeyError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[mcp-False-7]" time="0.639"><failure message="KeyError: 'effectAdmissions'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6727/test_venv_runner_has_no_window1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000022D1DA0A190&gt;
+entry = 'mcp', hidden = False, exit_code = 7
+env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000022D1DD09A90&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000022D1DD0B110&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000022D1DC56120&gt;, serial=0)
+
+    @pytest.mark.parametrize('entry,hidden,exit_code',[('mcp',True,0),('mcp',False,7),('independent',True,0),('scheduled',True,0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path,monkeypatch,entry,hidden,exit_code,env):
+        venv_root=tmp_path/'venv';venv.EnvBuilder(with_pip=False,system_site_packages=True).create(venv_root)
+        (venv_root/'Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf-8')
+        python=str(venv_root/'Scripts/python.exe')
+        observation=tmp_path/'runner';observation.mkdir()
+        helper=Path(__file__).parent/'helpers/runner_startup_probe.py'
+        (venv_root/'Lib/site-packages/sitecustomize.py').write_text('import runpy;runpy.run_path('+repr(str(helper.resolve()))+', init_globals={"OUTPUT_DIRECTORY":'+repr(str(observation))+'})',encoding='utf-8')
+        # Same fixed native launcher and module, hosted in an actual venv. This
+        # changes only this module's interpreter binding, not global sys or argv.
+        from packages.jobs import independent_executor
+        monkeypatch.setattr(independent_executor,'sys',SimpleNamespace(executable=python))
+        output=tmp_path/'payload.json';release=tmp_path/'release'
+        program=('import ctypes,json,os,sys,time;from pathlib import Path;'
+            +'Path('+repr(str(output))+').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));'
+            +'print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);'
+            +'deadline=time.monotonic()+20\nwhile not Path('+repr(str(release))+').exists():\n assert time.monotonic()&lt;deadline;time.sleep(.02)\nsys.exit('+str(exit_code)+')')
+        value=job_definition(env,{'automatic':False},code=program)
+        value['steps'][0]['arguments']['argv']['value']=[python,'-c',program]
+        value['steps'][0]['arguments']['hideWindow']={'from':'literal','value':hidden}
+        job=enabled(env,value)
+        if entry=='scheduled':
+            from packages.scheduler.providers import time_definition
+            from tests.test_job_final_creators import config
+            at=(datetime.now(timezone.utc)+timedelta(seconds=60)).isoformat()
+            response=env.client.post('/api/event-creators',json={'definition':time_definition('venv clock',config([{'ruleId':'original','type':'once','at':at}])), 'expectedRevision':0,'requestKey':'clock'})
+            assert response.status_code==201,response.text
+            creator=control(env,'event-creators',response.json()['result']['object'],'enable','clock-enable').json()['result']['object']
+            response=env.client.post('/api/triggers',json={'definition':{'name':'venv subscription','targetJobId':job['id'],'creatorSelector':{'mode':'ids','ids':[creator['id']]},'eventTypes':['scheduler.time.v2']},'expectedRevision':0,'requestKey':'subscription'})
+            assert response.status_code==201,response.text
+            control(env,'triggers',response.json()['result']['object'],'enable','subscription-enable')
+            env.service.refresh_subscriptions();asyncio.run(env.service.creator_runtime.tick(at=at));asyncio.run(env.service.tick())
+            rid=next(iter(env.service.final.get(job['id'])['runs']))
+        else:
+            rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+        store=ExecutionStore(env.root/'executions');host=ExecutionHost(store)
+        handles=[];doc=None
+        try:
+            files=wait_value(lambda:list(observation.glob('*.json')),bool)
+            assert len(files)==1
+            before=json.loads(files[0].read_text(encoding='utf-8'))
+            assert before['modulesBefore']==[] and before['console']==0
+            assert Path(before['prefix']).resolve()==venv_root.resolve()
+            assert before['pid'] in before['consoleClients'] and before['parent'] in before['consoleClients']
+            for pid,birth in [(before['pid'],before['filetime']),(before['parent'],before['parentFiletime'])]:
+                handle=open_process_for_probe(pid);assert handle
+                handles.append(handle);assert str(read_creation_filetime(handle))==birth
+&gt;           state=env.service.final.get(job['id']);admission=next(iter(state['effectAdmissions'].values()))
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'effectAdmissions'
+
+tests\test_job_runner_venv.py:64: KeyError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[independent-True-0]" time="0.650"><failure message="KeyError: 'effectAdmissions'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6727/test_venv_runner_has_no_window2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000022D1DAF68D0&gt;
+entry = 'independent', hidden = True, exit_code = 0
+env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000022D1DE94050&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000022D1DE63890&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000022D1DE23620&gt;, serial=0)
+
+    @pytest.mark.parametrize('entry,hidden,exit_code',[('mcp',True,0),('mcp',False,7),('independent',True,0),('scheduled',True,0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path,monkeypatch,entry,hidden,exit_code,env):
+        venv_root=tmp_path/'venv';venv.EnvBuilder(with_pip=False,system_site_packages=True).create(venv_root)
+        (venv_root/'Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf-8')
+        python=str(venv_root/'Scripts/python.exe')
+        observation=tmp_path/'runner';observation.mkdir()
+        helper=Path(__file__).parent/'helpers/runner_startup_probe.py'
+        (venv_root/'Lib/site-packages/sitecustomize.py').write_text('import runpy;runpy.run_path('+repr(str(helper.resolve()))+', init_globals={"OUTPUT_DIRECTORY":'+repr(str(observation))+'})',encoding='utf-8')
+        # Same fixed native launcher and module, hosted in an actual venv. This
+        # changes only this module's interpreter binding, not global sys or argv.
+        from packages.jobs import independent_executor
+        monkeypatch.setattr(independent_executor,'sys',SimpleNamespace(executable=python))
+        output=tmp_path/'payload.json';release=tmp_path/'release'
+        program=('import ctypes,json,os,sys,time;from pathlib import Path;'
+            +'Path('+repr(str(output))+').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));'
+            +'print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);'
+            +'deadline=time.monotonic()+20\nwhile not Path('+repr(str(release))+').exists():\n assert time.monotonic()&lt;deadline;time.sleep(.02)\nsys.exit('+str(exit_code)+')')
+        value=job_definition(env,{'automatic':False},code=program)
+        value['steps'][0]['arguments']['argv']['value']=[python,'-c',program]
+        value['steps'][0]['arguments']['hideWindow']={'from':'literal','value':hidden}
+        job=enabled(env,value)
+        if entry=='scheduled':
+            from packages.scheduler.providers import time_definition
+            from tests.test_job_final_creators import config
+            at=(datetime.now(timezone.utc)+timedelta(seconds=60)).isoformat()
+            response=env.client.post('/api/event-creators',json={'definition':time_definition('venv clock',config([{'ruleId':'original','type':'once','at':at}])), 'expectedRevision':0,'requestKey':'clock'})
+            assert response.status_code==201,response.text
+            creator=control(env,'event-creators',response.json()['result']['object'],'enable','clock-enable').json()['result']['object']
+            response=env.client.post('/api/triggers',json={'definition':{'name':'venv subscription','targetJobId':job['id'],'creatorSelector':{'mode':'ids','ids':[creator['id']]},'eventTypes':['scheduler.time.v2']},'expectedRevision':0,'requestKey':'subscription'})
+            assert response.status_code==201,response.text
+            control(env,'triggers',response.json()['result']['object'],'enable','subscription-enable')
+            env.service.refresh_subscriptions();asyncio.run(env.service.creator_runtime.tick(at=at));asyncio.run(env.service.tick())
+            rid=next(iter(env.service.final.get(job['id'])['runs']))
+        else:
+            rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+        store=ExecutionStore(env.root/'executions');host=ExecutionHost(store)
+        handles=[];doc=None
+        try:
+            files=wait_value(lambda:list(observation.glob('*.json')),bool)
+            assert len(files)==1
+            before=json.loads(files[0].read_text(encoding='utf-8'))
+            assert before['modulesBefore']==[] and before['console']==0
+            assert Path(before['prefix']).resolve()==venv_root.resolve()
+            assert before['pid'] in before['consoleClients'] and before['parent'] in before['consoleClients']
+            for pid,birth in [(before['pid'],before['filetime']),(before['parent'],before['parentFiletime'])]:
+                handle=open_process_for_probe(pid);assert handle
+                handles.append(handle);assert str(read_creation_filetime(handle))==birth
+&gt;           state=env.service.final.get(job['id']);admission=next(iter(state['effectAdmissions'].values()))
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'effectAdmissions'
+
+tests\test_job_runner_venv.py:64: KeyError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]" time="1.092"><failure message="KeyError: 'effectAdmissions'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6727/test_venv_runner_has_no_window3')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000022D1DE7A7A0&gt;
+entry = 'scheduled', hidden = True, exit_code = 0
+env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000022D1DE890F0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000022D1DE89220&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000022D1DF65010&gt;, serial=0)
+
+    @pytest.mark.parametrize('entry,hidden,exit_code',[('mcp',True,0),('mcp',False,7),('independent',True,0),('scheduled',True,0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path,monkeypatch,entry,hidden,exit_code,env):
+        venv_root=tmp_path/'venv';venv.EnvBuilder(with_pip=False,system_site_packages=True).create(venv_root)
+        (venv_root/'Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf-8')
+        python=str(venv_root/'Scripts/python.exe')
+        observation=tmp_path/'runner';observation.mkdir()
+        helper=Path(__file__).parent/'helpers/runner_startup_probe.py'
+        (venv_root/'Lib/site-packages/sitecustomize.py').write_text('import runpy;runpy.run_path('+repr(str(helper.resolve()))+', init_globals={"OUTPUT_DIRECTORY":'+repr(str(observation))+'})',encoding='utf-8')
+        # Same fixed native launcher and module, hosted in an actual venv. This
+        # changes only this module's interpreter binding, not global sys or argv.
+        from packages.jobs import independent_executor
+        monkeypatch.setattr(independent_executor,'sys',SimpleNamespace(executable=python))
+        output=tmp_path/'payload.json';release=tmp_path/'release'
+        program=('import ctypes,json,os,sys,time;from pathlib import Path;'
+            +'Path('+repr(str(output))+').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));'
+            +'print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);'
+            +'deadline=time.monotonic()+20\nwhile not Path('+repr(str(release))+').exists():\n assert time.monotonic()&lt;deadline;time.sleep(.02)\nsys.exit('+str(exit_code)+')')
+        value=job_definition(env,{'automatic':False},code=program)
+        value['steps'][0]['arguments']['argv']['value']=[python,'-c',program]
+        value['steps'][0]['arguments']['hideWindow']={'from':'literal','value':hidden}
+        job=enabled(env,value)
+        if entry=='scheduled':
+            from packages.scheduler.providers import time_definition
+            from tests.test_job_final_creators import config
+            at=(datetime.now(timezone.utc)+timedelta(seconds=60)).isoformat()
+            response=env.client.post('/api/event-creators',json={'definition':time_definition('venv clock',config([{'ruleId':'original','type':'once','at':at}])), 'expectedRevision':0,'requestKey':'clock'})
+            assert response.status_code==201,response.text
+            creator=control(env,'event-creators',response.json()['result']['object'],'enable','clock-enable').json()['result']['object']
+            response=env.client.post('/api/triggers',json={'definition':{'name':'venv subscription','targetJobId':job['id'],'creatorSelector':{'mode':'ids','ids':[creator['id']]},'eventTypes':['scheduler.time.v2']},'expectedRevision':0,'requestKey':'subscription'})
+            assert response.status_code==201,response.text
+            control(env,'triggers',response.json()['result']['object'],'enable','subscription-enable')
+            env.service.refresh_subscriptions();asyncio.run(env.service.creator_runtime.tick(at=at));asyncio.run(env.service.tick())
+            rid=next(iter(env.service.final.get(job['id'])['runs']))
+        else:
+            rid=launch(env,job)['runId'];asyncio.run(env.service.dispatch_once())
+        store=ExecutionStore(env.root/'executions');host=ExecutionHost(store)
+        handles=[];doc=None
+        try:
+            files=wait_value(lambda:list(observation.glob('*.json')),bool)
+            assert len(files)==1
+            before=json.loads(files[0].read_text(encoding='utf-8'))
+            assert before['modulesBefore']==[] and before['console']==0
+            assert Path(before['prefix']).resolve()==venv_root.resolve()
+            assert before['pid'] in before['consoleClients'] and before['parent'] in before['consoleClients']
+            for pid,birth in [(before['pid'],before['filetime']),(before['parent'],before['parentFiletime'])]:
+                handle=open_process_for_probe(pid);assert handle
+                handles.append(handle);assert str(read_creation_filetime(handle))==birth
+&gt;           state=env.service.final.get(job['id']);admission=next(iter(state['effectAdmissions'].values()))
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'effectAdmissions'
+
+tests\test_job_runner_venv.py:64: KeyError</failure></testcase></testsuite></testsuites>

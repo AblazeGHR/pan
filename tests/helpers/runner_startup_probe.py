@@ -8,8 +8,9 @@ import os
 from pathlib import Path
 import sys
 
-modules = ('packages.core.background_runner', 'packages.core.background_jobs', 'packages.jobs.independent_runner')
+modules = ('packages.core.background_runner', 'packages.core.background_jobs', 'packages.jobs.independent_runner', 'packages.jobs.independent_execution_runner')
 if any(module in sys.orig_argv for module in modules):
+    before = [name for name in modules if name in sys.modules]
     k = ctypes.WinDLL('kernel32', use_last_error=True)
     u = ctypes.WinDLL('user32', use_last_error=True)
     k.GetConsoleWindow.restype = w.HWND
@@ -21,7 +22,7 @@ if any(module in sys.orig_argv for module in modules):
     count = k.GetConsoleProcessList(members, 32)
     from packages.core.terminal.identity import read_creation_filetime, open_process_for_probe, close_handle_checked
     k.GetCurrentProcess.restype = w.HANDLE
-    evidence = dict(pid=os.getpid(), parent=os.getppid(), filetime=str(read_creation_filetime(k.GetCurrentProcess())), console=int(k.GetConsoleWindow() or 0), consoleClients=list(members)[:min(count, 32)], desktop=desktop.value, executable=sys.executable, prefix=sys.prefix, argv=sys.orig_argv)
+    evidence = dict(modulesBefore=before, pid=os.getpid(), parent=os.getppid(), filetime=str(read_creation_filetime(k.GetCurrentProcess())), console=int(k.GetConsoleWindow() or 0), consoleClients=list(members)[:min(count, 32)], desktop=desktop.value, executable=sys.executable, prefix=sys.prefix, argv=sys.orig_argv)
     parent_handle = open_process_for_probe(os.getppid())
     try:
         evidence['parentFiletime'] = str(read_creation_filetime(parent_handle))

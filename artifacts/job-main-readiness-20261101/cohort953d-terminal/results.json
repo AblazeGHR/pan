@@ -1,0 +1,14 @@
+[
+  {
+    "name": "canonical-creation",
+    "exitCode": 0
+  },
+  {
+    "name": "runtime-and-adoption",
+    "exitCode": 0
+  },
+  {
+    "name": "production-browser",
+    "exitCode": 1
+  }
+]

@@ -77,6 +77,17 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
         owned.should_exit = True
         thread.join(8)
         listener.close()
+        if thread.is_alive():
+            pending=[]
+            for task in owned.server_state.tasks:
+                frames=[];current=task.get_coro();seen=set()
+                while current is not None and id(current) not in seen:
+                    seen.add(id(current))
+                    frame=getattr(current,'cr_frame',None) or getattr(current,'gi_frame',None)
+                    if frame is not None:frames.append((frame.f_code.co_filename,frame.f_lineno,frame.f_code.co_name))
+                    current=getattr(current,'cr_await',None) or getattr(current,'gi_yieldfrom',None)
+                pending.append({'task':repr(task),'awaitChain':frames})
+            print('OWNED_MAINTENANCE_PENDING='+repr(pending))
         assert not thread.is_alive()
     assert source.read_bytes() == raw
     assert hashlib.sha256(fence.path.read_bytes()).hexdigest() == authority_hash
@@ -161,4 +172,15 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
         owned.should_exit = True
         thread.join(8)
         listener.close()
+        if thread.is_alive():
+            pending=[]
+            for task in owned.server_state.tasks:
+                frames=[];current=task.get_coro();seen=set()
+                while current is not None and id(current) not in seen:
+                    seen.add(id(current))
+                    frame=getattr(current,'cr_frame',None) or getattr(current,'gi_frame',None)
+                    if frame is not None:frames.append((frame.f_code.co_filename,frame.f_lineno,frame.f_code.co_name))
+                    current=getattr(current,'cr_await',None) or getattr(current,'gi_yieldfrom',None)
+                pending.append({'task':repr(task),'awaitChain':frames})
+            print('OWNED_MAINTENANCE_PENDING='+repr(pending))
         assert not thread.is_alive()

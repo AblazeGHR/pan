@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from packages.jobs.window import command_window_options, validate_hide_window, windows_creation_flags
+from tests.test_job_automatic_recovery import env  # noqa: F401
 
 
 @pytest.mark.parametrize("value", [None, "true", "false", 0, 1, [], {}])
@@ -39,84 +40,83 @@ def test_non_windows_options_have_no_windows_only_kwargs(monkeypatch):
 
 @pytest.mark.parametrize("shell", [False, True])
 @pytest.mark.parametrize("hidden", [None, True, False])
-def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
-    from packages.core import background_runner as runner
-    job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
-    if shell:
-        job["shellCommand"] = "echo owned"
-    if hidden is not None:
-        job["hideWindow"] = hidden
-    process = MagicMock(pid=123, wait=Mock(return_value=0))
-    process.__enter__.return_value = process
-    spawn = Mock(return_value=process)
-    desktop_spawn = Mock(return_value=process)
-    monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
-    monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
-    monkeypatch.setattr(runner.jobs, "runner_update", Mock())
-    monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
-    monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
-    # This unit tests command-window options, not registry admission. The
-    # mocked process has no OS identity; lifecycle tests cover runner_spawn.
-    monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
-    monkeypatch.setattr(runner.subprocess, "Popen", spawn)
-    monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
-    assert runner.main() == 0
-    if os.name == "nt" and hidden is not False:
-        spawn.assert_not_called()
-        assert desktop_spawn.call_args.args[0] == (job["shellCommand"] if shell else job["argv"])
-        assert desktop_spawn.call_args.args[1] == job["cwd"]
-        assert desktop_spawn.call_args.kwargs["shell"] is shell
-        process.close.assert_not_called()  # __exit__ owns cleanup.
-        process.__exit__.assert_called_once()
-        return
-    desktop_spawn.assert_not_called()
-    kwargs = spawn.call_args.kwargs
-    assert kwargs["stdin"] == subprocess.DEVNULL
-    if os.name == "nt":
-        assert kwargs["creationflags"] == windows_creation_flags(hidden is not False)
-    assert kwargs.get("shell", False) is shell
+def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(tmp_path, shell, hidden):
+    from packages.actions.typed_executor import TypedExecutor
+    from tests.test_job_final_executors import FakeOwner,attempt,key
+    # The typed successor carries a shell invocation as explicit argv. It
+    # never resurrects raw shellCommand/Popen(shell=True) dispatch.
+    argv=([os.environ.get('COMSPEC','cmd.exe'),'/d','/c','echo owned'] if os.name=='nt'
+        else ['/bin/sh','-c','printf owned']) if shell else [sys.executable,'-c','pass']
+    arguments={'argv':argv,'cwd':str(tmp_path)}
+    if hidden is not None:arguments['hideWindow']=hidden
+    owner=FakeOwner()
+    result=asyncio.run(TypedExecutor(process_owner=owner).execute(attempt=attempt(),effect_key=key(),
+        frozen_plan={'operation':'process','arguments':arguments}))
+    assert result['outcome']=='succeeded' and result['cleanupProof']['confirmed'] is True
+    assert len(owner.calls)==1
+    actual,options=owner.calls[0]
+    assert actual==argv and options['cwd']==str(tmp_path)
+    assert options['hide_window'] is (hidden is not False)
+    assert options['stdin']==subprocess.DEVNULL and options.get('shell',False) is False
 
 
-def test_mcp_and_http_forward_explicit_visible_option(monkeypatch):
+def test_mcp_and_http_forward_explicit_visible_option(monkeypatch,env):
     from packages.mcp import server as mcp
-    from packages.web import server as web
-    calls = []
-    monkeypatch.setattr(mcp, "_caller_identity", lambda: {"id": "ses_self"})
-    monkeypatch.setattr(mcp, "_check_access", lambda *args, **kwargs: None)
-    monkeypatch.setattr(mcp, "_api", lambda method, path, body: calls.append(body) or body)
-    assert mcp.agent_background_start(["python"], ".", hide_window=False, name="Validate window policy")["hideWindow"] is False
-    monkeypatch.setattr(web.background_jobs, "start", lambda *args, **kwargs: kwargs)
-    assert asyncio.run(web.api_background_job_start({"hideWindow": False}))["hide_window"] is False
-    assert asyncio.run(web.api_background_job_start({}))["hide_window"] is True
+    from tests.test_job_automatic_recovery import job_definition
+    calls=[]
+    monkeypatch.setattr(mcp,'_caller_identity',lambda:{'id':'ses_self'})
+    monkeypatch.setattr(mcp,'_check_access',lambda *args,**kwargs:None)
+    monkeypatch.setattr(mcp,'_api',lambda method,path,body:calls.append(body) or body)
+    assert mcp.agent_background_start(['python'],'.',hide_window=False,name='Validate window policy')['hideWindow'] is False
+    assert calls[0]['hideWindow'] is False
+    value=job_definition(env,{'automatic':False})
+    value['steps'][0]['arguments']['hideWindow']={'from':'literal','value':False}
+    response=env.client.post('/api/jobs',json={'definition':value,'expectedRevision':0,'requestKey':'visible'})
+    assert response.status_code==201,response.text
+    item=response.json()['result']['object']
+    assert item['steps'][0]['arguments']['hideWindow']['value'] is False
+    assert env.client.get('/api/jobs/'+item['id']).json()['steps'][0]['arguments']['hideWindow']['value'] is False
+    state=env.service.final.get(item['id'])
+    assert not state['runs'] and not state['attempts'] and not state['effects']
 
 
-def test_independent_service_persists_and_retries_visible_policy(tmp_path, monkeypatch):
-    from packages.jobs.independent_service import JobStore, ServiceError
-    store = JobStore(str(tmp_path / "owned"))
-    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
-    request = {"name": "Validate window policy", "argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self"}
-    default = store.create(request)
-    visible = store.create({**request, "hideWindow": False})
-    assert default["hideWindow"] is True
-    assert visible["hideWindow"] is False
-    with store.connect() as db:
-        db.execute("UPDATE jobs SET status='failed' WHERE id=?", (visible["jobId"],))
-    assert store.retry(visible["jobId"])["hideWindow"] is False
-    with pytest.raises(ServiceError):
-        store.create({**request, "hideWindow": "false"})
+def test_independent_service_persists_and_retries_visible_policy(tmp_path):
+    from packages.jobs.independent_executor import ExecutionStore,ExecutionHost
+    from packages.actions.typed_executor import EffectReceipt
+    from tests.test_job_final_independent_execution import attempt,key,process_plan
+    store=ExecutionStore(tmp_path/'executions');calls=[];host=ExecutionHost(store,launch=lambda *args:calls.append(args))
+    plan={**process_plan(tmp_path),'hideWindow':False}
+    request={'jobId':'job_visible','attempt':attempt(),'effectKey':key(),'frozenPlan':plan}
+    original=host.submit_execution(request)
+    assert original['frozenPlan']['hideWindow'] is False and len(calls)==1
+    claimed=store.claim(original['effectId'],attempt(),{'pid':7,'birth':'trusted-original'})
+    failure=EffectReceipt(key(),'rejected',{'exitCode':7},{'confirmed':True}).as_dict()
+    store.finish(original['effectId'],attempt(),claimed['claim'],failure)
+    retried=host.submit_execution({**request,'retry':True,'attempt':attempt(attemptId='attempt_retry',generation=2)})
+    assert retried['effectId']==original['effectId'] and retried['effectKey']==original['effectKey']
+    assert retried['frozenPlan']==original['frozenPlan'] and len(calls)==2
+    assert retried['history'][0]['result']==failure
+    before=store.get(original['effectId'])
+    with pytest.raises(ValueError,match='invalid typed process arguments'):
+        host.submit_execution({**request,'frozenPlan':{**plan,'hideWindow':'false'}})
+    assert store.get(original['effectId'])==before and len(calls)==2
 
 
-def test_independent_old_payload_idempotency_does_not_break(tmp_path, monkeypatch):
-    from packages.jobs.independent_service import JobStore
-    store = JobStore(str(tmp_path / "owned"))
-    monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
-    request = {"name": "Validate window policy", "argv": [sys.executable], "cwd": str(tmp_path), "targetSessionId": "ses_self", "idempotencyKey": "old"}
-    job = store.create(request)
-    with store.connect() as db:
-        row = db.execute("SELECT payload FROM jobs WHERE id=?", (job["jobId"],)).fetchone()
-        old = json.loads(row["payload"]); old.pop("hideWindow")
-        db.execute("UPDATE jobs SET payload=?,payload_hash=? WHERE id=?", (json.dumps(old), "historical-hash", job["jobId"]))
-    assert store.create(request)["jobId"] == job["jobId"]
+def test_independent_old_payload_idempotency_does_not_break(tmp_path):
+    from packages.jobs.independent_executor import ExecutionStore,ExecutionHost,ExecutionConflict
+    from tests.test_job_final_independent_execution import attempt,key,process_plan
+    store=ExecutionStore(tmp_path/'executions');calls=[];host=ExecutionHost(store,launch=lambda *args:calls.append(args))
+    request={'jobId':'job_original','attempt':attempt(),'effectKey':key(),'frozenPlan':process_plan(tmp_path)}
+    original=host.submit_execution(request)
+    assert 'hideWindow' not in original['frozenPlan']
+    cold=ExecutionHost(ExecutionStore(store.root),launch=lambda *args:pytest.fail('must query original'))
+    assert cold.submit_execution(request)==original
+    assert cold.submit_execution({**request,'retry':True})==original
+    assert cold.get_execution(original['effectId'])==original and len(calls)==1
+    # A changed plan is not a historical default and cannot steal an effect.
+    with pytest.raises(ExecutionConflict):
+        cold.submit_execution({**request,'frozenPlan':{**request['frozenPlan'],'hideWindow':True}})
+    assert cold.get_execution(original['effectId'])==original
 
 
 def test_shell_normalization_keeps_explicit_visibility_and_rejects_string(tmp_path):
