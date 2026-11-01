@@ -1,7 +1,8 @@
 """Thin local completion-notice adapter; persistence remains in final outbox.
 
-Only this original Session-storage/queue call can produce a local no-attempt
-receipt. Serialized/custom sender dictionaries are never such evidence.
+Only original local Session pre-enqueue checks and native WebSocket event
+preparation can produce no-attempt evidence. Serialized/custom sender
+dictionaries are never such evidence.
 """
 import copy
 import asyncio
@@ -61,3 +62,12 @@ async def enqueue_session_notice(row):
             phase="after-enqueue", queueReceipt=copy.deepcopy(result))
     return _LocalNoticeReceipt(**base, outcome="unknown", attempted=True,
         phase="after-enqueue", error=copy.deepcopy(result.get("error")))
+
+
+def websocket_preparation_not_attempted(row, error):
+    """Original WS producer proved failure before every outbound enqueue."""
+    if row.get('channel') != 'ws':
+        raise ValueError('WebSocket preparation evidence requires the original WS row')
+    return _LocalNoticeReceipt(binding=binding(row), producer='websocket.broadcast.prepare',
+        outcome='pending', attempted=False, phase='before-enqueue',
+        error={'code': 'broadcast_preparation_failed', 'message': str(error)})

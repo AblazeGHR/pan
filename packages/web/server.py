@@ -501,11 +501,19 @@ async def _deliver_due_reminders() -> int:
 ws_clients: set[WebSocket] = set()
 
 
+class _WsBroadcastPreparationFailed(RuntimeError):
+    """Native event projection failed before touching any outbound queue."""
+
+
 async def _send_final_notice(row):
     """Existing canonical outbox -> original browser/Session delivery adapter."""
     if row['channel'] == 'ws':
-        await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
-                         'outboxId': row['outboxId'], **row['summary']})
+        try:
+            await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                             'outboxId': row['outboxId'], **row['summary']})
+        except _WsBroadcastPreparationFailed as exc:
+            from packages.jobs.notification_delivery import websocket_preparation_not_attempted
+            return websocket_preparation_not_attempted(row, exc)
         return {'outcome': 'succeeded'}
     if row['channel'] == 'session':
         from packages.jobs.notification_delivery import enqueue_session_notice
@@ -1898,9 +1906,17 @@ async def broadcast(data: dict):
             "link-projection", _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
     # Capture live summary authority after the await, not before another
     # producer may have advanced this Session while filesystem work ran.
-    data = _attach_session_summary_patch(data)
-    data = _stamp_live_event(data)
-    _stamp_ws_event_ts(data)
+    is_job_notice = data.get("type") == "job.updated"
+    try:
+        data = _attach_session_summary_patch(data)
+        data = _stamp_live_event(data)
+        _stamp_ws_event_ts(data)
+    except Exception as exc:
+        if is_job_notice:
+            # No outbound enqueue has been invoked. Exceptions from enqueue
+            # or a later socket/consumer boundary deliberately remain unknown.
+            raise _WsBroadcastPreparationFailed(str(exc)) from exc
+        raise
     for ws in list(ws_clients):
         _client_channel(ws, "dashboard").enqueue(data)
 

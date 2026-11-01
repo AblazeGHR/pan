@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="11.738" timestamp="2026-11-02T05:50:07.050841+08:00" hostname="ablaze"><testcase classname="tests.test_job_ws_notice_delivery" name="test_native_ws_preparation_retries_only_before_enqueue[False]" time="4.667"><failure message="AssertionError: assert 'uncertain' == 'pending'&#10;  &#10;  - pending&#10;  + uncertain">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000019D51C2DD30&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6776/test_native_ws_preparation_ret0'))
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019D51BDED70&gt;
+after_enqueue = False
+
+    @pytest.mark.parametrize('after_enqueue', [False, True])
+    def test_native_ws_preparation_retries_only_before_enqueue(h, monkeypatch, after_enqueue):
+        from packages.web import server
+        from packages.core import worker
+        monkeypatch.setattr(worker, '_broadcast', None)
+        monkeypatch.setattr(server, 'ws_clients', set())
+        monkeypatch.setattr(server, 'agent_clients', set())
+        monkeypatch.setattr(server, '_ws_outbound', {})
+        job = completed(h, 'ses_b')
+        h.service.outbox_sender = server._send_final_notice
+        fail = {'value': True}
+        calls = []
+        prepare = server._attach_session_summary_patch
+        enqueue = server._OutboundClient.enqueue
+        def faulty_prepare(data):
+            if fail['value'] and not after_enqueue:
+                raise OSError('owned pre-enqueue preparation fault')
+            return prepare(data)
+        def faulty_enqueue(channel, data, **kwargs):
+            result = enqueue(channel, data, **kwargs)
+            calls.append(data['outboxId'])
+            if fail['value'] and after_enqueue:
+                raise OSError('owned acknowledgement lost after native enqueue')
+            return result
+        monkeypatch.setattr(server, '_attach_session_summary_patch', faulty_prepare)
+        monkeypatch.setattr(server._OutboundClient, 'enqueue', faulty_enqueue)
+    
+        @h.app.websocket('/owned-notice-ws')
+        async def socket(ws: WebSocket):
+            if ws.headers.get('authorization') != 'Bearer ' + h.token:
+                await ws.close(code=1008)
+                return
+            await ws.accept()
+            server.ws_clients.add(ws)
+            try:
+                while True:
+                    await ws.receive_text()
+            except WebSocketDisconnect:
+                pass
+            finally:
+                server.ws_clients.discard(ws)
+                channel = server._ws_outbound.pop(ws, None)
+                if channel is not None:
+                    await channel.close_now()
+    
+        @h.app.post('/owned-notice-pulse')
+        async def pulse(request: Request):
+            if request.headers.get('authorization') != 'Bearer ' + h.token:
+                raise HTTPException(401)
+            await h.service.deliver_outbox()
+            return {'ok': True}
+    
+        def row():
+            return next(r for r in h.service.final.history(job['id'])['outbox'] if r['channel'] == 'ws')
+        with tcp(h.app) as url, httpx.Client(base_url=url, trust_env=False,
+                headers={'Authorization': 'Bearer ' + h.token}) as client:
+            with connect(url.replace('http://', 'ws://') + '/owned-notice-ws',
+                    additional_headers={'Authorization': 'Bearer ' + h.token}) as ws:
+                assert client.post('/owned-notice-pulse').status_code == 200
+                original = row()
+&gt;               assert original['status'] == ('uncertain' if after_enqueue else 'pending')
+E               AssertionError: assert 'uncertain' == 'pending'
+E                 
+E                 - pending
+E                 + uncertain
+
+tests\test_job_ws_notice_delivery.py:73: AssertionError</failure></testcase><testcase classname="tests.test_job_ws_notice_delivery" name="test_native_ws_preparation_retries_only_before_enqueue[True]" time="6.313" /></testsuite></testsuites>

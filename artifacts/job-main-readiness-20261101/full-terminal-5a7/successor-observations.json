@@ -1768,5 +1768,47 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/background-validation-successors/background-native-cancel-retry.xml"
     ]
+  },
+  "tests.test_background_jobs::test_start_persists_metadata_and_detaches": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_external_cwd_runs_and_projects_one_completion_notice": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_terminal_notification_is_idempotent": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_runner_terminal_broadcasts_job_updated_once": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_terminal_broadcast_skips_scheduled_children": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_terminal_broadcast_retries_after_channel_failure": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
+  },
+  "tests.test_background_jobs::test_independent_terminal_broadcast_uses_local_ledger_and_retries": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
+    ]
   }
 }

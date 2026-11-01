@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="63" time="48.083" timestamp="2026-11-02T05:46:31.375918+08:00" hostname="ablaze"><testcase classname="tests.test_background_jobs" name="test_accepted_cancel_wins_runner_exit_race" time="0.063" /><testcase classname="tests.test_background_jobs" name="test_runner_finishes_accepted_cancel_if_canceller_disappears" time="0.058" /><testcase classname="tests.test_background_jobs" name="test_cancel_survives_runner_disappearing_during_tree_lookup" time="8.400" /><testcase classname="tests.test_background_jobs" name="test_tree_cleanup_continues_after_one_descendant_disappears" time="0.002" /><testcase classname="tests.test_background_jobs" name="test_start_persists_metadata_and_detaches" time="0.002"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1066C6360&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_start_persists_metadata_a0')
+
+    def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
+        _session(tmp_path)
+        _session(tmp_path, "ses_creator")
+        proc = Mock(pid=4321)
+        monkeypatch.setattr(jobs.subprocess, "Popen", Mock(return_value=proc))
+        monkeypatch.setattr(jobs, "_process_create_time", lambda pid: 12.5)
+&gt;       result = jobs.start(
+                 ^^^^^^^^^^
+            "ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path),
+            creator_session_id="ses_creator",
+            name="Validate background jobs",
+        )
+
+tests\test_background_jobs.py:74: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv0-x]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv1-]" time="0.002" /><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv2-missing]" time="0.024" /><testcase classname="tests.test_background_jobs" name="test_external_cwd_runs_and_projects_one_completion_notice" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_external_cwd_runs_and_pro0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A106689400&gt;
+
+    def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):
+        from packages.core import background_runner
+    
+        project = tmp_path / "project"
+        external = tmp_path / "external 中文 worktree"
+        project.mkdir()
+        external.mkdir()
+        monkeypatch.setattr(jobs, "PROJECT_ROOT", project)
+        _session(tmp_path)
+        # Run the production Runner entrypoint locally against an isolated registry;
+        # its command subprocess is real, while no deployed service is touched.
+        monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+&gt;       job = jobs.start("ses_target", [sys.executable, "-c",
+              ^^^^^^^^^^
+            "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"], str(external), name="Validate background jobs")
+
+tests\test_background_jobs.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_external_cwd_shared_by_shell_validation" time="0.006" /><testcase classname="tests.test_background_jobs" name="test_terminal_notification_is_idempotent" time="0.076"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1063D1C50&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_terminal_notification_is_0')
+
+    def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
+        target = _session(tmp_path)
+        job = {
+            "jobId": "job_terminal", "targetSessionId": target.id, "status": "completed",
+            "exitCode": 0, "notificationState": "pending", "terminalEventId": "job_terminal:terminal",
+            "logPath": "x", "createdAt": 1, "creatorSessionId": "ses_creator",
+        }
+        jobs._save(job)
+        calls = []
+    
+        async def notify(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {"ok": True}
+    
+        monkeypatch.setattr(worker, "enqueue_notice", notify)
+&gt;       assert asyncio.run(jobs.recover_notifications()) == 1
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'recover_notifications'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_enqueue_notice_same_event_does_not_duplicate" time="0.007" /><testcase classname="tests.test_background_jobs" name="test_automatic_job_notice_keeps_structured_envelope_and_automation_label" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_runner_registry_survives_reload" time="0.059" /><testcase classname="tests.test_background_jobs" name="test_list_handles_mixed_legacy_timestamps_without_rewriting" time="0.385" /><testcase classname="tests.test_background_jobs" name="test_legacy_job_defaults_creator_without_rewriting" time="0.055" /><testcase classname="tests.test_background_jobs" name="test_cancel_kills_descendants_and_marks_terminal" time="0.089" /><testcase classname="tests.test_background_jobs" name="test_cancel_does_not_kill_pid_reuse" time="0.070" /><testcase classname="tests.test_background_jobs" name="test_delete_active_job_requires_confirmed_process_cleanup" time="0.131" /><testcase classname="tests.test_background_jobs" name="test_delete_active_job_unknown_receipt_is_fail_closed_and_idempotent" time="0.164" /><testcase classname="tests.test_background_jobs" name="test_delete_terminal_job_keeps_legacy_delete_semantics" time="0.115" /><testcase classname="tests.test_background_jobs" name="test_reconcile_running_orphan_becomes_failed_without_kill" time="0.109" /><testcase classname="tests.test_background_jobs" name="test_retry_rejects_running_job" time="0.926" /><testcase classname="tests.test_background_jobs" name="test_retry_inherits_creator_and_target" time="1.448" /><testcase classname="tests.test_background_jobs" name="test_concurrent_read_modify_write_preserves_updates" time="0.969" /><testcase classname="tests.test_background_jobs" name="test_cross_process_read_modify_write_preserves_updates" time="0.953" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_declares_pointer_sized_win32_signatures[acquired]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_declares_pointer_sized_win32_signatures[abandoned]" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_create_failure_raises_winerror_without_closing" time="0.004" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_wait_failure_closes_handle[wait-failed]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_wait_failure_closes_handle[unknown-result]" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_release_failure_still_closes_handle" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_close_failure_raises_winerror" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_missing_creation_time_never_owns_pid" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_reconcile_keeps_job_when_runner_identity_is_alive" time="0.121" /><testcase classname="tests.test_background_jobs" name="test_runner_terminal_broadcasts_job_updated_once" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A104D8AB30&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_runner_terminal_broadcast0')
+
+    def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
+        """独立 runner 落盘终态后，恢复循环首次观测即补发一次 job.updated。"""
+        _session(tmp_path)
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+        monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+&gt;       job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
+              ^^^^^^^^^^
+
+tests\test_background_jobs.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_terminal_broadcast_retries_after_channel_failure" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1079E78C0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_terminal_broadcast_retrie0')
+
+    def test_terminal_broadcast_retries_after_channel_failure(monkeypatch, tmp_path):
+        """成功发布后才持久化标记：广播通道故障保持可重试，下一 tick 恢复即收敛。
+    
+        job.updated 是状态 upsert，客户端对重复事件幂等，故绝不以牺牲送达换取
+        严格一次：首发失败不标记（否则一次失败会永久卡住旧徽标），通道恢复后
+        补发一次并标记，随后不再重复。
+        """
+        _session(tmp_path)
+    
+        def raising_hook(event):
+            raise RuntimeError("broadcast down")
+    
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", raising_hook)
+        monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
+&gt;       job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
+              ^^^^^^^^^^
+
+tests\test_background_jobs.py:611: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_terminal_broadcast_skips_scheduled_children" time="0.002"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1067EF540&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_terminal_broadcast_skips_0')
+
+    def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
+        """scheduled 子进程作业不在 /api/jobs 列表内：不得经 upsert 进入 GUI store。"""
+        _session(tmp_path)
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
+    
+        async def notify(target, text, **kwargs):
+            return {"ok": True}
+    
+        monkeypatch.setattr(worker, "enqueue_notice", notify)
+&gt;       job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
+              ^^^^^^^^^^
+
+tests\test_background_jobs.py:648: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_independent_terminal_broadcast_uses_local_ledger_and_retries" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1050740C0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_independent_terminal_broa0')
+
+    def test_independent_terminal_broadcast_uses_local_ledger_and_retries(monkeypatch, tmp_path):
+        """独立 Job 服务路径：远程终态补发 + 本地 ledger 幂等 + 失败可重试。
+    
+        远程 runner 只写服务自己的注册表（进程所有权不变）；标记只落在本地
+        ledger（绝不写服务注册表）。scheduled 子任务被 /api/jobs 过滤且由父
+        任务 finalize 广播，非终态同理跳过。
+        """
+        from packages.jobs import pan_bridge
+    
+        events = []
+    
+        def failing_hook(event):
+            raise RuntimeError("broadcast down")
+    
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", failing_hook)
+        remote_payload = {"jobs": [
+            {"jobId": "job_remote_done", "kind": "background-process",
+             "status": "completed", "name": "Remote done", "updatedAt": 1},
+            {"jobId": "job_remote_child", "kind": "background-process",
+             "status": "completed", "scheduledParentJobId": "sch_parent",
+             "name": "Remote child", "updatedAt": 1},
+            {"jobId": "job_remote_live", "kind": "background-process",
+             "status": "running", "name": "Remote live", "updatedAt": 1},
+        ]}
+    
+        class Client:
+            def list(self):
+                return remote_payload
+            def events(self):
+                return {"events": []}
+            def ack(self, event_id):
+                return {}
+    
+        monkeypatch.setattr(pan_bridge, "configured_client", Client)
+    
+        async def notify(target, text, **kwargs):
+            return {"ok": True}
+    
+        monkeypatch.setattr(worker, "enqueue_notice", notify)
+        # 首发失败：无广播、无 ledger（保持可重试）。
+&gt;       asyncio.run(jobs.recover_notifications())
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:698: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'recover_notifications'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint recover_notifications retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[completed]" time="0.157" /><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[failed]" time="0.152" /><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[cancelled]" time="0.139" /><testcase classname="tests.test_background_jobs" name="test_hidden_runner_claim_is_once_and_refuses_unknown" time="0.046" /><testcase classname="tests.test_background_jobs" name="test_hidden_runner_claim_finishes_already_accepted_cancel" time="0.048" /><testcase classname="tests.test_background_jobs" name="test_agent_message_job_registry_commits_publish_full_lifecycle[single]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A1079E73F0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_agent_message_job_registr0')
+kind = 'single'
+
+    @pytest.mark.parametrize("kind", ["single", "broadcast"])
+    def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
+        _session(tmp_path)
+        _session(tmp_path, "ses_other")
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+        schedule = {"type": "interval", "intervalSeconds": 3600}
+        if kind == "single":
+&gt;           job = jobs.start_message("ses_target", "context", schedule)
+                  ^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:772: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_message'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]" time="0.002"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001A10501DCC0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6775/test_agent_message_job_registr1')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize("kind", ["single", "broadcast"])
+    def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
+        _session(tmp_path)
+        _session(tmp_path, "ses_other")
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+        schedule = {"type": "interval", "intervalSeconds": 3600}
+        if kind == "single":
+            job = jobs.start_message("ses_target", "context", schedule)
+        else:
+&gt;           job = jobs.start_broadcast(["ses_target", "ses_other"], "context", schedule)
+                  ^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:774: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_broadcast'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_failed_job_commit_does_not_publish_live_state" time="0.004" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[None]" time="0.452" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[]" time="0.358" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[   ]" time="0.411" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[name3]" time="0.502" /><testcase classname="tests.test_scheduler_legacy_bridge" name="test_switch_preserves_task_and_job_ids_and_creates_one_owner" time="0.390" /><testcase classname="tests.test_scheduler_legacy_bridge" name="test_unmappable_unknown_action_stays_legacy" time="0.291" /><testcase classname="tests.test_scheduler_legacy_bridge" name="test_run_now_does_not_move_periodic_next_fire" time="2.338" /><testcase classname="tests.test_retirement_notification_runtime" name="test_actual_local_shutdown_notice_remains_pending_then_same_outbox_enqueues_once" time="2.490" /><testcase classname="tests.test_retirement_notification_runtime" name="test_null_target_real_no_attempt_cold_explicit_retarget_same_outbox_receipt" time="2.604" /><testcase classname="tests.test_retirement_notification_runtime" name="test_concurrent_cas_then_two_service_reservations_send_one_notice" time="2.492" /><testcase classname="tests.test_retirement_notification_runtime" name="test_runtime_notice_authority_revoked_before_reservation_stays_suppressed" time="2.381" /><testcase classname="tests.test_retirement_notification_runtime" name="test_accepted_notice_lost_response_retarget_remains_unknown_no_resend" time="2.638" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[dictionary-spoof]" time="2.294" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[wrong-binding]" time="2.376" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[partial]" time="2.153" /><testcase classname="tests.test_retirement_notification_runtime" name="test_fresh_production_browser_runtime_edit_and_original_notification_receipt" time="6.977" /></testsuite></testsuites>

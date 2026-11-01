@@ -1,0 +1,10 @@
+[
+  {
+    "name": "canonical-process",
+    "exitCode": 0
+  },
+  {
+    "name": "background-notification",
+    "exitCode": 1
+  }
+]

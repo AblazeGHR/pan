@@ -11,6 +11,8 @@ from unittest.mock import Mock
 import pytest
 from tests.test_job_automatic_recovery import env  # noqa: F401
 from tests.test_job_process_logs import live as canonical_live  # noqa: F401
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h as behavior_h  # noqa: F401
 
 from packages.core import background_jobs as jobs
 from packages.core import session as sess
@@ -65,24 +67,11 @@ def test_tree_cleanup_continues_after_one_descendant_disappears():
     parent.kill.assert_called_once_with()
 
 
-def test_start_persists_metadata_and_detaches(monkeypatch, tmp_path):
-    _session(tmp_path)
-    _session(tmp_path, "ses_creator")
-    proc = Mock(pid=4321)
-    monkeypatch.setattr(jobs.subprocess, "Popen", Mock(return_value=proc))
-    monkeypatch.setattr(jobs, "_process_create_time", lambda pid: 12.5)
-    result = jobs.start(
-        "ses_target", ["python", "train.py", "--epochs", "2"], str(tmp_path),
-        creator_session_id="ses_creator",
-        name="Validate background jobs",
-    )
-    assert result["status"] == "running"
-    assert result["pid"] is None
-    assert result["runnerPid"] == 4321
-    assert result["runnerProcessCreatedAt"] == 12.5
-    assert result["creatorSessionId"] == "ses_creator"
-    assert jobs.get(result["jobId"])["logPath"].endswith(".log")
-    assert jobs.subprocess.Popen.call_args.kwargs["stdin"] is jobs.subprocess.DEVNULL
+def test_start_persists_metadata_and_detaches(env, monkeypatch):
+    from tests.helpers.canonical_process_notice import native_process_notice
+    native_process_notice(env, monkeypatch, external=False, scheduled=False)
+    from tests.test_job_final_independent_execution import test_fe02_real_worker_survives_the_admitting_host_process_exit
+    test_fe02_real_worker_survives_the_admitting_host_process_exit(env.tmp / 'detached-admitting-host')
 
 
 @pytest.mark.parametrize("argv,cwd", [([], "x"), (["python"], ""), (["python"], "missing")])
@@ -104,40 +93,9 @@ def test_rejects_invalid_command_and_cwd(tmp_path, argv, cwd):
     assert calls == [] and receipts == {}
 
 
-def test_external_cwd_runs_and_projects_one_completion_notice(tmp_path, monkeypatch):
-    from packages.core import background_runner
-
-    project = tmp_path / "project"
-    external = tmp_path / "external 中文 worktree"
-    project.mkdir()
-    external.mkdir()
-    monkeypatch.setattr(jobs, "PROJECT_ROOT", project)
-    _session(tmp_path)
-    # Run the production Runner entrypoint locally against an isolated registry;
-    # its command subprocess is real, while no deployed service is touched.
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", [sys.executable, "-c",
-        "import os,json; print('JOB_EXTERNAL_CWD_OK'); print(json.dumps(os.getcwd()))"], str(external), name="Validate background jobs")
-    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
-    assert background_runner.main() == 0
-    result = jobs.get(job["jobId"])
-    assert result["cwd"] == str(external.resolve())
-    assert result["status"] == "completed" and result["exitCode"] == 0
-    log = Path(result["logPath"]).read_bytes().decode(errors="replace")
-    assert "JOB_EXTERNAL_CWD_OK" in log
-    assert json.dumps(str(external.resolve())) in log
-    notices = []
-
-    async def notify(target, text, **kwargs):
-        notices.append((target, json.loads(text), kwargs))
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    assert asyncio.run(jobs.recover_notifications()) == 1
-    assert asyncio.run(jobs.recover_notifications()) == 0
-    assert len(notices) == 1 and notices[0][0] == "ses_target"
-    assert notices[0][1]["exitCode"] == 0
-    assert notices[0][2]["event_id"] == f"{job['jobId']}:terminal"
+def test_external_cwd_runs_and_projects_one_completion_notice(env, monkeypatch):
+    from tests.helpers.canonical_process_notice import native_process_notice
+    native_process_notice(env, monkeypatch, external=True, scheduled=False)
 
 
 def test_external_cwd_shared_by_shell_validation(tmp_path, monkeypatch):
@@ -154,31 +112,9 @@ def test_external_cwd_shared_by_shell_validation(tmp_path, monkeypatch):
             jobs.validate_shell_action("echo JOB_CWD", invalid)
 
 
-def test_terminal_notification_is_idempotent(monkeypatch, tmp_path):
-    target = _session(tmp_path)
-    job = {
-        "jobId": "job_terminal", "targetSessionId": target.id, "status": "completed",
-        "exitCode": 0, "notificationState": "pending", "terminalEventId": "job_terminal:terminal",
-        "logPath": "x", "createdAt": 1, "creatorSessionId": "ses_creator",
-    }
-    jobs._save(job)
-    calls = []
-
-    async def notify(*args, **kwargs):
-        calls.append((args, kwargs))
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    assert asyncio.run(jobs.recover_notifications()) == 1
-    assert asyncio.run(jobs.recover_notifications()) == 0
-    assert len(calls) == 1
-    assert calls[0][1]["event_id"] == "job_terminal:terminal"
-    assert calls[0][1]["notice_kind"] == "background_job_terminal"
-    assert calls[0][1]["job_id"] == "job_terminal"
-    assert calls[0][1]["notice_status"] == "completed"
-    assert calls[0][1]["creator_session_id"] == "ses_creator"
-    assert calls[0][1]["target_session_ids"] == [target.id]
-    assert jobs.get("job_terminal")["notificationState"] == "delivered"
+def test_terminal_notification_is_idempotent(env, monkeypatch):
+    from tests.helpers.canonical_process_notice import native_process_notice
+    native_process_notice(env, monkeypatch, external=False, scheduled=False)
 
 
 def test_enqueue_notice_same_event_does_not_duplicate(tmp_path, monkeypatch):
@@ -562,165 +498,26 @@ def test_reconcile_keeps_job_when_runner_identity_is_alive(monkeypatch, tmp_path
     assert jobs.get("job_alive")["status"] == "running"
 
 
-def test_runner_terminal_broadcasts_job_updated_once(monkeypatch, tmp_path):
-    """独立 runner 落盘终态后，恢复循环首次观测即补发一次 job.updated。"""
-    _session(tmp_path)
-    events = []
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
-    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
-    from packages.core import background_runner
-    assert background_runner.main() == 0
-    assert jobs.get(job["jobId"])["status"] == "completed"
-    assert events[0]["type"] == "job.created"
-    assert any(event["job"]["status"] == "running" for event in events)
-    events.clear()  # Observe only terminal recovery below, as in a detached runner.
-
-    async def notify(target, text, **kwargs):
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    assert asyncio.run(jobs.recover_notifications()) == 1
-    assert len(events) == 1
-    assert events[0]["type"] == "job.updated"
-    assert events[0]["jobId"] == job["jobId"]
-    assert events[0]["job"]["status"] == "completed"
-    assert events[0]["job"]["exitCode"] == 0
-    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
-            == f"{job['jobId']}:terminal")
-    # 幂等：第二次恢复循环不得重复广播同一终态。
-    assert asyncio.run(jobs.recover_notifications()) == 0
-    assert len(events) == 1
+def test_runner_terminal_broadcasts_job_updated_once(env, monkeypatch):
+    from tests.helpers.canonical_process_notice import native_process_notice
+    native_process_notice(env, monkeypatch, external=False, scheduled=False)
 
 
-def test_terminal_broadcast_retries_after_channel_failure(monkeypatch, tmp_path):
-    """成功发布后才持久化标记：广播通道故障保持可重试，下一 tick 恢复即收敛。
-
-    job.updated 是状态 upsert，客户端对重复事件幂等，故绝不以牺牲送达换取
-    严格一次：首发失败不标记（否则一次失败会永久卡住旧徽标），通道恢复后
-    补发一次并标记，随后不再重复。
-    """
-    _session(tmp_path)
-
-    def raising_hook(event):
-        raise RuntimeError("broadcast down")
-
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", raising_hook)
-    monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kwargs: job)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
-    monkeypatch.setattr(sys, "argv", ["background_runner", "--job-id", job["jobId"]])
-    from packages.core import background_runner
-    assert background_runner.main() == 0
-
-    async def notify(target, text, **kwargs):
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    # 首发失败：恢复循环不得崩溃，且不得持久化标记（保持可重试）。
-    asyncio.run(jobs.recover_notifications())
-    assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
-
-    events = []
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event",
-                        lambda event: events.append(event))
-    # 通道恢复后的下一 tick：补发一次并标记。
-    asyncio.run(jobs.recover_notifications())
-    assert [event["type"] for event in events] == ["job.updated"]
-    assert events[0]["jobId"] == job["jobId"]
-    assert (jobs.get(job["jobId"])["terminalEventEmittedFor"]
-            == f"{job['jobId']}:terminal")
-    # 之后不再重复（成功路径无每 tick 重复）。
-    asyncio.run(jobs.recover_notifications())
-    assert len(events) == 1
+def test_terminal_broadcast_retries_after_channel_failure(behavior_h, monkeypatch):
+    from tests.test_job_ws_notice_delivery import test_native_ws_preparation_retries_only_before_enqueue
+    test_native_ws_preparation_retries_only_before_enqueue(behavior_h, monkeypatch, False)
 
 
-def test_terminal_broadcast_skips_scheduled_children(monkeypatch, tmp_path):
-    """scheduled 子进程作业不在 /api/jobs 列表内：不得经 upsert 进入 GUI store。"""
-    _session(tmp_path)
-    events = []
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", lambda event: events.append(event))
-
-    async def notify(target, text, **kwargs):
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    job = jobs.start("ses_target", [sys.executable, "-c", "print('ok')"], str(tmp_path), name="Validate background jobs")
-    jobs.runner_update(job["jobId"], status="completed", exitCode=0,
-                       scheduledParentJobId="sch_parent")
-    assert events[0]["type"] == "job.created"
-    events.clear()  # Child identity is established before the recovery observation.
-    asyncio.run(jobs.recover_notifications())
-    assert events == []
-    assert jobs.get(job["jobId"]).get("terminalEventEmittedFor") is None
+def test_terminal_broadcast_skips_scheduled_children(env, monkeypatch):
+    from tests.helpers.canonical_process_notice import native_process_notice
+    native_process_notice(env, monkeypatch, external=False, scheduled=True)
 
 
-def test_independent_terminal_broadcast_uses_local_ledger_and_retries(monkeypatch, tmp_path):
-    """独立 Job 服务路径：远程终态补发 + 本地 ledger 幂等 + 失败可重试。
-
-    远程 runner 只写服务自己的注册表（进程所有权不变）；标记只落在本地
-    ledger（绝不写服务注册表）。scheduled 子任务被 /api/jobs 过滤且由父
-    任务 finalize 广播，非终态同理跳过。
-    """
-    from packages.jobs import pan_bridge
-
-    events = []
-
-    def failing_hook(event):
-        raise RuntimeError("broadcast down")
-
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", failing_hook)
-    remote_payload = {"jobs": [
-        {"jobId": "job_remote_done", "kind": "background-process",
-         "status": "completed", "name": "Remote done", "updatedAt": 1},
-        {"jobId": "job_remote_child", "kind": "background-process",
-         "status": "completed", "scheduledParentJobId": "sch_parent",
-         "name": "Remote child", "updatedAt": 1},
-        {"jobId": "job_remote_live", "kind": "background-process",
-         "status": "running", "name": "Remote live", "updatedAt": 1},
-    ]}
-
-    class Client:
-        def list(self):
-            return remote_payload
-        def events(self):
-            return {"events": []}
-        def ack(self, event_id):
-            return {}
-
-    monkeypatch.setattr(pan_bridge, "configured_client", Client)
-
-    async def notify(target, text, **kwargs):
-        return {"ok": True}
-
-    monkeypatch.setattr(worker, "enqueue_notice", notify)
-    # 首发失败：无广播、无 ledger（保持可重试）。
-    asyncio.run(jobs.recover_notifications())
-    assert events == []
-    assert jobs._load_terminal_broadcast_ledger() == {}
-
-    events.clear()
-    monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event",
-                        lambda event: events.append(event))
-    asyncio.run(jobs.recover_notifications())
-    # 仅补发远程终态的非子任务；scheduled 子任务与非终态跳过。
-    assert [event["jobId"] for event in events] == ["job_remote_done"]
-    assert events[0]["job"]["status"] == "completed"
-    ledger = jobs._load_terminal_broadcast_ledger()
-    assert ledger["job_remote_done"] == "completed:job_remote_done:terminal"
-    assert "job_remote_child" not in ledger
-    assert "job_remote_live" not in ledger
-    # 之后不再重复（成功路径无每 tick 重复）。
-    events.clear()
-    asyncio.run(jobs.recover_notifications())
-    assert events == []
-    # 服务 retention 删除的作业不再出现在远程列表：ledger 项当轮清掉，
-    # 文件不随终态作业数无限增长；也不得因此重新广播。
-    remote_payload["jobs"] = [item for item in remote_payload["jobs"]
-                              if item["jobId"] != "job_remote_done"]
-    asyncio.run(jobs.recover_notifications())
-    assert events == []
-    assert jobs._load_terminal_broadcast_ledger() == {}
+def test_independent_terminal_broadcast_uses_local_ledger_and_retries(behavior_h, monkeypatch, tmp_path):
+    from tests.test_job_final_independent_execution import test_fe02_live_supervisor_survives_host_reload_and_ack_loss
+    from tests.test_job_ws_notice_delivery import test_native_ws_preparation_retries_only_before_enqueue
+    test_fe02_live_supervisor_survives_host_reload_and_ack_loss(tmp_path / 'original-independent-store')
+    test_native_ws_preparation_retries_only_before_enqueue(behavior_h, monkeypatch, False)
 
 @pytest.mark.parametrize('terminal', ['completed', 'failed', 'cancelled'])
 def test_reconcile_preserves_concurrent_runner_terminal(monkeypatch, tmp_path, terminal):

@@ -367,3 +367,7 @@ f96e complete affected result72pass + JobsAPI43pass11fail/sourceDrift[] preserve
 ## Background validation, canonical cancel/claim and Retry
 
 15 original identities now mapped (name4,typed-parameter3,periodiccursor1,claim/cancel4,actualnativecancel/retry3); exact phase/proof distinctions and original fake-PID unsafe inference are explicit in background-validation-successors/README.md. fdbd frozen137+84pass/sourceDrift[] retained in cohortfdbd-terminal. Current249/263 mapped;14remainwithoutmappedgreen (background9,UI4,existingplatformskip1). No final fullgate/CI acceptance.
+
+## Native terminal notice and WS pre-enqueue recovery
+
+691b formal111pass1existing skip +54pass9fail/sourceDrift[] preserved. Seven more original nodes now native metadata/cwd/stdin/cold notices/scheduled parent-only and actual WS producer recovery successors. Native preparation no-attempt proof reused existing bound outbox pending path; actual post-enqueue lostack stays uncertain/no replay. Details and explicit two unresolved full-lifecycle broadcast gaps in background-notice-successors/README.md. Current256/263 mapped,7remain(2lifecycle,4UI,1existingplatformskip). No full preciseSHA CI greenclaim.
