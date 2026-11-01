@@ -6,6 +6,7 @@ import { useAppSettingsStore } from './stores/appSettingsStore';
 import { isMockMode, installMockBackend } from './demo/mockBackend';
 import './index.css';
 import { restoreAutomationSession } from './stores/automationStore';
+import { JobMaintenanceGate } from './components/jobs/JobMaintenanceGate';
 
 // Mock/no-backend demo (?mock=1): intercept /api/* before anything fetches.
 if (isMockMode()) installMockBackend();
@@ -20,6 +21,6 @@ if (!root) throw new Error('Root element not found');
 
 createRoot(root).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <JobMaintenanceGate><RouterProvider router={router} /></JobMaintenanceGate>
   </StrictMode>,
 );

@@ -221,10 +221,20 @@ async def _shutdown_summary_projection_backfill(
 async def lifespan(app: FastAPI):
     # Fence before watchdogs, retention, plugins or legacy recovery can start.
     # A failed startup keeps the durable cutover; it never reopens old writers.
-    from packages.jobs.runtime_owner import OwnerFence
+    from packages.jobs.runtime_owner import OwnerFence, OwnershipConflict
     owner = OwnerFence(sess.SESSION_DIR.parent)
     status = owner.status()
-    owner.claim(status["epoch"] if status else 0)
+    app.state.job_maintenance = None
+    try:
+        owner.claim(status["epoch"] if status else 0)
+    except OwnershipConflict as exc:
+        from packages.jobs.maintenance import state_for
+        app.state.job_maintenance = state_for(sess.SESSION_DIR.parent, exc)
+        try:
+            yield
+        finally:
+            app.state.job_maintenance = None
+        return
     try:
         async with _owned_lifespan(app, owner):
             yield
@@ -440,6 +450,8 @@ _character_manager: CharacterManager | None = None
 
 
 app = FastAPI(title="Pan", lifespan=lifespan)
+from packages.jobs.maintenance import install as install_job_maintenance
+install_job_maintenance(app)
 
 
 class PluginEventBindingsMiddleware:

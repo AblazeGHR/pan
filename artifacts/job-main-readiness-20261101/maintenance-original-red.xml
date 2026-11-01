@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="2.402" timestamp="2026-11-01T18:48:30.995482+08:00" hostname="ablaze"><testcase classname="tests.test_job_maintenance_startup" name="test_unknown_legacy_lease_starts_only_maintenance_web" time="0.291"><failure message="packages.jobs.final_contracts.ContractError: Legacy pass still active or ownership unknown">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6574/test_unknown_legacy_lease_star0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001932EEBED70&gt;
+
+    def test_unknown_legacy_lease_starts_only_maintenance_web(tmp_path, monkeypatch):
+        from packages.web import server
+        profile = session.SESSION_DIR.parent
+        owner = OwnerFence(profile)
+        with owner.transaction() as db:
+            db.execute("INSERT INTO legacy_leases VALUES('original-unknown-lease')")
+        before = hashlib.sha256(owner.path.read_bytes()).hexdigest()
+        calls = []
+    
+        @asynccontextmanager
+        async def forbidden(*args):
+            calls.append('runtime-effects-started')
+            raise AssertionError('watchdog/provider/recovery startup must not run')
+            yield
+    
+        monkeypatch.setattr(server, '_owned_lifespan', forbidden)
+&gt;       with TestClient(server.app) as client:
+             ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_maintenance_startup.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:697: in __enter__
+    portal.call(self.wait_startup)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:450: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:732: in wait_startup
+    await receive()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:723: in receive
+    self.task.result()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:443: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:713: in lifespan
+    await self.app(scope, self.stream_receive.receive, self.stream_send.send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\applications.py:90: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\middleware\errors.py:151: in __call__
+    await self.app(scope, receive, send)
+packages\automation\api.py:47: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:4215: in __call__
+    await self.app(scope, receive, send)
+packages\web\server.py:2244: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:463: in __call__
+    await self.app(scope, receive, response if scope['type'] == 'http' else send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\middleware\exceptions.py:49: in __call__
+    await self.app(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:2523: in app
+    await self.lifespan(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\routing.py:638: in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:227: in lifespan
+    owner.claim(status["epoch"] if status else 0)
+packages\jobs\runtime_owner.py:93: in claim
+    refused("Legacy pass still active or ownership unknown")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+message = 'Legacy pass still active or ownership unknown'
+
+    def refused(message):
+        from packages.jobs.final_contracts import ContractError
+&gt;       raise ContractError("revision_conflict", message)
+E       packages.jobs.final_contracts.ContractError: Legacy pass still active or ownership unknown
+
+packages\jobs\runtime_owner.py:22: ContractError</failure></testcase><testcase classname="tests.test_job_maintenance_startup" name="test_non_ownership_failure_is_not_hidden" time="0.035" /><testcase classname="tests.test_job_maintenance_startup" name="test_disposition_manifest_is_nonexecuting_and_deletion_stays_blocked" time="0.025"><failure message="packages.jobs.final_contracts.ContractError: Legacy pass still active or ownership unknown">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6574/test_disposition_manifest_is_n0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001932FDD1FD0&gt;
+
+    def test_disposition_manifest_is_nonexecuting_and_deletion_stays_blocked(tmp_path, monkeypatch):
+        from packages.web import server
+        from packages.automation.auth import UserAuth
+        profile = session.SESSION_DIR.parent
+        owner = OwnerFence(profile)
+        with owner.transaction() as db:
+            db.execute("INSERT INTO legacy_leases VALUES('original-unknown-lease')")
+        raw = b'{"jobId":"old-job","status":"uncertain","api":"never execute"}'
+        source = profile / 'background_jobs/jobs/old-job.json'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(raw)
+        digest = hashlib.sha256(raw).hexdigest()
+        (profile / 'job-dispositions.json').write_text(json.dumps({
+            'schemaVersion': 1, 'records': [{'id': 'record-1', 'originalId': 'old-job',
+            'sourceFile': 'background_jobs/jobs/old-job.json', 'sha256': digest,
+            'revision': 1, 'reasonCodes': ['uncertain_effect'], 'executable': False}]}))
+        auth = UserAuth(profile / 'automation')
+&gt;       with TestClient(server.app) as client:
+             ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_maintenance_startup.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:697: in __enter__
+    portal.call(self.wait_startup)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:338: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:450: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:732: in wait_startup
+    await receive()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:723: in receive
+    self.task.result()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:443: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\from_thread.py:263: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\testclient.py:713: in lifespan
+    await self.app(scope, self.stream_receive.receive, self.stream_send.send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\applications.py:1163: in __call__
+    await super().__call__(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\applications.py:90: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\middleware\errors.py:151: in __call__
+    await self.app(scope, receive, send)
+packages\automation\api.py:47: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:4215: in __call__
+    await self.app(scope, receive, send)
+packages\web\server.py:2244: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:463: in __call__
+    await self.app(scope, receive, response if scope['type'] == 'http' else send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\middleware\exceptions.py:49: in __call__
+    await self.app(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\routing.py:660: in __call__
+    await self.middleware_stack(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:2523: in app
+    await self.lifespan(scope, receive, send)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\starlette\routing.py:638: in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\fastapi\routing.py:232: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:214: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:227: in lifespan
+    owner.claim(status["epoch"] if status else 0)
+packages\jobs\runtime_owner.py:93: in claim
+    refused("Legacy pass still active or ownership unknown")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+message = 'Legacy pass still active or ownership unknown'
+
+    def refused(message):
+        from packages.jobs.final_contracts import ContractError
+&gt;       raise ContractError("revision_conflict", message)
+E       packages.jobs.final_contracts.ContractError: Legacy pass still active or ownership unknown
+
+packages\jobs\runtime_owner.py:22: ContractError</failure></testcase></testsuite></testsuites>

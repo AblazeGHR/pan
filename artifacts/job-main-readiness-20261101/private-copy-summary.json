@@ -1,0 +1,189 @@
+{
+  "sourcePracticalSha": "86e421555f366133b25a4069e8575c0a1310ea60",
+  "snapshot": {
+    "allowlist": [
+      "actions",
+      "agent_inbox",
+      "attachments",
+      "automation",
+      "background_jobs",
+      "characters",
+      "job-runtime-owner.sqlite3",
+      "memory",
+      "process.json",
+      "qq_history",
+      "qq_inbox",
+      "qq_media",
+      "scheduler",
+      "session-bookmarks",
+      "session-drafts",
+      "session-pins.json",
+      "sessions",
+      "startup_recovery",
+      "terminals",
+      "user_inbox",
+      "workspaces"
+    ],
+    "excludedParts": [
+      ".cache",
+      ".git",
+      ".mypy_cache",
+      ".pytest_cache",
+      ".ruff_cache",
+      ".venv",
+      "__pycache__",
+      "build",
+      "coverage",
+      "dist",
+      "node_modules",
+      "playwright-report",
+      "test-results",
+      "venv"
+    ],
+    "followlinks": false,
+    "capturedFiles": 2193,
+    "capturedBytes": 711525340,
+    "captureBlockers": 0,
+    "linksNotFollowed": 0,
+    "explicitExclusions": 23,
+    "sqliteSnapshots": 82,
+    "oldChangesStable": 0,
+    "oldChangesBlocked": 0,
+    "applicationConsistentSnapshot": false,
+    "consistencyScope": "stable per file and SQLite DB/WAL group; no cross-store transaction claimed"
+  },
+  "snapshotManifestSha256": "949495f216270e42ed22b284338aeac6538adf1e98ea9be6c6480fac8c6ddaa2",
+  "inventory": {
+    "total": 34,
+    "simple": 0,
+    "complex": 33,
+    "unknown": 1,
+    "scanErrors": 0,
+    "bySourceType": {
+      "MIG-BG": {
+        "total": 33,
+        "simple": 0,
+        "complex": 32,
+        "unknown": 1
+      },
+      "MIG-MAIN-LIFECYCLE": {
+        "total": 1,
+        "simple": 0,
+        "complex": 1,
+        "unknown": 0
+      }
+    },
+    "invariant": {
+      "sourceTotal": 34,
+      "simplePlusPreserved": 34,
+      "classificationPending": 0
+    }
+  },
+  "fullCopyWeb": {
+    "fullCopiedProfileWebStarted": true,
+    "mode": "maintenance",
+    "ready": false,
+    "recordsVisible": 34,
+    "deletion": "blocked-original-ownership-unverified",
+    "canonicalEffects": 0,
+    "authorityHashUnchanged": true,
+    "screenshotsPrivate": true,
+    "widths": [
+      1440,
+      390,
+      320
+    ]
+  },
+  "loaders": {
+    "sourceSha": "86e421555f366133b25a4069e8575c0a1310ea60",
+    "profilePrivate": true,
+    "externalEffects": 0,
+    "automaticMigration": false,
+    "stores": {
+      "user_inbox/cards.sqlite": {
+        "state": "loader-passed",
+        "tables": 17,
+        "rows": 1178
+      },
+      "agent_inbox/inbox.sqlite": {
+        "state": "loader-passed",
+        "tables": 9,
+        "rows": 4438
+      }
+    },
+    "sessions": {
+      "sessions": 95,
+      "queueIdentities": 0,
+      "historyIdentities": 48224
+    },
+    "canonical": {
+      "startup": "passed",
+      "documents": {
+        "action": 15
+      },
+      "legacyAutoEnabled": false,
+      "dispatchDisabled": true,
+      "emptyInit": true,
+      "scope": "new separate isolated owner only; copied authority retained and not adopted"
+    },
+    "sourceCopyUnchanged": true
+  },
+  "additionalLoaders": {
+    "events": {
+      "loaderRead": 1941,
+      "originalIdsPreserved": true,
+      "dispatchOrAdoption": false,
+      "databaseUnchanged": true
+    },
+    "actions": {
+      "sourceExists": true,
+      "state": "read-only-loader-passed",
+      "collections": {
+        "actions": 5,
+        "groups": 0,
+        "retired_plugins": 0,
+        "actionRevisions": 7,
+        "actionGenerations": 2
+      }
+    },
+    "triggers-runs": {
+      "sourceExists": true,
+      "state": "read-only-loader-passed",
+      "collections": {
+        "triggers": 0,
+        "runs": 0
+      }
+    },
+    "legacyJobRead": {
+      "recordsReturned": 34,
+      "inventoryUnknownDisposition": 1,
+      "executed": 0
+    },
+    "missingCanonicalStores": {
+      "job-final": {
+        "sourceExists": false,
+        "state": "empty-init-not-migrated"
+      },
+      "scheduler": {
+        "sourceExists": false,
+        "state": "empty-init-not-migrated"
+      },
+      "background_jobs/schedule_templates.json": {
+        "sourceExists": false,
+        "state": "empty-init-not-migrated"
+      }
+    }
+  },
+  "originalAuthority": {
+    "legacyLeases": 8,
+    "canonicalOwnerRows": 0,
+    "adoptedOrReset": false
+  },
+  "limits": [
+    "No cross-store atomic snapshot",
+    "Zero pending queue items in this sample; existing synthetic identity tests only",
+    "Fresh separate canonical store is empty initialization, not migration",
+    "Unknown owner deletion remains blocked; no offline sample result is claimed as online source deletion",
+    "No original owner/process quiescence or real migration/deployment acceptance"
+  ]
+}

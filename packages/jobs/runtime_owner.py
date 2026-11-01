@@ -13,8 +13,16 @@ import threading
 import uuid
 
 from packages.core.platform.runtime_lock import RuntimeLock
+from packages.jobs.final_contracts import ContractError
 
 _local = threading.local()
+
+
+class OwnershipConflict(ContractError):
+    """A named ownership refusal; callers must never treat this as readiness."""
+    def __init__(self, reason, message):
+        super().__init__('revision_conflict', message)
+        self.reason = reason
 
 
 def refused(message):
@@ -82,7 +90,7 @@ class OwnerFence:
             from packages.jobs.final_contracts import ContractError
             raise ContractError("capability_unsupported", str(exc)) from exc
         except OSError:
-            refused("Another canonical runtime owns this profile")
+            raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
         try:
             with self.transaction() as db:
                 row = db.execute("SELECT epoch FROM owner WHERE singleton=1").fetchone()
@@ -90,7 +98,7 @@ class OwnerFence:
                 if type(expected_epoch) is not int or current != expected_epoch:
                     refused("Owner epoch CAS conflict")
                 if db.execute("SELECT 1 FROM legacy_leases LIMIT 1").fetchone():
-                    refused("Legacy pass still active or ownership unknown")
+                    raise OwnershipConflict('legacy_leases_unverified', "Legacy pass still active or ownership unknown")
                 token = (current + 1, uuid.uuid4().hex)
                 db.execute("INSERT OR REPLACE INTO owner VALUES(1,?,?, 'activating')", token)
             self.token = token
