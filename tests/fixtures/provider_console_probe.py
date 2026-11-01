@@ -13,25 +13,60 @@ def desktop_windows():
     # Observe only windows belonging to the owned provider tree. EnumWindows
     # can also expose session windows; never assert on or mutate those.
     from packages.jobs.window_guard import descendant_pids
-    owned = set(descendant_pids(int(os.environ['PAN_TEST_PROVIDER_HOST_PID'])))
-    owned.discard(int(os.environ['PAN_TEST_PROVIDER_HOST_PID']))
+    host_pid = int(os.environ['PAN_TEST_PROVIDER_HOST_PID'])
+    parents = {}
+    descendants = set(descendant_pids(host_pid, parent_map=parents))
+    root = os.getpid()
+    while parents.get(root) != host_pid:
+        assert root in parents and parents[root] in descendants, (root, parents)
+        root = parents[root]
+    # HostConsole.show can create sibling console helpers. Only the actual
+    # provider root and its descendants are part of this spawn assertion.
+    owned = {root}
+    while True:
+        expanded = owned | {pid for pid, parent in parents.items() if parent in owned}
+        if expanded == owned:
+            break
+        owned = expanded
     found = []
+    seen = set()
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     user.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
     @callback_type
     def visit(hwnd, _):
+        seen.add(int(hwnd))
         name = ctypes.create_unicode_buffer(256)
         user.GetClassNameW(hwnd, name, len(name))
         pid = wintypes.DWORD()
         user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         if pid.value in owned and user.IsWindowVisible(hwnd) and name.value != 'PseudoConsoleWindow':
-            found.append({'hwnd': int(hwnd), 'class': name.value})
+            found.append({'hwnd': int(hwnd), 'class': name.value, 'pid': pid.value})
         return True
     kernel.GetCurrentThreadId.restype = wintypes.DWORD
     user.GetThreadDesktop.argtypes = [wintypes.DWORD]
     user.GetThreadDesktop.restype = wintypes.HANDLE
     user.EnumDesktopWindows.argtypes = [wintypes.HANDLE, callback_type, wintypes.LPARAM]
-    assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)
+    desktop = user.GetThreadDesktop(kernel.GetCurrentThreadId())
+    assert desktop, ctypes.get_last_error()
+    # A real invisible top-level window makes empty-desktop enumeration
+    # unambiguous. Never accept FALSE/lastError=0 as proof of no windows.
+    user.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,
+        wintypes.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
+    user.CreateWindowExW.restype = wintypes.HWND
+    user.DestroyWindow.argtypes = [wintypes.HWND]
+    sentinel = user.CreateWindowExW(0, 'STATIC', 'owned enumeration sentinel',
+                                  0, 0, 0, 1, 1, None, None, None, None)
+    assert sentinel, ctypes.get_last_error()
+    assert not user.IsWindowVisible(sentinel)
+    try:
+        ctypes.set_last_error(0)
+        enumerated = user.EnumDesktopWindows(desktop, visit, 0)
+        assert enumerated, {'operation': 'EnumDesktopWindows', 'winerror': ctypes.get_last_error(),
+                            'desktop': int(desktop), 'ownedPids': sorted(owned), 'found': found}
+        assert int(sentinel) in seen, 'enumeration did not observe its owned sentinel'
+    finally:
+        assert user.DestroyWindow(sentinel), ctypes.get_last_error()
     return found
 
 for line in sys.stdin:

@@ -1,0 +1,9 @@
+[
+  {
+    "class": "tests.test_session_product_closure",
+    "name": "test_product_http_real_queue_source_and_cold_original_query[assign]",
+    "kind": "failure",
+    "message": "AssertionError: assert 'uncertain' == 'completed'\n  \n  - completed\n  + uncertain",
+    "trace": "h = namespace(client=<httpx.Client object at 0x00000242AC48E570>, service=<packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=<fastapi.applications.FastAPI object at 0x00000242AC1A42F0>)\nop = 'assign'\n\n    @pytest.mark.parametrize(\"op\", [\"session-message\", \"assign\", \"session-broadcast\"])\n    def test_product_http_real_queue_source_and_cold_original_query(h, op):\n        targets = {\"sessionIds\": [\"ses_b\", \"ses_a\", \"ses_b\"]} if op == \"session-broadcast\" else {\"sessionId\": \"ses_a\"}\n        args = {**targets, \"text\": \"owned-body\", \"source\": \"agent\", \"sourceSessionId\": \"ses_source\"}\n        if op == \"assign\":\n            args[\"taskId\"] = \"owned-task\"\n        job = enabled(h, config(h, op, **args))\n        admitted = launch(h, job)\n        asyncio.run(h.service.dispatch_once())\n        run = h.client.get(\"/api/job-runs/\" + admitted[\"runId\"]).json()\n>       assert run[\"state\"] == \"completed\"\nE       AssertionError: assert 'uncertain' == 'completed'\nE         \nE         - completed\nE         + uncertain\n\ntests\\test_session_product_closure.py:98: AssertionError"
+  }
+]

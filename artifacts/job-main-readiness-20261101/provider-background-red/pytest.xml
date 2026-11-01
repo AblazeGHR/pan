@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="18" time="35.825" timestamp="2026-11-02T01:02:08.629033+08:00" hostname="ablaze"><testcase classname="tests.test_background_job_api" name="test_http_start_forwards_creator_and_target_separately" time="1.514" /><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[session-message]" time="2.365" /><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[assign]" time="2.497" /><testcase classname="tests.test_session_product_closure" name="test_product_http_real_queue_source_and_cold_original_query[session-broadcast]" time="2.342" /><testcase classname="tests.test_session_product_closure" name="test_product_missing_target_rejects_without_spawn" time="2.540" /><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-message]" time="2.474" /><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[assign]" time="2.368" /><testcase classname="tests.test_session_product_closure" name="test_lost_worker_ack_reconciles_original_queue_after_cold_reopen[session-broadcast]" time="2.477" /><testcase classname="tests.test_session_product_closure" name="test_assign_connection_failure_cold_query_stays_unknown" time="2.593" /><testcase classname="tests.test_session_product_closure" name="test_product_fanout_partial_unknown_cold_reopen_never_resends" time="2.365" /><testcase classname="tests.test_session_product_closure" name="test_payload_source_cannot_authenticate_http_or_delegate_identity" time="2.504" /><testcase classname="tests.test_session_product_closure" name="test_handoff_only_declared_targets_preserves_nested_payload_and_frozen_run" time="2.267" /><testcase classname="tests.test_session_product_closure" name="test_process_log_publication_additive_immutable_idempotent" time="2.707" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[legacy-exe]" time="0.724"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py&quot;, line 74, in &lt;module&gt;&#10;      asyncio.run(main())&#10;      ~~~~~~~~~~~^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;[+13 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6693/test_owned_api_provider_consol0')
+mode = 'legacy', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 54, in main
+E             assert not first['desktop_windows'], evidence
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError: {'mode': 'legacy', 'launcher': 'exe', 'host_pid': 15200, 'child': {'pid': 50208, 'ppid': 42748, 'hwnd': 2756464, 'visible': True, 'window_pid': 42748, 'window_class': 'ConsoleWindowClass', 'desktop_windows': [{'hwnd': 2756464, 'class': 'ConsoleWindowClass'}]}, 'exitcode': 0, 'cleaned': True}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'legacy', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 54, in main\n    assert not first[\'desktop_windows\'], evidence\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {\'mode\': \'legacy\', \'launcher\': \'exe\', \'host_pid\': 15200, \'child\': {\'pid\': 50208, \'ppid\': 42748, \'hwnd\': 2756464, \'visible\': True, \'window_pid\': 42748, \'window_class\': \'ConsoleWindowClass\', \'desktop_windows\': [{\'hwnd\': 2756464, \'class\': \'ConsoleWindowClass\'}]}, \'exitcode\': 0, \'cleaned\': True}\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-exe]" time="0.623"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 55, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 38, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6693/test_owned_api_provider_consol1')
+mode = 'hidden', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 55, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 38, in desktop_windows
+E             assert enumerated, {'operation': 'EnumDesktopWindows', 'winerror': ctypes.get_last_error(),
+E                    ^^^^^^^^^^
+E         AssertionError: {'operation': 'EnumDesktopWindows', 'winerror': 0, 'desktop': 360, 'ownedPids': [26932, 48616, 51752], 'found': []}
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 55, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 38, in desktop_windows\n    assert enumerated, {\'operation\': \'EnumDesktopWindows\', \'winerror\': ctypes.get_last_error(),\n           ^^^^^^^^^^\nAssertionError: {\'operation\': \'EnumDesktopWindows\', \'winerror\': 0, \'desktop\': 360, \'ownedPids\': [26932, 48616, 51752], \'found\': []}\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-cmd]" time="0.628"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 55, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 38, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6693/test_owned_api_provider_consol2')
+mode = 'hidden', launcher = 'cmd'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 55, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 38, in desktop_windows
+E             assert enumerated, {'operation': 'EnumDesktopWindows', 'winerror': ctypes.get_last_error(),
+E                    ^^^^^^^^^^
+E         AssertionError: {'operation': 'EnumDesktopWindows', 'winerror': 0, 'desktop': 304, 'ownedPids': [9152, 39228, 42284, 48384], 'found': []}
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'cmd'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 55, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 38, in desktop_windows\n    assert enumerated, {\'operation\': \'EnumDesktopWindows\', \'winerror\': ctypes.get_last_error(),\n           ^^^^^^^^^^\nAssertionError: {\'operation\': \'EnumDesktopWindows\', \'winerror\': 0, \'desktop\': 304, \'ownedPids\': [9152, 39228, 42284, 48384], \'found\': []}\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-powershell]" time="0.778"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 55, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 38, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6693/test_owned_api_provider_consol3')
+mode = 'hidden', launcher = 'powershell'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 55, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 38, in desktop_windows
+E             assert enumerated, {'operation': 'EnumDesktopWindows', 'winerror': ctypes.get_last_error(),
+E                    ^^^^^^^^^^
+E         AssertionError: {'operation': 'EnumDesktopWindows', 'winerror': 0, 'desktop': 332, 'ownedPids': [8152, 46468, 47488, 49244], 'found': []}
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'powershell'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 55, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 38, in desktop_windows\n    assert enumerated, {\'operation\': \'EnumDesktopWindows\', \'winerror\': ctypes.get_last_error(),\n           ^^^^^^^^^^\nAssertionError: {\'operation\': \'EnumDesktopWindows\', \'winerror\': 0, \'desktop\': 332, \'ownedPids\': [8152, 46468, 47488, 49244], \'found\': []}\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[shown-exe]" time="0.692"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py&quot;, line 74, in &lt;module&gt;&#10;      asyncio.run(main())&#10;      ~~~~~~~~~~~^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;[+13 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6693/test_owned_api_provider_consol4')
+mode = 'shown', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 54, in main
+E             assert not first['desktop_windows'], evidence
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError: {'mode': 'shown', 'launcher': 'exe', 'host_pid': 11748, 'child': {'pid': 44792, 'ppid': 36020, 'hwnd': 0, 'visible': False, 'window_pid': 0, 'window_class': '', 'desktop_windows': [{'hwnd': 6949836, 'class': 'UAC_InputIndicatorOverlayWnd'}, {'hwnd': 41816020, 'class': 'UAC Input Indicator'}]}, 'exitcode': 0, 'cleaned': True}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'shown', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 54, in main\n    assert not first[\'desktop_windows\'], evidence\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {\'mode\': \'shown\', \'launcher\': \'exe\', \'host_pid\': 11748, \'child\': {\'pid\': 44792, \'ppid\': 36020, \'hwnd\': 0, \'visible\': False, \'window_pid\': 0, \'window_class\': \'\', \'desktop_windows\': [{\'hwnd\': 6949836, \'class\': \'UAC_InputIndicatorOverlayWnd\'}, {\'hwnd\': 41816020, \'class\': \'UAC Input Indicator\'}]}, \'exitcode\': 0, \'cleaned\': True}\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase></testsuite></testsuites>

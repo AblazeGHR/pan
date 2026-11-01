@@ -36,6 +36,11 @@ def h(tmp_path, monkeypatch):
     api.install(app, action_router, facade_router)
     assert isinstance(service.executor.assign_provider, WorkerAssignProvider)
     monkeypatch.setattr(worker, "_broadcast", None)
+    # Each owned Session store needs its own process-local assignment index.
+    # The public API successor also calls this test with the same taskId;
+    # carrying its index into a different temporary store creates a false
+    # duplicate with no original queue receipt to reconcile.
+    monkeypatch.setattr(worker, "_task_status", {})
     monkeypatch.setattr(worker, "find_alive_worker_by_session", lambda _: None)
     async def no_wake(*args, **kwargs):
         return None

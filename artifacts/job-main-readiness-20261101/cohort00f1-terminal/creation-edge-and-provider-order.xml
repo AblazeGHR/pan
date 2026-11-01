@@ -1,0 +1,1413 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="29" skipped="0" tests="61" time="28.258" timestamp="2026-11-02T00:57:55.366759+08:00" hostname="ablaze"><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]" time="0.010"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FF81350&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'base'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-independent]" time="0.173" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE901C8DD0&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'base'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-independent]" time="0.318" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]" time="0.018"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_4')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE901ECAF0&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-outer'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-independent]" time="0.207" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]" time="0.016"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_6')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FEE2550&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'venv-outer'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-independent]" time="0.321" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]" time="0.015"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_8')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE901CE3F0&gt;
+kind = 'legacy', fault = 'pre-import', launch_mode = 'venv-inner'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-independent]" time="0.189" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]" time="0.014"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_runner_death_at_creation_10')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FE34590&gt;
+kind = 'legacy', fault = 'post-create', launch_mode = 'venv-inner'
+
+    @pytest.mark.parametrize('kind',['legacy','independent'])
+    @pytest.mark.parametrize('fault',['pre-import','post-create'])
+    @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
+    def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+     from packages.jobs import independent_service
+     root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
+     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
+     monkeypatch.setattr(legacy._sessions,'get',lambda sid:{'id':sid})
+     helper=Path(__file__).parent/'helpers/lifecycle_fault_runner.py'
+     repo=Path(__file__).resolve().parents[1]
+     monkeypatch.setattr(legacy,'PROJECT_ROOT',repo)
+     runtime=sys._base_executable
+     if launch_mode!='base':
+      import venv
+      venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'venv')
+      (tmp_path/'venv/Lib/site-packages/test-parent.pth').write_text('\n'.join(site.getsitepackages())+'\n',encoding='utf8')
+      runtime=str(tmp_path/'venv/Scripts/python.exe')
+     original_popen=subprocess.Popen; runners=[]
+     def spawn(command,**kwargs):
+      job_id=command[command.index('--job-id')+1]
+      command=[runtime,str(helper.resolve()),'--kind',kind,'--fault',fault,'--root',str(root),'--job-id',job_id,'--evidence',str(gate)]
+      command += [value for directory in site.getsitepackages() for value in ('--site-packages',directory)]
+      proc=original_popen(command,**kwargs);runners.append(proc);return proc
+     monkeypatch.setattr(subprocess,'Popen',spawn)
+     argv=[sys.executable,'-c','from pathlib import Path;Path('+repr(str(marker))+').touch()']
+     store=JobStore(root) if kind=='independent' else None
+&gt;    job=historical_process(root,argv,tmp_path) if store else legacy.start('owned',argv,str(tmp_path), name="Validate job lifecycle prevention")
+                                                              ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-independent]" time="0.303" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_multigeneration_tre0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FE47050&gt;
+kind = 'legacy', failure = 'root-exit'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
+    def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        monkeypatch.setattr(legacy._sessions, 'get', lambda sid: {'id': sid})
+        monkeypatch.setattr(legacy, 'PROJECT_ROOT', Path(__file__).resolve().parents[1])
+        helper = Path(__file__).parent / 'helpers/lifecycle_fault_runner.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        gate = tmp_path / 'gate.json'
+        original_popen = subprocess.Popen
+        runners = []
+        def spawn(command, **kwargs):
+            if failure == 'wait-error':
+                job_id = command[command.index('--job-id') + 1]
+                command = [sys.executable, str(helper.resolve()), '--kind', kind, '--fault', failure,
+                           '--root', str(root), '--job-id', job_id, '--evidence', str(gate)]
+            proc = original_popen(command, **kwargs)
+            runners.append(proc)
+            return proc
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
+        store = JobStore(root) if kind == 'independent' else None
+        job = (historical_process(root, argv, tmp_path)
+&gt;              if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                             ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-independent]" time="1.083" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_multigeneration_tre2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE900E6620&gt;
+kind = 'legacy', failure = 'wait-error'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
+    def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        monkeypatch.setattr(legacy._sessions, 'get', lambda sid: {'id': sid})
+        monkeypatch.setattr(legacy, 'PROJECT_ROOT', Path(__file__).resolve().parents[1])
+        helper = Path(__file__).parent / 'helpers/lifecycle_fault_runner.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        gate = tmp_path / 'gate.json'
+        original_popen = subprocess.Popen
+        runners = []
+        def spawn(command, **kwargs):
+            if failure == 'wait-error':
+                job_id = command[command.index('--job-id') + 1]
+                command = [sys.executable, str(helper.resolve()), '--kind', kind, '--fault', failure,
+                           '--root', str(root), '--job-id', job_id, '--evidence', str(gate)]
+            proc = original_popen(command, **kwargs)
+            runners.append(proc)
+            return proc
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        argv = [sys.executable, str(tree.resolve()), str(tmp_path), '2']
+        store = JobStore(root) if kind == 'independent' else None
+        job = (historical_process(root, argv, tmp_path)
+&gt;              if store else legacy.start('owned', argv, str(tmp_path), name="Validate job lifecycle prevention"))
+                             ^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-independent]" time="0.566" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_job_attribute_failure_prevents_creation_and_deletes_list[legacy]" time="0.009" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_job_attribute_failure_prevents_creation_and_deletes_list[independent]" time="0.007" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]" time="5.019"><failure message="assert False&#10; +  where False = until(&lt;function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE900E6CF0&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_controller_process_crash_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE9030B410&gt;
+kind = 'legacy'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_path, monkeypatch, kind):
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys.executable, str(helper.resolve()), kind, str(root),
+                                 str(tree.resolve()), str(tmp_path)], creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        handles = []
+        runner = None
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_controller_process_crash_keeps_owned_runner_then_restart_cancels.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE900E6CF0&gt;)
+
+tests\test_job_lifecycle_prevention.py:262: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[independent]" time="0.962" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]" time="5.024"><failure message="assert False&#10; +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE900E56F0&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_registers_i0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FE28CD0&gt;
+runtime_profile = 'base'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        import psutil
+        runtime = sys._base_executable
+        if runtime_profile == 'venv':
+            runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
+            if not runtime and sys.prefix != sys.base_prefix:
+                runtime = sys.executable
+            if not runtime:
+                import venv
+                venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
+                runtime = str(tmp_path / 'venv/Scripts/python.exe')
+        assert Path(runtime).is_file()
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
+                                 str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        runner = None
+        redirector = None
+        handles = []
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE900E56F0&gt;)
+
+tests\test_job_lifecycle_prevention.py:335: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]" time="5.022"><failure message="assert False&#10; +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE901AC7D0&gt;)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_registers_i1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE8FF90130&gt;
+runtime_profile = 'venv'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        import psutil
+        runtime = sys._base_executable
+        if runtime_profile == 'venv':
+            runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
+            if not runtime and sys.prefix != sys.base_prefix:
+                runtime = sys.executable
+            if not runtime:
+                import venv
+                venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
+                runtime = str(tmp_path / 'venv/Scripts/python.exe')
+        assert Path(runtime).is_file()
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
+        tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
+        host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
+                                 str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        host_ft = read_creation_filetime(int(host._handle))
+        runner = None
+        redirector = None
+        handles = []
+        try:
+&gt;           assert until(lambda: (tmp_path / 'tree-0.json').exists())
+E           assert False
+E            +  where False = until(&lt;function test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication.&lt;locals&gt;.&lt;lambda&gt; at 0x000001EE901AC7D0&gt;)
+
+tests\test_job_lifecycle_prevention.py:335: AssertionError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[mcp-True-0]" time="1.183"><failure message="AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_venv_runner_has_no_window0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE901001A0&gt;
+request = &lt;FixtureRequest for &lt;Function test_venv_runner_has_no_window_before_task_imports[mcp-True-0]&gt;&gt;
+entry = 'mcp', hidden = True, exit_code = 0
+
+    @pytest.mark.parametrize('entry,hidden,exit_code', [('mcp', True, 0), ('mcp', False, 7), ('independent', True, 0), ('scheduled', True, 0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, request, entry, hidden, exit_code):
+        from packages.core import background_jobs as jobs, config
+        from packages.jobs.independent_service import JobStore
+        from packages.jobs import independent_service
+        from packages.mcp import server as mcp
+        from packages.web import server as web
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        venv_root = tmp_path / 'venv'
+        venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+        # system_site_packages inherits the base installation, not the venv which
+        # is running pytest. Reuse this test interpreter's installed dependencies
+        # explicitly, without installing anything or changing the selected Python.
+        (venv_root / 'Lib/site-packages/test-parent.pth').write_text(
+            '\n'.join(site.getsitepackages()) + '\n', encoding='utf-8')
+        python = str(venv_root / 'Scripts/python.exe')
+        observation = tmp_path / 'runner'; observation.mkdir()
+        helper = Path(__file__).parent / 'helpers/runner_startup_probe.py'
+        customization = venv_root / 'Lib/site-packages/sitecustomize.py'
+        customization.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
+        monkeypatch.setattr(config, 'load_config', lambda: {'python': python})
+        monkeypatch.setattr(jobs._sessions, 'get', lambda sid: {'id': sid})
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        # The real runner imports repo code even though command cwd is isolated.
+        repo = Path(__file__).resolve().parents[1]
+        monkeypatch.setattr(jobs, 'PROJECT_ROOT', repo)
+        import subprocess
+        from packages.core.terminal.identity import read_creation_filetime
+        captured = []
+        from packages.core.terminal.guard import JobObjectGuard
+        owner = JobObjectGuard()
+        def cleanup():
+            try:
+                _, remaining = owner.terminate_tree(None, timeout=5)
+                assert not remaining
+            finally:
+                assert owner.close()
+                for process, filetime in captured:
+                    assert read_creation_filetime(int(process._handle)) == filetime
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    process._handle.Close()
+        request.addfinalizer(cleanup)
+        original_popen = subprocess.Popen
+        def spawn(*args, **kwargs):
+            import ctypes
+            kwargs['creationflags'] = kwargs.get('creationflags', 0) | 4
+            process = original_popen(*args, **kwargs)
+            captured.append((process, read_creation_filetime(int(process._handle))))
+            owner.assign(int(process._handle))
+            resume = ctypes.WinDLL('ntdll').NtResumeProcess
+            resume.argtypes = [ctypes.c_void_p]
+            resume.restype = ctypes.c_long
+            assert resume(int(process._handle)) == 0
+            return process
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        output = tmp_path / 'payload.json'
+        program = 'import ctypes,json,os,sys;from pathlib import Path;Path(' + repr(str(output)) + ').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);sys.exit(' + str(exit_code) + ')'
+        argv = [python, '-c', program]
+        if entry == 'mcp':
+&gt;           app = FastAPI(); app.post('/api/background-jobs')(web.api_background_job_start)
+                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?
+
+tests\test_job_runner_venv.py:78: AttributeError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[mcp-False-7]" time="0.048"><failure message="AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_venv_runner_has_no_window1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92180C90&gt;
+request = &lt;FixtureRequest for &lt;Function test_venv_runner_has_no_window_before_task_imports[mcp-False-7]&gt;&gt;
+entry = 'mcp', hidden = False, exit_code = 7
+
+    @pytest.mark.parametrize('entry,hidden,exit_code', [('mcp', True, 0), ('mcp', False, 7), ('independent', True, 0), ('scheduled', True, 0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, request, entry, hidden, exit_code):
+        from packages.core import background_jobs as jobs, config
+        from packages.jobs.independent_service import JobStore
+        from packages.jobs import independent_service
+        from packages.mcp import server as mcp
+        from packages.web import server as web
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        venv_root = tmp_path / 'venv'
+        venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+        # system_site_packages inherits the base installation, not the venv which
+        # is running pytest. Reuse this test interpreter's installed dependencies
+        # explicitly, without installing anything or changing the selected Python.
+        (venv_root / 'Lib/site-packages/test-parent.pth').write_text(
+            '\n'.join(site.getsitepackages()) + '\n', encoding='utf-8')
+        python = str(venv_root / 'Scripts/python.exe')
+        observation = tmp_path / 'runner'; observation.mkdir()
+        helper = Path(__file__).parent / 'helpers/runner_startup_probe.py'
+        customization = venv_root / 'Lib/site-packages/sitecustomize.py'
+        customization.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
+        monkeypatch.setattr(config, 'load_config', lambda: {'python': python})
+        monkeypatch.setattr(jobs._sessions, 'get', lambda sid: {'id': sid})
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        # The real runner imports repo code even though command cwd is isolated.
+        repo = Path(__file__).resolve().parents[1]
+        monkeypatch.setattr(jobs, 'PROJECT_ROOT', repo)
+        import subprocess
+        from packages.core.terminal.identity import read_creation_filetime
+        captured = []
+        from packages.core.terminal.guard import JobObjectGuard
+        owner = JobObjectGuard()
+        def cleanup():
+            try:
+                _, remaining = owner.terminate_tree(None, timeout=5)
+                assert not remaining
+            finally:
+                assert owner.close()
+                for process, filetime in captured:
+                    assert read_creation_filetime(int(process._handle)) == filetime
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    process._handle.Close()
+        request.addfinalizer(cleanup)
+        original_popen = subprocess.Popen
+        def spawn(*args, **kwargs):
+            import ctypes
+            kwargs['creationflags'] = kwargs.get('creationflags', 0) | 4
+            process = original_popen(*args, **kwargs)
+            captured.append((process, read_creation_filetime(int(process._handle))))
+            owner.assign(int(process._handle))
+            resume = ctypes.WinDLL('ntdll').NtResumeProcess
+            resume.argtypes = [ctypes.c_void_p]
+            resume.restype = ctypes.c_long
+            assert resume(int(process._handle)) == 0
+            return process
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        output = tmp_path / 'payload.json'
+        program = 'import ctypes,json,os,sys;from pathlib import Path;Path(' + repr(str(output)) + ').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);sys.exit(' + str(exit_code) + ')'
+        argv = [python, '-c', program]
+        if entry == 'mcp':
+&gt;           app = FastAPI(); app.post('/api/background-jobs')(web.api_background_job_start)
+                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?
+
+tests\test_job_runner_venv.py:78: AttributeError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[independent-True-0]" time="0.041"><failure message="AttributeError: &lt;module 'packages.jobs.independent_service' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\jobs\\independent_service.py'&gt; has no attribute 'sys'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_venv_runner_has_no_window2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92180D70&gt;
+request = &lt;FixtureRequest for &lt;Function test_venv_runner_has_no_window_before_task_imports[independent-True-0]&gt;&gt;
+entry = 'independent', hidden = True, exit_code = 0
+
+    @pytest.mark.parametrize('entry,hidden,exit_code', [('mcp', True, 0), ('mcp', False, 7), ('independent', True, 0), ('scheduled', True, 0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, request, entry, hidden, exit_code):
+        from packages.core import background_jobs as jobs, config
+        from packages.jobs.independent_service import JobStore
+        from packages.jobs import independent_service
+        from packages.mcp import server as mcp
+        from packages.web import server as web
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        venv_root = tmp_path / 'venv'
+        venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+        # system_site_packages inherits the base installation, not the venv which
+        # is running pytest. Reuse this test interpreter's installed dependencies
+        # explicitly, without installing anything or changing the selected Python.
+        (venv_root / 'Lib/site-packages/test-parent.pth').write_text(
+            '\n'.join(site.getsitepackages()) + '\n', encoding='utf-8')
+        python = str(venv_root / 'Scripts/python.exe')
+        observation = tmp_path / 'runner'; observation.mkdir()
+        helper = Path(__file__).parent / 'helpers/runner_startup_probe.py'
+        customization = venv_root / 'Lib/site-packages/sitecustomize.py'
+        customization.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
+        monkeypatch.setattr(config, 'load_config', lambda: {'python': python})
+        monkeypatch.setattr(jobs._sessions, 'get', lambda sid: {'id': sid})
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        # The real runner imports repo code even though command cwd is isolated.
+        repo = Path(__file__).resolve().parents[1]
+        monkeypatch.setattr(jobs, 'PROJECT_ROOT', repo)
+        import subprocess
+        from packages.core.terminal.identity import read_creation_filetime
+        captured = []
+        from packages.core.terminal.guard import JobObjectGuard
+        owner = JobObjectGuard()
+        def cleanup():
+            try:
+                _, remaining = owner.terminate_tree(None, timeout=5)
+                assert not remaining
+            finally:
+                assert owner.close()
+                for process, filetime in captured:
+                    assert read_creation_filetime(int(process._handle)) == filetime
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    process._handle.Close()
+        request.addfinalizer(cleanup)
+        original_popen = subprocess.Popen
+        def spawn(*args, **kwargs):
+            import ctypes
+            kwargs['creationflags'] = kwargs.get('creationflags', 0) | 4
+            process = original_popen(*args, **kwargs)
+            captured.append((process, read_creation_filetime(int(process._handle))))
+            owner.assign(int(process._handle))
+            resume = ctypes.WinDLL('ntdll').NtResumeProcess
+            resume.argtypes = [ctypes.c_void_p]
+            resume.restype = ctypes.c_long
+            assert resume(int(process._handle)) == 0
+            return process
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        output = tmp_path / 'payload.json'
+        program = 'import ctypes,json,os,sys;from pathlib import Path;Path(' + repr(str(output)) + ').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);sys.exit(' + str(exit_code) + ')'
+        argv = [python, '-c', program]
+        if entry == 'mcp':
+            app = FastAPI(); app.post('/api/background-jobs')(web.api_background_job_start)
+            client = TestClient(app)
+            monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'owned-session'})
+            monkeypatch.setattr(mcp, '_check_access', lambda *a, **kw: None)
+            def api(method, path, body):
+                response = client.request(method, path, json=body)
+                assert response.status_code == 200
+                return response.json()
+            monkeypatch.setattr(mcp, '_api', api)
+            job = mcp.agent_background_start(argv, str(tmp_path), hide_window=hidden, name="Validate runner window")
+            get = lambda: jobs.get(job['jobId'])
+        elif entry == 'independent':
+&gt;           monkeypatch.setattr(independent_service, 'sys', SimpleNamespace(executable=python))
+E           AttributeError: &lt;module 'packages.jobs.independent_service' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\jobs\\independent_service.py'&gt; has no attribute 'sys'
+
+tests\test_job_runner_venv.py:90: AttributeError</failure></testcase><testcase classname="tests.test_job_runner_venv" name="test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]" time="0.121"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_venv_runner_has_no_window3')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92180E50&gt;
+request = &lt;FixtureRequest for &lt;Function test_venv_runner_has_no_window_before_task_imports[scheduled-True-0]&gt;&gt;
+entry = 'scheduled', hidden = True, exit_code = 0
+
+    @pytest.mark.parametrize('entry,hidden,exit_code', [('mcp', True, 0), ('mcp', False, 7), ('independent', True, 0), ('scheduled', True, 0)])
+    def test_venv_runner_has_no_window_before_task_imports(tmp_path, monkeypatch, request, entry, hidden, exit_code):
+        from packages.core import background_jobs as jobs, config
+        from packages.jobs.independent_service import JobStore
+        from packages.jobs import independent_service
+        from packages.mcp import server as mcp
+        from packages.web import server as web
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        venv_root = tmp_path / 'venv'
+        venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+        # system_site_packages inherits the base installation, not the venv which
+        # is running pytest. Reuse this test interpreter's installed dependencies
+        # explicitly, without installing anything or changing the selected Python.
+        (venv_root / 'Lib/site-packages/test-parent.pth').write_text(
+            '\n'.join(site.getsitepackages()) + '\n', encoding='utf-8')
+        python = str(venv_root / 'Scripts/python.exe')
+        observation = tmp_path / 'runner'; observation.mkdir()
+        helper = Path(__file__).parent / 'helpers/runner_startup_probe.py'
+        customization = venv_root / 'Lib/site-packages/sitecustomize.py'
+        customization.write_text('import runpy;runpy.run_path(' + repr(str(helper.resolve())) + ', init_globals={"OUTPUT_DIRECTORY":' + repr(str(observation)) + '})', encoding='utf-8')
+        monkeypatch.setattr(config, 'load_config', lambda: {'python': python})
+        monkeypatch.setattr(jobs._sessions, 'get', lambda sid: {'id': sid})
+        root = tmp_path / 'registry'
+        monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
+        # The real runner imports repo code even though command cwd is isolated.
+        repo = Path(__file__).resolve().parents[1]
+        monkeypatch.setattr(jobs, 'PROJECT_ROOT', repo)
+        import subprocess
+        from packages.core.terminal.identity import read_creation_filetime
+        captured = []
+        from packages.core.terminal.guard import JobObjectGuard
+        owner = JobObjectGuard()
+        def cleanup():
+            try:
+                _, remaining = owner.terminate_tree(None, timeout=5)
+                assert not remaining
+            finally:
+                assert owner.close()
+                for process, filetime in captured:
+                    assert read_creation_filetime(int(process._handle)) == filetime
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    process._handle.Close()
+        request.addfinalizer(cleanup)
+        original_popen = subprocess.Popen
+        def spawn(*args, **kwargs):
+            import ctypes
+            kwargs['creationflags'] = kwargs.get('creationflags', 0) | 4
+            process = original_popen(*args, **kwargs)
+            captured.append((process, read_creation_filetime(int(process._handle))))
+            owner.assign(int(process._handle))
+            resume = ctypes.WinDLL('ntdll').NtResumeProcess
+            resume.argtypes = [ctypes.c_void_p]
+            resume.restype = ctypes.c_long
+            assert resume(int(process._handle)) == 0
+            return process
+        monkeypatch.setattr(subprocess, 'Popen', spawn)
+        output = tmp_path / 'payload.json'
+        program = 'import ctypes,json,os,sys;from pathlib import Path;Path(' + repr(str(output)) + ').write_text(json.dumps({"pid":os.getpid(),"prefix":sys.prefix,"cwd":os.getcwd(),"console":bool(ctypes.windll.kernel32.GetConsoleWindow())}));print("owned stdout",flush=True);print("owned stderr",file=sys.stderr,flush=True);sys.exit(' + str(exit_code) + ')'
+        argv = [python, '-c', program]
+        if entry == 'mcp':
+            app = FastAPI(); app.post('/api/background-jobs')(web.api_background_job_start)
+            client = TestClient(app)
+            monkeypatch.setattr(mcp, '_caller_identity', lambda: {'id': 'owned-session'})
+            monkeypatch.setattr(mcp, '_check_access', lambda *a, **kw: None)
+            def api(method, path, body):
+                response = client.request(method, path, json=body)
+                assert response.status_code == 200
+                return response.json()
+            monkeypatch.setattr(mcp, '_api', api)
+            job = mcp.agent_background_start(argv, str(tmp_path), hide_window=hidden, name="Validate runner window")
+            get = lambda: jobs.get(job['jobId'])
+        elif entry == 'independent':
+            monkeypatch.setattr(independent_service, 'sys', SimpleNamespace(executable=python))
+            store = JobStore(str(root))
+            job = store.create({'name':'Validate owned lifecycle','argv': argv, 'cwd': str(tmp_path), 'targetSessionId': 'owned-session'})
+            get = lambda: store.get(job['jobId'])
+        else:
+            import subprocess
+            parent = {'jobId': 'job_owned_venv_schedule', 'kind': jobs.SCHEDULED_TASK_KIND, 'name': 'owned', 'targetSessionId': None, 'action': {'api': 'shell', 'args': {'command': subprocess.list2cmdline(argv), 'cwd': str(tmp_path)}}}
+            jobs._create(parent)
+&gt;           job = jobs.start_scheduled_process(parent, 'owned-dispatch')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_runner_venv.py:98: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_scheduled_process'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[None]" time="0.003" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[true]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[false]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[0]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[1]" time="0.003" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[value5]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_window_policy_rejects_non_boolean[value6]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_flags_never_combine_new_console_with_no_window[True]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_flags_never_combine_new_console_with_no_window[False]" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_non_windows_options_have_no_windows_only_kwargs" time="0.002" /><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-False]" time="0.067"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92181D30&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy0')
+shell = False, hidden = None
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[None-True]" time="0.045"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE921822E0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy1')
+shell = True, hidden = None
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-False]" time="0.042"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92183230&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy2')
+shell = False, hidden = True
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[True-True]" time="0.049"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92183310&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy3')
+shell = True, hidden = True
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-False]" time="0.047"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92180EC0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy4')
+shell = False, hidden = False
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_legacy_runner_uses_policy_for_argv_shell_and_old_records[False-True]" time="0.042"><failure message="AssertionError: assert 1 == 0&#10; +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()&#10; +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE9225E120&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_legacy_runner_uses_policy5')
+shell = True, hidden = False
+
+    @pytest.mark.parametrize("shell", [False, True])
+    @pytest.mark.parametrize("hidden", [None, True, False])
+    def test_legacy_runner_uses_policy_for_argv_shell_and_old_records(monkeypatch, tmp_path, shell, hidden):
+        from packages.core import background_runner as runner
+        job = {"jobId": "owned-test", "argv": ["python", "test.py"], "cwd": str(tmp_path), "logPath": str(tmp_path / "job.txt")}
+        if shell:
+            job["shellCommand"] = "echo owned"
+        if hidden is not None:
+            job["hideWindow"] = hidden
+        process = MagicMock(pid=123, wait=Mock(return_value=0))
+        process.__enter__.return_value = process
+        spawn = Mock(return_value=process)
+        desktop_spawn = Mock(return_value=process)
+        monkeypatch.setattr(runner, "DesktopCommand", desktop_spawn)
+        monkeypatch.setattr(runner.jobs, "get", lambda jid: job)
+        monkeypatch.setattr(runner.jobs, "runner_update", Mock())
+        monkeypatch.setattr(runner.jobs, "claim_hidden_runner", Mock(return_value=True))
+        monkeypatch.setattr(runner.jobs, "_process_create_time", lambda pid: 1)
+        # This unit tests command-window options, not registry admission. The
+        # mocked process has no OS identity; lifecycle tests cover runner_spawn.
+        monkeypatch.setattr(runner.jobs, "runner_spawn", lambda job_id, factory: factory())
+        monkeypatch.setattr(runner.subprocess, "Popen", spawn)
+        monkeypatch.setattr(sys, "argv", ["runner", "--job-id", job["jobId"]])
+&gt;       assert runner.main() == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = &lt;function main at 0x000001EE92258EB0&gt;()
+E        +    where &lt;function main at 0x000001EE92258EB0&gt; = &lt;module 'packages.core.background_runner' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_runner.py'&gt;.main
+
+tests\test_job_window_policy.py:63: AssertionError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_mcp_and_http_forward_explicit_visible_option" time="0.003"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92182430&gt;
+
+    def test_mcp_and_http_forward_explicit_visible_option(monkeypatch):
+        from packages.mcp import server as mcp
+        from packages.web import server as web
+        calls = []
+        monkeypatch.setattr(mcp, "_caller_identity", lambda: {"id": "ses_self"})
+        monkeypatch.setattr(mcp, "_check_access", lambda *args, **kwargs: None)
+        monkeypatch.setattr(mcp, "_api", lambda method, path, body: calls.append(body) or body)
+        assert mcp.agent_background_start(["python"], ".", hide_window=False, name="Validate window policy")["hideWindow"] is False
+&gt;       monkeypatch.setattr(web.background_jobs, "start", lambda *args, **kwargs: kwargs)
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'
+
+tests\test_job_window_policy.py:88: AttributeError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_independent_service_persists_and_retries_visible_policy" time="0.003"><failure message="ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package">name = 'packages.jobs.independent_service.subprocess', package = None
+
+    def import_module(name, package=None):
+        """Import a module.
+    
+        The 'package' argument is required when performing a relative import. It
+        specifies the package to use as the anchor point from which to resolve the
+        relative import to an absolute import.
+    
+        """
+        level = 0
+        if name.startswith('.'):
+            if not package:
+                raise TypeError("the 'package' argument is required to perform a "
+                                f"relative import for {name!r}")
+            for character in name:
+                if character != '.':
+                    break
+                level += 1
+&gt;       return _bootstrap._gcd_import(name[level:], package, level)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ModuleNotFoundError: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: ModuleNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_independent_service_persi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE9211A2E0&gt;
+
+    def test_independent_service_persists_and_retries_visible_policy(tmp_path, monkeypatch):
+        from packages.jobs.independent_service import JobStore, ServiceError
+        store = JobStore(str(tmp_path / "owned"))
+&gt;       monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
+
+tests\test_job_window_policy.py:96: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.validation\ci-venv\Lib\site-packages\_pytest\monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'packages.jobs.independent_service.subprocess'
+
+    def resolve(name: str) -&gt; object:
+        # Simplified from zope.dottedname.
+        parts = name.split(".")
+    
+        used = parts.pop(0)
+        found: object = importlib.import_module(used)
+        for part in parts:
+            used += "." + part
+            try:
+                found = getattr(found, part)
+            except AttributeError:
+                pass
+            else:
+                continue
+            # We use explicit un-nesting of the handling block in order
+            # to avoid nested exceptions.
+            try:
+                importlib.import_module(used)
+            except ImportError as ex:
+                expected = str(ex).split()[-1]
+                if expected == used:
+                    raise
+                else:
+&gt;                   raise ImportError(f"import error in {used}: {ex}") from ex
+E                   ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package
+
+.validation\ci-venv\Lib\site-packages\_pytest\monkeypatch.py:88: ImportError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_independent_old_payload_idempotency_does_not_break" time="0.004"><failure message="ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package">name = 'packages.jobs.independent_service.subprocess', package = None
+
+    def import_module(name, package=None):
+        """Import a module.
+    
+        The 'package' argument is required when performing a relative import. It
+        specifies the package to use as the anchor point from which to resolve the
+        relative import to an absolute import.
+    
+        """
+        level = 0
+        if name.startswith('.'):
+            if not package:
+                raise TypeError("the 'package' argument is required to perform a "
+                                f"relative import for {name!r}")
+            for character in name:
+                if character != '.':
+                    break
+                level += 1
+&gt;       return _bootstrap._gcd_import(name[level:], package, level)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ModuleNotFoundError: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: ModuleNotFoundError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_independent_old_payload_i0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001EE92182660&gt;
+
+    def test_independent_old_payload_idempotency_does_not_break(tmp_path, monkeypatch):
+        from packages.jobs.independent_service import JobStore
+        store = JobStore(str(tmp_path / "owned"))
+&gt;       monkeypatch.setattr("packages.jobs.independent_service.subprocess.Popen", Mock())
+
+tests\test_job_window_policy.py:112: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.validation\ci-venv\Lib\site-packages\_pytest\monkeypatch.py:107: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'packages.jobs.independent_service.subprocess'
+
+    def resolve(name: str) -&gt; object:
+        # Simplified from zope.dottedname.
+        parts = name.split(".")
+    
+        used = parts.pop(0)
+        found: object = importlib.import_module(used)
+        for part in parts:
+            used += "." + part
+            try:
+                found = getattr(found, part)
+            except AttributeError:
+                pass
+            else:
+                continue
+            # We use explicit un-nesting of the handling block in order
+            # to avoid nested exceptions.
+            try:
+                importlib.import_module(used)
+            except ImportError as ex:
+                expected = str(ex).split()[-1]
+                if expected == used:
+                    raise
+                else:
+&gt;                   raise ImportError(f"import error in {used}: {ex}") from ex
+E                   ImportError: import error in packages.jobs.independent_service.subprocess: No module named 'packages.jobs.independent_service.subprocess'; 'packages.jobs.independent_service' is not a package
+
+.validation\ci-venv\Lib\site-packages\_pytest\monkeypatch.py:88: ImportError</failure></testcase><testcase classname="tests.test_job_window_policy" name="test_shell_normalization_keeps_explicit_visibility_and_rejects_string" time="0.007" /><testcase classname="tests.test_job_window_policy" name="test_real_windows_child_console_allocation[True]" time="0.079" /><testcase classname="tests.test_job_window_policy" name="test_real_windows_child_console_allocation[False]" time="0.154" /><testcase classname="tests.test_job_window_policy" name="test_owned_python_tree_window_visibility[True]" time="0.920" /><testcase classname="tests.test_job_window_policy" name="test_owned_python_tree_window_visibility[False]" time="1.149" /><testcase classname="tests.test_job_window_policy" name="test_bridge_filename_entrypoint_imports_policy_outside_repo[codex/wrapper.py]" time="0.097" /><testcase classname="tests.test_job_window_policy" name="test_bridge_filename_entrypoint_imports_policy_outside_repo[codex/app_server_wrapper.py]" time="0.169" /><testcase classname="tests.test_job_window_policy" name="test_bridge_filename_entrypoint_imports_policy_outside_repo[kimi/wrapper.py]" time="0.090" /><testcase classname="tests.test_job_window_policy" name="test_bridge_filename_entrypoint_imports_policy_outside_repo[opencode/wrapper.py]" time="0.103" /><testcase classname="tests.test_job_window_policy" name="test_isolated_entrypoint_preserves_output_and_exit_code" time="0.135" /><testcase classname="tests.test_job_window_policy" name="test_kimi_wrapper_help_preserves_unicode_with_cp1252_stdout" time="0.096" /><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[legacy-exe]" time="0.682"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py&quot;, line 74, in &lt;module&gt;&#10;      asyncio.run(main())&#10;      ~~~~~~~~~~~^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;[+13 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_api_provider_consol0')
+mode = 'legacy', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 54, in main
+E             assert not first['desktop_windows'], evidence
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError: {'mode': 'legacy', 'launcher': 'exe', 'host_pid': 32920, 'child': {'pid': 42284, 'ppid': 19088, 'hwnd': 1379398, 'visible': True, 'window_pid': 19088, 'window_class': 'ConsoleWindowClass', 'desktop_windows': [{'hwnd': 1379398, 'class': 'ConsoleWindowClass'}]}, 'exitcode': 0, 'cleaned': True}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'legacy', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 54, in main\n    assert not first[\'desktop_windows\'], evidence\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {\'mode\': \'legacy\', \'launcher\': \'exe\', \'host_pid\': 32920, \'child\': {\'pid\': 42284, \'ppid\': 19088, \'hwnd\': 1379398, \'visible\': True, \'window_pid\': 19088, \'window_class\': \'ConsoleWindowClass\', \'desktop_windows\': [{\'hwnd\': 1379398, \'class\': \'ConsoleWindowClass\'}]}, \'exitcode\': 0, \'cleaned\': True}\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-exe]" time="0.634"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 50, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 34, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_api_provider_consol1')
+mode = 'hidden', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 50, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 34, in desktop_windows
+E             assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 50, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 34, in desktop_windows\n    assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Loc...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-cmd]" time="0.637"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 50, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 34, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_api_provider_consol2')
+mode = 'hidden', launcher = 'cmd'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 50, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 34, in desktop_windows
+E             assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'cmd'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 50, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 34, in desktop_windows\n    assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Loc...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[hidden-powershell]" time="0.790"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 50, in &lt;module&gt;&#10;      'window_class': name.value, 'desktop_windows': desktop_windows()})&#10;                                                     ~~~~~~~~~~~~~~~^^&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py&quot;, line 34, in desktop_windows&#10;[+32 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_api_provider_consol3')
+mode = 'hidden', launcher = 'powershell'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 50, in &lt;module&gt;
+E             'window_class': name.value, 'desktop_windows': desktop_windows()})
+E                                                            ~~~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_probe.py", line 34, in desktop_windows
+E             assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError
+E         Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 48, in main
+E             first = (await provider.request('call', payload))['structuredContent']
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 179, in request
+E             result = await self._rpc("capability.invoke", {
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "protocol_version": "pan-capability/v1", "operation": execution["operation"],
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                 "arguments": arguments})
+E                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\providers.py", line 154, in _rpc
+E             raise RuntimeError("API provider stdout closed; execution may be unconfirmed")
+E         RuntimeError: API provider stdout closed; execution may be unconfirmed
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'hidden', 'powershell'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 50, in &lt;module&gt;\n    \'window_class\': name.value, \'desktop_windows\': desktop_windows()})\n                                                   ~~~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_probe.py", line 34, in desktop_windows\n    assert user.EnumDesktopWindows(user.GetThreadDesktop(kernel.GetCurrentThreadId()), visit, 0)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\nTraceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppDa...\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 48, in main\n    first = (await provider.request(\'call\', payload))[\'structuredContent\']\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 179, in request\n    result = await self._rpc("capability.invoke", {\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "protocol_version": "pan-capability/v1", "operation": execution["operation"],\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        "arguments": arguments})\n        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\plugins\\providers.py", line 154, in _rpc\n    raise RuntimeError("API provider stdout closed; execution may be unconfirmed")\nRuntimeError: API provider stdout closed; execution may be unconfirmed\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase><testcase classname="tests.test_plugin_provider_window" name="test_owned_api_provider_console_lifecycle[shown-exe]" time="0.710"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py&quot;, line 74, in &lt;module&gt;&#10;      asyncio.run(main())&#10;      ~~~~~~~~~~~^^^^^^^^&#10;    File &quot;C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py&quot;, line 204, in run&#10;      return runner.run(main)&#10;             ~~~~~~~~~~^^^^^^&#10;[+13 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6691/test_owned_api_provider_consol4')
+mode = 'shown', launcher = 'exe'
+
+    @pytest.mark.parametrize('mode,launcher', [('legacy', 'exe'), ('hidden', 'exe'),
+        ('hidden', 'cmd'), ('hidden', 'powershell'), ('shown', 'exe')])
+    def test_owned_api_provider_console_lifecycle(tmp_path, mode, launcher):
+        if os.name != 'nt':
+            pytest.skip('Windows native console evidence')
+        script = Path(__file__).parent / 'fixtures/provider_console_host.py'
+        from packages.jobs.desktop import HiddenDesktop
+        desktop = HiddenDesktop()
+        startup = subprocess.STARTUPINFO()
+        startup.lpDesktop = desktop.path
+        try:
+            result = subprocess.run([sys.executable, str(script), mode, launcher],
+                capture_output=True, text=True, timeout=40,
+                startupinfo=startup, creationflags=subprocess.CREATE_NO_WINDOW)
+        finally:
+            desktop.close()
+&gt;       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 74, in &lt;module&gt;
+E             asyncio.run(main())
+E             ~~~~~~~~~~~^^^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+E             return runner.run(main)
+E                    ~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+E             return self._loop.run_until_complete(task)
+E                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+E           File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+E             return future.result()
+E                    ~~~~~~~~~~~~~^^
+E           File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\fixtures\provider_console_host.py", line 54, in main
+E             assert not first['desktop_windows'], evidence
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E         AssertionError: {'mode': 'shown', 'launcher': 'exe', 'host_pid': 47092, 'child': {'pid': 31540, 'ppid': 34708, 'hwnd': 0, 'visible': False, 'window_pid': 0, 'window_class': '', 'desktop_windows': [{'hwnd': 4656946, 'class': 'UAC_InputIndicatorOverlayWnd'}, {'hwnd': 20058204, 'class': 'UAC Input Indicator'}]}, 'exitcode': 0, 'cleaned': True}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py', 'shown', 'exe'], returncode=1, stdout='', stderr='Traceback (most recent call last):\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 74, in &lt;module&gt;\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\runners.py", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File "C:\\Users\\14709\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\asyncio\\base_events.py", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\tests\\fixtures\\provider_console_host.py", line 54, in main\n    assert not first[\'desktop_windows\'], evidence\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {\'mode\': \'shown\', \'launcher\': \'exe\', \'host_pid\': 47092, \'child\': {\'pid\': 31540, \'ppid\': 34708, \'hwnd\': 0, \'visible\': False, \'window_pid\': 0, \'window_class\': \'\', \'desktop_windows\': [{\'hwnd\': 4656946, \'class\': \'UAC_InputIndicatorOverlayWnd\'}, {\'hwnd\': 20058204, \'class\': \'UAC Input Indicator\'}]}, \'exitcode\': 0, \'cleaned\': True}\n').returncode
+
+tests\test_plugin_provider_window.py:28: AssertionError</failure></testcase></testsuite></testsuites>

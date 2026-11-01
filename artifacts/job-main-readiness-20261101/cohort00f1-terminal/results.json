@@ -1,0 +1,14 @@
+[
+  {
+    "name": "public-boundary",
+    "exitCode": 1
+  },
+  {
+    "name": "native-process-combination",
+    "exitCode": 1
+  },
+  {
+    "name": "creation-edge-and-provider-order",
+    "exitCode": 1
+  }
+]

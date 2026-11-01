@@ -50,8 +50,18 @@ async def main():
         child_handle = kernel.OpenProcess(0x100000, False, first['pid'])
         assert child_handle, ctypes.get_last_error()
         assert bool(first['hwnd']) == (mode == 'legacy'), evidence
-        # PseudoConsoleWindow visibility is not evidence of a visible terminal.
-        assert not first['desktop_windows'], evidence
+        if mode == 'legacy':
+            # The negative control deliberately omits CREATE_NO_WINDOW. A
+            # classic console must be observable; a pseudoconsole has an HWND
+            # but is not itself a visible terminal window.
+            assert first['window_class'] in {'ConsoleWindowClass', 'PseudoConsoleWindow'}, evidence
+            if first['window_class'] == 'ConsoleWindowClass' and first['visible']:
+                assert any(w['hwnd'] == first['hwnd'] and w['pid'] == first['window_pid']
+                           for w in first['desktop_windows']), evidence
+            else:
+                assert not first['desktop_windows'], evidence
+        else:
+            assert not first['desktop_windows'], evidence
         assert (await provider.request('call', payload))['structuredContent'] == first
     finally:
         await provider.close()
