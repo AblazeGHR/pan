@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="25" time="4.949" timestamp="2026-11-02T00:38:27.992324+08:00" hostname="ablaze"><testcase classname="tests.test_background_job_api" name="test_http_start_reports_missing_session" time="1.424" /><testcase classname="tests.test_background_job_api" name="test_http_start_invalid_argv_and_cwd" time="0.356" /><testcase classname="tests.test_background_job_api" name="test_http_start_forwards_creator_and_target_separately" time="0.002"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019DD3C24050&gt;
+
+    def test_http_start_forwards_creator_and_target_separately(monkeypatch):
+        calls = []
+    
+        def start(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {"jobId": "job_t046", "targetSessionId": args[0],
+                    "creatorSessionId": kwargs["creator_session_id"]}
+    
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start", start)
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'
+
+tests\test_background_job_api.py:37: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_mcp_start_defaults_to_current_session_and_checks_access" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_records_creator_when_target_is_managed" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_denies_unmanaged_target" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_get_list_cancel_retry_use_managed_target" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_http_retry_rejects_running_job" time="0.441" /><testcase classname="tests.test_background_job_api" name="test_http_cancel_reports_unsafe_pid" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_message_job_creation_preserves_source_and_text" time="0.002"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_message'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019DD38BA5F0&gt;
+
+    def test_http_message_job_creation_preserves_source_and_text(monkeypatch):
+        calls = []
+    
+        class Target:
+            def __init__(self, sid):
+                self.id = sid
+                self.readonly_session = False
+                self.managed_by = None
+    
+        monkeypatch.setattr(web_server.sess, "get", lambda sid: Target(sid) if sid in {
+            "ses_target", "ses_caller"} else None)
+    
+        def create(target, text, schedule, **kwargs):
+            calls.append((target, text, schedule, kwargs))
+            return {"jobId": "job_message", "kind": "session-message"}
+    
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start_message", create)
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_message'
+
+tests\test_background_job_api.py:142: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_selected_session_broadcast_reuses_send_session" time="0.005" /><testcase classname="tests.test_background_job_api" name="test_mcp_message_job_shortcuts_preserve_caller_prefix" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model" time="0.005"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_broadcast'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019DD3E48DD0&gt;
+
+    def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(monkeypatch):
+        calls = []
+    
+        class Target:
+            def __init__(self, sid):
+                self.id = sid
+                self.readonly_session = False
+                self.managed_by = None
+    
+        monkeypatch.setattr(web_server.sess, "get",
+                            lambda sid: Target(sid) if sid in {"ses_a", "ses_b", "ses_caller"} else None)
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start_broadcast",
+                            lambda targets, text, schedule, **kwargs:
+                            calls.append((targets, text, schedule, kwargs)) or {
+                                "jobId": "job_broadcast", "kind": "session-broadcast"})
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_broadcast'
+
+tests\test_background_job_api.py:212: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[]" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[   ]" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[name2]" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[None]" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_required" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_and_optional_label" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload0]" time="0.383"><failure message="assert 'name' in &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot;&#10; +  where &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot; = str({'code': 'invalid_schema', 'message': 'invalid schema'})">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000019DD4E596E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000019DD4E58FC0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000019DD3C8CC20&gt;, serial=0)
+payload = {}
+
+    @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+    def test_http_process_name_required_before_spawn(env, payload):
+        from tests.test_job_automatic_recovery import job_definition
+        value = job_definition(env, {'automatic': False})
+        value.pop('name')
+        value.update(payload)
+        response = env.client.post('/api/jobs', json={'definition':value,
+            'expectedRevision':0, 'requestKey':'invalid-name'})
+        assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+&gt;       assert 'name' in str(response.json()['error'])
+E       assert 'name' in "{'code': 'invalid_schema', 'message': 'invalid schema'}"
+E        +  where "{'code': 'invalid_schema', 'message': 'invalid schema'}" = str({'code': 'invalid_schema', 'message': 'invalid schema'})
+
+tests\test_background_job_api.py:292: AssertionError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload1]" time="0.415"><failure message="assert 'name' in &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot;&#10; +  where &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot; = str({'code': 'invalid_schema', 'message': 'invalid schema'})">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000019DD3E443E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000019DD4E5BBB0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000019DD3C2AA50&gt;, serial=0)
+payload = {'name': ''}
+
+    @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+    def test_http_process_name_required_before_spawn(env, payload):
+        from tests.test_job_automatic_recovery import job_definition
+        value = job_definition(env, {'automatic': False})
+        value.pop('name')
+        value.update(payload)
+        response = env.client.post('/api/jobs', json={'definition':value,
+            'expectedRevision':0, 'requestKey':'invalid-name'})
+        assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+&gt;       assert 'name' in str(response.json()['error'])
+E       assert 'name' in "{'code': 'invalid_schema', 'message': 'invalid schema'}"
+E        +  where "{'code': 'invalid_schema', 'message': 'invalid schema'}" = str({'code': 'invalid_schema', 'message': 'invalid schema'})
+
+tests\test_background_job_api.py:292: AssertionError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload2]" time="0.365"><failure message="assert 'name' in &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot;&#10; +  where &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot; = str({'code': 'invalid_schema', 'message': 'invalid schema'})">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000019DD3E46B10&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000019DD3C271D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000019DD4EBE3C0&gt;, serial=0)
+payload = {'name': '   '}
+
+    @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+    def test_http_process_name_required_before_spawn(env, payload):
+        from tests.test_job_automatic_recovery import job_definition
+        value = job_definition(env, {'automatic': False})
+        value.pop('name')
+        value.update(payload)
+        response = env.client.post('/api/jobs', json={'definition':value,
+            'expectedRevision':0, 'requestKey':'invalid-name'})
+        assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+&gt;       assert 'name' in str(response.json()['error'])
+E       assert 'name' in "{'code': 'invalid_schema', 'message': 'invalid schema'}"
+E        +  where "{'code': 'invalid_schema', 'message': 'invalid schema'}" = str({'code': 'invalid_schema', 'message': 'invalid schema'})
+
+tests\test_background_job_api.py:292: AssertionError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload3]" time="0.323"><failure message="assert 'name' in &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot;&#10; +  where &quot;{'code': 'invalid_schema', 'message': 'invalid schema'}&quot; = str({'code': 'invalid_schema', 'message': 'invalid schema'})">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000019DD3BA7230&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000019DD503C380&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000019DD4FB7CB0&gt;, serial=0)
+payload = {'name': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
+
+    @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+    def test_http_process_name_required_before_spawn(env, payload):
+        from tests.test_job_automatic_recovery import job_definition
+        value = job_definition(env, {'automatic': False})
+        value.pop('name')
+        value.update(payload)
+        response = env.client.post('/api/jobs', json={'definition':value,
+            'expectedRevision':0, 'requestKey':'invalid-name'})
+        assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+&gt;       assert 'name' in str(response.json()['error'])
+E       assert 'name' in "{'code': 'invalid_schema', 'message': 'invalid schema'}"
+E        +  where "{'code': 'invalid_schema', 'message': 'invalid schema'}" = str({'code': 'invalid_schema', 'message': 'invalid schema'})
+
+tests\test_background_job_api.py:292: AssertionError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_public_background_tool_schema_requires_name_only" time="0.004" /></testsuite></testsuites>

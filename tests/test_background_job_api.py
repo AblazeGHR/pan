@@ -4,43 +4,36 @@ import pytest
 
 import packages.mcp.server as mcp_server
 import packages.web.server as web_server
+from tests.test_job_automatic_recovery import env  # noqa: F401
+from tests.test_session_product_closure import h  # noqa: F401
 
 
-def test_http_start_reports_missing_session(monkeypatch):
-    def missing(*args, **kwargs):
-        raise ValueError("target session does not exist")
-    monkeypatch.setattr(web_server.background_jobs, "start", missing)
-    result = asyncio.run(web_server.api_background_job_start({
-        "targetSessionId": "ses_missing", "argv": ["python"], "cwd": "."}))
-    assert result["error"]["code"] == "invalid_job"
-    assert "target session" in result["error"]["message"]
+def test_http_start_reports_missing_session(h):
+    # The destination is a typed Session Action target, not a process owner.
+    from tests.test_session_product_closure import test_product_missing_target_rejects_without_spawn
+    test_product_missing_target_rejects_without_spawn(h)
 
 
-def test_http_start_invalid_argv_and_cwd(monkeypatch):
-    def invalid(*args, **kwargs):
-        raise ValueError("argv must be a non-empty string array")
-    monkeypatch.setattr(web_server.background_jobs, "start", invalid)
-    result = asyncio.run(web_server.api_background_job_start({
-        "targetSessionId": "ses_ok", "argv": [], "cwd": "C:\\outside"}))
-    assert result["error"]["code"] == "invalid_job"
+def test_http_start_invalid_argv_and_cwd(env):
+    from tests.test_job_automatic_recovery import job_definition
+    from tests.test_job_final_executors import test_r5_invalid_process_plan_is_refused_before_spawn
+    value = job_definition(env, {'automatic': False})
+    value['steps'][0]['arguments']['argv']['value'] = []
+    response = env.client.post('/api/jobs', json={'definition':value,
+        'expectedRevision':0, 'requestKey':'invalid-argv'})
+    assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+    assert env.service.list('job', actor={'type':'user','id':'local'})['items'] == []
+    test_r5_invalid_process_plan_is_refused_before_spawn(env.tmp, {'cwd':'.'})
 
 
-def test_http_start_forwards_creator_and_target_separately(monkeypatch):
-    calls = []
-
-    def start(*args, **kwargs):
-        calls.append((args, kwargs))
-        return {"jobId": "job_t046", "targetSessionId": args[0],
-                "creatorSessionId": kwargs["creator_session_id"]}
-
-    monkeypatch.setattr(web_server.background_jobs, "start", start)
-    result = asyncio.run(web_server.api_background_job_start({
-        "targetSessionId": "ses_b", "creatorSessionId": "ses_a",
-        "argv": ["python"], "cwd": "C:\\Pan"}))
-    assert result["targetSessionId"] == "ses_b"
-    assert result["creatorSessionId"] == "ses_a"
-    assert calls == [(('ses_b', ['python'], 'C:\\Pan'),
-                      {"label": None, "name": None, "creator_session_id": "ses_a", "hide_window": True})]
+def test_http_start_forwards_creator_and_target_separately(h):
+    from tests.test_session_product_closure import test_product_http_real_queue_source_and_cold_original_query
+    test_product_http_real_queue_source_and_cold_original_query(h, 'assign')
+    row = h.owned['ses_a'].queue_pending[0]
+    assert row['sourceSessionId'] == 'ses_source' and not h.owned['ses_source'].queue_pending
+    job = h.service.list('job', actor={'type':'user','id':'local'})['items'][0]
+    state = h.service.final.get(job['id'])
+    assert next(iter(state['admissions'].values()))['authority'] == {'type':'user','id':'local'}
 
 
 def test_mcp_start_defaults_to_current_session_and_checks_access(monkeypatch):
@@ -102,12 +95,16 @@ def test_mcp_get_list_cancel_retry_use_managed_target(monkeypatch):
     assert any(path.endswith("/retry") for _, path, _ in calls)
 
 
-def test_http_retry_rejects_running_job(monkeypatch):
-    def running(job_id):
-        raise ValueError("running jobs cannot be retried; cancel them first")
-    monkeypatch.setattr(web_server.background_jobs, "retry", running)
-    result = asyncio.run(web_server.api_background_job_retry("job_running"))
-    assert result["error"]["code"] == "job_not_retryable"
+def test_http_retry_rejects_running_job(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed
+    row = seed(env, monkeypatch)
+    before = env.service.final.store.get(row.jid)
+    run = env.service.final.get(row.jid)['runs'][row.rid]
+    assert run['state'] == 'running'
+    response = env.client.post('/api/job-runs/' + row.rid + '/operations', json={
+        'operation':'retry', 'requestKey':'running-retry', 'expectedStateRevision':run['stateRevision']})
+    assert response.status_code == 409 and response.json()['error']['code'] == 'not_retryable'
+    assert env.service.final.store.get(row.jid) == before and not row.original.calls
 
 
 def test_http_cancel_reports_unsafe_pid(monkeypatch):
@@ -118,34 +115,14 @@ def test_http_cancel_reports_unsafe_pid(monkeypatch):
     assert result["error"]["code"] == "cancel_unsafe"
 
 
-def test_http_message_job_creation_preserves_source_and_text(monkeypatch):
-    calls = []
-
-    class Target:
-        def __init__(self, sid):
-            self.id = sid
-            self.readonly_session = False
-            self.managed_by = None
-
-    monkeypatch.setattr(web_server.sess, "get", lambda sid: Target(sid) if sid in {
-        "ses_target", "ses_caller"} else None)
-
-    def create(target, text, schedule, **kwargs):
-        calls.append((target, text, schedule, kwargs))
-        return {"jobId": "job_message", "kind": "session-message"}
-
-    monkeypatch.setattr(web_server.background_jobs, "start_message", create)
-    result = asyncio.run(web_server.api_session_message_job_start({
-        "targetSessionId": "ses_target", "text": "message text",
-        "schedule": {"type": "once", "delaySeconds": 10},
-        "source": "agent", "sourceSessionId": "ses_caller",
-        "description": "a job"}))
-    assert result["kind"] == "session-message"
-    assert calls == [("ses_target", "message text",
-                      {"type": "once", "delaySeconds": 10},
-                      {"description": "a job", "source": "agent",
-                       "source_session_id": "ses_caller",
-                       "creator_session_id": "ses_caller"})]
+def test_http_message_job_creation_preserves_source_and_text(h):
+    from tests.support.canonical_session_schedule import schedule
+    job, state = schedule(h, 'session-message', {'sessionId':'ses_a','text':'message text',
+        'source':'agent','sourceSessionId':'ses_source'})
+    assert next(iter(state['runs'].values()))['state'] == 'completed'
+    row = h.owned['ses_a'].queue_pending[0]
+    assert row['text'] == 'message text' and row['source'] == 'agent'
+    assert row['sourceSessionId'] == 'ses_source' and not h.owned['ses_source'].queue_pending
 
 
 def test_http_selected_session_broadcast_reuses_send_session(monkeypatch):
@@ -193,31 +170,19 @@ def test_mcp_message_job_shortcuts_preserve_caller_prefix(monkeypatch):
         "sourceSessionId": "ses_caller", "creatorSessionId": "ses_caller"})
 
 
-def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(monkeypatch):
-    calls = []
-
-    class Target:
-        def __init__(self, sid):
-            self.id = sid
-            self.readonly_session = False
-            self.managed_by = None
-
-    monkeypatch.setattr(web_server.sess, "get",
-                        lambda sid: Target(sid) if sid in {"ses_a", "ses_b", "ses_caller"} else None)
-    monkeypatch.setattr(web_server.background_jobs, "start_broadcast",
-                        lambda targets, text, schedule, **kwargs:
-                        calls.append((targets, text, schedule, kwargs)) or {
-                            "jobId": "job_broadcast", "kind": "session-broadcast"})
-    result = asyncio.run(web_server.api_session_message_job_start({
-        "targetSessionIds": ["ses_a", "ses_b", "ses_a"], "text": "hello",
-        "schedule": {"type": "once", "delaySeconds": 10},
-        "source": "agent", "sourceSessionId": "ses_caller"}))
-    assert result["kind"] == "session-broadcast"
-    assert calls == [([
-        "ses_a", "ses_b"], "hello",
-        {"type": "once", "delaySeconds": 10},
-        {"description": None, "source": "agent", "source_session_id": "ses_caller",
-         "creator_session_id": "ses_caller"})]
+def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(h):
+    from tests.support.canonical_session_schedule import schedule
+    job, state = schedule(h, 'session-broadcast', {'sessionIds':['ses_a','ses_b','ses_a'],
+        'text':'hello','source':'agent','sourceSessionId':'ses_source'})
+    assert next(iter(state['runs'].values()))['state'] == 'completed'
+    children = state['effects'][0]['receipt']['receipt']['targets']
+    assert [row['effectKey']['targetId'] for row in children] == ['ses_a','ses_b']
+    assert all(row['outcome'] == 'succeeded' for row in children)
+    for sid in ('ses_a','ses_b'):
+        rows = h.owned[sid].queue_pending
+        assert len(rows) == 1 and rows[0]['text'] == 'hello'
+        assert rows[0]['source'] == 'agent' and rows[0]['sourceSessionId'] == 'ses_source'
+    assert not h.owned['ses_source'].queue_pending
 
 
 def test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target(monkeypatch):
@@ -276,10 +241,16 @@ def test_mcp_background_name_and_optional_label(monkeypatch):
 
 
 @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
-def test_http_process_name_required_before_spawn(payload):
-    result = asyncio.run(web_server.api_background_job_start({"targetSessionId": "owned", "argv": ["python"], "cwd": ".", **payload}))
-    assert result["error"]["code"] == "invalid_job"
-    assert "name" in result["error"]["message"]
+def test_http_process_name_required_before_spawn(env, payload):
+    from tests.test_job_automatic_recovery import job_definition
+    value = job_definition(env, {'automatic': False})
+    value.pop('name')
+    value.update(payload)
+    response = env.client.post('/api/jobs', json={'definition':value,
+        'expectedRevision':0, 'requestKey':'invalid-name'})
+    assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+    assert 'name' in str(response.json()['error'])
+    assert env.service.list('job', actor={'type':'user','id':'local'})['items'] == []
 
 
 def test_public_background_tool_schema_requires_name_only():
@@ -296,3 +267,18 @@ def test_public_background_tool_schema_requires_name_only():
     assert "agent_background_retry" not in names
     assert {"agent_background_get", "agent_background_list",
             "agent_background_cancel"} <= names
+
+
+@pytest.mark.parametrize('kind', ['unknown-field', 'long-name'])
+def test_http_name_path_never_echoes_input_fields_or_values(env, kind):
+    from tests.test_job_automatic_recovery import job_definition
+    value = job_definition(env, {'automatic': False})
+    sentinel = 'PRIVATE_INPUT_SENTINEL'
+    if kind == 'unknown-field': value[sentinel] = sentinel
+    else: value['name'] = sentinel * 20
+    response = env.client.post('/api/jobs', json={'definition':value,
+        'expectedRevision':0, 'requestKey':'safe-error'})
+    assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+    assert sentinel not in response.text
+    if kind == 'long-name': assert response.json()['error']['path'] in {'name','definition.name'}
+    assert env.service.list('job', actor={'type':'user','id':'local'})['items'] == []

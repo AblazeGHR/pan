@@ -11,6 +11,7 @@ from packages.jobs import system_actions
 from tests.test_automation_core import async_test, until
 from tests.test_automation_job_links import setup as links_setup, close as links_close
 from tests.test_authorization_permissions import full_permissions
+from tests.test_job_automatic_recovery import env  # noqa: F401
 
 
 async def _runtime(tmp_path):
@@ -27,65 +28,38 @@ def _delegated_request(app):
                     _SCOPE_KEY: _MARKER})
 
 
-@async_test
-async def test_trusted_legacy_http_entry_is_retired_and_creates_no_job(tmp_path, monkeypatch):
-    """R5: the trusted HTTP entry no longer creates a legacy Action Job.
-
-    The old positive path asserted an old-shaped Job.  Retiring it means the
-    same trusted caller now gets an explicit refusal, and -- the part that
-    matters for safety -- no Job, attempt or process is created by trying.
-    """
-    svc, rt, sources = await links_setup(tmp_path)
-    rt.authorization = svc.auth.permission_allowed
-    app = FastAPI(); app.state.automation = svc
-    class Target:
-        id = 'ses_target'; readonly_session = False; managed_by = None
-    monkeypatch.setattr('packages.web.server.sess.get', lambda sid: Target() if sid == 'ses_target' else None)
-    async def complete(*args, **kwargs):
-        return {'status': 'completed'}
-    monkeypatch.setattr(system_actions, 'execute', complete)
-    svc.auth.change_permissions(full_permissions(), 0)
-    before = list(rt.list())
-    try:
-        server = __import__('packages.web.server', fromlist=['_retired_legacy_write'])
-        with pytest.raises(HTTPException) as refused:
-            await server._retired_legacy_write(_delegated_request(app))
-        assert refused.value.status_code == 410
-        assert refused.value.detail['code'] == 'retired'
-        # The retirement is a boundary: it must not have created anything, and
-        # it must not have executed the system action either.
-        assert list(rt.list()) == before
-    finally:
-        await links_close(svc, rt)
+def test_trusted_legacy_http_entry_is_retired_and_creates_no_job(env):
+    import copy
+    # The canonical UserAuth boundary precedes the retained 410 response.
+    before = env.service.list('job', actor={'type': 'user', 'id': 'local'})
+    path = '/api/legacy/jobs'
+    denied = env.client.post(path, json={'kind': 'background-process'},
+        headers={'Authorization': 'Bearer invalid'})
+    assert denied.status_code == 401
+    retired = env.client.post(path, json={'kind': 'background-process'})
+    assert retired.status_code == 410 and retired.json()['detail']['code'] == 'retired'
+    assert env.service.list('job', actor={'type': 'user', 'id': 'local'}) == before
+    assert before['items'] == []
 
 
-@async_test
-async def test_background_mcp_shape_uses_system_action_and_same_job_id(tmp_path, monkeypatch):
-    rt = await _runtime(tmp_path)
-    async def complete(*args, **kwargs):
-        await args[3](processJobId='job_child')
-        return {'status': 'completed', 'processJobId': 'job_child'}
-    monkeypatch.setattr(system_actions, 'execute', complete)
-    try:
-        job = rt.create_legacy('background-process', {
-            'name': 'legacy process', 'targetSessionId': 'ses_target',
-            'argv': ['python', '-c', 'pass'], 'cwd': str(tmp_path),
-            'hideWindow': True,
-        }, {'type': 'user'})
-        await rt.launch(job['jobId'], expected=1, authority={'type': 'user'})
-        async def done():
-            current = rt.get(job['jobId'])
-            return current if current.get('lastExecution', {}).get('status') == 'completed' else None
-        await until(done)
-        current = rt.get(job['jobId'])
-        assert current['jobId'] == job['jobId']
-        assert current['kind'] == 'background-process'
-        assert current['legacyCompat'] == 'background-process'
-        assert current['action']['api'] == 'action_reference'
-        assert current['action']['actionId'] == 'system_background_process'
-        assert current['lastExecution']['processJobId'] == 'job_child'
-    finally:
-        await rt.close()
+def test_background_mcp_shape_uses_system_action_and_same_job_id(env):
+    from tests.test_job_automatic_recovery import create, job_definition, drive_until
+    from packages.jobs.independent_executor import ExecutionStore, effect_id
+    marker = env.tmp / 'one-process.txt'
+    code = f"from pathlib import Path; Path({str(marker)!r}).write_text('once')"
+    jid, rid = create(env, job_definition(env, {'automatic': False}, code))
+    asyncio.run(drive_until(env, jid, rid, 'completed'))
+    original = env.service.final.get(jid)
+    assert marker.read_text(encoding='utf-8') == 'once'
+    assert len(original['runs']) == len(original['attempts']) == len(original['effects']) == 1
+    assert original['runs'][rid]['jobId'] == jid
+    effect = original['effects'][0]
+    document = ExecutionStore(env.root / 'executions').get(effect_id(effect['effectKey']))
+    assert document['jobId'] == jid and document['effectKey'] == effect['effectKey']
+    assert document['attempt']['attemptId'] == effect['attemptId']
+    assert [j['id'] for j in env.service.list('job', actor={'type':'user','id':'local'})['items']] == [jid]
+    asyncio.run(env.service.dispatch_once())
+    assert env.service.final.get(jid) == original
 
 
 @async_test
@@ -113,34 +87,31 @@ async def test_message_and_broadcast_keep_legacy_targets_and_schedule(tmp_path):
         await rt.close()
 
 
-@async_test
-async def test_unknown_system_action_is_not_replayed_by_new_runtime(tmp_path, monkeypatch):
-    rt = await _runtime(tmp_path)
-    async def uncertain(*args, **kwargs):
-        return {'status': 'uncertain'}
-    monkeypatch.setattr(system_actions, 'execute', uncertain)
+def test_unknown_system_action_is_not_replayed_by_new_runtime(env, monkeypatch):
+    import copy
+    from tests.test_job_automatic_recovery import seed, observe
+    from packages.jobs.final_service import FinalService
+    from packages.jobs.final_contracts import ContractError
+    row = seed(env, monkeypatch)
+    row.doc['result'] = {'effectKey': row.key, 'outcome': 'unknown',
+        'receipt': {'code': 'original-unconfirmed'}, 'cleanupProof': {'confirmed': False}}
+    observe(env)
+    original = copy.deepcopy(env.service.final.get(row.jid))
+    assert original['runs'][row.rid]['state'] == 'uncertain'
+    asyncio.run(env.service.close())
+    fresh = FinalService(env.root, env.auth)
     try:
-        job = rt.create_legacy('background-process', {
-            'name': 'unknown legacy', 'targetSessionId': 'ses_target',
-            'argv': ['python'], 'cwd': str(tmp_path),
-        }, {'type': 'user'})
-        await rt.launch(job['jobId'], expected=1, authority={'type': 'user'})
-        await asyncio.gather(*rt.tasks.values())
-        current = rt.get(job['jobId'])
-        assert current['lastExecution']['status'] == 'uncertain'
-        assert current['enabled'] is False
-        await rt.close()
-        fresh = Runtime(tmp_path / 'jobs', rt.actions, None)
-        await fresh.start()
-        try:
-            assert fresh.get(job['jobId'])['attempts'] == current['attempts']
-            with pytest.raises(Exception):
-                await fresh.launch(job['jobId'], expected=current['configRevision'], authority={'type': 'user'})
-        finally:
-            await fresh.close()
+        fresh.recover()
+        assert fresh.final.get(row.jid) == original
+        with pytest.raises(ContractError) as rejected:
+            fresh.control_run(row.rid, {'operation':'retry', 'requestKey':'unknown-no-replay',
+                'expectedStateRevision':original['runs'][row.rid]['stateRevision']},
+                actor={'type':'user','id':'local'})
+        assert rejected.value.code == 'reconciliation_required'
+        for _ in range(2): asyncio.run(fresh.dispatch_once())
+        assert fresh.final.get(row.jid) == original and not row.original.calls
     finally:
-        if not rt.closed:
-            await rt.close()
+        asyncio.run(fresh.close())
 
 
 @async_test

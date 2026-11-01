@@ -1,0 +1,14 @@
+[
+  {
+    "name": "owned-lifecycle",
+    "exitCode": 0
+  },
+  {
+    "name": "observer-admission",
+    "exitCode": 0
+  },
+  {
+    "name": "unresolved-original",
+    "exitCode": 1
+  }
+]

@@ -560,7 +560,8 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/followthrough/admission-contract-followthrough.xml",
       "artifacts/job-main-readiness-20261101/retry-reason-followthrough/combination-v4.xml",
-      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml"
+      "artifacts/job-main-readiness-20261101/safe-successors/combination-v3.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/observer-admission.xml"
     ]
   },
   "tests.test_illegal_queue_wake_http::test_pan_and_long_job_crash_notification_stays_locked_until_wake": {
@@ -641,7 +642,8 @@
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/cohort-b9d18-original/lifecycle-default-genuine-green.xml",
-      "artifacts/job-main-readiness-20261101/cohort-b9d18-original/lifecycle-owned-genuine.xml"
+      "artifacts/job-main-readiness-20261101/cohort-b9d18-original/lifecycle-owned-genuine.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
     ]
   },
   "tests.test_main_service_exit::test_exit_job_records_choice_and_exact_pre_exit_running_snapshot": {
@@ -895,7 +897,8 @@
   "tests.test_system_fields::test_service_persists_runtime_issue_and_keeps_quota_observer": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort44-followthrough/core-observer-successors-combined.xml"
+      "artifacts/job-main-readiness-20261101/cohort44-followthrough/core-observer-successors-combined.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/observer-admission.xml"
     ]
   },
   "tests.test_job_migration_pending_adapter_contract::test_canonical_claim_does_not_exclude_original_uncooperative_writer": {
@@ -914,6 +917,220 @@
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/cohort44-followthrough/canonical-transport.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[preserve-api]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-config]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-2]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-menu-3]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legal_offline_http::test_owned_host_signal_vs_exit_api_handshake[q-triple]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/owned-lifecycle.xml"
+    ]
+  },
+  "tests.test_legacy_mcp_compat::test_trusted_legacy_http_entry_is_retired_and_creates_no_job": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/legacy-mcp-original-successors.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_legacy_mcp_compat::test_background_mcp_shape_uses_system_action_and_same_job_id": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/legacy-mcp-original-successors.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_legacy_mcp_compat::test_unknown_system_action_is_not_replayed_by_new_runtime": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/legacy-mcp-original-successors.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_job_action_templates::test_snapshot_io_does_not_hold_job_registry_or_block_event_loop": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/legacy-mcp-original-successors.xml",
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_start_reports_missing_session": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_start_invalid_argv_and_cwd": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_start_forwards_creator_and_target_separately": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_retry_rejects_running_job": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_message_job_creation_preserves_source_and_text": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload0]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload1]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload2]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_background_job_api::test_http_process_name_required_before_spawn[payload3]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/public-api-successors-combined.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_rename_and_description": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/job-metadata-successors.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_blank_name_rejected": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/job-metadata-successors.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_legacy_scheduled_shell_uses_real_runner": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-independent]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[new-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-independent]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_three_generation_console_and_gui[alloc-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[independent]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_stdout_exit_and_bidirectional_file_ipc[legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-independent]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[shutdown-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-independent]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_production_shutdown_recovery_then_cancel[deadline-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_legacy_runner_crash_recovery_and_cleanup": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
+    ]
+  },
+  "tests.test_job_hidden_production::test_independent_runner_crash_recovery_and_cleanup": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/cohort96-remaining/hidden-production-canonical-port.xml"
     ]
   }
 }

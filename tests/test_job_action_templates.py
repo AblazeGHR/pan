@@ -222,8 +222,11 @@ async def test_snapshot_io_does_not_hold_job_registry_or_block_event_loop(tmp_pa
         await rt.launch(job['jobId'],1);assert await asyncio.to_thread(entered.wait,2)
         await asyncio.wait_for(asyncio.sleep(0),.1)
         session=await asyncio.wait_for(asyncio.to_thread(jobs._sessions.create,'unrelated'),1)
-        other=await asyncio.wait_for(asyncio.to_thread(jobs.start_message,session.id,'hello',{'type':'once','delaySeconds':60},registry_root=rt.root),1)
-        assert other['kind']==jobs.SESSION_MESSAGE_KIND and not calls
+        other=await asyncio.wait_for(asyncio.to_thread(jobs.create_service_job,
+            request_id='unrelated-io-proof', operation='exit', root=str(tmp_path),
+            port=48321, registry_root=rt.root),1)
+        assert other['requestId']=='unrelated-io-proof' and other['operation']=='exit'
+        assert other['phase']=='requested' and not calls
         release.set();await finished(rt,job['jobId'])
     finally:release.set();await rt.close()
 

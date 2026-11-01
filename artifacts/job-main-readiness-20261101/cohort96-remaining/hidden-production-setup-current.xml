@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="13" time="0.531" timestamp="2026-11-02T00:44:07.404824+08:00" hostname="ablaze"><testcase classname="tests.test_job_hidden_production" name="test_legacy_scheduled_shell_uses_real_runner" time="0.065"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_legacy_scheduled_shell_us0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_legacy_scheduled_shell_us0')
+
+    def test_legacy_scheduled_shell_uses_real_runner(isolated_registry, tmp_path):
+        command = subprocess.list2cmdline([sys.executable, str(PROBE.resolve()), "2", "new", str(tmp_path)])
+        parent = {"jobId": "job_owned_shell_parent", "kind": legacy.SCHEDULED_TASK_KIND,
+                  "name": "owned shell", "targetSessionId": None,
+                  "action": {"api": "shell", "args": {"command": command, "cwd": str(tmp_path)}}}
+        legacy._create(parent, registry_root=isolated_registry)
+&gt;       job = legacy.start_scheduled_process(parent, "owned-dispatch", registry_root=isolated_registry)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:90: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_scheduled_process'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_scheduled_process retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_three_generation_console_and_gui[new-independent]" time="0.004"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati0')
+kind = 'independent', mode = 'new'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("mode", ["new", "alloc"])
+    def test_production_three_generation_console_and_gui(isolated_registry, tmp_path, kind, mode):
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "2", mode, str(tmp_path)], tmp_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x00000201612DE660&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6686\\test_production_three_generati0', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_three_generation_console_and_gui[new-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati1/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati1')
+kind = 'legacy', mode = 'new'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("mode", ["new", "alloc"])
+    def test_production_three_generation_console_and_gui(isolated_registry, tmp_path, kind, mode):
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "2", mode, str(tmp_path)], tmp_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_three_generation_console_and_gui[alloc-independent]" time="0.004"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati2/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati2')
+kind = 'independent', mode = 'alloc'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("mode", ["new", "alloc"])
+    def test_production_three_generation_console_and_gui(isolated_registry, tmp_path, kind, mode):
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "2", mode, str(tmp_path)], tmp_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x00000201614A8690&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6686\\test_production_three_generati2', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_three_generation_console_and_gui[alloc-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati3/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_three_generati3')
+kind = 'legacy', mode = 'alloc'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("mode", ["new", "alloc"])
+    def test_production_three_generation_console_and_gui(isolated_registry, tmp_path, kind, mode):
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "2", mode, str(tmp_path)], tmp_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:106: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_stdout_exit_and_bidirectional_file_ipc[independent]" time="0.003"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_stdout_exit_an0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_stdout_exit_an0')
+kind = 'independent'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    def test_production_stdout_exit_and_bidirectional_file_ipc(isolated_registry, tmp_path, kind):
+        cwd = tmp_path / "owned 中文 cwd with spaces"; cwd.mkdir()
+        program = """import os,sys,json,time
+    from pathlib import Path
+    print('owned stdout',flush=True)
+    print('owned stderr',file=sys.stderr,flush=True)
+    Path('request.tmp').write_text('child-request')
+    os.replace('request.tmp', 'request.txt')
+    end=time.monotonic()+8
+    while not Path('reply.txt').exists():
+     assert time.monotonic()&lt;end
+     time.sleep(.01)
+    assert Path('reply.txt').read_text()=='parent-reply'
+    Path('cwd.json').write_text(json.dumps(os.getcwd()))
+    sys.exit(7)
+    """
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, "-c", program], cwd)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x00000201614A8CD0&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...t-of-ablaze\\pytest-6686\\test_production_stdout_exit_an0\\owned 中文 cwd with spaces', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_stdout_exit_and_bidirectional_file_ipc[legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_stdout_exit_an1/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_stdout_exit_an1')
+kind = 'legacy'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    def test_production_stdout_exit_and_bidirectional_file_ipc(isolated_registry, tmp_path, kind):
+        cwd = tmp_path / "owned 中文 cwd with spaces"; cwd.mkdir()
+        program = """import os,sys,json,time
+    from pathlib import Path
+    print('owned stdout',flush=True)
+    print('owned stderr',file=sys.stderr,flush=True)
+    Path('request.tmp').write_text('child-request')
+    os.replace('request.tmp', 'request.txt')
+    end=time.monotonic()+8
+    while not Path('reply.txt').exists():
+     assert time.monotonic()&lt;end
+     time.sleep(.01)
+    assert Path('reply.txt').read_text()=='parent-reply'
+    Path('cwd.json').write_text(json.dumps(os.getcwd()))
+    sys.exit(7)
+    """
+&gt;       job, get, cancel, _ = launch(kind, isolated_registry, [sys.executable, "-c", program], cwd)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_shutdown_recovery_then_cancel[shutdown-independent]" time="0.004"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov0')
+kind = 'independent', policy = 'shutdown'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("policy", ["shutdown", "deadline"])
+    def test_production_shutdown_recovery_then_cancel(isolated_registry, tmp_path, kind, policy):
+&gt;       job, get, cancel, store = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x00000201612D3950&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6686\\test_production_shutdown_recov0', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_shutdown_recovery_then_cancel[shutdown-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov1/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov1')
+kind = 'legacy', policy = 'shutdown'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("policy", ["shutdown", "deadline"])
+    def test_production_shutdown_recovery_then_cancel(isolated_registry, tmp_path, kind, policy):
+&gt;       job, get, cancel, store = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_shutdown_recovery_then_cancel[deadline-independent]" time="0.004"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov2/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov2')
+kind = 'independent', policy = 'deadline'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("policy", ["shutdown", "deadline"])
+    def test_production_shutdown_recovery_then_cancel(isolated_registry, tmp_path, kind, policy):
+&gt;       job, get, cancel, store = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x00000201612D28B0&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6686\\test_production_shutdown_recov2', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_production_shutdown_recovery_then_cancel[deadline-legacy]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov3/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_production_shutdown_recov3')
+kind = 'legacy', policy = 'deadline'
+
+    @pytest.mark.parametrize("kind", ["independent", "legacy"])
+    @pytest.mark.parametrize("policy", ["shutdown", "deadline"])
+    def test_production_shutdown_recovery_then_cancel(isolated_registry, tmp_path, kind, policy):
+&gt;       job, get, cancel, store = launch(kind, isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:160: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_legacy_runner_crash_recovery_and_cleanup" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_legacy_runner_crash_recov0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_legacy_runner_crash_recov0')
+
+    def test_legacy_runner_crash_recovery_and_cleanup(isolated_registry, tmp_path):
+&gt;       job, get, cancel, _ = launch("legacy", isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:192: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:74: in launch
+    job = legacy.start("owned-trial", argv, str(cwd), registry_root=root, name="Validate job hidden production")
+          ^^^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_job_hidden_production" name="test_independent_runner_crash_recovery_and_cleanup" time="0.004"><failure message="packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')">isolated_registry = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_independent_runner_crash_0/registry')
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6686/test_independent_runner_crash_0')
+
+    def test_independent_runner_crash_recovery_and_cleanup(isolated_registry, tmp_path):
+&gt;       job, get, cancel, store = launch("independent", isolated_registry, [sys.executable, str(PROBE.resolve()), "1", "hold", str(tmp_path)], tmp_path)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_hidden_production.py:224: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_hidden_production.py:72: in launch
+    job = store.create({"name": "Validate owned process cleanup", "argv": argv, "cwd": str(cwd), "targetSessionId": "owned-trial"})
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_service.JobStore object at 0x000002015FC42E70&gt;
+request = {'name': 'Validate owned process cleanup', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validat...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6686\\test_independent_runner_crash_0', 'targetSessionId': 'owned-trial'}
+
+    def create(self, request: dict):
+&gt;       raise ServiceError(410, "legacy job creation retired; use canonical /executions")
+E       packages.jobs.independent_service.ServiceError: (410, 'legacy job creation retired; use canonical /executions')
+
+packages\jobs\independent_service.py:94: ServiceError</failure></testcase></testsuite></testsuites>

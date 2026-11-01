@@ -267,7 +267,8 @@ class ContractRoute(APIRoute):
                 safe = {"code": exc.code, "message": exc.code.replace("_", " ")}
                 # Do not echo an attacker-chosen unknown property name.
                 if exc.path in {"body", "definition", "expectedRevision", "expectedStateRevision",
-                                "requestKey", "operation", "definition.steps", "definition.retention"}:
+                                "requestKey", "operation", "name", "definition.name",
+                                "definition.steps", "definition.retention"}:
                     safe["path"] = exc.path
                 if "currentRevision" in exc.details:
                     safe["currentRevision"] = exc.details["currentRevision"]

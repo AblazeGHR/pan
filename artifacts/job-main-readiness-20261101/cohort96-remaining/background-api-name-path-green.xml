@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="25" time="4.914" timestamp="2026-11-02T00:39:23.753082+08:00" hostname="ablaze"><testcase classname="tests.test_background_job_api" name="test_http_start_reports_missing_session" time="1.432" /><testcase classname="tests.test_background_job_api" name="test_http_start_invalid_argv_and_cwd" time="0.337" /><testcase classname="tests.test_background_job_api" name="test_http_start_forwards_creator_and_target_separately" time="0.002"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B5E6C21130&gt;
+
+    def test_http_start_forwards_creator_and_target_separately(monkeypatch):
+        calls = []
+    
+        def start(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {"jobId": "job_t046", "targetSessionId": args[0],
+                    "creatorSessionId": kwargs["creator_session_id"]}
+    
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start", start)
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start'
+
+tests\test_background_job_api.py:37: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_mcp_start_defaults_to_current_session_and_checks_access" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_records_creator_when_target_is_managed" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_denies_unmanaged_target" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_get_list_cancel_retry_use_managed_target" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_retry_rejects_running_job" time="0.448" /><testcase classname="tests.test_background_job_api" name="test_http_cancel_reports_unsafe_pid" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_message_job_creation_preserves_source_and_text" time="0.002"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_message'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B5E68EA890&gt;
+
+    def test_http_message_job_creation_preserves_source_and_text(monkeypatch):
+        calls = []
+    
+        class Target:
+            def __init__(self, sid):
+                self.id = sid
+                self.readonly_session = False
+                self.managed_by = None
+    
+        monkeypatch.setattr(web_server.sess, "get", lambda sid: Target(sid) if sid in {
+            "ses_target", "ses_caller"} else None)
+    
+        def create(target, text, schedule, **kwargs):
+            calls.append((target, text, schedule, kwargs))
+            return {"jobId": "job_message", "kind": "session-message"}
+    
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start_message", create)
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_message'
+
+tests\test_background_job_api.py:142: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_selected_session_broadcast_reuses_send_session" time="0.005" /><testcase classname="tests.test_background_job_api" name="test_mcp_message_job_shortcuts_preserve_caller_prefix" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model" time="0.004"><failure message="AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_broadcast'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B5E6F407D0&gt;
+
+    def test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model(monkeypatch):
+        calls = []
+    
+        class Target:
+            def __init__(self, sid):
+                self.id = sid
+                self.readonly_session = False
+                self.managed_by = None
+    
+        monkeypatch.setattr(web_server.sess, "get",
+                            lambda sid: Target(sid) if sid in {"ses_a", "ses_b", "ses_caller"} else None)
+&gt;       monkeypatch.setattr(web_server.background_jobs, "start_broadcast",
+                            lambda targets, text, schedule, **kwargs:
+                            calls.append((targets, text, schedule, kwargs)) or {
+                                "jobId": "job_broadcast", "kind": "session-broadcast"})
+E       AttributeError: &lt;module 'packages.core.background_jobs' from 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\packages\\core\\background_jobs.py'&gt; has no attribute 'start_broadcast'
+
+tests\test_background_job_api.py:212: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[]" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[   ]" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[name2]" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[None]" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_required" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_and_optional_label" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload0]" time="0.413" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload1]" time="0.332" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload2]" time="0.392" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload3]" time="0.417" /><testcase classname="tests.test_background_job_api" name="test_public_background_tool_schema_requires_name_only" time="0.004" /></testsuite></testsuites>

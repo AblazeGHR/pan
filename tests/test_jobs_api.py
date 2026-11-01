@@ -19,6 +19,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from tests.test_job_automatic_recovery import env  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -230,24 +231,38 @@ def test_structured_identity_folds_flat_legacy(client):
 # ── PATCH：通用字段 + 归属切换 ──
 
 
-def test_patch_rename_and_description(client):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}",
-                        json={"name": "新名字", "description": "新说明"}).json()
-    assert body["ok"] is True
-    assert body["job"]["name"] == "新名字"
-    assert body["job"]["description"] == "新说明"
-    # scheduler 兼容层读的是同一记录
-    assert scheduler_store.get_task(task["id"])["name"] == "新名字"
+def test_patch_rename_and_description(env):
+    from tests.test_job_automatic_recovery import job_definition
+    value = job_definition(env, {'automatic':False})
+    response = env.client.post('/api/jobs', json={'definition':value,'expectedRevision':0,'requestKey':'metadata-create'})
+    assert response.status_code == 201,response.text
+    item = response.json()['result']['object']
+    value.update(name='新名字',description='新说明')
+    response = env.client.put('/api/jobs/'+item['id'],json={
+        'definition':value,'expectedRevision':item['configRevision'],'requestKey':'metadata-update'})
+    assert response.status_code == 200,response.text
+    changed = response.json()['result']['object']
+    assert changed['id']==item['id'] and changed['configRevision']==item['configRevision']+1
+    assert changed['name']=='新名字' and changed['description']=='新说明'
+    assert env.client.get('/api/jobs/'+item['id']).json()==changed
+    assert not env.service.final.get(item['id'])['runs']
+    assert env.client.put('/api/jobs/'+item['id'],json={'definition':value,
+        'expectedRevision':item['configRevision'],'requestKey':'metadata-stale'}).status_code==409
 
 
-def test_patch_blank_name_rejected(client):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    body = client.patch(f"/api/jobs/{job['jobId']}", json={"name": "  "}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "invalid_argument"
+def test_patch_blank_name_rejected(env):
+    from tests.test_job_automatic_recovery import job_definition
+    value = job_definition(env, {'automatic':False})
+    response = env.client.post('/api/jobs',json={'definition':value,'expectedRevision':0,'requestKey':'name-create'})
+    assert response.status_code==201,response.text
+    item = response.json()['result']['object']
+    before = env.service.final.store.get(item['id'])
+    value['name']='  '
+    response = env.client.put('/api/jobs/'+item['id'],json={'definition':value,
+        'expectedRevision':item['configRevision'],'requestKey':'name-rejected'})
+    assert response.status_code==400 and response.json()['error']['code']=='invalid_schema'
+    assert response.json()['error']['path'] in {'name','definition.name'}
+    assert env.service.final.store.get(item['id'])==before
 
 
 def test_patch_target_switch_updates_flat_and_struct(
