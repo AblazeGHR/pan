@@ -11,6 +11,7 @@ import asyncio
 import copy
 import json
 import os
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
 from contextlib import contextmanager
@@ -671,9 +672,13 @@ class FinalService:
                 # existing profile owner fence and SQLite writer transaction.
                 creation_value = copy.deepcopy(request_value)
                 if kind == "job" and object_id is None and "name" not in creation_value["definition"]:
-                    taken = {row.get("canonical", {}).get("name") for row in self._all(db, "job")}
+                    taken = set()
+                    for row in self._all(db, "job"):
+                        match = re.fullmatch(r"job-(\d+)", str(row.get("canonical", {}).get("name") or "").strip())
+                        if match:
+                            taken.add(int(match[1]))
                     number = 1
-                    while "job-" + str(number) in taken:
+                    while number in taken:
                         number += 1
                     creation_value["definition"]["name"] = "job-" + str(number)
                     creation_value = fc.validate_write(kind, {key: creation_value[key]

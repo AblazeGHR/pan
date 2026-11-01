@@ -86,3 +86,8 @@ def test_other_canonical_profile_does_not_reserve_this_profiles_name(h, tmp_path
         r=post(h,'local');assert r.status_code==201,r.text
         assert r.json()['result']['object']['name']=='job-1'
     finally:asyncio.run(other.close())
+
+def test_existing_numeric_name_alias_reserves_original_number(h):
+    create(h,value={**job_def(h),'name':'job-01'},key='numeric-alias')
+    r=post(h,'next-number');assert r.status_code==201,r.text
+    assert r.json()['result']['object']['name']=='job-2'
