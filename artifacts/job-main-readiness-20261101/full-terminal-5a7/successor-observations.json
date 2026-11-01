@@ -1612,5 +1612,71 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/jobs-api-edit-successors/jobs-api-text-missing-green.xml"
     ]
+  },
+  "tests.test_jobs_api::test_runs_and_next_and_run_now": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-preview-green.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_run_records_carry_entry_id": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-create-schedule.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_post_creates_scheduled_task_multi_entry": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-create-schedule-green.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_post_creates_scheduled_shell_action_without_target_or_runner": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-create-schedule-green.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_post_accepts_session_message_and_rejects_empty_schedule": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-create-unknown.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_action_template_unknown_falls_back_to_assign": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-create-unknown.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-strict-backlog.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_patch_scheduled_qq_action_is_strict_and_editable": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-strict-backlog.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_scheduled_qq_backlog_retry_runs_without_session_target": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-strict-backlog.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-real-fire-manual.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/jobs-api-create-preview-successors/jobs-api-qq-real-fire-manual.xml"
+    ]
   }
 }

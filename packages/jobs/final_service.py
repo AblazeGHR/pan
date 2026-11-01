@@ -444,6 +444,35 @@ class FinalService:
             "configSchemaRef": provider.config_schema_ref, "requiredCapabilities": list(provider.capabilities),
             "eventTypes": ["scheduler.time.v2"], "configSchema": fc.schema_artifacts()["scheduler_config.schema.json"]}]}
 
+    def preview_creator(self, body, *, actor):
+        """Read-only schedule calculation through the original time provider."""
+        self._permit(actor, "event_creator", "read")
+        if (not isinstance(body, dict) or set(body) != {"definition", "at", "count"}
+                or type(body["count"]) is not int or not 1 <= body["count"] <= 100):
+            error("invalid_schema", "Preview requires definition, at and count in 1..100")
+        fc.check_timestamp(body["at"], "at")
+        if not isinstance(body["definition"], dict):
+            error("invalid_schema", "Preview definition must be an object")
+        value = self.creators.registry.validate_definition(body["definition"])
+        provider = self.creators.registry.get(value["providerRef"])
+        if (provider.provider_type, provider.provider_id) != ("time", "scheduler"):
+            error("capability_unsupported", "This Event Creator provider has no time preview")
+        from packages.scheduler.providers import instant
+        import heapq
+        rules = value["config"]["rules"]
+        pending, items = [], []
+        for index, rule in enumerate(rules):
+            point = provider.next_after(rule, body["at"])
+            if point is not None:
+                heapq.heappush(pending, (instant(point["at"]), index, point))
+        while pending and len(items) < body["count"]:
+            _, index, point = heapq.heappop(pending)
+            items.append({"ruleId": rules[index]["ruleId"], **point})
+            following = provider.next_after(rules[index], point["at"])
+            if following is not None:
+                heapq.heappush(pending, (instant(following["at"]), index, following))
+        return {"items": items}
+
     def admit_quota(self, request_key, policy, at, *, actor):
         """Quota business adapter over the existing canonical composition port."""
         for kind in ("job", "event_creator", "trigger"):

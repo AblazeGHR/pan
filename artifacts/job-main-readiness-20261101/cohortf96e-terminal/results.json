@@ -1,0 +1,10 @@
+[
+  {
+    "name": "runtime-behavior",
+    "exitCode": 0
+  },
+  {
+    "name": "jobs-api-full",
+    "exitCode": 1
+  }
+]

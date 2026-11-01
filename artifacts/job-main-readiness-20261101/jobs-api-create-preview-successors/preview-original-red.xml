@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.050" timestamp="2026-11-02T05:24:16.344062+08:00" hostname="ablaze"><testcase classname="tests.test_jobs_api" name="test_runs_and_next_and_run_now" time="1.482"><failure message="AssertionError: {&quot;detail&quot;:&quot;Method Not Allowed&quot;}&#10;assert 405 == 200&#10; +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code">behavior_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001FAEA168440&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6759/test_runs_and_next_and_run_now0'))
+
+    def test_runs_and_next_and_run_now(behavior_h):
+        import copy
+        from packages.jobs.final_service import definition
+        from tests.test_retirement_rev16_behavior import schedule, instant
+        from tests.test_job_final_http_service import launch
+        from packages.core import session
+        h = behavior_h
+        at = instant(30)
+        job, creator, _ = schedule(h, [{'ruleId': 'next', 'type': 'interval',
+            'seconds': '60', 'anchor': at, 'advanceMode': 'grid'}])
+        original = copy.deepcopy(h.service.creators.get(creator['id']))
+        response = h.client.post('/api/event-creators/preview', json={
+            'definition': definition('event_creator', creator), 'at': instant(0), 'count': 3})
+&gt;       assert response.status_code == 200, response.text
+E       AssertionError: {"detail":"Method Not Allowed"}
+E       assert 405 == 200
+E        +  where 405 = &lt;Response [405 Method Not Allowed]&gt;.status_code
+
+tests\test_jobs_api.py:412: AssertionError</failure></testcase></testsuite></testsuites>

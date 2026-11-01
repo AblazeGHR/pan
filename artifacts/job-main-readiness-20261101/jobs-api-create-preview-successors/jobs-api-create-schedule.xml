@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="4.647" timestamp="2026-11-02T05:25:06.396641+08:00" hostname="ablaze"><testcase classname="tests.test_jobs_api" name="test_run_records_carry_entry_id" time="1.562" /><testcase classname="tests.test_jobs_api" name="test_post_creates_scheduled_task_multi_entry" time="1.786"><failure message="KeyError: 'result'">behavior_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001B3F1240440&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6761/test_post_creates_scheduled_ta0'))
+
+    def test_post_creates_scheduled_task_multi_entry(behavior_h):
+        from tests.test_retirement_rev16_behavior import schedule, instant
+        from tests.test_job_final_creators import config as time_config
+        from packages.scheduler.providers import time_definition
+        from packages.jobs.final_service import definition
+        from tests.test_job_final_http_service import control
+        h = behavior_h
+        job, source, trigger = schedule(h, [
+            {'ruleId': 'interval', 'type': 'interval', 'seconds': '3600', 'anchor': instant(3600), 'advanceMode': 'grid'},
+            {'ruleId': 'cron', 'type': 'cron', 'expression': '0 9 * * 1-5', 'timezone': 'UTC', 'dstPolicy': 'gap-skip-fold-first'}])
+        # Rule lifecycle is now Creator lifecycle. A separately disabled Creator
+        # keeps the disabled once schedule visible and bound to the same Job.
+        response = h.client.post('/api/event-creators', json={'definition': time_definition('disabled once',
+            time_config([{'ruleId': 'once', 'type': 'once', 'at': '2099-01-01T09:00:00Z'}])),
+            'expectedRevision': 0, 'requestKey': 'disabled-once'})
+        assert response.status_code == 201, response.text
+&gt;       once = control(h, 'event-creators', response.json()['result']['object'], 'disable', 'disable-once').json()['result']['object']
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'result'
+
+tests\test_jobs_api.py:477: KeyError</failure></testcase><testcase classname="tests.test_jobs_api" name="test_post_creates_scheduled_shell_action_without_target_or_runner" time="0.515"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;reference_conflict&quot;,&quot;message&quot;:&quot;reference conflict&quot;}}&#10;assert 409 == 201&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001B3F15D5E50&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001B3F15D56D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001B3F15AAE40&gt;, serial=0)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B3F141A8D0&gt;
+
+    def test_post_creates_scheduled_shell_action_without_target_or_runner(env, monkeypatch):
+        from packages.jobs.final_service import normalize_legacy_form_fields
+        from tests.test_job_automatic_recovery import job_definition
+        from packages.scheduler.providers import time_definition
+        from tests.test_job_final_creators import config as time_config
+        h = env
+        calls = []
+        def forbidden(*args, **kwargs):
+            calls.append((args, kwargs))
+            raise AssertionError('creation must not start any process')
+        monkeypatch.setattr(subprocess, 'Popen', forbidden)
+        fields = normalize_legacy_form_fields({'command': 'echo contract-test-must-not-run', 'cwd': str(h.tmp)})
+        cfg = job_definition(h, {'automatic': False})
+        cfg['steps'][0]['arguments'] = {k: {'from': 'literal', 'value': v} for k, v in fields.items()}
+        response = h.client.post('/api/jobs', json={'definition': cfg, 'expectedRevision': 0, 'requestKey': 'scheduled-shell'})
+        assert response.status_code == 201, response.text
+        job = response.json()['result']['object']
+        args = job['steps'][0]['arguments']
+        assert args['argv']['value'] == fields['argv'] and 'contract-test-must-not-run' in args['argv']['value'][-1]
+        assert args['cwd']['value'] == str(h.tmp) and not ({'sessionId', 'targetSessionId'} &amp; set(args))
+        source = time_definition('future shell', time_config([{'ruleId': 'shell', 'type': 'once', 'at': '2099-01-01T09:00:00Z'}]))
+        response = h.client.post('/api/event-creators', json={'definition': source, 'expectedRevision': 0, 'requestKey': 'future-shell'})
+        assert response.status_code == 201, response.text
+        response = h.client.post('/api/triggers', json={'definition': {'name': 'future shell', 'targetJobId': job['id'],
+            'creatorSelector': {'mode': 'ids', 'ids': [response.json()['result']['object']['id']]},
+            'eventTypes': ['scheduler.time.v2']}, 'expectedRevision': 0, 'requestKey': 'shell-trigger'})
+&gt;       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"reference_conflict","message":"reference conflict"}}
+E       assert 409 == 201
+E        +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_jobs_api.py:518: AssertionError</failure></testcase></testsuite></testsuites>

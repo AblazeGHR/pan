@@ -22,6 +22,9 @@ import pytest
 from tests.test_job_automatic_recovery import env  # noqa: F401
 from tests.test_session_product_closure import h as product_h  # noqa: F401
 from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.job_retirement_native_fixture import h  # noqa: F401
+from tests.test_retirement_rev9_qq_http import qq_http  # noqa: F401
+from tests.test_retirement_rev25_qq_runtime import run as qq_run  # noqa: F401
 from tests.test_retirement_rev16_behavior import h as behavior_h  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -311,24 +314,29 @@ def test_action_template_send_session(product_h):
     test_product_http_real_queue_source_and_cold_original_query(product_h, 'session-message')
 
 
-def test_action_template_unknown_falls_back_to_assign(client, fake_worker):
-    _register_unified_hooks()
-    _make_scheduled_task()
-    job = scheduler_store._job_for_task(
-        scheduler_store.list_tasks()[0]["id"])
-    rejected = client.patch(
-        f"/api/jobs/{job['jobId']}",
-        json={"action": {"api": "create_session"}},
-    ).json()
-    assert rejected["ok"] is False
-    assert rejected["error"]["code"] == "invalid_argument"
-    jobs._update(job["jobId"], {
-        "action": {"api": "create_session", "args": {}},
-        "schedule": [{**job["schedule"][0],
-                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
-        registry_root=scheduler_store.data_root())
-    asyncio.run(jobs.run_due_scheduled_tasks())
-    assert any(c["api"] == "assign" for c in fake_worker)  # 未知 api 回落
+def test_action_template_unknown_falls_back_to_assign(behavior_h, client, fake_worker):
+    from tests.test_session_product_closure import config
+    from packages.jobs.retired import RetiredEntryPoint
+    h = behavior_h
+    value = config(h, 'assign', sessionId='ses_a', text='must not execute')
+    value['steps'][0]['actionRef']['id'] = 'unknown_create_session'
+    before = h.client.get('/api/jobs').json()
+    response = h.client.post('/api/jobs', json={'definition': value,
+        'expectedRevision': 0, 'requestKey': 'unknown-action'})
+    assert response.status_code == 409 and response.json()['error']['code'] == 'reference_conflict'
+    assert h.client.get('/api/jobs').json() == before
+    # D6 preserves unknown legacy payloads but explicitly excludes execution.
+    # The original fallback-to-assign assertion conflicts with that approval.
+    root = scheduler_store.data_root()
+    jobs._create({'jobId': 'job_unknown', 'kind': 'scheduled-task', 'status': 'scheduled',
+        'action': {'api': 'create_session', 'args': {}}, 'targetSessionId': 'ses_a'}, registry_root=root)
+    raw = jobs._job_path('job_unknown', registry_root=root).read_bytes()
+    assert client.get('/api/jobs/job_unknown').json()['job']['action']['api'] == 'create_session'
+    with pytest.raises(RetiredEntryPoint):
+        asyncio.run(jobs.run_due_scheduled_tasks())
+    asyncio.run(h.service.tick())
+    assert jobs._job_path('job_unknown', registry_root=root).read_bytes() == raw
+    assert fake_worker == [] and h.client.get('/api/jobs').json() == before
 
 
 def test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates(product_h, monkeypatch, record_property):
@@ -396,22 +404,32 @@ def test_templates_reject_invalid(client):
 # ── runs / next / run-now ──
 
 
-def test_runs_and_next_and_run_now(client, fake_worker):
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-
-    next_body = client.get("/api/jobs/next", params={"count": 3}).json()
-    assert next_body["ok"] is True
-    assert next_body["next"] and "fireAt" in next_body["next"][0]
-
-    run_body = client.post(f"/api/jobs/{job['jobId']}/run-now").json()
-    assert run_body["ok"] is True
-    assert run_body["run"]["status"] == "dispatched"
-
-    runs = client.get(f"/api/jobs/{job['jobId']}/runs").json()
-    assert runs["ok"] is True
-    assert len(runs["runs"]) == 1
-    assert runs["runs"][0]["task_id"] == task["id"]
+def test_runs_and_next_and_run_now(behavior_h):
+    import copy
+    from packages.jobs.final_service import definition
+    from tests.test_retirement_rev16_behavior import schedule, instant
+    from tests.test_job_final_http_service import launch
+    from packages.core import session
+    h = behavior_h
+    at = instant(30)
+    job, creator, _ = schedule(h, [{'ruleId': 'next', 'type': 'interval',
+        'seconds': '60', 'anchor': at, 'advanceMode': 'grid'}])
+    original = copy.deepcopy(h.service.creators.get(creator['id']))
+    response = h.client.post('/api/event-creators/preview', json={
+        'definition': definition('event_creator', creator), 'at': instant(0), 'count': 3})
+    assert response.status_code == 200, response.text
+    points = response.json()['items']
+    assert len(points) == 3 and points[0]['at'] == at
+    assert all(p['ruleId'] == 'next' for p in points)
+    assert h.service.creators.get(creator['id']) == original
+    assert not h.service.final.history(job['id'])['runs']
+    admitted = launch(h, job)
+    asyncio.run(h.service.dispatch_once())
+    runs = h.client.get('/api/jobs/' + job['id'] + '/runs').json()['items']
+    assert len(runs) == 1 and runs[0]['runId'] == admitted['runId']
+    assert runs[0]['cause'] == {'type': 'manual'} and runs[0]['state'] == 'completed'
+    assert h.service.creators.get(creator['id']) == original
+    assert len(session.get('ses_a').queue_pending) == 1
 
 
 def test_delete_job_routes_to_compat_for_scheduled_task(client, fake_worker):
@@ -448,67 +466,73 @@ def test_partial_failed_event_emitted(behavior_h):
 # ── POST /api/jobs（创建，多 entry）──
 
 
-def test_post_creates_scheduled_task_multi_entry(client, monkeypatch):
-    monkeypatch.setattr(jobs_api, "_session_exists", lambda sid: True)
-    body = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "name": "多 entry",
-        "target": {"sessionId": "ses_new"},
-        "text": "干活",
-        "schedule": [
-            {"kind": "interval", "intervalSec": 3600},
-            {"kind": "cron", "cron": "0 9 * * 1-5"},
-            {"kind": "once", "at": "2099-01-01T09:00:00", "enabled": False},
-        ],
-    }).json()
-    assert body["ok"] is True, body
-    job = body["job"]
-    entries = job["schedule"]
-    assert [e["kind"] for e in entries] == ["interval", "cron", "once"]
-    assert entries[2]["enabled"] is False
-    enabled_points = [e["nextFireAt"] for e in entries if e["enabled"]]
-    assert job["nextFireAt"] == min(enabled_points)
-    assert job["target"] == {"sessionId": "ses_new"}
-    assert job["targetSessionId"] == "ses_new"
-    # 旧契约视角兼容（同一注册表）
-    assert scheduler_store.get_task(job["taskId"])["target_session_id"] == "ses_new"
+def test_post_creates_scheduled_task_multi_entry(behavior_h):
+    from tests.test_retirement_rev16_behavior import schedule, instant
+    from tests.test_job_final_creators import config as time_config
+    from packages.scheduler.providers import time_definition
+    from packages.jobs.final_service import definition
+    from tests.test_job_final_http_service import control
+    h = behavior_h
+    job, source, trigger = schedule(h, [
+        {'ruleId': 'interval', 'type': 'interval', 'seconds': '3600', 'anchor': instant(3600), 'advanceMode': 'grid'},
+        {'ruleId': 'cron', 'type': 'cron', 'expression': '0 9 * * 1-5', 'timezone': 'UTC', 'dstPolicy': 'gap-skip-fold-first'}])
+    # Rule lifecycle is now Creator lifecycle. A separately disabled Creator
+    # keeps the disabled once schedule visible and bound to the same Job.
+    response = h.client.post('/api/event-creators', json={'definition': time_definition('disabled once',
+        time_config([{'ruleId': 'once', 'type': 'once', 'at': '2099-01-01T09:00:00Z'}])),
+        'expectedRevision': 0, 'requestKey': 'disabled-once'})
+    assert response.status_code == 201, response.text
+    once = control(h, 'event-creators', response.json()['result']['object'], 'enable', 'enable-once').json()['result']['object']
+    response = control(h, 'event-creators', once, 'disable', 'disable-once')
+    assert response.status_code == 200, response.text
+    once = response.json()['result']['object']
+    value = definition('trigger', trigger)
+    value['creatorSelector']['ids'].append(once['id'])
+    response = h.client.put('/api/triggers/' + trigger['id'], json={'definition': value,
+        'expectedRevision': trigger['revision'], 'requestKey': 'bind-disabled-once'})
+    assert response.status_code == 200, response.text
+    assert response.json()['result']['object']['targetJobId'] == job['id']
+    assert response.json()['result']['object']['creatorSelector']['ids'] == [source['id'], once['id']]
+    cursors = h.service.creators.get(source['id'])['cursor']['rules']
+    assert set(cursors) == {'interval', 'cron'} and all(c['nextFireAt'] for c in cursors.values())
+    assert once['state'] == 'disabled' and once['config']['rules'][0]['ruleId'] == 'once'
+    assert h.client.get('/api/jobs/' + job['id']).json()['steps'][0]['arguments']['sessionId']['value'] == 'ses_a'
+    assert not h.service.final.history(job['id'])['runs']
 
 
-def test_post_creates_scheduled_shell_action_without_target_or_runner(
-        client, monkeypatch, tmp_path):
-    popen_calls = []
-
-    def forbidden_popen(*args, **kwargs):
-        popen_calls.append((args, kwargs))
-        raise AssertionError("scheduled shell API creation must not start a Runner")
-
-    monkeypatch.setattr(subprocess, "Popen", forbidden_popen)
-    command = "echo contract-test-must-not-run"
-    cwd = str(jobs.PROJECT_ROOT.resolve())
-    body = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "action": {"api": "shell", "args": {"command": command, "cwd": cwd}},
-        "target": None,
-        "schedule": {"kind": "once", "at": "2099-01-01T09:00:00"},
-    }).json()
-
-    assert body["ok"] is True, body
-    created = body["job"]
-    assert created["kind"] == jobs.SCHEDULED_TASK_KIND
-    assert created["action"] == {
-        "api": "shell", "args": {"command": command, "cwd": cwd}}
-    assert created["target"] == {"sessionId": None}
-    assert created["targetSessionId"] is None
-
-    persisted = jobs.get(
-        created["jobId"], registry_root=scheduler_store.data_root())
-    assert persisted is not None
-    assert persisted["kind"] == jobs.SCHEDULED_TASK_KIND
-    assert persisted["action"] == created["action"]
-    assert persisted["action"]["args"]["command"] == command
-    assert persisted["action"]["args"]["cwd"] == cwd
-    assert scheduler_store.data_root().is_relative_to(tmp_path)
-    assert popen_calls == []
+def test_post_creates_scheduled_shell_action_without_target_or_runner(env, monkeypatch):
+    from packages.jobs.final_service import normalize_legacy_form_fields
+    from tests.test_job_automatic_recovery import job_definition
+    from packages.scheduler.providers import time_definition
+    from tests.test_job_final_creators import config as time_config
+    h = env
+    calls = []
+    def forbidden(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise AssertionError('creation must not start any process')
+    monkeypatch.setattr(subprocess, 'Popen', forbidden)
+    fields = normalize_legacy_form_fields({'command': 'echo contract-test-must-not-run', 'cwd': str(h.tmp)})
+    cfg = job_definition(h, {'automatic': False})
+    cfg['steps'][0]['arguments'] = {k: {'from': 'literal', 'value': v} for k, v in fields.items()}
+    response = h.client.post('/api/jobs', json={'definition': cfg, 'expectedRevision': 0, 'requestKey': 'scheduled-shell'})
+    assert response.status_code == 201, response.text
+    job = response.json()['result']['object']
+    from tests.test_job_final_http_service import control
+    response = control(h, 'jobs', job, 'enable', 'enable-shell')
+    assert response.status_code == 200, response.text
+    job = response.json()['result']['object']
+    args = job['steps'][0]['arguments']
+    assert args['argv']['value'] == fields['argv'] and 'contract-test-must-not-run' in args['argv']['value'][-1]
+    assert args['cwd']['value'] == str(h.tmp) and not ({'sessionId', 'targetSessionId'} & set(args))
+    source = time_definition('future shell', time_config([{'ruleId': 'shell', 'type': 'once', 'at': '2099-01-01T09:00:00Z'}]))
+    response = h.client.post('/api/event-creators', json={'definition': source, 'expectedRevision': 0, 'requestKey': 'future-shell'})
+    assert response.status_code == 201, response.text
+    response = h.client.post('/api/triggers', json={'definition': {'name': 'future shell', 'targetJobId': job['id'],
+        'creatorSelector': {'mode': 'ids', 'ids': [response.json()['result']['object']['id']]},
+        'eventTypes': ['scheduler.time.v2']}, 'expectedRevision': 0, 'requestKey': 'shell-trigger'})
+    assert response.status_code == 201, response.text
+    assert h.client.get('/api/jobs/' + job['id']).json()['steps'][0]['arguments'] == args
+    assert not h.service.final.get(job['id'])['runs'] and calls == []
 
 
 def _create_scheduled_qq_job(client, *, target_type="user", target_id="123456",
@@ -529,207 +553,97 @@ def _create_scheduled_qq_job(client, *, target_type="user", target_id="123456",
     }).json()
 
 
-def test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields(client):
-    created = _create_scheduled_qq_job(client)
-    assert created["ok"] is True, created
-    job = created["job"]
-    assert job["action"] == {"api": "send_qq", "args": {
-        "targetType": "user", "targetId": "123456", "botUin": "987654"}}
-    assert job["target"] == {"sessionId": None}
-    assert job["targetSessionId"] is None
-    assert job["text"] == "hello QQ"
-
-    invalid_bodies = [
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "user", "targetId": "123"}}, "text": "x"},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "group", "targetId": "123456", "botUin": "abc"}},
-         "text": "x"},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "user", "targetId": "123456", "url": "http://host"}},
-         "text": "x"},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": ["user"], "targetId": "123456"}}, "text": "x"},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "friend", "targetId": "123456"}}, "text": "x"},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "user", "targetId": "123456"}}, "text": "  "},
-        {"action": {"api": "send_qq", "args": {
-            "targetType": "user", "targetId": "123456"}},
-         "target": {"sessionId": "ses_arbitrary"}, "text": "x"},
-    ]
-    for fields in invalid_bodies:
-        body = client.post("/api/jobs", json={
-            "kind": "scheduled-task",
-            "schedule": [{"kind": "interval", "intervalSec": 3600}],
-            **fields,
-        }).json()
-        assert body["ok"] is False, fields
-        assert body["error"]["code"] == "invalid_argument"
+def test_post_scheduled_qq_action_persists_target_and_rejects_untrusted_fields(qq_http):
+    import copy
+    from tests.test_retirement_rev6_parity import qq_job
+    from tests.test_job_final_http_service import create
+    q = qq_http
+    value = qq_job(q.h, '222222')
+    job = create(q.h, value=value)
+    persisted = q.h.client.get('/api/jobs/' + job['id']).json()
+    args = persisted['steps'][0]['arguments']
+    assert {k: b['value'] for k, b in args.items()} == {
+        'targetType': 'user', 'targetId': '123456', 'botUin': '222222', 'text': 'hello QQ'}
+    assert not ({'sessionId', 'sessionIds', 'sourceSessionId'} & set(args))
+    before = q.h.client.get('/api/jobs').json()
+    invalid = [('targetId', '123'), ('botUin', 'abc'), ('url', 'http://host'),
+        ('targetType', ['user']), ('targetType', 'friend'), ('text', '  '), ('sessionId', 'ses_arbitrary')]
+    for index, (field, bad) in enumerate(invalid):
+        cfg = copy.deepcopy(value)
+        cfg['steps'][0]['arguments'][field] = {'from': 'literal', 'value': bad}
+        response = q.h.client.post('/api/jobs', json={'definition': cfg,
+            'expectedRevision': 0, 'requestKey': 'bad-qq-' + str(index)})
+        assert response.status_code == 400, response.text
+        assert response.json()['error']['code'] == 'invalid_schema'
+        assert q.h.client.get('/api/jobs').json() == before
+    assert not q.rows and not q.h.service.final.get(job['id'])['runs']
 
 
-def test_patch_scheduled_qq_action_is_strict_and_editable(client):
-    created = _create_scheduled_qq_job(client)
-    assert created["ok"] is True, created
-    job_id = created["job"]["jobId"]
-
-    malformed = client.patch(f"/api/jobs/{job_id}", json={
-        "action": {"api": "send_qq", "args": {
-            "targetType": "group", "targetId": "123456", "command": "echo unsafe"}},
-    }).json()
-    malformed_bot = client.patch(f"/api/jobs/{job_id}", json={
-        "action": {"api": "send_qq", "args": {
-            "targetType": "user", "targetId": "123456", "botUin": "not-a-bot"}},
-    }).json()
-    malformed_recipient = client.patch(f"/api/jobs/{job_id}", json={
-        "action": {"api": "send_qq", "args": {
-            "targetType": "group", "targetId": "not-a-qq-id"}},
-    }).json()
-    empty_text = client.patch(f"/api/jobs/{job_id}", json={"text": "  "}).json()
-    session_target = client.patch(f"/api/jobs/{job_id}", json={
-        "target": {"sessionId": "ses_arbitrary"},
-    }).json()
-    assert malformed["ok"] is False
-    assert malformed_bot["ok"] is False
-    assert malformed_recipient["ok"] is False
-    assert empty_text["ok"] is False
-    assert session_target["ok"] is False
-
-    edited = client.patch(f"/api/jobs/{job_id}", json={
-        "name": "Updated QQ reminder",
-        "action": {"api": "send_qq", "args": {
-            "targetType": "group", "targetId": "456789", "botUin": "234567"}},
-        "text": "updated text",
-        "paused": True,
-    }).json()
-    assert edited["ok"] is True, edited
-    assert edited["job"]["action"] == {"api": "send_qq", "args": {
-        "targetType": "group", "targetId": "456789", "botUin": "234567"}}
-    assert edited["job"]["target"] == {"sessionId": None}
-    assert edited["job"]["text"] == "updated text"
-    assert edited["job"]["paused"] is True
+def test_patch_scheduled_qq_action_is_strict_and_editable(qq_http):
+    import copy
+    from tests.test_retirement_rev6_parity import qq_job
+    from tests.test_job_final_http_service import create, control
+    q = qq_http
+    value = qq_job(q.h, '222222')
+    job = create(q.h, value=value)
+    before = copy.deepcopy(q.h.service.final.store.get(job['id']))
+    for index, (field, bad) in enumerate([('command', 'echo unsafe'), ('botUin', 'not-a-bot'),
+            ('targetId', 'not-a-qq-id'), ('text', '  '), ('sessionId', 'ses_arbitrary')]):
+        cfg = copy.deepcopy(value)
+        cfg['steps'][0]['arguments'][field] = {'from': 'literal', 'value': bad}
+        response = q.h.client.put('/api/jobs/' + job['id'], json={'definition': cfg,
+            'expectedRevision': job['configRevision'], 'requestKey': 'bad-qq-edit-' + str(index)})
+        assert response.status_code == 400, response.text
+        assert response.json()['error']['code'] == 'invalid_schema'
+        assert q.h.service.final.store.get(job['id']) == before
+    value['name'] = 'Updated QQ reminder'
+    for field, literal in {'targetType': 'group', 'targetId': '456789', 'botUin': '111111', 'text': 'updated text'}.items():
+        value['steps'][0]['arguments'][field] = {'from': 'literal', 'value': literal}
+    response = q.h.client.put('/api/jobs/' + job['id'], json={'definition': value,
+        'expectedRevision': job['configRevision'], 'requestKey': 'qq-edit'})
+    assert response.status_code == 200, response.text
+    job = response.json()['result']['object']
+    assert job['name'] == 'Updated QQ reminder'
+    assert {k: b['value'] for k, b in job['steps'][0]['arguments'].items()} == {
+        'targetType': 'group', 'targetId': '456789', 'botUin': '111111', 'text': 'updated text'}
+    job = control(q.h, 'jobs', job, 'enable', 'qq-enable').json()['result']['object']
+    response = control(q.h, 'jobs', job, 'pause', 'qq-pause')
+    assert response.status_code == 200 and response.json()['result']['object']['state'] == 'paused'
+    assert not q.rows and not q.h.service.final.get(job['id'])['runs']
 
 
-def test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error(
-        client, monkeypatch):
-    _register_unified_hooks()
-    calls = []
-
-    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
-        calls.append({"target_type": target_type, "target_id": target_id,
-                      "text": text, "bot_uin": bot_uin})
-        if bot_uin == "765432":
-            return {"ok": False, "error": {
-                "code": "bot_offline", "message": "selected QQ bot is offline"}}
-        return {"ok": True, "message_id": "msg-1"}
-
-    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
-    success = _create_scheduled_qq_job(client, target_type="user", target_id="123456")
-    offline = _create_scheduled_qq_job(
-        client, target_type="group", target_id="654321", bot_uin="765432")
-    assert success["ok"] and offline["ok"]
-
-    for index, created in enumerate((success, offline)):
-        saved = scheduler_store._job_for_task(created["job"]["taskId"])
-        due = {**saved["schedule"][0],
-               "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}
-        patch = {"schedule": [due]}
-        if index == 0:
-            # Recover a stale in-flight claim and retry its due targetless action.
-            patch.update(status="running", runStartedAt=time.time() - 60)
-        jobs._update(saved["jobId"], patch,
-                     registry_root=scheduler_store.data_root())
-
-    assert asyncio.run(jobs.run_due_scheduled_tasks()) == 2
-    success_job = jobs.get(success["job"]["jobId"], registry_root=scheduler_store.data_root())
-    offline_job = jobs.get(offline["job"]["jobId"], registry_root=scheduler_store.data_root())
-    assert success_job["targetSessionId"] is None
-    assert success_job["lastStatus"] == "completed"
-    assert success_job["lastDelivery"]["messageId"] == "msg-1"
-    assert offline_job["lastStatus"] == "error"
-    assert "offline" in offline_job["lastError"]
-    assert offline_job["undeliveredFires"] == []
-    success_run = jobs.list_run_records(
-        task_id=success["job"]["taskId"], registry_root=scheduler_store.data_root())[0]
-    offline_run = jobs.list_run_records(
-        task_id=offline["job"]["taskId"], registry_root=scheduler_store.data_root())[0]
-    assert success_run["status"] == "completed"
-    assert offline_run["status"] == "error"
-    assert {call["target_id"]: call for call in calls} == {
-        "123456": {"target_type": "private", "target_id": "123456",
-                   "text": "hello QQ", "bot_uin": "987654"},
-        "654321": {"target_type": "group", "target_id": "654321",
-                   "text": "hello QQ", "bot_uin": "765432"},
-    }
+def test_scheduled_qq_fire_uses_selected_bot_and_records_success_or_offline_error(qq_http, qq_run):
+    _canonical_qq_success_and_offline(qq_http, qq_run, scheduled=True)
 
 
-def test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure(client):
-    calls = []
-
-    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
-        calls.append((target_type, target_id, text, bot_uin))
-        if bot_uin == "765432":
-            return {"ok": False, "error": {
-                "code": "connection_error", "message": "QQ plugin is unavailable"}}
-        return {"ok": True, "message_id": "manual-1"}
-
-    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
-    success = _create_scheduled_qq_job(client)
-    offline = _create_scheduled_qq_job(client, bot_uin="765432")
-    assert success["ok"] and offline["ok"]
-
-    success_run = client.post(
-        f"/api/jobs/{success['job']['jobId']}/run-now").json()
-    offline_run = client.post(
-        f"/api/jobs/{offline['job']['jobId']}/run-now").json()
-    assert success_run["ok"] is True
-    assert success_run["run"]["status"] == "completed"
-    assert success_run["run"]["session_id"] is None
-    assert success_run["run"]["result"]["messageId"] == "manual-1"
-    assert offline_run["ok"] is True
-    assert offline_run["run"]["status"] == "error"
-    assert "unavailable" in offline_run["run"]["error"]
-    assert len(client.get(
-        f"/api/jobs/{offline['job']['jobId']}/runs").json()["runs"]) == 1
-    assert calls == [
-        ("private", "123456", "hello QQ", "987654"),
-        ("private", "123456", "hello QQ", "765432"),
-    ]
+def test_scheduled_qq_run_now_is_targetless_and_records_plugin_failure(qq_http, qq_run):
+    import copy
+    from tests.test_retirement_rev6_parity import qq_job
+    from tests.test_job_final_http_service import create, control, launch
+    q = qq_http
+    _canonical_qq_success_and_offline(q, qq_run, scheduled=False)
+    # Actual accepted OneBot effect with a lost acknowledgement is unknown,
+    # never fabricated known failure or an authorization to resend.
+    q.mode['value'] = 'lost-response'
+    item = create(q.h, value=qq_job(q.h, '222222'), key='lost-ack-create')
+    item = control(q.h, 'jobs', item, 'enable', 'lost-ack-enable').json()['result']['object']
+    rid = launch(q.h, item, key='lost-ack-run')['runId']
+    qq_run(q.h.service.dispatch_once())
+    state = copy.deepcopy(q.h.service.final.get(item['id']))
+    assert state['runs'][rid]['state'] == 'uncertain'
+    assert len(state['attempts']) == len(state['effects']) == 1
+    assert state['effects'][0]['receipt']['outcome'] == 'unknown'
+    assert len(q.rows) == 2 and q.rows[-1]['bot'] == '222222'
+    qq_run(q.h.service.dispatch_once())
+    assert q.h.service.final.get(item['id']) == state and len(q.rows) == 2
 
 
-def test_scheduled_qq_backlog_retry_runs_without_session_target(client):
-    calls = []
-
-    async def fake_qq_send(*, target_type, target_id, text, bot_uin=None):
-        calls.append((target_type, target_id, text, bot_uin))
-        return {"ok": True, "message_id": "replay-1"}
-
-    jobs.register_scheduled_tasks(qq_send=fake_qq_send)
-    created = _create_scheduled_qq_job(client)
-    assert created["ok"] is True
-    saved = jobs.get(created["job"]["jobId"], registry_root=scheduler_store.data_root())
-    note = {
-        "entryId": saved["schedule"][0]["id"],
-        "fireAt": (datetime.now() - timedelta(seconds=5)).isoformat(),
-        "dispatchKey": f"{saved['taskId']}:retry-fixture",
-        "text": saved["text"],
-        "error": "recovered pending QQ send",
-    }
-    saved = jobs._update(saved["jobId"], {
-        "undeliveredFires": [note],
-        "targetSessionId": None,
-    }, registry_root=scheduler_store.data_root())
-
-    assert asyncio.run(jobs._redeliver_undelivered(
-        saved, scheduler_store.data_root())) == 1
-    refreshed = jobs.get(saved["jobId"], registry_root=scheduler_store.data_root())
-    run = jobs.list_run_records(
-        task_id=saved["taskId"], registry_root=scheduler_store.data_root())[0]
-    assert calls == [("private", "123456", "hello QQ", "987654")]
-    assert refreshed["undeliveredFires"] == []
-    assert refreshed["lastStatus"] == "completed"
-    assert refreshed["lastDelivery"]["messageId"] == "replay-1"
-    assert run["status"] == "completed"
+def test_scheduled_qq_backlog_retry_runs_without_session_target(qq_http, qq_run):
+    # Original manually injected backlog lacked no-send proof. The approved
+    # successor uses two real Events, authoritative no-send receipts, cold
+    # recovery/current target selection and same Attempt/effect; no new send ID.
+    from tests.test_retirement_rev25_qq_runtime import test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once
+    test_two_real_scheduler_fires_cold_drain_current_bot_each_original_event_once(qq_http, qq_run)
 
 
 def test_scheduled_qq_registered_callback_posts_only_to_plugin_send_route(monkeypatch):
@@ -768,29 +682,29 @@ def test_scheduled_qq_registered_callback_posts_only_to_plugin_send_route(monkey
     ]
 
 
-def test_post_accepts_session_message_and_rejects_empty_schedule(
-        client, fake_session_repository):
-    fake_session_repository("s")
-    body = client.post("/api/jobs", json={
-        "kind": "session-message", "target": {"sessionId": "s"},
-        "text": "x", "schedule": {"type": "interval", "intervalSeconds": 60}}).json()
-    assert body["ok"] is True, body
-    assert body["job"]["kind"] == jobs.SESSION_MESSAGE_KIND
-    assert body["job"]["schedule"] == {"type": "interval", "intervalSeconds": 60}
-
-    body = client.post("/api/jobs", json={
-        "kind": "scheduled-task", "target": {"sessionId": "s"},
-        "text": "x", "schedule": []}).json()
-    assert body["ok"] is False
-    assert body["error"]["code"] == "invalid_schedule"
-
-    unknown_action = client.post("/api/jobs", json={
-        "kind": "scheduled-task", "action": {"api": "create_session"},
-        "target": {"sessionId": "s"}, "text": "x",
-        "schedule": {"kind": "interval", "intervalSec": 60},
-    }).json()
-    assert unknown_action["ok"] is False
-    assert unknown_action["error"]["code"] == "invalid_argument"
+def test_post_accepts_session_message_and_rejects_empty_schedule(behavior_h):
+    from tests.test_retirement_rev16_behavior import schedule, instant
+    from tests.test_job_final_creators import config as time_config
+    from packages.scheduler.providers import time_definition
+    from tests.test_session_product_closure import config
+    h = behavior_h
+    job, creator, _ = schedule(h, [{'ruleId': 'message', 'type': 'interval', 'seconds': '60',
+        'anchor': instant(60), 'advanceMode': 'grid'}], operation='session-message')
+    assert job['steps'][0]['actionRef']['id'] == 'product_session_message_v2'
+    before = h.service.creators.list()
+    with h.service.transaction(readonly=True) as db:
+        operations = db.execute('SELECT count(*) FROM final_operations').fetchone()[0]
+    response = h.client.post('/api/event-creators', json={'definition': time_definition('empty', time_config([])),
+        'expectedRevision': 0, 'requestKey': 'empty-schedule'})
+    assert response.status_code == 400, response.text
+    assert h.service.creators.list() == before
+    value = config(h, 'assign', sessionId='ses_a', text='x')
+    value['steps'][0]['actionRef']['id'] = 'unknown_create_session'
+    response = h.client.post('/api/jobs', json={'definition': value, 'expectedRevision': 0, 'requestKey': 'unknown-action'})
+    assert response.status_code == 409 and response.json()['error']['code'] == 'reference_conflict'
+    with h.service.transaction(readonly=True) as db:
+        assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0] == operations
+    assert not h.service.final.history(job['id'])['runs']
 
 
 def test_post_requires_existing_session(product_h):
@@ -861,19 +775,20 @@ def test_patch_text_updates_dispatch_body(behavior_h):
 # ── P4：runs 记录携带 entry_id ──
 
 
-def test_run_records_carry_entry_id(client, fake_worker):
-    _register_unified_hooks()
-    task = _make_scheduled_task()
-    job = scheduler_store._job_for_task(task["id"])
-    jobs._update(job["jobId"], {
-        "schedule": [{**job["schedule"][0],
-                      "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat()}]},
-        registry_root=scheduler_store.data_root())
-    asyncio.run(jobs.run_due_scheduled_tasks())
-    runs = jobs.list_run_records(task_id=task["id"],
-                                 registry_root=scheduler_store.data_root())
-    assert runs, "fire 后应有 run 记录"
-    assert runs[0].get("entry_id") == job["schedule"][0]["id"]
+def test_run_records_carry_entry_id(behavior_h):
+    from tests.test_retirement_rev16_behavior import schedule, instant, fire
+    h = behavior_h
+    at = instant(30)
+    job, creator, _ = schedule(h, [{'ruleId': 'original-entry', 'type': 'once', 'at': at}])
+    fire(h, at)
+    runs = h.client.get('/api/jobs/' + job['id'] + '/runs').json()['items']
+    assert len(runs) == 1 and runs[0]['state'] == 'completed'
+    event_id = runs[0]['cause']['eventId']
+    event = h.service.events.get(event_id)['event']
+    assert event['creatorId'] == creator['id'] and event['creatorRevision'] == creator['revision']
+    assert event['payload']['ruleId'] == 'original-entry' and event['payload']['scheduledAt'] == at
+    fire(h, at)
+    assert h.client.get('/api/jobs/' + job['id'] + '/runs').json()['items'] == runs
 
 
 @pytest.mark.parametrize("kind", ["session-message", "session-broadcast", "background-process", "main-lifecycle", "scheduled-task"])
@@ -1034,3 +949,81 @@ def test_cancelled_pin_request_after_commit_requires_durable_reread(monkeypatch)
             assert reread["ok"] is True and reread["job"]["pinned"] is True
             assert emitted == []  # interrupted response does not send a rollback/failure event
     asyncio.run(scenario())
+
+
+def _canonical_qq_success_and_offline(q, run, *, scheduled):
+    import copy
+    from tests.test_retirement_rev6_parity import qq_job
+    from tests.test_job_final_http_service import create, control, launch
+    from tests.test_job_final_creators import config as time_config
+    from tests.test_retirement_rev16_behavior import instant
+    from packages.scheduler.providers import time_definition
+    from packages.jobs.final_service import FinalService
+    from packages.web import server
+    jobs_and_runs = []
+    for key, bot, target in [('success', None, 'user'), ('offline', '222222', 'group')]:
+        cfg = qq_job(q.h, bot)
+        cfg['steps'][0]['arguments']['targetType']['value'] = target
+        item = create(q.h, value=cfg, key=key + '-create')
+        response = control(q.h, 'jobs', item, 'enable', key + '-enable')
+        assert response.status_code == 200, response.text
+        item = response.json()['result']['object']
+        jobs_and_runs.append((key, item))
+    connected = q.selected._bot
+    q.selected._bot = None
+    try:
+        if scheduled:
+            at = instant(30)
+            response = q.h.client.post('/api/event-creators', json={'definition': time_definition('QQ timer',
+                time_config([{'ruleId': 'QQ-fire', 'type': 'once', 'at': at}])),
+                'expectedRevision': 0, 'requestKey': 'QQ-clock'})
+            assert response.status_code == 201, response.text
+            source = control(q.h, 'event-creators', response.json()['result']['object'], 'enable', 'QQ-clock-enable').json()['result']['object']
+            for key, item in jobs_and_runs:
+                response = q.h.client.post('/api/triggers', json={'definition': {'name': key,
+                    'targetJobId': item['id'], 'creatorSelector': {'mode': 'ids', 'ids': [source['id']]},
+                    'eventTypes': ['scheduler.time.v2']}, 'expectedRevision': 0, 'requestKey': key + '-trigger'})
+                assert response.status_code == 201, response.text
+                response = control(q.h, 'triggers', response.json()['result']['object'], 'enable', key + '-trigger-enable')
+                assert response.status_code == 200, response.text
+            q.h.service.refresh_subscriptions()
+            run(q.h.service.creator_runtime.tick(at=at))
+            run(q.h.service.tick())
+        else:
+            for key, item in jobs_and_runs:
+                launch(q.h, item, key=key + '-manual')
+            run(q.h.service.dispatch_once())
+        assert q.rows == [{'bot': '111111', 'operation': 'send_private_msg',
+            'body': {'user_id': 123456, 'message': 'hello QQ'}}]
+        states = {}
+        for key, item in jobs_and_runs:
+            state = copy.deepcopy(q.h.service.final.get(item['id']))
+            states[item['id']] = state
+            assert len(state['runs']) == len(state['attempts']) == len(state['effects']) == 1
+            current = next(iter(state['runs'].values()))
+            assert current['state'] == ('completed' if key == 'success' else 'failed')
+            receipt = state['effects'][0]['receipt']
+            if key == 'success':
+                assert receipt['outcome'] == 'succeeded' and receipt['receipt'] == {'ok': True, 'message_id': 'owned-1'}
+            else:
+                assert receipt['outcome'] == 'rejected' and receipt['receipt']['error']['code'] == 'bot_not_connected'
+            frozen = q.h.service.final.store.get(item['id'])['finalRuntime']['plans'][current['runId']]['frozen']
+            assert not ({'sessionId', 'sessionIds', 'sourceSessionId'} & set(frozen['steps'][0]['arguments']))
+            if scheduled:
+                event = q.h.service.events.get(current['cause']['eventId'])['event']
+                assert event['creatorId'] == source['id'] and event['payload']['ruleId'] == 'QQ-fire'
+                assert event['payload']['scheduledAt'] == at
+            else:
+                assert current['cause'] == {'type': 'manual'}
+        q.selected._bot = connected
+        cold = FinalService(q.h.root, q.h.automation.auth)
+        server._bind_qq_channel_provider(cold)
+        try:
+            run(cold.dispatch_once())
+            for jid, state in states.items():
+                assert cold.final.get(jid) == state
+            assert len(q.rows) == 1
+        finally:
+            run(cold.close())
+    finally:
+        q.selected._bot = connected

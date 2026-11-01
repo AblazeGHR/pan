@@ -359,3 +359,7 @@ bb18 native186pass1existing skip/browser2pass1teardownfail/sourceDrift[] preserv
 ## Jobs API edit, metadata and Session successors
 
 12 further exact original nodes pass (5+5+2); per-node capability/root cause/contract and new actual blank-text production defect are in jobs-api-edit-successors/README.md. Original red source/JUnits retained; latest15cd41+11pass/51fail1existing skip/sourceDrift[] preserved separately. Current map223/263,40 original identities without mapped green (including1existingplatformskip). Full affected frozen combination and final exactSHA fullCI remain outstanding.
+
+## Jobs API creation, actual QQ and read-only preview
+
+f96e complete affected result72pass + JobsAPI43pass11fail/sourceDrift[] preserved. All11 remaining API originals now have individual successors, documented jobs-api-create-preview-successors/README.md. Actual missing planned Creator preview405 repaired via existing provider only; unknown assign fallback explicitly conflicts FinalModel7.1.4 and is now noexecute/preservation negative. QQ uses real original plugin/OneBot HTTP, exact success/rejected/unknown, cold no-replay; all original strict invalid field classes retained. Current234/263 mapped,29remainingincl1existingplatformskip. No final wholeCI green claim.

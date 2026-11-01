@@ -57,8 +57,8 @@ def h(native_h, tmp_path):
         assert not thread.is_alive()
 
 
-def schedule(h, rules):
-    job = enabled(h, config(h, 'assign', sessionId='ses_a', text='scheduled', source='automation'))
+def schedule(h, rules, *, operation="assign"):
+    job = enabled(h, config(h, operation, sessionId='ses_a', text='scheduled', source='automation'))
     source = time_definition('owned rules', time_config(rules))
     response = h.client.post('/api/event-creators', json={'definition': source, 'expectedRevision': 0, 'requestKey': 'creator'})
     assert response.status_code == 201, response.text
