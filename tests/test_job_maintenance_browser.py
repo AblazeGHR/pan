@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import httpx
 from playwright.sync_api import sync_playwright
 import uvicorn
+from packages.core.host_server import PanServer
 
 from packages.automation.auth import UserAuth
 from packages.core import session
@@ -18,6 +19,7 @@ from tests.test_job_final_http_service import h  # noqa: F401
 
 
 def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path, monkeypatch):
+    monkeypatch.setattr('packages.core.logging_setup._resolve_log_path', lambda _: tmp_path / 'host-logs/pan.log')
     from packages.web import server
     profile = session.SESSION_DIR.parent
     fence = OwnerFence(profile)
@@ -38,7 +40,7 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
     listener.bind(('127.0.0.1', 0))
     port = listener.getsockname()[1]
     assert port not in {8767, 8768}
-    owned = uvicorn.Server(uvicorn.Config(server.app, log_level='error', lifespan='on'))
+    owned = PanServer(uvicorn.Config(server.app, log_level='error', lifespan='on'))
     thread = threading.Thread(target=owned.run, kwargs={'sockets': [listener]}, daemon=True)
     thread.start()
     try:
@@ -94,6 +96,7 @@ def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path,
 
 
 def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path, monkeypatch):
+    monkeypatch.setattr('packages.core.logging_setup._resolve_log_path', lambda _: tmp_path / 'host-logs/pan.log')
     """Owned no-writer fixture; no runtime loop, old owner or resource recovery."""
     from packages.web import server
     from packages.jobs.final_service import FinalService
@@ -127,7 +130,7 @@ def test_normal_owner_production_history_delete_and_lost_reply_query(h, tmp_path
     listener.bind(('127.0.0.1', 0))
     port = listener.getsockname()[1]
     assert port not in {8767, 8768}
-    owned = uvicorn.Server(uvicorn.Config(server.app, log_level='error', lifespan='on'))
+    owned = PanServer(uvicorn.Config(server.app, log_level='error', lifespan='on'))
     thread = threading.Thread(target=owned.run, kwargs={'sockets': [listener]}, daemon=True)
     thread.start()
     try:

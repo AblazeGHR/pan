@@ -1,0 +1,10 @@
+[
+  {
+    "name": "native-port-policy",
+    "exitCode": 0
+  },
+  {
+    "name": "production-browser",
+    "exitCode": 1
+  }
+]

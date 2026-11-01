@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from tests.test_job_automatic_recovery import env  # noqa: F401
+from tests.test_session_product_closure import h as product_h  # noqa: F401
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -341,169 +342,31 @@ def test_action_template_unknown_falls_back_to_assign(client, fake_worker):
     assert any(c["api"] == "assign" for c in fake_worker)  # 未知 api 回落
 
 
-def test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates(
-    client, fake_worker, monkeypatch, isolated_session_repository, tmp_path,
-):
-    _register_unified_hooks()
-    created = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "name": "唤醒合法运行 Session",
-        "action": {"api": "resume_legal_running"},
-        "schedule": [{"kind": "interval", "intervalSec": 3600}],
-    }).json()
-    assert created["ok"] is True
-    job = created["job"]
-    assert job["action"] == {"api": "resume_legal_running"}
-    assert job["text"] == "继续"
-    assert job["target"] == {"sessionId": None}
-
-    # Create persisted Sessions after the Job to prove candidate IDs are not
-    # captured at creation. Force the next scan to reload their legal state
-    # from the temporary Session repository on disk.
-    sessions = {
-        "eligible": isolated_session_repository.create(
-            "resume-eligible", workdir=str(tmp_path)),
-        "live": isolated_session_repository.create(
-            "resume-live", workdir=str(tmp_path)),
-        "idle": isolated_session_repository.create(
-            "resume-idle", workdir=str(tmp_path)),
-        "unknown": isolated_session_repository.create(
-            "resume-unknown", workdir=str(tmp_path)),
-    }
-    from packages.core import legal_offline as legality
-    for key in ("eligible", "live"):
-        identity = {"token": key, "generation": 1, "executionSeq": 1}
-        legality.begin(sessions[key], identity)
-        legality.detect(sessions[key], "crash", eligible=lambda _: True, remember=lambda _: None)
-    sessions["idle"].last_legal_worker_state = "idle"
-    for session in sessions.values():
-        isolated_session_repository.save(session)
-    monkeypatch.setattr(
-        core_worker, "find_alive_worker_by_session",
-        lambda session_id: object() if session_id == sessions["live"].id else None,
-    )
-    isolated_session_repository._cache.clear()
-    isolated_session_repository._all_loaded = False
-
-    run = client.post(f"/api/jobs/{job['jobId']}/run-now").json()
-
-    assert run["ok"] is True
-    assert run["run"]["status"] == "dispatched"
-    assert run["run"]["result"]["matchedCount"] == 1
-    assert [call["session_id"] for call in fake_worker] == [sessions["eligible"].id]
-    assert fake_worker[0]["text"] == "继续"
-    assert fake_worker[0]["source"] == "automation"
-    assert fake_worker[0]["client_message_id"].startswith("job-resume:")
+def test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates(product_h, monkeypatch, record_property):
+    from tests.test_session_resume_product import test_http_fresh_query_per_fire_original_wake_pause_and_identity
+    test_http_fresh_query_per_fire_original_wake_pause_and_identity(product_h,monkeypatch,record_property)
 
 
-def test_resume_legal_running_empty_scan_is_successful_noop(client, fake_worker, monkeypatch):
-    from packages.core import session as sess
-
-    _register_unified_hooks()
-    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [])
-    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
-    created = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "action": {"api": "resume_legal_running"},
-        "schedule": [{"kind": "interval", "intervalSec": 3600}],
-    }).json()
-    assert created["ok"] is True
-
-    run = client.post(f"/api/jobs/{created['job']['jobId']}/run-now").json()
-    assert run["ok"] is True
-    assert run["run"]["status"] == "completed"
-    assert run["run"]["result"]["matchedCount"] == 0
-    assert run["run"]["result"]["results"] == []
-    assert fake_worker == []
+def test_resume_legal_running_empty_scan_is_successful_noop(product_h):
+    from tests.test_session_resume_product import test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit
+    test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit(product_h)
 
 
-def test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged(
-    client, fake_worker, monkeypatch,
-):
-    from packages.core import session as sess
-
-    _register_unified_hooks()
-    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [])
-    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
-    created = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "action": {"api": "resume_legal_running"},
-        "schedule": [{"kind": "interval", "intervalSec": 3600}],
-    }).json()
-    assert created["ok"] is True
-    job = scheduler_store._job_for_task(created["job"]["taskId"])
-    due_entry = {
-        **job["schedule"][0],
-        "nextFireAt": (datetime.now() - timedelta(seconds=5)).isoformat(),
-    }
-    jobs._update(job["jobId"], {"schedule": [due_entry]},
-                 registry_root=scheduler_store.data_root())
-
-    handled = asyncio.run(jobs.run_due_scheduled_tasks())
-    saved = jobs.get(job["jobId"], registry_root=scheduler_store.data_root())
-
-    assert handled == 1
-    assert saved["lastStatus"] == "completed"
-    assert saved["runCount"] == 1
-    assert saved["undeliveredFires"] == []
-    assert saved["lastDelivery"]["matchedCount"] == 0
-    assert fake_worker == []
+def test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged(product_h):
+    from tests.test_session_resume_product import test_scheduled_passive_template_matching_empty_fire_not_backlogged
+    test_scheduled_passive_template_matching_empty_fire_not_backlogged(product_h)
 
 
-def test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text(client):
-    created = client.post("/api/jobs", json={
-        "kind": "scheduled-task",
-        "action": {"api": "resume_legal_running"},
-        "schedule": [{"kind": "interval", "intervalSec": 3600}],
-    }).json()
-    assert created["ok"] is True
-    job_id = created["job"]["jobId"]
-
-    edited = client.patch(f"/api/jobs/{job_id}", json={
-        "name": "Resume after edit",
-        "action": {"api": "resume_legal_running"},
-        "target": {"sessionId": None},
-        "text": "继续",
-    }).json()
-    assert edited["ok"] is True
-    assert edited["job"]["target"] == {"sessionId": None}
-    assert edited["job"]["text"] == "继续"
-
-    wrong_text = client.patch(f"/api/jobs/{job_id}", json={"text": "other"}).json()
-    fixed_target = client.patch(f"/api/jobs/{job_id}", json={
-        "target": {"sessionId": "ses_fixed"},
-    }).json()
-    assert wrong_text["ok"] is False
-    assert fixed_target["ok"] is False
+def test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text(product_h):
+    from tests.test_session_resume_product import test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit
+    test_empty_manual_is_completed_no_effect_and_dynamic_schema_edit(product_h)
+    item=product_h.service.list('job',actor={'type':'user','id':'local'})['items'][0]
+    assert item['name']=='Edited resume' and item['steps'][0]['arguments']=={}
 
 
-def test_resume_legal_running_keeps_per_fire_client_message_id_stable(
-    fake_worker, monkeypatch,
-):
-    from types import SimpleNamespace
-    from packages.core import session as sess
-
-    monkeypatch.setattr(sess, "list_all", lambda *, load_history=True: [
-        SimpleNamespace(id="ses_resume_retry", execution_operations={"failure": {"state": "illegal", "safeTerminal": False}}),
-    ])
-    monkeypatch.setattr(core_worker, "find_alive_worker_by_session", lambda _sid: None)
-    job = {
-        "jobId": "job_resume",
-        "kind": "scheduled-task",
-        "targetSessionId": None,
-        "text": "继续",
-        "action": {"api": "resume_legal_running"},
-    }
-
-    # Exercise the retained business sender below the new durable admission
-    # boundary. The unified dispatcher itself never replays an unknown effect.
-    first = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
-    retried = asyncio.run(jobs._execute_job_action(job, None, "task:entry:fire-1"))
-
-    assert first["status"] == retried["status"] == "dispatched"
-    assert len(fake_worker) == 2  # the normal sender receives its durable idempotency key
-    assert fake_worker[0]["client_message_id"] == fake_worker[1]["client_message_id"]
-    assert fake_worker[0]["text"] == fake_worker[1]["text"] == "继续"
+def test_resume_legal_running_keeps_per_fire_client_message_id_stable(product_h, monkeypatch):
+    from tests.test_session_resume_product import test_cold_reopen_original_selection_and_config_change_never_resends
+    test_cold_reopen_original_selection_and_config_change_never_resends(product_h,monkeypatch,'cancelled')
 
 
 # ── schedule 模板 ──

@@ -1510,5 +1510,35 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
+  },
+  "tests.test_jobs_api::test_resume_legal_running_job_rescans_and_run_now_sends_only_to_current_candidates": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_resume_legal_running_empty_scan_is_successful_noop": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_resume_legal_running_scheduled_fire_without_candidates_is_not_backlogged": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_resume_legal_running_patch_preserves_dynamic_target_and_fixed_text": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
+    ]
+  },
+  "tests.test_jobs_api::test_resume_legal_running_keeps_per_fire_client_message_id_stable": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/pan-host-resume-successors/jobs-api-resume-five.xml"
+    ]
   }
 }

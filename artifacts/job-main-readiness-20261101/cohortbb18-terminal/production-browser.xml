@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="18.309" timestamp="2026-11-02T05:02:09.056574+08:00" hostname="ablaze"><testcase classname="tests.test_job_default_names_browser" name="test_production_blank_name_uses_server_default_and_lost_response_queries_original" time="1.891" /><testcase classname="tests.test_job_maintenance_browser" name="test_production_browser_maintenance_diagnostics_and_blocked_delete" time="10.755"><failure message="assert not True&#10; +  where True = is_alive()&#10; +    where is_alive = &lt;Thread(Thread-5 (run), started daemon 14656)&gt;.is_alive">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6746/test_production_browser_mainte0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018A05E6A650&gt;
+
+    def test_production_browser_maintenance_diagnostics_and_blocked_delete(tmp_path, monkeypatch):
+        from packages.web import server
+        profile = session.SESSION_DIR.parent
+        fence = OwnerFence(profile)
+        with fence.transaction() as db:
+            db.execute("INSERT INTO legacy_leases VALUES('unverified-original-lease')")
+        authority_hash = hashlib.sha256(fence.path.read_bytes()).hexdigest()
+        source = profile / 'background_jobs/jobs/unknown.json'
+        source.parent.mkdir(parents=True)
+        raw = b'broken historical data, never parse or execute'
+        source.write_bytes(raw)
+        digest = hashlib.sha256(raw).hexdigest()
+        (profile / 'job-dispositions.json').write_text(json.dumps({'schemaVersion': 1, 'records': [{
+            'id': 'unrecognized-one', 'originalId': 'old-original-identity',
+            'sourceFile': 'background_jobs/jobs/unknown.json', 'sha256': digest,
+            'revision': 1, 'reasonCodes': ['corrupt_record'], 'executable': False}]}))
+        auth = UserAuth(profile / 'automation')
+        listener = socket.socket()
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+        assert port not in {8767, 8768}
+        owned = uvicorn.Server(uvicorn.Config(server.app, log_level='error', lifespan='on'))
+        thread = threading.Thread(target=owned.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 8
+            while not owned.started and thread.is_alive() and time.monotonic() &lt; deadline:
+                time.sleep(.01)
+            assert owned.started
+            url = f'http://127.0.0.1:{port}'
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page()
+                    page.goto(url + '/react/')
+                    page.get_by_role('heading', name='Job 维护模式').wait_for()
+                    page.get_by_label('本机用户密钥').fill(auth.key())
+                    page.get_by_role('button', name='查看保留数据').click()
+                    page.get_by_role('heading', name='old-original-identity').wait_for()
+                    assert page.get_by_role('button', name='删除原记录').is_disabled()
+                    assert page.get_by_text('未知效果未结算、不会重放。', exact=False).is_visible()
+                    assert page.get_by_label('本机用户密钥').count() == 0
+                    for width in (1440, 390, 320):
+                        page.set_viewport_size({'width': width, 'height': 900})
+                        assert page.evaluate('document.documentElement.scrollWidth &lt;= innerWidth')
+                        page.screenshot(path=str(tmp_path / f'maintenance-{width}.png'), full_page=True)
+                    denied = page.request.post(url + '/api/jobs', data={'definition': {}, 'requestKey': 'never'})
+                    assert denied.status == 503
+                    assert denied.json()['error']['code'] == 'runtime_ownership_unverified'
+                    page.route('**/api/job-maintenance/status', lambda route: route.fulfill(status=503, body='unavailable'))
+                    page.reload()
+                    page.get_by_role('alert').filter(has_text='无法核实启动状态').wait_for()
+                    assert page.get_by_role('heading', name='Canonical Jobs').count() == 0
+                finally:
+                    browser.close()
+            assert httpx.get(url + '/api/health', trust_env=False).status_code == 503
+        finally:
+            owned.should_exit = True
+            thread.join(8)
+            listener.close()
+            if thread.is_alive():
+                pending=[]
+                for task in owned.server_state.tasks:
+                    frames=[];current=task.get_coro();seen=set()
+                    while current is not None and id(current) not in seen:
+                        seen.add(id(current))
+                        frame=getattr(current,'cr_frame',None) or getattr(current,'gi_frame',None)
+                        if frame is not None:frames.append((frame.f_code.co_filename,frame.f_lineno,frame.f_code.co_name))
+                        current=getattr(current,'cr_await',None) or getattr(current,'gi_yieldfrom',None)
+                    pending.append({'task':repr(task),'awaitChain':frames})
+                print('OWNED_MAINTENANCE_PENDING='+repr(pending))
+&gt;           assert not thread.is_alive()
+E           assert not True
+E            +  where True = is_alive()
+E            +    where is_alive = &lt;Thread(Thread-5 (run), started daemon 14656)&gt;.is_alive
+
+tests\test_job_maintenance_browser.py:91: AssertionError</failure></testcase><testcase classname="tests.test_job_maintenance_browser" name="test_normal_owner_production_history_delete_and_lost_reply_query" time="4.744" /></testsuite></testsuites>

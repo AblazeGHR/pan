@@ -2,13 +2,15 @@
 import json,socket,threading,time
 from pathlib import Path
 import uvicorn
+from packages.core.host_server import PanServer
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from playwright.sync_api import sync_playwright
 from tests.test_job_final_http_service import h,job_def
 
 
-def test_production_blank_name_uses_server_default_and_lost_response_queries_original(h):
+def test_production_blank_name_uses_server_default_and_lost_response_queries_original(h, tmp_path, monkeypatch):
+    monkeypatch.setattr('packages.core.logging_setup._resolve_log_path', lambda _: tmp_path / 'host-logs/pan.log')
     dist=Path(__file__).resolve().parents[1]/'packages/web/dist'
     assert (dist/'index.html').is_file()
     from types import SimpleNamespace
@@ -25,7 +27,7 @@ def test_production_blank_name_uses_server_default_and_lost_response_queries_ori
     def bundle(path):return FileResponse(dist/'index.html')
     listener=socket.socket();listener.bind(('127.0.0.1',0));port=listener.getsockname()[1]
     assert port not in {8767,8768}
-    server=uvicorn.Server(uvicorn.Config(h.app,lifespan='off',log_level='error'))
+    server=PanServer(uvicorn.Config(h.app,lifespan='off',log_level='error'))
     thread=threading.Thread(target=server.run,kwargs={'sockets':[listener]},daemon=True);thread.start()
     try:
         deadline=time.monotonic()+5
