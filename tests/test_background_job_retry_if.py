@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 
 from packages.core import background_jobs as jobs, background_retry as retry
+from tests.test_job_automatic_recovery import env
 
 
 @pytest.fixture
@@ -39,58 +40,78 @@ def factory(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("reason", sorted(retry.REASONS))
 @pytest.mark.parametrize("match", sorted(retry.REASONS))
-def test_reason_match_matrix(factory, reason, match):
-    job = factory(retry_if=[match], max_retries=2, deduplication="Test command is a no-op")
-    ended = jobs.runner_update(job["jobId"], status="cancelled" if reason == "cancelled" else "failed",
-                               reason=reason, expected_attempt=job["attemptId"])
-    assert ended["reason"] == ended["lastReason"] == reason
-    assert ended["retryAttempts"][0]["attempt"] == 1
-    assert ended["retryAttempts"][0]["reason"] == reason
-    should_retry = match == reason and reason != "cancelled"
-    assert (ended["nextRetryAt"] is not None) == should_retry
-    assert jobs.retry_due() == int(should_retry)
-    current = jobs.get(job["jobId"])
-    assert current["attempt"] == 1 + int(should_retry)
-    assert current["argv"] == job["argv"] and current["cwd"] == job["cwd"]
-    assert current["lastReason"] == reason
+def test_reason_match_matrix(env, monkeypatch, reason, match):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, marker
+    from tests.test_job_retry_reason_matrix import original_reason
+    row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match], maxAttempts=3)))
+    original_reason(row, reason)
+    observe(env)
+    should_retry = match == reason and reason in {'failed', 'timeout', 'orphaned', 'interrupted'}
+    assert bool(marker(env, row)) is should_retry
+    assert len(env.service.final.get(row.jid)['attempts']) == 1
+    asyncio.run(env.service.dispatch_once())
+    state = env.service.final.get(row.jid)
+    assert len(state['attempts']) == 1 + int(should_retry)
+    assert len(row.original.calls) == int(should_retry)
     if should_retry:
-        assert current["attemptId"] != job["attemptId"]
+        call = row.original.calls[0]
+        assert call['effect_key'] == row.key
+        assert call['attempt']['attemptId'] != row.attempt['attemptId']
+        assert call['attempt']['generation'] == row.attempt['generation'] + 1
+    else:
+        assert not row.original.calls
 
 
-def test_default_side_effects_never_retry(factory):
-    job = factory()
-    jobs.runner_update(job["jobId"], status="failed", exitCode=1)
-    assert jobs.retry_due() == 0
-    assert jobs.get(job["jobId"])["nextRetryAt"] is None
+def test_default_side_effects_never_retry(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, observe
+    row = seed(env, monkeypatch, value=job_definition(env, recovery={'automatic': False}))
+    observe(env)
+    before = env.service.final.get(row.jid)
+    assert before['runs'][row.rid]['state'] == 'failed'
+    for _ in range(2):
+        asyncio.run(env.service.dispatch_once())
+        observe(env)
+    assert env.service.final.get(row.jid) == before
+    assert len(before['attempts']) == 1 and not row.original.calls
 
 
-def test_zero_budget_and_spawn_failure_consume_no_extra_attempt(factory, monkeypatch):
-    job = factory(retry_if=["failed"], max_retries=0, idempotency_key="no-op")
-    jobs.runner_update(job["jobId"], status="failed")
-    assert jobs.retry_due() == 0 and jobs.get(job["jobId"])["attempt"] == 1
-    job = factory(retry_if=["failed"], max_retries=1, idempotency_key="no-op")
-    jobs.runner_update(job["jobId"], status="failed")
-    # Exercise the real spawn-failure writer rather than the factory's fake runner.
-    monkeypatch.setattr(jobs, "_spawn_background_runner_unlocked", factory.real_spawn)
-    monkeypatch.setattr(jobs.subprocess, "Popen", Mock(side_effect=OSError("test spawn failure")))
-    assert jobs.retry_due() == 1
-    current = jobs.get(job["jobId"])
-    assert current["status"] == "failed" and current["reason"] == "failed"
-    assert current["attempt"] == 2 and current["remaining"] == 0
-    assert current["nextRetryAt"] is None and jobs.retry_due() == 0
+def test_zero_budget_and_spawn_failure_consume_no_extra_attempt(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, marker
+    row = seed(env, monkeypatch, value=job_definition(env, policy(maxAttempts=1)))
+    observe(env)
+    asyncio.run(env.service.dispatch_once())
+    assert len(env.service.final.get(row.jid)['attempts']) == 1 and not row.original.calls
+    row = seed(env, monkeypatch, value=job_definition(env, policy(maxAttempts=2)))
+    observe(env)
+    calls = []
+    async def fail(**kwargs):
+        calls.append(kwargs)
+        raise OSError('owned spawn failure')
+    monkeypatch.setattr(row.original, 'execute', fail)
+    asyncio.run(env.service.dispatch_once())
+    state = env.service.final.get(row.jid)
+    assert len(state['attempts']) == 2 and len(calls) == 1
+    assert state['runs'][row.rid]['state'] == 'uncertain'
+    assert marker(env, row) is None
+    for _ in range(2): asyncio.run(env.service.dispatch_once())
+    assert len(calls) == 1 and len(env.service.final.get(row.jid)['attempts']) == 2
 
 
-def test_retry_does_not_swallow_registry_failure(factory, monkeypatch):
-    job = factory(retry_if=["failed"], max_retries=1, idempotency_key="no-op")
-    jobs.runner_update(job["jobId"], status="failed")
-    monkeypatch.setattr(jobs, "_spawn_background_runner_unlocked", factory.real_spawn)
-    monkeypatch.setattr(jobs, "_update", Mock(side_effect=OSError("test registry unavailable")))
-    process = Mock()
-    monkeypatch.setattr(jobs.subprocess, "Popen", process)
-    with pytest.raises(OSError, match="test registry unavailable"):
-        jobs.retry_due()
-    process.assert_not_called()
-    assert jobs.get(job["jobId"])["status"] == "starting"
+def test_retry_does_not_swallow_registry_failure(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, observe
+    row = seed(env, monkeypatch)
+    observe(env)
+    before = env.service.final.store.get(row.jid)
+    original = env.service._save
+    def fail(db, kind, identity, value):
+        if kind == 'job' and len(value.get('finalRuntime', {}).get('attempts', {})) == 2:
+            raise OSError('owned registry unavailable')
+        return original(db, kind, identity, value)
+    monkeypatch.setattr(env.service, '_save', fail)
+    with pytest.raises(OSError, match='owned registry unavailable'):
+        asyncio.run(env.service.dispatch_once())
+    assert env.service.final.store.get(row.jid) == before
+    assert not row.original.calls
 
 
 @pytest.mark.parametrize("options", [
@@ -132,13 +153,19 @@ def test_restart_reconcile_persists_count_backoff_and_limit(factory, monkeypatch
     assert jobs.reconcile_running() == 0
 
 
-def test_cancel_during_backoff_prevents_retry(factory):
-    job = factory(retry_if=["failed", "cancelled"], max_retries=3, backoff_sec=60,
-                  deduplication="No-op command")
-    jobs.runner_update(job["jobId"], status="failed")
-    current = jobs.cancel(job["jobId"])
-    assert current["reason"] == current["lastReason"] == "cancelled"
-    assert current["nextRetryAt"] is None and jobs.retry_due() == 0
+def test_cancel_during_backoff_prevents_retry(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, USER
+    row = seed(env, monkeypatch, value=job_definition(env, policy(backoffSeconds=['60'])))
+    observe(env)
+    run = env.service.final.get(row.jid)['runs'][row.rid]
+    result = asyncio.run(env.service.control_run_postcommit(row.rid, {'operation': 'cancel',
+        'expectedStateRevision': run['stateRevision'], 'requestKey': 'cancel-backoff'}, actor=USER))
+    observe(env)
+    for _ in range(2): asyncio.run(env.service.dispatch_once())
+    state = env.service.final.get(row.jid)
+    assert state['runs'][row.rid]['state'] == 'cancelled'
+    assert len(state['attempts']) == 1 and not row.original.calls
+    assert env.service.operation(result['operationId'], actor=USER)['status'] == 'completed'
 
 
 def test_accepted_cancel_beats_orphan_recovery(factory):
@@ -151,19 +178,22 @@ def test_accepted_cancel_beats_orphan_recovery(factory):
     assert current["attempt"] == 1 and jobs.retry_due() == 0
 
 
-def test_concurrent_recovery_and_late_runner_are_fenced(factory):
-    job = factory(retry_if=["failed"], max_retries=1, deduplication="No-op command")
-    jobs.runner_update(job["jobId"], status="failed", expected_attempt=job["attemptId"])
-    with concurrent.futures.ThreadPoolExecutor(4) as pool:
-        assert sum(pool.map(lambda _: jobs.retry_due(), range(4))) == 1
-    current = jobs.get(job["jobId"])
-    assert current["attempt"] == 2 and len(factory.spawned) == 2
-    jobs.runner_update(job["jobId"], expected_attempt=job["attemptId"], status="failed")
-    assert jobs.get(job["jobId"])["status"] == "running"
-    effect = Mock()
-    with pytest.raises(ValueError, match="no longer admitted"):
-        jobs.runner_spawn(job["jobId"], effect, expected_attempt=job["attemptId"])
-    effect.assert_not_called()
+def test_concurrent_recovery_and_late_runner_are_fenced(env, monkeypatch):
+    from tests.test_job_automatic_recovery import seed, observe
+    row = seed(env, monkeypatch)
+    async def concurrent():
+        await asyncio.gather(*(env.service.dispatch_once() for _ in range(4)))
+    asyncio.run(concurrent())
+    state = env.service.final.get(row.jid)
+    assert len(row.original.calls) == 1 and len(state['attempts']) == 2
+    current = row.original.calls[0]
+    assert current['effect_key'] == row.key
+    assert current['attempt']['attemptId'] != row.attempt['attemptId']
+    # The retained old Attempt's receipt cannot settle/reexecute the new one.
+    observe(env)
+    assert any(d['code'] == 'external_receipt_unavailable' and d.get('errorCode') == 'revision_conflict'
+               and d.get('runId') == row.rid for d in env.service.diagnostics)
+    assert env.service.final.get(row.jid) == state and len(row.original.calls) == 1
 
 
 def test_orphan_does_not_duplicate_live_task(factory):

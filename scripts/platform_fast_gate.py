@@ -38,6 +38,8 @@ FAST_TESTS = (
     "tests/test_job_process_logs.py",
     "tests/test_job_process_pending.py",
     "tests/test_job_process_exit_observation.py",
+    "tests/test_job_retry_reason_matrix.py",
+    "tests/test_job_process_stale_recovery.py",
     "tests/test_job_event_deferred_inbox.py",
     "tests/test_job_final_executors.py",
     "tests/test_lifecycle_fast_contract.py",

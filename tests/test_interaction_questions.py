@@ -201,12 +201,25 @@ def test_large_v2_runtime_admission_and_scope_recheck(tmp_path, monkeypatch):
                 result = await client.post(f"/api/user-inbox/{card['id']}/submit", json=submission(answers))
                 assert result.status_code == 200, result.text
                 assert result.json()['card']['delivery']['state'] == 'accepted', result.text
-                events = svc.events.page()['events']
-                assert len(events) == 1 and events[0]['event']['payload']['response']['answers'] == answers
+                host = svc.final_jobs
+                actor = {'type': 'user', 'id': 'local'}
+                trigger_id = old_request['card']['choices'][0]['triggerRef']['id']
+                selected = host.get('trigger', trigger_id, actor=actor)
+                state = host.final.store.get(selected['targetJobId'])['finalRuntime']
+                plan, = state['plans'].values()
+                assert plan['frozen']['event']['payload']['response']['answers'] == answers
+                with host.transaction(readonly=True) as db:
+                    assert db.execute('SELECT count(*) FROM final_event_operations').fetchone()[0] == 1
+                assert svc.events.page()['events'] == []  # No legacy Event writer.
                 # Revoked scope/changed meaning blocks the whole card before persistence.
                 data['requestKey'] = 'stale'
                 stale_card = create(svc, store, data)
-                svc.engine.actions.put('actions', action([owner.id]))
+                from packages.jobs.final_service import definition
+                job = host.get('job', selected['targetJobId'], actor=actor)
+                changed = definition('job', job)
+                changed['steps'][0]['arguments']['sessionId'] = {'from': 'literal', 'value': owner.id}
+                host.write('job', job['id'], {'definition': changed,
+                    'expectedRevision': job['configRevision'], 'requestKey': 'change-approved-target'}, actor=actor)
                 denied = await client.post(f"/api/user-inbox/{stale_card['id']}/submit", json=submission(answers))
                 assert denied.status_code == 409 and denied.json()['detail']['code'] == 'stale'
                 assert store.get_for_user(USER, stale_card['id'])['status'] == 'open'

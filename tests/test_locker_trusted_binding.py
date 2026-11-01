@@ -30,13 +30,22 @@ async def setup(tmp_path, monkeypatch):
         calls.append(sid)
         return {'ok':True}
     svc=Service(tmp_path/'automation',worker,pause)
-    await svc.start()
+    from packages.jobs.final_service import bind as bind_final
+    from tests.test_interaction_canonical_binding import graph
+    host = bind_final(FastAPI(), svc, tmp_path / 'canonical')
+    host.owner.claim(0)
+    host.owner.set_state('active')
     adapter=bind(svc)
-    svc.engine.actions.put('actions',action([target.id]))
-    svc.ledger.put({**trigger('selected'),'eventTypes':['pan.interaction.responded']},0,True)
+    _, selected, _ = graph(host, target.id)
+    await svc.start()
+    close_automation = svc.close
+    async def close_owned():
+        try: await close_automation()
+        finally: await host.close()
+    monkeypatch.setattr(svc, 'close', close_owned)
     request={'ownerSessionId':owner.id,'recipientId':'user','requestKey':'card',
              'card':{'title':'Producer label','body':'body','answerInput':{},'choices':[{'id':'go','label':'Do nothing',
-                      'triggerRef':{'id':'selected'}}]}}
+                      'triggerRef':{'id':selected['id']}}]}}
     return svc,adapter,owner,target,calls,request
 
 

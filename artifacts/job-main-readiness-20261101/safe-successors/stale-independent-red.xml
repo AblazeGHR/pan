@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.122" timestamp="2026-11-01T20:21:09.053448+08:00" hostname="ablaze"><testcase classname="tests.test_job_process_stale_recovery" name="test_stale_unknown_attempt_is_unchanged_while_other_original_receipt_settles" time="0.555"><failure message="packages.jobs.final_contracts.ContractError: Original process proof differs from frozen Attempt/effect/plan">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000137FFD086E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000137FFBF7CB0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000137FFBF56A0&gt;, serial=2)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000137FFB6EC40&gt;
+
+    def test_stale_unknown_attempt_is_unchanged_while_other_original_receipt_settles(env, monkeypatch):
+        stale = seed(env, monkeypatch)
+        asyncio.run(env.service.dispatch_once())
+        before = env.service.final.store.get(stale.jid)
+        assert len(before['finalRuntime']['attempts']) == 2
+        assert before['finalRuntime']['runs'][stale.rid]['state'] == 'uncertain'
+        other = seed(env, monkeypatch, value=job_definition(env, recovery={'automatic': False}))
+        adapters = {stale.jid: stale.original, other.jid: other.original}
+        monkeypatch.setattr(env.service, '_external_adapter', lambda jid: adapters[jid])
+&gt;       asyncio.run(env.service.recover_external_receipts())
+
+tests\test_job_process_stale_recovery.py:16: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:2144: in recover_external_receipts
+    self._validate_process_document(job, targets[0], documents[0])
+packages\jobs\final_service.py:1474: in _validate_process_document
+    error("revision_conflict", "Original process proof differs from frozen Attempt/effect/plan")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+code = 'revision_conflict'
+message = 'Original process proof differs from frozen Attempt/effect/plan'
+
+    def error(code, message):
+&gt;       raise fc.ContractError(code, message)
+E       packages.jobs.final_contracts.ContractError: Original process proof differs from frozen Attempt/effect/plan
+
+packages\jobs\final_service.py:38: ContractError</failure></testcase></testsuite></testsuites>

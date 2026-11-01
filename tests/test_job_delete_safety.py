@@ -223,7 +223,12 @@ def test_scheduled_terminal_child_writeback_does_not_recreate_deleted_parent(mon
     jobs._save(parent);jobs._save(child)
     assert jobs.delete_job('job_parent')
     jobs.runner_update(child['jobId'],status='completed',exitCode=0)
-    jobs._reconcile_scheduled_processes(jobs._root())
+    from packages.jobs.retired import RetiredEntryPoint
+    with pytest.raises(RetiredEntryPoint, match='retired'):
+        jobs._reconcile_scheduled_processes(jobs._root())
+    # History callbacks still cannot resurrect the deleted parent. Canonical
+    # late-receipt behavior is exercised by the real process/log HTTP suite.
+    jobs.runner_update(child['jobId'],status='completed',exitCode=0)
     assert jobs.get('job_parent') is None
 
 

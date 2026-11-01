@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.405" timestamp="2026-11-01T20:18:49.014311+08:00" hostname="ablaze"><testcase classname="tests.test_background_job_retry_if" name="test_cancel_during_backoff_prevents_retry" time="0.462"><failure message="AssertionError: assert 'completed' == 'complete'&#10;  &#10;  - complete&#10;  + completed&#10;  ?         +">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x0000021581569D30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x0000021581569400&gt;, app=&lt;fastapi.applications.FastAPI object at 0x0000021581382900&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000215814F4510&gt;
+
+    def test_cancel_during_backoff_prevents_retry(env, monkeypatch):
+        from tests.test_job_automatic_recovery import seed, job_definition, policy, observe, USER
+        row = seed(env, monkeypatch, value=job_definition(env, policy(backoffSeconds=['60'])))
+        observe(env)
+        run = env.service.final.get(row.jid)['runs'][row.rid]
+        result = asyncio.run(env.service.control_run_postcommit(row.rid, {'operation': 'cancel',
+            'expectedStateRevision': run['stateRevision'], 'requestKey': 'cancel-backoff'}, actor=USER))
+        observe(env)
+        for _ in range(2): asyncio.run(env.service.dispatch_once())
+        state = env.service.final.get(row.jid)
+        assert state['runs'][row.rid]['state'] == 'cancelled'
+        assert len(state['attempts']) == 1 and not row.original.calls
+&gt;       assert env.service.operation(result['operationId'], actor=USER)['status'] == 'complete'
+E       AssertionError: assert 'completed' == 'complete'
+E         
+E         - complete
+E         + completed
+E         ?         +
+
+tests\test_background_job_retry_if.py:164: AssertionError</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_concurrent_recovery_and_late_runner_are_fenced" time="0.442"><failure message="AssertionError: assert ({'admissions'...dex': {}, ...} == {'admissions'...dex': {}, ...}&#10;  &#10;  Omitting 5 identical items, use -vv to show&#10;  Differing items:&#10;[+4 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000002158178DE50&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000002158178C910&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000215816FC6E0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000215814F4640&gt;
+
+    def test_concurrent_recovery_and_late_runner_are_fenced(env, monkeypatch):
+        from tests.test_job_automatic_recovery import seed, observe
+        row = seed(env, monkeypatch)
+        async def concurrent():
+            await asyncio.gather(*(env.service.dispatch_once() for _ in range(4)))
+        asyncio.run(concurrent())
+        state = env.service.final.get(row.jid)
+        assert len(row.original.calls) == 1 and len(state['attempts']) == 2
+        current = row.original.calls[0]
+        assert current['effect_key'] == row.key
+        assert current['attempt']['attemptId'] != row.attempt['attemptId']
+        # The retained old Attempt's receipt cannot settle/reexecute the new one.
+        observe(env)
+&gt;       assert env.service.final.get(row.jid) == state and len(row.original.calls) == 1
+E       AssertionError: assert ({'admissions'...dex': {}, ...} == {'admissions'...dex': {}, ...}
+E         
+E         Omitting 5 identical items, use -vv to show
+E         Differing items:
+E         {'attempts': {'attempt_9fa947aca10342f0a4918d0a': {'attemptId': 'attempt_9fa947aca10342f0a4918d0a', 'endedAt': '2026-1...5d5caa', 'endedAt': '2026-11-01T12:18:50.376251Z', 'generation': 2, 'leaseId': 'lease_a385b9f15de843b7b6a67a1f', ...}}} != {'attempts': {'attempt_9fa947aca10342f0a4918d0a': {'attemptId': 'attempt_9fa947aca10342f0a4918d0a', 'endedAt': '2026-1...5d5caa', 'endedAt': '2026-11-01T12:18:50.356202Z', 'generation': 2, 'leaseId': 'lease_a385b9f15de843b7b6a67a1f', ...}}}
+E         {'effects': [{'attemptId': 'attem...
+E         
+E         ...Full output truncated, use '-vv' to show)
+
+tests\test_background_job_retry_if.py:190: AssertionError</failure></testcase></testsuite></testsuites>

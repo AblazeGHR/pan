@@ -1,0 +1,742 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="24" skipped="0" tests="65" time="28.277" timestamp="2026-11-01T20:38:57.032928+08:00" hostname="ablaze"><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-cancelled]" time="0.862" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-dependency-unavailable]" time="0.466" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-failed]" time="0.452" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-interrupted]" time="0.398" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-orphaned]" time="0.610" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[cancelled-timeout]" time="0.646" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-cancelled]" time="0.660" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-dependency-unavailable]" time="0.663" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-failed]" time="0.633" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-interrupted]" time="0.638" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-orphaned]" time="0.635" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[dependency-unavailable-timeout]" time="0.674" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-cancelled]" time="0.620" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-dependency-unavailable]" time="0.596" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-failed]" time="0.656" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-interrupted]" time="0.641" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-orphaned]" time="0.654" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[failed-timeout]" time="0.672" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-cancelled]" time="0.647" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-dependency-unavailable]" time="0.659" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-failed]" time="0.658" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-interrupted]" time="0.667" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-orphaned]" time="0.520" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[interrupted-timeout]" time="0.514" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-cancelled]" time="0.620" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-dependency-unavailable]" time="0.604" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-failed]" time="0.617" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-interrupted]" time="0.658" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-orphaned]" time="0.661" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[orphaned-timeout]" time="0.625" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-cancelled]" time="0.660" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-dependency-unavailable]" time="0.628" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-failed]" time="0.648" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-interrupted]" time="0.653" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-orphaned]" time="0.654" /><testcase classname="tests.test_background_job_retry_if" name="test_reason_match_matrix[timeout-timeout]" time="0.700" /><testcase classname="tests.test_background_job_retry_if" name="test_default_side_effects_never_retry" time="0.749" /><testcase classname="tests.test_background_job_retry_if" name="test_zero_budget_and_spawn_failure_consume_no_extra_attempt" time="0.825" /><testcase classname="tests.test_background_job_retry_if" name="test_retry_does_not_swallow_registry_failure" time="0.614" /><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options0]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6226E50&gt;
+options = {'retry_if': ['orphaned']}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options1]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6394E00&gt;
+options = {'retry_if': ['unknown']}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options2]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6396090&gt;
+options = {'retry_if': 'failed'}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options3]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6396560&gt;
+options = {'max_retries': True}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options4]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A63973D0&gt;
+options = {'max_retries': -1}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options5]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A63975E0&gt;
+options = {'max_retries': 1.5}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options6]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A63973D0&gt;
+options = {'backoff_sec': True}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options7]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6396DA0&gt;
+options = {'backoff_sec': inf}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options8]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6395A60&gt;
+options = {'backoff_sec': nan}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options9]" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6394930&gt;
+options = {'backoff_sec': -1}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options10]" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A64010C0&gt;
+options = {'idempotency_key': ''}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_invalid_policy_has_no_effect[options11]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A64019B0&gt;
+options = {'deduplication': ' '}
+
+    @pytest.mark.parametrize("options", [
+        {"retry_if": ["orphaned"]}, {"retry_if": ["unknown"]}, {"retry_if": "failed"},
+        {"max_retries": True}, {"max_retries": -1}, {"max_retries": 1.5},
+        {"backoff_sec": True}, {"backoff_sec": float("inf")}, {"backoff_sec": float("nan")},
+        {"backoff_sec": -1}, {"idempotency_key": ""}, {"deduplication": " "},
+    ])
+    def test_invalid_policy_has_no_effect(factory, options):
+        with pytest.raises(ValueError):
+&gt;           factory(**options)
+
+tests\test_background_job_retry_if.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_restart_reconcile_persists_count_backoff_and_limit" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6401220&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A622C050&gt;
+
+    def test_restart_reconcile_persists_count_backoff_and_limit(factory, monkeypatch):
+        clock = [1000.0]
+        monkeypatch.setattr(jobs.time, "time", lambda: clock[0])
+&gt;       job = factory(retry_if=["orphaned"], max_retries=2, backoff_sec=10,
+                      idempotency_key="watcher-single-writer")
+
+tests\test_background_job_retry_if.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_cancel_during_backoff_prevents_retry" time="0.701" /><testcase classname="tests.test_background_job_retry_if" name="test_accepted_cancel_beats_orphan_recovery" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6348880&gt;
+
+    def test_accepted_cancel_beats_orphan_recovery(factory):
+&gt;       job = factory(retry_if=list(retry.REASONS), max_retries=3, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_concurrent_recovery_and_late_runner_are_fenced" time="0.609" /><testcase classname="tests.test_background_job_retry_if" name="test_orphan_does_not_duplicate_live_task" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A609E6C0&gt;
+
+    def test_orphan_does_not_duplicate_live_task(factory):
+&gt;       job = factory(retry_if=["orphaned"], max_retries=1, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_http_policy_and_public_status" time="0.251"><failure message="AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A606EA30&gt;
+
+    def test_http_policy_and_public_status(factory):
+        from packages.web import server
+&gt;       result = asyncio.run(server.api_background_job_start(dict(
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            targetSessionId="ses_target", argv=[sys.executable], cwd=str(jobs.DEFAULT_ROOT.parent),
+            name="API retry contract", retryIf=["failed"], maxRetries=1, backoffSec=30,
+            idempotencyKey="caller-enforced")))
+E       AttributeError: module 'packages.web.server' has no attribute 'api_background_job_start'. Did you mean: 'api_background_job_get'?
+
+tests\test_background_job_retry_if.py:211: AttributeError</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_runner_does_not_collapse_terminal_reasons[error0-timeout]" time="0.008"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A66D19B0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A465EBA0&gt;
+error = TimeoutError('runner timeout'), reason = 'timeout'
+
+    @pytest.mark.parametrize("error, reason", [
+        (TimeoutError("runner timeout"), "timeout"),
+        (subprocess.TimeoutExpired("owned command", 1), "timeout"),
+        (KeyboardInterrupt(), "interrupted"), (OSError("spawn failed"), "failed"),
+    ])
+    def test_runner_does_not_collapse_terminal_reasons(factory, monkeypatch, error, reason):
+        from packages.core import background_runner
+&gt;       job = factory(retry_if=[reason], max_retries=1, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:229: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_runner_does_not_collapse_terminal_reasons[error1-timeout]" time="0.005"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A66D2B90&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A465EE40&gt;
+error = TimeoutExpired('owned command', 1), reason = 'timeout'
+
+    @pytest.mark.parametrize("error, reason", [
+        (TimeoutError("runner timeout"), "timeout"),
+        (subprocess.TimeoutExpired("owned command", 1), "timeout"),
+        (KeyboardInterrupt(), "interrupted"), (OSError("spawn failed"), "failed"),
+    ])
+    def test_runner_does_not_collapse_terminal_reasons(factory, monkeypatch, error, reason):
+        from packages.core import background_runner
+&gt;       job = factory(retry_if=[reason], max_retries=1, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:229: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_runner_does_not_collapse_terminal_reasons[error2-interrupted]" time="0.008"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A66D3530&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B2900&gt;
+error = KeyboardInterrupt(), reason = 'interrupted'
+
+    @pytest.mark.parametrize("error, reason", [
+        (TimeoutError("runner timeout"), "timeout"),
+        (subprocess.TimeoutExpired("owned command", 1), "timeout"),
+        (KeyboardInterrupt(), "interrupted"), (OSError("spawn failed"), "failed"),
+    ])
+    def test_runner_does_not_collapse_terminal_reasons(factory, monkeypatch, error, reason):
+        from packages.core import background_runner
+&gt;       job = factory(retry_if=[reason], max_retries=1, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:229: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_runner_does_not_collapse_terminal_reasons[error3-failed]" time="0.006"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A66D3A00&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B2970&gt;
+error = OSError('spawn failed'), reason = 'failed'
+
+    @pytest.mark.parametrize("error, reason", [
+        (TimeoutError("runner timeout"), "timeout"),
+        (subprocess.TimeoutExpired("owned command", 1), "timeout"),
+        (KeyboardInterrupt(), "interrupted"), (OSError("spawn failed"), "failed"),
+    ])
+    def test_runner_does_not_collapse_terminal_reasons(factory, monkeypatch, error, reason):
+        from packages.core import background_runner
+&gt;       job = factory(retry_if=[reason], max_retries=1, deduplication="No-op command")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_job_retry_if.py:229: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_unavailable_independent_policy_fails_before_remote_start" time="0.007"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A6734250&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B1550&gt;
+
+    def test_unavailable_independent_policy_fails_before_remote_start(factory, monkeypatch):
+        from packages.jobs import pan_bridge
+        remote = Mock()
+        monkeypatch.setattr(pan_bridge, "configured_client", lambda: object())
+        monkeypatch.setattr(pan_bridge, "request", remote)
+        with pytest.raises(ValueError, match="not supported"):
+&gt;           factory(retry_if=["failed"], max_retries=1, idempotency_key="caller-enforced")
+
+tests\test_background_job_retry_if.py:247: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_recovery_notifies_final_outcome_once" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">factory = &lt;function factory.&lt;locals&gt;.create at 0x00000171A67345C0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B18D0&gt;
+
+    def test_recovery_notifies_final_outcome_once(factory, monkeypatch):
+&gt;       job = factory(retry_if=["failed"], max_retries=1, backoff_sec=60,
+                      deduplication="No-op command")
+
+tests\test_background_job_retry_if.py:253: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_background_job_retry_if.py:34: in create
+    return jobs.start("ses_target", [sys.executable, "-c", "pass"], str(tmp_path),
+           ^^^^^^^^^^
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_separate_recovery_process_after_runner_loss[orphaned]" time="0.004"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6634/test_separate_recovery_process0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B1BE0&gt;
+recovery_reason = 'orphaned'
+
+    @pytest.mark.parametrize("recovery_reason", ["orphaned", "failed"])
+    def test_separate_recovery_process_after_runner_loss(tmp_path, monkeypatch, recovery_reason):
+        """A fresh interpreter recovers the same durable Job; no Pan service needed."""
+        from packages.core import session
+        monkeypatch.setattr(jobs, "_scheduled_task_hooks", {})
+        target = session.Session(id="ses_retry", name="Retry", workdir=str(tmp_path))
+        session._cache[target.id] = target
+        # Publish a process record as if shutdown interrupted its runner.
+        monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kw: job)
+        marker = tmp_path / "completed.txt"
+        command = "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('recovered')"
+        if recovery_reason == "failed":
+            command = ("from pathlib import Path; import time; p=Path(" + repr(str(marker))
+                       + "); first=not p.exists(); p.write_text('recovered'); time.sleep(.1); "
+                       "raise SystemExit(7 if first else 0)")
+&gt;       job = jobs.start(target.id, [sys.executable, "-c", command],
+              ^^^^^^^^^^
+            str(tmp_path), name="Restart contract", hide_window=False,
+            retry_if=[recovery_reason], max_retries=1, deduplication="Writes the same marker value")
+
+tests\test_background_job_retry_if.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_job_retry_if" name="test_separate_recovery_process_after_runner_loss[failed]" time="0.009"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6634/test_separate_recovery_process1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000171A66B1DA0&gt;
+recovery_reason = 'failed'
+
+    @pytest.mark.parametrize("recovery_reason", ["orphaned", "failed"])
+    def test_separate_recovery_process_after_runner_loss(tmp_path, monkeypatch, recovery_reason):
+        """A fresh interpreter recovers the same durable Job; no Pan service needed."""
+        from packages.core import session
+        monkeypatch.setattr(jobs, "_scheduled_task_hooks", {})
+        target = session.Session(id="ses_retry", name="Retry", workdir=str(tmp_path))
+        session._cache[target.id] = target
+        # Publish a process record as if shutdown interrupted its runner.
+        monkeypatch.setattr(jobs, "_spawn_background_runner", lambda job, **kw: job)
+        marker = tmp_path / "completed.txt"
+        command = "from pathlib import Path; Path(" + repr(str(marker)) + ").write_text('recovered')"
+        if recovery_reason == "failed":
+            command = ("from pathlib import Path; import time; p=Path(" + repr(str(marker))
+                       + "); first=not p.exists(); p.write_text('recovered'); time.sleep(.1); "
+                       "raise SystemExit(7 if first else 0)")
+&gt;       job = jobs.start(target.id, [sys.executable, "-c", command],
+              ^^^^^^^^^^
+            str(tmp_path), name="Restart contract", hide_window=False,
+            retry_if=[recovery_reason], max_retries=1, deduplication="Writes the same marker value")
+
+tests\test_background_job_retry_if.py:287: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start retired; use canonical FinalService/FinalRuntime/CreatorRuntime. Did you mean: 'stat'?
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase></testsuite></testsuites>

@@ -292,10 +292,10 @@ class FinalService:
         if kind == "job":
             recovery = value.get("recovery", {})
             if recovery.get("automatic"):
-                if (not recovery.get("retryIf") or set(recovery["retryIf"]) - {"failed", "timeout"}
+                if (not recovery.get("retryIf")
                         or any(a["execution"]["operation"] != "process" or a.get("effectClass") == "high_risk"
                                or not (a["retry"]["idempotent"] or a["retry"]["sameKeySupported"]) for a in checked[:len(value["steps"])])):
-                    error("capability_unsupported", "Automatic recovery supports only process failed/timeout with trusted cleanup and execution timing")
+                    error("capability_unsupported", "Automatic recovery requires process Actions with a nonempty policy, retry safety and trusted cleanup")
             self._check_literal_product_sessions(value, checked)
             self._check_literal_product_qq(value, checked)
             from packages.jobs.session_delivery_runtime import validate_references
@@ -1483,6 +1483,22 @@ class FinalService:
             return "timeout"
         if receipt.get("code") == "monitoring_completion_invalid":
             return "failed"
+        if receipt.get('code') in {'orphaned', 'interrupted'}:
+            from packages.core.platform.process import ProcessIdentity, IDENTITY_SCHEMA
+            identity = doc.get('supervisorIdentity')
+            proof = doc.get('supervisorExitProof', {})
+            if (type(receipt.get('exitCode')) is not int or receipt['exitCode'] == 0
+                    or not FinalService._cleanup_complete(doc)
+                    or not isinstance(identity, dict) or identity.get('schema') != IDENTITY_SCHEMA
+                    or type(identity.get('pid')) is not int
+                    or not isinstance(identity.get('birth'), str) or not identity['birth']
+                    or proof.get('identity') != identity):
+                return None
+            try:
+                ProcessIdentity.from_dict(identity)
+            except (ValueError, TypeError):
+                return None
+            return receipt['code']
         if ("code" not in receipt and type(receipt.get("exitCode")) is int
                 and receipt["exitCode"] != 0):
             return "failed"
@@ -2100,6 +2116,15 @@ class FinalService:
                         self._validate_process_document(job, targets[0], documents[0])
                         if state["attempts"][pending_aid]["state"] != "running":
                             continue
+                        if (receipt and receipt.get('outcome') == 'rejected'
+                                and receipt.get('receipt', {}).get('code') in {'orphaned', 'interrupted'}
+                                and self._process_retry_reason(documents[0]) is None):
+                            # An abnormal label is not proof of a known failed
+                            # original effect. Preserve the observation as unknown.
+                            receipt = {**copy.deepcopy(receipt), 'outcome': 'unknown',
+                                'receipt': {'code': 'process_exit_unproven',
+                                    'originalReceipt': copy.deepcopy(receipt.get('receipt', {}))},
+                                'cleanupProof': {'confirmed': False}}
                         if (receipt is None and documents[0].get('supervisorIdentity')
                                 and documents[0].get('supervisorExitProof', {}).get('confirmed') is True):
                             from packages.core.platform.process import ProcessIdentity, IDENTITY_SCHEMA
@@ -2137,6 +2162,27 @@ class FinalService:
                         continue
                     if not receipt or receipt.get("outcome") not in {"succeeded", "rejected"}:
                         continue
+                    action = plan['frozen']['actions'][original_step['actionRef']['id']]
+                    if self.executor is self._product_executor and action['execution']['operation'] == 'process':
+                        # A later lookup must carry this Attempt's full fence,
+                        # including after an unknown outcome lost pending status.
+                        try:
+                            self._validate_process_document(job, targets[0], documents[0])
+                        except fc.ContractError as exc:
+                            if exc.code != 'revision_conflict':
+                                raise
+                            self.diagnostics.append({'at': now(), 'code': 'external_receipt_unavailable',
+                                'errorCode': exc.code, 'runId': rid,
+                                'attemptId': targets[0]['attempt']['attemptId']})
+                            del self.diagnostics[:-100]
+                            continue  # Refuse this stale observation, recover other Runs.
+                        if (receipt.get('receipt', {}).get('code') in {'orphaned', 'interrupted'}
+                                and self._process_retry_reason(documents[0]) is None):
+                            self.diagnostics.append({'at': now(), 'code': 'external_receipt_unavailable',
+                                'errorCode': 'reconciliation_required', 'runId': rid,
+                                'attemptId': targets[0]['attempt']['attemptId']})
+                            del self.diagnostics[:-100]
+                            continue  # An existing unknown cannot become a claimed failure without proof.
                     if original_step["completion"]["contract"] == "monitoring":
                         if state["attempts"][targets[0]["attempt"]["attemptId"]]["state"] not in {"running", "uncertain"}:
                             continue

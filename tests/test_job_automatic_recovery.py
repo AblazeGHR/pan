@@ -139,7 +139,7 @@ def marker(h, row):
 
 @pytest.mark.parametrize("recovery,code", [
     (policy(retryIf=[]), "capability_unsupported"),
-    *[(policy(retryIf=[r]), "capability_unsupported") for r in ["orphaned", "interrupted", "dependency-unavailable", "cancelled"]],
+    *[(policy(retryIf=[r]), None) for r in ["orphaned", "interrupted", "dependency-unavailable", "cancelled"]],
     (policy(stableResetSeconds="-1"), "invalid_schema"),
     (policy(maxAttempts=11), "invalid_schema"), (policy(maxAttempts=True), "invalid_schema"),
     (policy(retryIf=["failed", "failed"]), "invalid_schema"),
@@ -148,6 +148,13 @@ def marker(h, row):
 def test_unsupported_or_malformed_before_write(env, recovery, code):
     response = env.client.post("/api/jobs", json={"definition": job_definition(env, recovery),
         "expectedRevision": 0, "requestKey": "bad"})
+    if code is None:
+        assert response.status_code == 201, response.text
+        item = response.json()['result']['object']
+        assert item['recovery']['retryIf'] == recovery['retryIf']
+        state = env.service.final.get(item['id'])
+        assert not state['runs'] and not state['attempts'] and not state['effects']
+        return  # Configuration acceptance alone admits no effect.
     assert response.status_code == fc.ERROR_HTTP_STATUS[code]
     assert response.json()["error"]["code"] == code
     assert env.client.get("/api/jobs").json()["items"] == []
@@ -302,7 +309,11 @@ def test_concurrent_pulses_claim_once_and_late_original_is_inert(env, monkeypatc
     asyncio.run(both())
     assert len(row.original.calls) == 1
     assert len(state(env, row.jid)["attempts"]) == 2
+    before = state(env, row.jid)
     observe(env)
+    assert any(d['code'] == 'external_receipt_unavailable' and d.get('errorCode') == 'revision_conflict'
+               and d.get('runId') == row.rid for d in env.service.diagnostics)
+    assert state(env, row.jid) == before
     assert len(row.original.calls) == 1
 
 

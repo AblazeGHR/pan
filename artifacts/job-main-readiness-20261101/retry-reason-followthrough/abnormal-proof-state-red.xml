@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="10" time="6.005" timestamp="2026-11-01T20:30:52.391525+08:00" hostname="ablaze"><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-orphaned]" time="0.467"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A99BC830&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A989FE00&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A989DE80&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A980F360&gt;
+reason = 'orphaned', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-interrupted]" time="0.458"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9BED310&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9BECB90&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9BCCEC0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A980F490&gt;
+reason = 'interrupted', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[zeroExit-orphaned]" time="0.433"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9D1D950&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9D1D1D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9D01400&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A99C3650&gt;
+reason = 'orphaned', missing = 'zeroExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[zeroExit-interrupted]" time="0.424"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9CA68B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9CA6190&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9DC6900&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9DD9BF0&gt;
+reason = 'interrupted', missing = 'zeroExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-orphaned]" time="0.501"><failure message="AssertionError: assert 'running' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + running">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9EF1F30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9EF1810&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9EE0440&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9E73DF0&gt;
+reason = 'orphaned', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'running' == 'uncertain'
+E         
+E         - uncertain
+E         + running
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-interrupted]" time="0.703"><failure message="AssertionError: assert 'running' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + running">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9F6C510&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9FEC950&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9DC67B0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9F64750&gt;
+reason = 'interrupted', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'running' == 'uncertain'
+E         
+E         - uncertain
+E         + running
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-orphaned]" time="0.607"><failure message="AssertionError: assert 'running' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + running">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9CA5940&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9DD8160&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A99BDD30&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9A37750&gt;
+reason = 'orphaned', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'running' == 'uncertain'
+E         
+E         - uncertain
+E         + running
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-interrupted]" time="0.614"><failure message="AssertionError: assert 'running' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + running">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9CA50F0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9C45040&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9A8A7B0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9900140&gt;
+reason = 'interrupted', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'running' == 'uncertain'
+E         
+E         - uncertain
+E         + running
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-orphaned]" time="0.620"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9CA5BA0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A98A2C50&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9B78C20&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9C04C80&gt;
+reason = 'orphaned', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-interrupted]" time="0.629"><failure message="AssertionError: assert 'failed' == 'uncertain'&#10;  &#10;  - uncertain&#10;  + failed">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000202A9CA5F30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000202A9C2F150&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000202A9DFA660&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000202A9C6BE70&gt;
+reason = 'interrupted', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+&gt;       assert state['runs'][row.rid]['state'] == 'uncertain'
+E       AssertionError: assert 'failed' == 'uncertain'
+E         
+E         - uncertain
+E         + failed
+
+tests\test_job_retry_reason_matrix.py:51: AssertionError</failure></testcase></testsuite></testsuites>

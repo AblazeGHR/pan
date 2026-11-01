@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="12" time="7.266" timestamp="2026-11-01T20:37:38.189464+08:00" hostname="ablaze"><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-orphaned]" time="0.491"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FF5F8830&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF4DFE00&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF4DDE80&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF44F490&gt;
+reason = 'orphaned', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_cd7ba60d057f4400b13a4bfc': {'admissionId': 'adm_cd7ba60d057f4400b13a4bfc', 'auth...bc8fed7af04120b5ea38e2', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_cd7ba60d057f4400b13a4bfc': {'admissionId': 'adm_cd7ba60d057f4400b13a4bfc', 'auth...4bc8fed7af04120b5ea38e2', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-interrupted]" time="0.467"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FF880190&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF7E7750&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF6CF4D0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF44F5C0&gt;
+reason = 'interrupted', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_64bb6970f4504d379ac1c193': {'admissionId': 'adm_64bb6970f4504d379ac1c193', 'auth...b0a46b8fd34445bd967497', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_64bb6970f4504d379ac1c193': {'admissionId': 'adm_64bb6970f4504d379ac1c193', 'auth...5b0a46b8fd34445bd967497', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[zeroExit-orphaned]" time="0.517"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FF9A87D0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF9A8050&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF6CE900&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF6030B0&gt;
+reason = 'orphaned', missing = 'zeroExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_73bbf5c1504b4b85b98ecd14': {'admissionId': 'adm_73bbf5c1504b4b85b98ecd14', 'auth...7e3bf5afad4f6c886fbdcc', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_73bbf5c1504b4b85b98ecd14': {'admissionId': 'adm_73bbf5c1504b4b85b98ecd14', 'auth...e7e3bf5afad4f6c886fbdcc', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[zeroExit-interrupted]" time="0.447"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FF90DE00&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF90CD60&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FFA1ABA0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FFA31D00&gt;
+reason = 'interrupted', missing = 'zeroExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_a5f2bae9e54d45338702b5e5': {'admissionId': 'adm_a5f2bae9e54d45338702b5e5', 'auth...779ae3178645219813d99a', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_a5f2bae9e54d45338702b5e5': {'admissionId': 'adm_a5f2bae9e54d45338702b5e5', 'auth...d779ae3178645219813d99a', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-orphaned]" time="0.739"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFAF1E00&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FFAF16E0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FFA1AA50&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FFA33680&gt;
+reason = 'orphaned', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_c960476ac3704913954ae8f3': {'admissionId': 'adm_c960476ac3704913954ae8f3', 'auth...d392c0030c406c8cbb32f3', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_c960476ac3704913954ae8f3': {'admissionId': 'adm_c960476ac3704913954ae8f3', 'auth...ad392c0030c406c8cbb32f3', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-interrupted]" time="0.662"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFAF3230&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FFA5C170&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF8102F0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF4E3350&gt;
+reason = 'interrupted', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_89a978092302414993ffe7be': {'admissionId': 'adm_89a978092302414993ffe7be', 'auth...2f846cd57247c8b2c57d6d', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_89a978092302414993ffe7be': {'admissionId': 'adm_89a978092302414993ffe7be', 'auth...b2f846cd57247c8b2c57d6d', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-orphaned]" time="0.560"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFAF3490&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF766580&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF6CFB60&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF67E950&gt;
+reason = 'orphaned', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_a6020698d0e442efae7a0e6e': {'admissionId': 'adm_a6020698d0e442efae7a0e6e', 'auth...4ce72afbf841a68ab1c921', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_a6020698d0e442efae7a0e6e': {'admissionId': 'adm_a6020698d0e442efae7a0e6e', 'auth...f4ce72afbf841a68ab1c921', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-interrupted]" time="0.484"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFAF3A80&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF7DE7A0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FFBB8D70&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FF8E5040&gt;
+reason = 'interrupted', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_eada2d510ebb4fb188945e05': {'admissionId': 'adm_eada2d510ebb4fb188945e05', 'auth...3b936bd7b14362ab005c73', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_eada2d510ebb4fb188945e05': {'admissionId': 'adm_eada2d510ebb4fb188945e05', 'auth...53b936bd7b14362ab005c73', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-orphaned]" time="0.524"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFAF3CE0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF934650&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FF9727B0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FE345D60&gt;
+reason = 'orphaned', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_bdf9f3940d574cdaad58e82d': {'admissionId': 'adm_bdf9f3940d574cdaad58e82d', 'auth...38bf8f49874ed494c5acb1', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_bdf9f3940d574cdaad58e82d': {'admissionId': 'adm_bdf9f3940d574cdaad58e82d', 'auth...438bf8f49874ed494c5acb1', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-interrupted]" time="0.523"><failure message="AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}&#10;  &#10;  Omitting 4 identical items, use -vv to show&#10;  Differing items:&#10;[+2 more lines; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x000001D6FFCC0180&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x000001D6FF937B50&gt;, app=&lt;fastapi.applications.FastAPI object at 0x000001D6FFCA01A0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D6FFBF9630&gt;
+reason = 'interrupted', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'zeroExit', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+        row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+        original_reason(row, reason)
+        if missing == 'exitCode': row.doc['result']['receipt'].pop('exitCode')
+        elif missing == 'zeroExit': row.doc['result']['receipt']['exitCode'] = 0
+        elif missing == 'cleanup': row.doc['result']['cleanupProof']['confirmed'] = False
+        elif missing == 'supervisorExit': row.doc['supervisorExitProof']['confirmed'] = False
+        else: row.doc['supervisorExitProof']['identity']['birth'] = 'reused'
+        observe(env)
+        assert marker(env, row) is None and not row.original.calls
+        state = env.service.final.get(row.jid)
+        assert len(state['attempts']) == 1
+        assert state['runs'][row.rid]['state'] == 'uncertain'
+        assert state['effects'][0]['outcome'] == 'unknown'
+        before = env.service.final.store.get(row.jid)
+        original = copy.deepcopy(row.doc)
+        for _ in range(2): observe(env)
+&gt;       assert env.service.final.store.get(row.jid) == before
+E       AssertionError: assert {'canonical':...}], ...}, ...} == {'canonical':...}], ...}, ...}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Differing items:
+E         {'finalRuntime': {'admissions': {'adm_35c2ac96040c4e60ac227ad7': {'admissionId': 'adm_35c2ac96040c4e60ac227ad7', 'auth...e0406b170242acb1d00921', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'rejected', ...}], ...}} != {'finalRuntime': {'admissions': {'adm_35c2ac96040c4e60ac227ad7': {'admissionId': 'adm_35c2ac96040c4e60ac227ad7', 'auth...ee0406b170242acb1d00921', 'stepId': 's0', 'targetId': 'product_process_cleanup_v1'}, 'outcome': 'unknown', ...}], ...}}
+E         Use -v to get more diff
+
+tests\test_job_retry_reason_matrix.py:56: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_uncertain_original_can_reconcile_only_after_complete_matching_receipt[orphaned]" time="0.625" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_uncertain_original_can_reconcile_only_after_complete_matching_receipt[interrupted]" time="0.603" /></testsuite></testsuites>

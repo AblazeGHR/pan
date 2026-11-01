@@ -1,0 +1,988 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="33" skipped="0" tests="45" time="24.392" timestamp="2026-11-01T20:27:43.020603+08:00" hostname="ablaze"><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-failed]" time="0.501" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-timeout]" time="0.404" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-orphaned]" time="0.386" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-interrupted]" time="0.441" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-cancelled]" time="0.407" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[failed-dependency-unavailable]" time="0.548" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-failed]" time="0.500" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-timeout]" time="0.503" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-orphaned]" time="0.740" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-interrupted]" time="0.691" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-cancelled]" time="0.652" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[timeout-dependency-unavailable]" time="0.720" /><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-failed]" time="0.546"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C063F490&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF423BD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C06DA510&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0C447D0&gt;
+reason = 'failed', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C063F490&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF423BD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C06DA510&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-timeout]" time="0.557"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077D350&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C09534D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0A14980&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0A66A50&gt;
+reason = 'timeout', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077D350&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C09534D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0A14980&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-orphaned]" time="0.499"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53BB0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0DB8C80&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0B0A510&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0BB6830&gt;
+reason = 'orphaned', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53BB0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0DB8C80&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0B0A510&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-interrupted]" time="0.424"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53100&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0EA4950&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0E23E00&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0E19020&gt;
+reason = 'interrupted', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53100&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0EA4950&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0E23E00&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-cancelled]" time="0.495"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52EA0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0EE9CD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0F897F0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0B265D0&gt;
+reason = 'cancelled', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52EA0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0EE9CD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0F897F0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[orphaned-dependency-unavailable]" time="0.536"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A529E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1043540&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0FFF0E0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0B27570&gt;
+reason = 'dependency-unavailable', match = 'orphaned'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A529E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1043540&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0FFF0E0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-failed]" time="0.500"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1231B20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1224AD0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0FD7C80&gt;
+reason = 'failed', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1231B20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1224AD0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-timeout]" time="0.516"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A515B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1065C70&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C11063C0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0BFD3D0&gt;
+reason = 'timeout', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A515B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1065C70&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C11063C0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-orphaned]" time="0.505"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A523F0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1324370&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C11C3CB0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1006750&gt;
+reason = 'orphaned', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A523F0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1324370&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C11C3CB0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-interrupted]" time="0.448"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51E00&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1409640&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C14156A0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0B8D630&gt;
+reason = 'interrupted', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51E00&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1409640&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C14156A0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-cancelled]" time="0.539"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51CD0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0992AD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1496F90&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0E6E9E0&gt;
+reason = 'cancelled', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51CD0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0992AD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1496F90&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[interrupted-dependency-unavailable]" time="0.522"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52780&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C156B550&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1518980&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1309F60&gt;
+reason = 'dependency-unavailable', match = 'interrupted'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52780&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C156B550&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1518980&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-failed]" time="0.521"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A503E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D2BA0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1722270&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C130A120&gt;
+reason = 'failed', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A503E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D2BA0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1722270&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-timeout]" time="0.523"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50770&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C15F9D30&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C162BB60&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C14FE2E0&gt;
+reason = 'timeout', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50770&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C15F9D30&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C162BB60&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-orphaned]" time="0.514"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51940&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C185E6D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1895550&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C115DF60&gt;
+reason = 'orphaned', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51940&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C185E6D0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1895550&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-interrupted]" time="0.435"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A516E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1957230&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1902E40&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C16D39A0&gt;
+reason = 'interrupted', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A516E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1957230&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1902E40&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-cancelled]" time="0.487"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50E90&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A53000&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19D4830&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1956C80&gt;
+reason = 'cancelled', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50E90&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A53000&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19D4830&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[cancelled-dependency-unavailable]" time="0.671"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A508A0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A9BAF0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B5E120&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C16D22E0&gt;
+reason = 'dependency-unavailable', match = 'cancelled'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A508A0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A9BAF0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B5E120&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...': True, 'retryIf': ['cancelled'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-failed]" time="0.501"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077D350&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A99FD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B5C050&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1A99780&gt;
+reason = 'failed', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077D350&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1A99FD0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B5C050&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-timeout]" time="0.493"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077FCE0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1956970&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203BF403230&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1A99940&gt;
+reason = 'timeout', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077FCE0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1956970&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203BF403230&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-orphaned]" time="0.426"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077FA80&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1955010&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C06DBE00&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1A533F0&gt;
+reason = 'orphaned', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C077FA80&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1955010&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C06DBE00&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-interrupted]" time="0.501"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50E90&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D25F0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B20C20&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1A52A50&gt;
+reason = 'interrupted', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50E90&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D25F0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B20C20&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-cancelled]" time="0.513"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51940&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D2580&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B06510&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C1A52CF0&gt;
+reason = 'cancelled', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51940&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C16D2580&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1B06510&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_six_reason_configuration_and_original_outcome_matrix[dependency-unavailable-dependency-unavailable]" time="0.512"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A503E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C130A7B0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0A7BE00&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C16D3230&gt;
+reason = 'dependency-unavailable', match = 'dependency-unavailable'
+
+    @pytest.mark.parametrize('reason', REASONS)
+    @pytest.mark.parametrize('match', REASONS)
+    def test_six_reason_configuration_and_original_outcome_matrix(env, monkeypatch, reason, match):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[match])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A503E0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C130A7B0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0A7BE00&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...ryIf': ['dependency-unavailable'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-orphaned]" time="0.506"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51BA0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C115F5B0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203BF5957F0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C115F150&gt;
+reason = 'orphaned', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51BA0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C115F5B0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203BF5957F0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[exitCode-interrupted]" time="0.502"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51F30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1217F50&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1ABB0E0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C115F310&gt;
+reason = 'interrupted', missing = 'exitCode'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A51F30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C1217F50&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C1ABB0E0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-orphaned]" time="0.429"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50770&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C104FD20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19C0AD0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C104FEE0&gt;
+reason = 'orphaned', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A50770&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C104FD20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19C0AD0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[cleanup-interrupted]" time="0.353"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0ED4360&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19B63C0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C104C280&gt;
+reason = 'interrupted', missing = 'cleanup'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0ED4360&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C19B63C0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-orphaned]" time="0.509"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53360&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0ED5710&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C17BFCB0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0D9AAC0&gt;
+reason = 'orphaned', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53360&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0ED5710&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C17BFCB0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[supervisorExit-interrupted]" time="0.537"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52C40&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF52E190&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0DD16A0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0D9A900&gt;
+reason = 'interrupted', missing = 'supervisorExit'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A52C40&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF52E190&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0DD16A0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-orphaned]" time="0.417"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A515B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0B8F1C0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0C22F90&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203BF52C210&gt;
+reason = 'orphaned', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A515B0&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203C0B8F1C0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C0C22F90&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...c': True, 'retryIf': ['orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_abnormal_reason_without_complete_original_proof_never_retries[birth-interrupted]" time="0.524"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53A80&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF4C8C20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C18B4980&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0B8DEF0&gt;
+reason = 'interrupted', missing = 'birth'
+
+    @pytest.mark.parametrize('reason', ['orphaned', 'interrupted'])
+    @pytest.mark.parametrize('missing', ['exitCode', 'cleanup', 'supervisorExit', 'birth'])
+    def test_abnormal_reason_without_complete_original_proof_never_retries(env, monkeypatch, reason, missing):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=[reason])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53A80&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF4C8C20&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C18B4980&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,... True, 'retryIf': ['interrupted'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase><testcase classname="tests.test_job_retry_reason_matrix" name="test_mixed_policy_does_not_block_proven_failed" time="0.473"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;capability_unsupported&quot;,&quot;message&quot;:&quot;capability unsupported&quot;}}&#10;assert 422 == 201&#10; +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53820&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF464DE0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C15F63C0&gt;, serial=1)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000203C0B8CF30&gt;
+
+    def test_mixed_policy_does_not_block_proven_failed(env, monkeypatch):
+&gt;       row = seed(env, monkeypatch, value=job_definition(env, policy(retryIf=['failed', 'orphaned'])))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_retry_reason_matrix.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_automatic_recovery.py:96: in seed
+    jid, rid = create(h, value, actor)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000203C0A53820&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000203BF464DE0&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000203C15F63C0&gt;, serial=1)
+value = {'name': 'owned recovery', 'steps': [{'stepId': 's0', 'actionRef': {'id': 'product_process_cleanup_v1', 'revision': 1,...'retryIf': ['failed', 'orphaned'], 'maxAttempts': 2, 'backoffSeconds': ['0'], ...}, 'retention': {'policyRef': 'test'}}
+actor = {'type': 'user', 'id': 'local'}
+
+    def create(h, value=None, actor=USER):
+        h.serial += 1
+        result = h.client.post("/api/jobs", json={"definition": value or job_definition(h),
+            "expectedRevision": 0, "requestKey": "create-" + str(h.serial)})
+&gt;       assert result.status_code == 201, result.text
+E       AssertionError: {"error":{"code":"capability_unsupported","message":"capability unsupported"}}
+E       assert 422 == 201
+E        +  where 422 = &lt;Response [422 Unprocessable Entity]&gt;.status_code
+
+tests\test_job_automatic_recovery.py:80: AssertionError</failure></testcase></testsuite></testsuites>
