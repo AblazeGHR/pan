@@ -16,7 +16,7 @@ def app_for(root, *, seed_time_template_target=False, time_test_host_zone=None):
     config.CONFIG_FILE.write_text("{}", encoding="utf-8")
     session.SESSION_DIR = root / "sessions"
     if seed_time_template_target:
-        session.save(session.Session(id="owned-session", name="Owned time Template target"))
+        session.save(session.Session(id="owned-session", name="Owned time Template target", queue_paused=True))
     data_paths.DEFAULT_ROOT = background_jobs.DEFAULT_ROOT = root / "background_jobs"
     os.environ["PAN_BACKGROUND_JOBS_DIR"] = os.environ["PAN_SCHEDULER_DIR"] = str(root / "background_jobs")
     from packages.automation.service import Service

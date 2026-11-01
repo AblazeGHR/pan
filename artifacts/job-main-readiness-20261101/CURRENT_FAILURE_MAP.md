@@ -371,3 +371,7 @@ f96e complete affected result72pass + JobsAPI43pass11fail/sourceDrift[] preserve
 ## Native terminal notice and WS pre-enqueue recovery
 
 691b formal111pass1existing skip +54pass9fail/sourceDrift[] preserved. Seven more original nodes now native metadata/cwd/stdin/cold notices/scheduled parent-only and actual WS producer recovery successors. Native preparation no-attempt proof reused existing bound outbox pending path; actual post-enqueue lostack stays uncertain/no replay. Details and explicit two unresolved full-lifecycle broadcast gaps in background-notice-successors/README.md. Current256/263 mapped,7remain(2lifecycle,4UI,1existingplatformskip). No full preciseSHA CI greenclaim.
+
+## Production browser and optional explicit DST policy
+
+Four original browser identities now pass. Missing owned-session fixture seed and generic Template/native input labels corrected without assertion weakening. Actual UI inability to choose explicit DST policy repaired through existing rule field, keeping default absent. UI38pass/build88assets/productionstructured2pass; management+nativeTemplate2pass retained separately. Shared notification fixture uses original PanServer after exact Proactor10054 teardown evidence. See browser-host-followthrough/README.md. Map260/263; two real lifecycle broadcast original reds plus1existingplatformskip remain. Final exactSHA CI outstanding.

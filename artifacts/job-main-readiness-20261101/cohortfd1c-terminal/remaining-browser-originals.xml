@@ -1,0 +1,602 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="1" tests="5" time="54.603" timestamp="2026-11-02T05:59:16.789719+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_management_browser" name="test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser" time="4.214"><failure message="KeyError: 'result'">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6781/test_authenticated_native_sour0')
+
+    def test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser(tmp_path):
+        from playwright.sync_api import sync_playwright, expect
+        with socket.socket() as owned:
+            owned.bind(("127.0.0.1",0))
+            port=owned.getsockname()[1]
+        assert port not in (8767,8768)
+        root=tmp_path/"profile"
+        repo=Path(__file__).resolve().parents[1]
+        out=repo/"evidence/r6i-forms"
+        out.mkdir(exist_ok=True)
+        log=(out/"advanced-browser-server.log").open("wb")
+        child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+        base=f"http://127.0.0.1:{port}"
+        result={"port":port,"rootOwned":True,"productionBundle":True}
+        try:
+            with httpx.Client(base_url=base,timeout=5) as client:
+                for _ in range(100):
+                    if child.poll() is not None:
+                        pytest.fail("Owned fixture exited; inspect browser-server.log")
+                    try:
+                        if client.get('/test/ready').status_code==200:break
+                    except httpx.TransportError:pass
+                    time.sleep(.1)
+                key=(root/'automation/user.key').read_text(encoding='utf-8').strip()
+                token=client.post('/api/automation/login',json={'key':key}).json()['token']
+                client.headers['Authorization']='Bearer '+token
+                assert client.get('/api/event-creators/providers').status_code==200
+                action=next(a for a in client.get('/api/jobs/actions').json()['items'] if a['id']=='product_session_message')
+                from packages.jobs.final_service import object_ref
+                job_def={'name':'Browser Job','steps':[{'stepId':'message','actionRef':object_ref('action',action),'arguments':{'sessionId':{'from':'literal','value':'owned-session'},'text':{'from':'literal','value':'owned-message'}},'completion':{'contract':'durable-queue-accepted'}}],'retention':{'policyRef':'test'}}
+&gt;               job=client.post('/api/jobs',json={'definition':job_def,'expectedRevision':0,'requestKey':'browser-job'}).json()['result']['object']
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'result'
+
+tests\test_scheduler_management_browser.py:46: KeyError</failure></testcase><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]" time="3.100"><failure message="httpx.HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:64918/api/jobs'&#10;For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6781/test_structured_scheduler_job_0')
+create_job_with_form = False
+
+    @pytest.mark.parametrize('create_job_with_form', [False, True])
+    def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):
+        from playwright.sync_api import sync_playwright, expect
+        repo = Path(__file__).resolve().parents[1]
+        out = repo / 'evidence/r6i-forms'
+        out.mkdir(exist_ok=True)
+        with socket.socket() as reservation:
+            reservation.bind(('127.0.0.1',0))
+            port = reservation.getsockname()[1]
+        assert port not in (8767,8768)
+        root = tmp_path / 'owned-profile'
+        log = (out/'browser-server.log').open('wb')
+        child = subprocess.Popen([sys.executable,'-m','tests.support.scheduler_management_server',
+            '--root',str(root),'--port',str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+        base = f'http://127.0.0.1:{port}'
+        result = {'port':port,'ownedRoot':True,'productionBundle':True}
+        try:
+            with httpx.Client(base_url=base,timeout=10,trust_env=False) as client:
+                for _ in range(100):
+                    assert child.poll() is None, 'Owned server exited'
+                    try:
+                        if client.get('/test/ready').status_code == 200: break
+                    except httpx.TransportError: pass
+                    time.sleep(.1)
+                key = (root/'automation/user.key').read_text(encoding='utf-8').strip()
+                token = client.post('/api/automation/login',json={'key':key}).json()['token']
+                client.headers['Authorization'] = 'Bearer '+token
+                result['actionReferenceMetadataPresent'] = 'references' in client.get('/api/jobs/actions').json()
+                with sync_playwright() as pw:
+                    launch = {}
+                    if os.name == 'nt':
+                        installed = sorted((Path(os.environ['LOCALAPPDATA'])/'ms-playwright').glob('chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe'))
+                        if installed: launch['executable_path'] = str(installed[-1])
+                    browser = pw.chromium.launch(headless=True,**launch)
+                    result['chromiumVersion'] = browser.version
+                    try:
+                        page = browser.new_page(viewport={'width':1440,'height':1100})
+                        page.add_init_script("""window.__definitionJSONEdits = 0;
+                            document.addEventListener('input', event =&gt; {
+                                const input = event.target;
+                                if ((input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement)
+                                    &amp;&amp; [...(input.labels || [])].some(label =&gt; /JSON/.test(label.textContent)))
+                                    window.__definitionJSONEdits++;
+                            }, true);""")
+                        errors, requests = [], []
+                        result['pageErrors'] = errors
+                        page.on('pageerror',lambda e:errors.append(str(e)))
+                        page.on('request',lambda r:requests.append((r.method,r.url.split(base)[-1])))
+                        page.on('dialog',lambda dialog:dialog.accept())
+                        page.goto(base+'/react/automation?tab=job')
+                        page.get_by_label('Local user key',exact=True).fill(key)
+                        page.get_by_role('button',name='Log in',exact=True).click()
+                        if create_job_with_form:
+                            page.get_by_role('button',name='创建 Jobs',exact=True).click()
+                            page.get_by_label('名称',exact=True).fill('Form Job')
+                            page.get_by_label('Action for step 1',exact=True).select_option('product_session_message')
+                            first = page.get_by_role('group',name='Step 1',exact=True)
+                            first.get_by_label('sessionId value',exact=True).fill('owned-session')
+                            first.get_by_label('text value',exact=True).fill('first plain text')
+                            page.get_by_role('button',name='Add step',exact=True).click()
+                            page.get_by_label('Action for step 2',exact=True).select_option('product_session_message')
+                            second = page.get_by_role('group',name='Step 2',exact=True)
+                            second.get_by_label('sessionId value',exact=True).fill('owned-session')
+                            second.get_by_label('text source',exact=True).select_option('step')
+                            second.get_by_label('text path',exact=True).fill('messageId')
+                            page.get_by_role('button',name='Move step 2 up',exact=True).click()
+                            expect(page.get_by_label('Chain validation')).to_contain_text('preceding step')
+                            expect(page.get_by_role('button',name='保存定义',exact=True)).to_be_disabled()
+                            page.get_by_role('button',name='Move step 1 down',exact=True).click()
+                            page.get_by_role('button',name='保存定义',exact=True).click()
+                            expect(page.get_by_role('article',name='Jobs Form Job',exact=True)).to_be_visible()
+                            job = next(j for j in client.get('/api/jobs?limit=100').json()['items'] if j['name']=='Form Job')
+                            assert len(job['steps']) == 2 and job['steps'][1]['arguments']['text']['stepId'] == job['steps'][0]['stepId']
+                            stable_steps = [s['stepId'] for s in job['steps']]
+                            page.get_by_role('button',name='编辑 Form Job',exact=True).click()
+                            first = page.get_by_role('group',name='Step 1',exact=True)
+                            first.get_by_label('text value',exact=True).fill('edited plain text')
+                            page.get_by_text('Job policies',exact=True).click()
+                            page.get_by_label('Pin Job retention',exact=True).check()
+                            page.get_by_role('button',name='保存定义',exact=True).click()
+                            expect(page.get_by_role('form',name='编辑 Jobs',exact=True)).to_have_count(0)
+                            updated_job = client.get('/api/jobs/'+job['id']).json()
+                            assert [s['stepId'] for s in updated_job['steps']] == stable_steps
+                            assert updated_job['retention']['pinned'] is True
+                            page.get_by_role('button',name='Enable Form Job',exact=True).click()
+                            page.get_by_label('I reviewed this definition, Actions, parameters and source references.').check()
+                            page.get_by_role('button',name='Confirm enable',exact=True).click()
+                            expect(page.get_by_role('button',name='Pause Form Job',exact=True)).to_be_visible()
+                        else:
+                            # Complementary source/Trigger-only browser matrix while
+                            # the separately owned Action metadata API is coordinated.
+                            from packages.jobs.final_service import object_ref
+                            action = next(a for a in client.get('/api/jobs/actions').json()['items'] if a['id']=='product_session_message')
+                            ref = object_ref('action', action)
+                            body = {'name':'Form Job','steps':[{'stepId':'setup','actionRef':ref,'arguments':{'sessionId':{'from':'literal','value':'owned-session'},'text':{'from':'literal','value':'setup'}},'completion':{'contract':'durable-queue-accepted'}}],'retention':{'policyRef':'test'}}
+                            response = client.post('/api/jobs',json={'definition':body,'expectedRevision':0,'requestKey':'source-only-job-fixture'})
+&gt;                           response.raise_for_status()
+
+tests\test_scheduler_structured_browser.py:111: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;Response [400 Bad Request]&gt;
+
+    def raise_for_status(self) -&gt; Response:
+        """
+        Raise the `HTTPStatusError` if one occurred.
+        """
+        request = self._request
+        if request is None:
+            raise RuntimeError(
+                "Cannot call `raise_for_status` as the request "
+                "instance has not been set on this response."
+            )
+    
+        if self.is_success:
+            return self
+    
+        if self.has_redirect_location:
+            message = (
+                "{error_type} '{0.status_code} {0.reason_phrase}' for url '{0.url}'\n"
+                "Redirect location: '{0.headers[location]}'\n"
+                "For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/{0.status_code}"
+            )
+        else:
+            message = (
+                "{error_type} '{0.status_code} {0.reason_phrase}' for url '{0.url}'\n"
+                "For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/{0.status_code}"
+            )
+    
+        status_class = self.status_code // 100
+        error_types = {
+            1: "Informational response",
+            3: "Redirect response",
+            4: "Client error",
+            5: "Server error",
+        }
+        error_type = error_types.get(status_class, "Invalid status code")
+        message = message.format(self, error_type=error_type)
+&gt;       raise HTTPStatusError(message, request=request, response=self)
+E       httpx.HTTPStatusError: Client error '400 Bad Request' for url 'http://127.0.0.1:64918/api/jobs'
+E       For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+
+.validation\ci-venv\Lib\site-packages\httpx\_models.py:829: HTTPStatusError</failure></testcase><testcase classname="tests.test_scheduler_structured_browser" name="test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]" time="8.229"><failure message="AssertionError: Locator expected to be visible&#10;Actual value: None&#10;Error: element(s) not found &#10;Call log:&#10;  - Expect &quot;to_be_visible&quot; get_by_role(&quot;article&quot;, name=&quot;Jobs Form Job&quot;, exact=True) with timeout 5000ms&#10;  - waiting for get_by_role(&quot;article&quot;, name=&quot;Jobs Form Job&quot;, exact=True)&#10;&#10;Aria snapshot:&#10;- complementary:&#10;  - heading &quot;Pan&quot; [level=1]&#10;  - button &quot;App settings&quot;&#10;  - button &quot;Switch to light theme&quot;&#10;  - button &quot;Collapse sidebar&quot;&#10;  - navigation &quot;界面入口&quot;:&#10;    - button &quot;上一组界面入口&quot;&#10;[+197 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6781/test_structured_scheduler_job_1')
+create_job_with_form = True
+
+    @pytest.mark.parametrize('create_job_with_form', [False, True])
+    def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown(tmp_path, create_job_with_form):
+        from playwright.sync_api import sync_playwright, expect
+        repo = Path(__file__).resolve().parents[1]
+        out = repo / 'evidence/r6i-forms'
+        out.mkdir(exist_ok=True)
+        with socket.socket() as reservation:
+            reservation.bind(('127.0.0.1',0))
+            port = reservation.getsockname()[1]
+        assert port not in (8767,8768)
+        root = tmp_path / 'owned-profile'
+        log = (out/'browser-server.log').open('wb')
+        child = subprocess.Popen([sys.executable,'-m','tests.support.scheduler_management_server',
+            '--root',str(root),'--port',str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+        base = f'http://127.0.0.1:{port}'
+        result = {'port':port,'ownedRoot':True,'productionBundle':True}
+        try:
+            with httpx.Client(base_url=base,timeout=10,trust_env=False) as client:
+                for _ in range(100):
+                    assert child.poll() is None, 'Owned server exited'
+                    try:
+                        if client.get('/test/ready').status_code == 200: break
+                    except httpx.TransportError: pass
+                    time.sleep(.1)
+                key = (root/'automation/user.key').read_text(encoding='utf-8').strip()
+                token = client.post('/api/automation/login',json={'key':key}).json()['token']
+                client.headers['Authorization'] = 'Bearer '+token
+                result['actionReferenceMetadataPresent'] = 'references' in client.get('/api/jobs/actions').json()
+                with sync_playwright() as pw:
+                    launch = {}
+                    if os.name == 'nt':
+                        installed = sorted((Path(os.environ['LOCALAPPDATA'])/'ms-playwright').glob('chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe'))
+                        if installed: launch['executable_path'] = str(installed[-1])
+                    browser = pw.chromium.launch(headless=True,**launch)
+                    result['chromiumVersion'] = browser.version
+                    try:
+                        page = browser.new_page(viewport={'width':1440,'height':1100})
+                        page.add_init_script("""window.__definitionJSONEdits = 0;
+                            document.addEventListener('input', event =&gt; {
+                                const input = event.target;
+                                if ((input instanceof HTMLTextAreaElement || input instanceof HTMLInputElement)
+                                    &amp;&amp; [...(input.labels || [])].some(label =&gt; /JSON/.test(label.textContent)))
+                                    window.__definitionJSONEdits++;
+                            }, true);""")
+                        errors, requests = [], []
+                        result['pageErrors'] = errors
+                        page.on('pageerror',lambda e:errors.append(str(e)))
+                        page.on('request',lambda r:requests.append((r.method,r.url.split(base)[-1])))
+                        page.on('dialog',lambda dialog:dialog.accept())
+                        page.goto(base+'/react/automation?tab=job')
+                        page.get_by_label('Local user key',exact=True).fill(key)
+                        page.get_by_role('button',name='Log in',exact=True).click()
+                        if create_job_with_form:
+                            page.get_by_role('button',name='创建 Jobs',exact=True).click()
+                            page.get_by_label('名称',exact=True).fill('Form Job')
+                            page.get_by_label('Action for step 1',exact=True).select_option('product_session_message')
+                            first = page.get_by_role('group',name='Step 1',exact=True)
+                            first.get_by_label('sessionId value',exact=True).fill('owned-session')
+                            first.get_by_label('text value',exact=True).fill('first plain text')
+                            page.get_by_role('button',name='Add step',exact=True).click()
+                            page.get_by_label('Action for step 2',exact=True).select_option('product_session_message')
+                            second = page.get_by_role('group',name='Step 2',exact=True)
+                            second.get_by_label('sessionId value',exact=True).fill('owned-session')
+                            second.get_by_label('text source',exact=True).select_option('step')
+                            second.get_by_label('text path',exact=True).fill('messageId')
+                            page.get_by_role('button',name='Move step 2 up',exact=True).click()
+                            expect(page.get_by_label('Chain validation')).to_contain_text('preceding step')
+                            expect(page.get_by_role('button',name='保存定义',exact=True)).to_be_disabled()
+                            page.get_by_role('button',name='Move step 1 down',exact=True).click()
+                            page.get_by_role('button',name='保存定义',exact=True).click()
+&gt;                           expect(page.get_by_role('article',name='Jobs Form Job',exact=True)).to_be_visible()
+E                           AssertionError: Locator expected to be visible
+E                           Actual value: None
+E                           Error: element(s) not found 
+E                           Call log:
+E                             - Expect "to_be_visible" get_by_role("article", name="Jobs Form Job", exact=True) with timeout 5000ms
+E                             - waiting for get_by_role("article", name="Jobs Form Job", exact=True)
+E                           
+E                           Aria snapshot:
+E                           - complementary:
+E                             - heading "Pan" [level=1]
+E                             - button "App settings"
+E                             - button "Switch to light theme"
+E                             - button "Collapse sidebar"
+E                             - navigation "界面入口":
+E                               - button "上一组界面入口"
+E                               - link "Locker":
+E                                 - /url: /react/locker
+E                               - link "Actions":
+E                                 - /url: /react/actions
+E                               - link "Automation":
+E                                 - /url: /react/automation
+E                               - button "下一组界面入口" [disabled]
+E                             - button "New"
+E                             - button "New with settings"
+E                             - button "Import"
+E                             - textbox "Search sessions":
+E                               - /placeholder: Filter...
+E                             - button "Special filters"
+E                             - 'button "Sort sessions: recent"': recent
+E                             - button "Collapse all groups"
+E                             - paragraph: No sessions yet
+E                             - paragraph: Click + New to create your first session
+E                           - button "收起侧边栏"
+E                           - button "全部"
+E                           - main:
+E                             - region "Automation management":
+E                               - heading "Automation" [level=1]
+E                               - paragraph: Jobs, event subscriptions and reusable time sources
+E                               - link "Canonical Jobs":
+E                                 - /url: /react/automation/canonical
+E                               - link "Manage Actions":
+E                                 - /url: /react/actions
+E                               - region "Job user authorization":
+E                                 - paragraph: User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+E                                 - button "Log out"
+E                               - button "Refresh"
+E                               - tablist "Automation subpages":
+E                                 - tab "Job" [selected]
+E                                 - tab "Trigger"
+E                                 - tab "Event Register"
+E                               - heading "Canonical Jobs" [level=2]
+E                               - button "刷新列表"
+E                               - button "创建 Jobs" [disabled]
+E                               - alert: 定义或参数格式无效，请检查字段。 [invalid_schema]
+E                               - region "操作回执":
+E                                 - status: 请求已拒绝；请修正问题后重新提交。
+E                                 - paragraph: "requestKey: operation_c8f38dc1c7f0479b96d039b698e0faf4"
+E                                 - button "查询原操作"
+E                               - form "编辑 Jobs":
+E                                 - text: 名称
+E                                 - textbox "名称": Form Job
+E                                 - group:
+E                                   - region "Structured Job definition":
+E                                     - text: Description
+E                                     - textbox "Description"
+E                                     - button "Refresh Actions"
+E                                     - group: Job input fields
+E                                     - region "Action chain":
+E                                       - group "Step 1":
+E                                         - text: Step 1
+E                                         - paragraph: step1
+E                                         - button "Move step 1 up" [disabled]: ↑
+E                                         - button "Move step 1 down": ↓
+E                                         - button "Remove step 1"
+E                                         - text: Action for step 1
+E                                         - combobox "Action for step 1":
+E                                           - option "Choose an Action"
+E                                           - option "assign · Revision 1"
+E                                           - option "assign · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "Resume Illegal / pending recovery Sessions · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-message · Revision 1" [selected]
+E                                           - option "session-message · Revision 1"
+E                                           - option "session-message · Revision 1"
+E                                           - option "Quota query · Revision 1"
+E                                         - paragraph: "Fixed Action: product_session_message · Revision 1 · a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575"
+E                                         - region "Parameter bindings for step 1":
+E                                           - group "Parameter sessionId for step 1":
+E                                             - text: sessionId sessionId source
+E                                             - combobox "sessionId source":
+E                                               - option "Literal" [selected]
+E                                               - option "Job input"
+E                                               - option "Event field"
+E                                               - option "Previous step output" [disabled]
+E                                             - text: sessionId value type
+E                                             - combobox "sessionId value type":
+E                                               - option "string" [selected]
+E                                               - option "number"
+E                                               - option "integer"
+E                                               - option "boolean"
+E                                               - option "null"
+E                                               - option "array"
+E                                               - option "object"
+E                                             - text: sessionId value
+E                                             - textbox "sessionId value": owned-session
+E                                             - button "Remove sessionId"
+E                                           - group "Parameter text for step 1":
+E                                             - text: text text source
+E                                             - combobox "text source":
+E                                               - option "Literal" [selected]
+E                                               - option "Job input"
+E                                               - option "Event field"
+E                                               - option "Previous step output" [disabled]
+E                                             - text: text value type
+E                                             - combobox "text value type":
+E                                               - option "string" [selected]
+E                                               - option "number"
+E                                               - option "integer"
+E                                               - option "boolean"
+E                                               - option "null"
+E                                               - option "array"
+E                                               - option "object"
+E                                             - text: text value
+E                                             - textbox "text value": first plain text
+E                                             - button "Remove text"
+E                                           - text: Add parameter for step 1
+E                                           - combobox "Add parameter for step 1":
+E                                             - option "Choose a parameter" [selected]
+E                                           - group: Additional parameter
+E                                         - text: Completion for step 1
+E                                         - combobox "Completion for step 1":
+E                                           - option "durable-queue-accepted" [selected]
+E                                       - group "Step 2":
+E                                         - text: Step 2
+E                                         - paragraph: step_416abaee02d34bfaa89ae5fda266a0ac
+E                                         - button "Move step 2 up": ↑
+E                                         - button "Move step 2 down" [disabled]: ↓
+E                                         - button "Remove step 2"
+E                                         - text: Action for step 2
+E                                         - combobox "Action for step 2":
+E                                           - option "Choose an Action"
+E                                           - option "assign · Revision 1"
+E                                           - option "assign · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "process · Revision 1"
+E                                           - option "Resume Illegal / pending recovery Sessions · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-broadcast · Revision 1"
+E                                           - option "session-message · Revision 1" [selected]
+E                                           - option "session-message · Revision 1"
+E                                           - option "session-message · Revision 1"
+E                                           - option "Quota query · Revision 1"
+E                                         - paragraph: "Fixed Action: product_session_message · Revision 1 · a865632b25059d1fdd1394c31a319f731b8d43514935c2cbef86131e95298575"
+E                                         - region "Parameter bindings for step 2":
+E                                           - group "Parameter sessionId for step 2":
+E                                             - text: sessionId sessionId source
+E                                             - combobox "sessionId source":
+E                                               - option "Literal" [selected]
+E                                               - option "Job input"
+E                                               - option "Event field"
+E                                               - option "Previous step output"
+E                                             - text: sessionId value type
+E                                             - combobox "sessionId value type":
+E                                               - option "string" [selected]
+E                                               - option "number"
+E                                               - option "integer"
+E                                               - option "boolean"
+E                                               - option "null"
+E                                               - option "array"
+E                                               - option "object"
+E                                             - text: sessionId value
+E                                             - textbox "sessionId value": owned-session
+E                                             - button "Remove sessionId"
+E                                           - group "Parameter text for step 2":
+E                                             - text: text text source
+E                                             - combobox "text source":
+E                                               - option "Literal"
+E                                               - option "Job input"
+E                                               - option "Event field"
+E                                               - option "Previous step output" [selected]
+E                                             - text: Output step
+E                                             - combobox "Output step":
+E                                               - option "Choose preceding step"
+E                                               - option "step1" [selected]
+E                                             - text: text path
+E                                             - textbox "text path": messageId
+E                                             - button "Remove text"
+E                                           - text: Add parameter for step 2
+E                                           - combobox "Add parameter for step 2":
+E                                             - option "Choose a parameter" [selected]
+E                                           - group: Additional parameter
+E                                         - text: Completion for step 2
+E                                         - combobox "Completion for step 2":
+E                                           - option "durable-queue-accepted" [selected]
+E                                       - button "Add step"
+E                                     - group: Job policies
+E                                 - group: Advanced definition JSON
+E                                 - paragraph: 保存使用打开时的定义版本 0。
+E                                 - group: 定义字段与约束
+E                                 - group: 可引用的 published Actions
+E                                 - button "保存定义"
+E                                 - button "关闭编辑"
+E                               - paragraph: 暂无 canonical Jobs。
+E                               - group: Runtime diagnostics
+E                           - complementary
+
+tests\test_scheduler_structured_browser.py:85: AssertionError</failure></testcase><testcase classname="tests.test_scheduler_time_revision2_browser" name="test_native_time_inputs_persist_host_override_once_and_passive_template" time="38.183"><failure message="playwright._impl._errors.TimeoutError: Locator.is_checked: Timeout 30000ms exceeded.&#10;Call log:&#10;  - waiting for get_by_label(&quot;Activate future time events&quot;, exact=True)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6781/test_native_time_inputs_persis0')
+
+    def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_path):
+        from playwright.sync_api import sync_playwright, expect
+        repo = Path(__file__).resolve().parents[1]
+        evidence = repo / "evidence/time-creator-rev4"
+        evidence.mkdir(exist_ok=True)
+        root = tmp_path / "profile"
+        with socket.socket() as owned:
+            owned.bind(("127.0.0.1", 0))
+            port = owned.getsockname()[1]
+        assert port not in (8767, 8768)
+        with (evidence / "browser-server.log").open("wb") as log:
+            child = subprocess.Popen([sys.executable, "-m", "tests.support.scheduler_management_server",
+                                      "--root", str(root), "--port", str(port), "--seed-time-template-target"], cwd=repo,
+                                     stdout=log, stderr=subprocess.STDOUT, **command_window_options())
+            try:
+                base = f"http://127.0.0.1:{port}"
+                with httpx.Client(base_url=base, timeout=10) as client:
+                    for _ in range(150):
+                        assert child.poll() is None, "Owned server exited"
+                        try:
+                            if client.get("/test/ready").status_code == 200: break
+                        except httpx.TransportError: pass
+                        time.sleep(.1)
+                    key = (root / "automation/user.key").read_text().strip()
+                    token = client.post("/api/automation/login", json={"key": key}).json()["token"]
+                    client.headers["Authorization"] = "Bearer " + token
+                    with sync_playwright() as playwright:
+                        launch = {}
+                        if os.name == "nt":
+                            installed = sorted((Path(os.environ["LOCALAPPDATA"]) / "ms-playwright").glob("chromium_headless_shell-*/chrome-headless-shell-win64/chrome-headless-shell.exe"))
+                            if installed: launch["executable_path"] = str(installed[-1])
+                        browser = playwright.chromium.launch(headless=True, **launch)
+                        try:
+                            page = browser.new_page(viewport={"width": 1440, "height": 1000})
+                            errors = []
+                            page.on("pageerror", lambda error: errors.append(str(error)))
+                            page.goto(base + "/react/automation?tab=events")
+                            page.get_by_label("Local user key", exact=True).fill(key)
+                            page.get_by_role("button", name="Log in", exact=True).click()
+                            page.get_by_role("button", name="New Scheduler", exact=True).click()
+                            page.get_by_label("Scheduler name", exact=True).fill("Host calendar")
+                            page.get_by_label("Time rule type", exact=True).select_option("daily")
+                            page.get_by_label("Time of day", exact=True).fill("09:00:12")
+                            expect(page.get_by_label("Timezone", exact=True)).to_have_value("")
+                            assert page.get_by_label("DST policy", exact=True).count() == 0
+                            page.get_by_role("button", name="Save Scheduler", exact=True).click()
+                            expect(page.get_by_role("article", name="Scheduler Host calendar", exact=True)).to_be_visible()
+                            host = next(c for c in client.get("/api/event-creators").json()["items"] if c["name"] == "Host calendar")
+                            rule = host["config"]["rules"][0]
+                            assert rule["type"] == "daily" and "timezone" not in rule and "dstPolicy" not in rule
+                            page.get_by_role("button", name="Edit Host calendar", exact=True).click()
+                            page.get_by_label("Timezone", exact=True).fill("America/New_York")
+                            page.get_by_role("button", name="Save Scheduler", exact=True).click()
+                            expect(page.get_by_role("region", name="Scheduler editor")).to_have_count(0)
+                            explicit = client.get("/api/event-creators/" + host["id"]).json()
+                            assert explicit["config"]["rules"][0]["timezone"] == "America/New_York"
+                            page.get_by_role("button", name="New Scheduler", exact=True).click()
+                            page.get_by_label("Scheduler name", exact=True).fill("Offset once")
+                            page.get_by_label("Time rule type", exact=True).select_option("once")
+                            field = page.get_by_label("Scheduled date and time", exact=True)
+                            field.fill("2027-11-07T01:30:00.123456789-04:00")
+                            expect(page.get_by_text("Resolved instant: 2027-11-07T01:30:00.123456789-04:00", exact=True)).to_be_visible()
+                            assert field.evaluate("e =&gt; e.checkValidity()")
+                            page.get_by_role("button", name="Save Scheduler", exact=True).click()
+                            expect(page.get_by_role("article", name="Scheduler Offset once", exact=True)).to_be_visible()
+                            once = next(c for c in client.get("/api/event-creators").json()["items"] if c["name"] == "Offset once")
+                            assert once["config"]["rules"][0]["at"] == "2027-11-07T01:30:00.123456789-04:00"
+                            with sqlite3.connect((root / "canonical/event-creators/creators.sqlite3").as_uri() + "?mode=ro", uri=True) as db:
+                                stored = json.loads(db.execute("SELECT document FROM creators WHERE id=?", (once["id"],)).fetchone()[0])
+                            assert stored["cursor"]["rules"][once["config"]["rules"][0]["ruleId"]]["nextFireAt"] == "2027-11-07T05:30:00.123456789Z"
+                            page.get_by_role("link", name="Canonical Jobs", exact=True).click()
+                            page.get_by_role("button", name="JobTemplates", exact=True).click()
+                            page.get_by_role("button", name="创建 JobTemplates", exact=True).click()
+                            page.get_by_label("名称", exact=True).fill("Native time template")
+                            page.get_by_label("Job name", exact=True).fill("Scheduled message")
+                            page.get_by_role("button", name="Add step", exact=True).click()
+                            page.get_by_label("Action for step 1", exact=True).select_option("product_session_message")
+                            page.get_by_label("sessionId value", exact=True).fill("owned-session")
+                            page.get_by_label("text value", exact=True).fill("owned-message")
+                            page.get_by_role("button", name="Add Template Scheduler", exact=True).click()
+                            page.get_by_label("Time of day", exact=True).fill("10:00:07")
+                            page.get_by_role("button", name="保存定义", exact=True).click()
+                            expect(page.get_by_role("form", name="编辑 JobTemplates", exact=True)).to_have_count(0)
+                            template = next(t for t in client.get("/api/job-templates").json()["items"] if t["name"] == "Native time template")
+                            composition = template["composition"]
+                            assert composition["creators"][0]["definition"]["config"]["rules"][0]["time"] == "10:00:07"
+                            assert composition["triggers"][0]["creatorKeys"] == [composition["creators"][0]["key"]]
+                            assert template["state"] == "draft"
+                            assert len(client.get("/api/event-creators").json()["items"]) == 2
+                            page.get_by_role("button", name="Publish Native time template", exact=True).click()
+                            expect(page.get_by_role("button", name="Instantiate Native time template", exact=True)).to_be_visible()
+                            page.get_by_role("button", name="Instantiate Native time template", exact=True).click()
+&gt;                           assert not page.get_by_label("Activate future time events", exact=True).is_checked()
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_scheduler_time_revision2_browser.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.validation\ci-venv\Lib\site-packages\playwright\sync_api\_generated.py:19676: in is_checked
+    self._sync(self._impl_obj.is_checked(timeout=to_milliseconds(timeout)))
+.validation\ci-venv\Lib\site-packages\playwright\_impl\_locator.py:518: in is_checked
+    return await self._frame.is_checked(
+.validation\ci-venv\Lib\site-packages\playwright\_impl\_frame.py:403: in is_checked
+    return await self._channel.send(
+.validation\ci-venv\Lib\site-packages\playwright\_impl\_connection.py:76: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;playwright._impl._connection.Connection object at 0x000001AF39A10410&gt;
+cb = &lt;function Channel.send.&lt;locals&gt;.&lt;lambda&gt; at 0x000001AF39B53D70&gt;
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -&gt; Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+&gt;           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.is_checked: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for get_by_label("Activate future time events", exact=True)
+
+.validation\ci-venv\Lib\site-packages\playwright\_impl\_connection.py:632: TimeoutError</failure></testcase><testcase classname="tests.test_terminal_archive_scope_ma" name="test_real_external_kill_is_exited_and_archivable" time="0.002"><skipped type="pytest.skip" message="sidecar dependencies unavailable">D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_terminal_archive_scope_ma.py:83: sidecar dependencies unavailable</skipped></testcase></testsuite></testsuites>

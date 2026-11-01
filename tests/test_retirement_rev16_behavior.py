@@ -22,7 +22,9 @@ from tests.test_session_product_closure import config
 
 
 @pytest.fixture
-def h(native_h, tmp_path):
+def h(native_h, tmp_path, monkeypatch):
+    from packages.core.host_server import PanServer
+    monkeypatch.setattr('packages.core.logging_setup._resolve_log_path', lambda _: tmp_path / 'host-logs/pan.log')
     owned = {}
     for sid in ('ses_a', 'ses_b', 'ses_notice'):
         session.save(session.Session(id=sid, name=sid, workdir=str(tmp_path), queue_paused=True))
@@ -31,7 +33,7 @@ def h(native_h, tmp_path):
     listener.bind(('127.0.0.1', 0))
     port = listener.getsockname()[1]
     assert port not in {8767, 8768}
-    server = uvicorn.Server(uvicorn.Config(native_h.app, lifespan='off', log_level='error'))
+    server = PanServer(uvicorn.Config(native_h.app, lifespan='off', log_level='error'))
     thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
     thread.start()
     for _ in range(200):

@@ -72,6 +72,12 @@ it('defaults calendar rules to the current host and clears an override without r
   fireEvent.change(screen.getByLabelText('Timezone'), { target: { value: '' } });
   expect((data().rules as JsonObject[])[0]).not.toHaveProperty('timezone');
   expect((data().rules as JsonObject[])[0]).not.toHaveProperty('dstPolicy');
+  fireEvent.click(screen.getByRole('button', { name: 'Customize DST policy' }));
+  fireEvent.change(screen.getByLabelText('DST policy'), { target: { value: 'gap-shift-fold-second' } });
+  expect((data().rules as JsonObject[])[0]!.dstPolicy).toBe('gap-shift-fold-second');
+  fireEvent.click(screen.getByRole('button', { name: 'Use default DST policy' }));
+  expect(screen.queryByLabelText('DST policy')).toBeNull();
+  expect((data().rules as JsonObject[])[0]).not.toHaveProperty('dstPolicy');
 });
 
 it('builds a passive time Template using the native rule form and existing composition keys', async () => {

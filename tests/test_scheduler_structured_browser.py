@@ -25,7 +25,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
     root = tmp_path / 'owned-profile'
     log = (out/'browser-server.log').open('wb')
     child = subprocess.Popen([sys.executable,'-m','tests.support.scheduler_management_server',
-        '--root',str(root),'--port',str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+        '--root',str(root),'--port',str(port),'--seed-time-template-target'],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
     base = f'http://127.0.0.1:{port}'
     result = {'port':port,'ownedRoot':True,'productionBundle':True}
     try:
@@ -123,7 +123,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                         return next(s for s in client.get('/api/event-creators?limit=100').json()['items'] if s['name']==name)
                     source_form('Form interval','interval')
                     page.get_by_label('Interval seconds',exact=True).fill('0.125000000000000001')
-                    page.get_by_label('Anchor (RFC3339)',exact=True).fill('2027-11-01T00:00:12.123456789+08:00')
+                    page.get_by_label('Anchor date and time',exact=True).fill('2027-11-01T00:00:12.123456789+08:00')
                     page.get_by_label('Interval advance mode',exact=True).select_option('afterPublication')
                     page.get_by_label('Grace period (seconds)',exact=True).fill('1.250000000000000001')
                     page.get_by_label('Limit produced events',exact=True).check()
@@ -131,22 +131,24 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     interval = save_source('Form interval')
                     assert interval['config']['rules'][0]['seconds']=='0.125000000000000001'
                     source_form('Form once','once')
-                    page.get_by_label('Scheduled time (RFC3339)',exact=True).fill('2027-11-01T00:00:13.123456789+05:30')
+                    page.get_by_label('Scheduled date and time',exact=True).fill('2027-11-01T00:00:13.123456789+05:30')
                     once = save_source('Form once')
                     assert once['config']['rules'][0]['at']=='2027-11-01T00:00:13.123456789+05:30'
                     source_form('Form weekly','weekly')
                     page.get_by_label('Weekday',exact=True).select_option('6')
                     page.get_by_label('Time of day',exact=True).fill('01:30:12')
                     page.get_by_label('Timezone',exact=True).fill('America/New_York')
+                    page.get_by_role('button',name='Customize DST policy',exact=True).click()
                     page.get_by_label('DST policy',exact=True).select_option('gap-skip-fold-second')
                     weekly = save_source('Form weekly')
                     source_form('Form cron','cron')
                     page.get_by_label('Cron expression',exact=True).fill('15 9 * * 1')
                     page.get_by_label('Timezone',exact=True).fill('Asia/Shanghai')
+                    page.get_by_role('button',name='Customize DST policy',exact=True).click()
                     page.get_by_label('DST policy',exact=True).select_option('gap-shift-fold-first')
                     cron = save_source('Form cron')
                     # Edit each ordinary kind through the form; none converts to a legacy single rule.
-                    for source, field, text in ((once,'Scheduled time (RFC3339)','2027-11-01T00:00:14.123456789+05:30'),
+                    for source, field, text in ((once,'Scheduled date and time','2027-11-01T00:00:14.123456789+05:30'),
                         (weekly,'Time of day','01:30:13'),(cron,'Cron expression','16 9 * * 1')):
                         page.get_by_role('button',name='Edit '+source['name'],exact=True).click()
                         page.get_by_label(field,exact=True).fill(text)
@@ -156,7 +158,7 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     page.get_by_role('button',name='Add time rule',exact=True).click()
                     rule2 = page.get_by_role('group',name='Time rule 2',exact=True)
                     rule2.get_by_label('Time rule type',exact=True).select_option('once')
-                    rule2.get_by_label('Scheduled time (RFC3339)',exact=True).fill('2027-11-02T00:00:12.123456789Z')
+                    rule2.get_by_label('Scheduled date and time',exact=True).fill('2027-11-02T00:00:12.123456789Z')
                     interval = save_source('Form interval')
                     stable_rules = [r['ruleId'] for r in interval['config']['rules']]
                     assert len(set(stable_rules))==2

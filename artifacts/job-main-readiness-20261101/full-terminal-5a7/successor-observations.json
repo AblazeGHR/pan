@@ -1810,5 +1810,29 @@
     "evidence": [
       "artifacts/job-main-readiness-20261101/background-notice-successors/background-native-ws-successors.xml"
     ]
+  },
+  "tests.test_scheduler_management_browser::test_authenticated_native_source_shared_links_conflict_and_retire_in_production_browser": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/browser-host-followthrough/browser-four-followthrough.xml"
+    ]
+  },
+  "tests.test_scheduler_time_revision2_browser::test_native_time_inputs_persist_host_override_once_and_passive_template": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/browser-host-followthrough/browser-four-followthrough.xml"
+    ]
+  },
+  "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[False]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/browser-host-followthrough/browser-structured-dst-green.xml"
+    ]
+  },
+  "tests.test_scheduler_structured_browser::test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_and_unknown[True]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/browser-host-followthrough/browser-structured-dst-green.xml"
+    ]
   }
 }

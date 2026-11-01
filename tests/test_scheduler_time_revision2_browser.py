@@ -104,9 +104,9 @@ def test_native_time_inputs_persist_host_override_once_and_passive_template(tmp_
                         page.get_by_role("button", name="Publish Native time template", exact=True).click()
                         expect(page.get_by_role("button", name="Instantiate Native time template", exact=True)).to_be_visible()
                         page.get_by_role("button", name="Instantiate Native time template", exact=True).click()
-                        assert not page.get_by_label("Activate future time events", exact=True).is_checked()
-                        page.get_by_role("button", name="Create from time Template", exact=True).click()
-                        expect(page.get_by_role("region", name="Instantiate time Template")).to_have_count(0)
+                        assert not page.get_by_label("Enable Job and configured subscriptions", exact=True).is_checked()
+                        page.get_by_role("button", name="Create from Template", exact=True).click()
+                        expect(page.get_by_role("region", name="Instantiate Template")).to_have_count(0)
                         jobs = client.get("/api/jobs").json()["items"]
                         assert len(jobs) == 1 and jobs[0]["state"] == "disabled"
                         assert len(client.get(f"/api/jobs/{jobs[0]['id']}/runs").json()["items"]) == 0

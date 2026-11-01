@@ -24,7 +24,7 @@ def test_authenticated_native_source_shared_links_conflict_and_retire_in_product
     out=repo/"evidence/r6i-forms"
     out.mkdir(exist_ok=True)
     log=(out/"advanced-browser-server.log").open("wb")
-    child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port)],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
+    child=subprocess.Popen([sys.executable,"-m","tests.support.scheduler_management_server","--root",str(root),"--port",str(port),"--seed-time-template-target"],cwd=repo,stdout=log,stderr=subprocess.STDOUT,**command_window_options())
     base=f"http://127.0.0.1:{port}"
     result={"port":port,"rootOwned":True,"productionBundle":True}
     try:

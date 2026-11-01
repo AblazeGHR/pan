@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="2" skipped="0" tests="69" time="85.733" timestamp="2026-11-02T05:57:50.127823+08:00" hostname="ablaze"><testcase classname="tests.test_ws_backpressure" name="test_slow_client_does_not_block_worker_broadcast_and_coalesces_final_text" time="0.007" /><testcase classname="tests.test_ws_backpressure" name="test_control_event_gets_priority_and_overflow_is_explicit_resync" time="0.004" /><testcase classname="tests.test_ws_backpressure" name="test_result_then_idle_control_order_is_fifo" time="0.020" /><testcase classname="tests.test_ws_backpressure" name="test_delta_identity_isolated_by_session_worker_generation_task_and_item" time="0.003" /><testcase classname="tests.test_ws_backpressure" name="test_report_delta_coalescing_keeps_execution_boundaries" time="0.002" /><testcase classname="tests.test_ws_backpressure" name="test_agent_result_cursor_advances_only_after_sender_success" time="0.002" /><testcase classname="tests.test_ws_backpressure" name="test_sender_task_is_cleaned_when_connection_closes" time="0.003" /><testcase classname="tests.test_job_ws_notice_delivery" name="test_native_ws_preparation_retries_only_before_enqueue[False]" time="4.946" /><testcase classname="tests.test_job_ws_notice_delivery" name="test_native_ws_preparation_retries_only_before_enqueue[True]" time="6.240" /><testcase classname="tests.test_background_jobs" name="test_accepted_cancel_wins_runner_exit_race" time="0.096" /><testcase classname="tests.test_background_jobs" name="test_runner_finishes_accepted_cancel_if_canceller_disappears" time="0.096" /><testcase classname="tests.test_background_jobs" name="test_cancel_survives_runner_disappearing_during_tree_lookup" time="10.692" /><testcase classname="tests.test_background_jobs" name="test_tree_cleanup_continues_after_one_descendant_disappears" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_start_persists_metadata_and_detaches" time="2.275" /><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv0-x]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv1-]" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_rejects_invalid_command_and_cwd[argv2-missing]" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_external_cwd_runs_and_projects_one_completion_notice" time="1.279" /><testcase classname="tests.test_background_jobs" name="test_external_cwd_shared_by_shell_validation" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_terminal_notification_is_idempotent" time="1.126" /><testcase classname="tests.test_background_jobs" name="test_enqueue_notice_same_event_does_not_duplicate" time="0.018" /><testcase classname="tests.test_background_jobs" name="test_automatic_job_notice_keeps_structured_envelope_and_automation_label" time="0.006" /><testcase classname="tests.test_background_jobs" name="test_runner_registry_survives_reload" time="0.058" /><testcase classname="tests.test_background_jobs" name="test_list_handles_mixed_legacy_timestamps_without_rewriting" time="0.384" /><testcase classname="tests.test_background_jobs" name="test_legacy_job_defaults_creator_without_rewriting" time="0.052" /><testcase classname="tests.test_background_jobs" name="test_cancel_kills_descendants_and_marks_terminal" time="0.084" /><testcase classname="tests.test_background_jobs" name="test_cancel_does_not_kill_pid_reuse" time="0.067" /><testcase classname="tests.test_background_jobs" name="test_delete_active_job_requires_confirmed_process_cleanup" time="0.123" /><testcase classname="tests.test_background_jobs" name="test_delete_active_job_unknown_receipt_is_fail_closed_and_idempotent" time="0.161" /><testcase classname="tests.test_background_jobs" name="test_delete_terminal_job_keeps_legacy_delete_semantics" time="0.111" /><testcase classname="tests.test_background_jobs" name="test_reconcile_running_orphan_becomes_failed_without_kill" time="0.107" /><testcase classname="tests.test_background_jobs" name="test_retry_rejects_running_job" time="0.883" /><testcase classname="tests.test_background_jobs" name="test_retry_inherits_creator_and_target" time="1.571" /><testcase classname="tests.test_background_jobs" name="test_concurrent_read_modify_write_preserves_updates" time="1.080" /><testcase classname="tests.test_background_jobs" name="test_cross_process_read_modify_write_preserves_updates" time="1.013" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_declares_pointer_sized_win32_signatures[acquired]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_declares_pointer_sized_win32_signatures[abandoned]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_create_failure_raises_winerror_without_closing" time="0.006" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_wait_failure_closes_handle[wait-failed]" time="0.004" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_wait_failure_closes_handle[unknown-result]" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_release_failure_still_closes_handle" time="0.003" /><testcase classname="tests.test_background_jobs" name="test_windows_named_mutex_close_failure_raises_winerror" time="0.005" /><testcase classname="tests.test_background_jobs" name="test_missing_creation_time_never_owns_pid" time="0.002" /><testcase classname="tests.test_background_jobs" name="test_reconcile_keeps_job_when_runner_identity_is_alive" time="0.097" /><testcase classname="tests.test_background_jobs" name="test_runner_terminal_broadcasts_job_updated_once" time="1.194" /><testcase classname="tests.test_background_jobs" name="test_terminal_broadcast_retries_after_channel_failure" time="6.684" /><testcase classname="tests.test_background_jobs" name="test_terminal_broadcast_skips_scheduled_children" time="1.584" /><testcase classname="tests.test_background_jobs" name="test_independent_terminal_broadcast_uses_local_ledger_and_retries" time="6.551" /><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[completed]" time="0.214" /><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[failed]" time="0.141" /><testcase classname="tests.test_background_jobs" name="test_reconcile_preserves_concurrent_runner_terminal[cancelled]" time="0.158" /><testcase classname="tests.test_background_jobs" name="test_hidden_runner_claim_is_once_and_refuses_unknown" time="0.040" /><testcase classname="tests.test_background_jobs" name="test_hidden_runner_claim_finishes_already_accepted_cancel" time="0.056" /><testcase classname="tests.test_background_jobs" name="test_agent_message_job_registry_commits_publish_full_lifecycle[single]" time="0.003"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002D5EFA2A900&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6780/test_agent_message_job_registr0')
+kind = 'single'
+
+    @pytest.mark.parametrize("kind", ["single", "broadcast"])
+    def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
+        _session(tmp_path)
+        _session(tmp_path, "ses_other")
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+        schedule = {"type": "interval", "intervalSeconds": 3600}
+        if kind == "single":
+&gt;           job = jobs.start_message("ses_target", "context", schedule)
+                  ^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_message'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_agent_message_job_registry_commits_publish_full_lifecycle[broadcast]" time="0.002"><failure message="packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002D5EFA29160&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6780/test_agent_message_job_registr1')
+kind = 'broadcast'
+
+    @pytest.mark.parametrize("kind", ["single", "broadcast"])
+    def test_agent_message_job_registry_commits_publish_full_lifecycle(monkeypatch, tmp_path, kind):
+        _session(tmp_path)
+        _session(tmp_path, "ses_other")
+        events = []
+        monkeypatch.setitem(jobs._scheduled_task_hooks, "on_event", events.append)
+        schedule = {"type": "interval", "intervalSeconds": 3600}
+        if kind == "single":
+            job = jobs.start_message("ses_target", "context", schedule)
+        else:
+&gt;           job = jobs.start_broadcast(["ses_target", "ses_other"], "context", schedule)
+                  ^^^^^^^^^^^^^^^^^^^^
+
+tests\test_background_jobs.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\core\background_jobs.py:2011: in __getattr__
+    return missing(name, _RETIRED_ENTRYPOINTS)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'start_broadcast'
+retired_names = frozenset({'_advance_paused_entries', '_append_task_run', '_backlog_undelivered_fire', '_broadcast_independent_terminals', '_execute_job_action', '_fire_scheduled_entry', ...})
+
+    def missing(name, retired_names):
+        if name in retired_names:
+&gt;           raise RetiredEntryPoint(
+                f"Legacy entrypoint {name} retired; use canonical FinalService/FinalRuntime/CreatorRuntime")
+E           packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_broadcast retired; use canonical FinalService/FinalRuntime/CreatorRuntime
+
+packages\jobs\retired.py:14: RetiredEntryPoint</failure></testcase><testcase classname="tests.test_background_jobs" name="test_failed_job_commit_does_not_publish_live_state" time="0.006" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[None]" time="0.370" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[]" time="0.446" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[   ]" time="0.377" /><testcase classname="tests.test_background_jobs" name="test_process_creation_requires_explicit_bounded_name[name3]" time="0.381" /><testcase classname="tests.test_retirement_notification_runtime" name="test_actual_local_shutdown_notice_remains_pending_then_same_outbox_enqueues_once" time="2.331" /><testcase classname="tests.test_retirement_notification_runtime" name="test_null_target_real_no_attempt_cold_explicit_retarget_same_outbox_receipt" time="2.700" /><testcase classname="tests.test_retirement_notification_runtime" name="test_concurrent_cas_then_two_service_reservations_send_one_notice" time="2.518" /><testcase classname="tests.test_retirement_notification_runtime" name="test_runtime_notice_authority_revoked_before_reservation_stays_suppressed" time="2.450" /><testcase classname="tests.test_retirement_notification_runtime" name="test_accepted_notice_lost_response_retarget_remains_unknown_no_resend" time="2.504" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[dictionary-spoof]" time="2.463" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[wrong-binding]" time="2.416" /><testcase classname="tests.test_retirement_notification_runtime" name="test_custom_or_corrupt_no_attempt_proof_never_authorizes_retry[partial]" time="2.407" /><testcase classname="tests.test_retirement_notification_runtime" name="test_fresh_production_browser_runtime_edit_and_original_notification_receipt" time="12.749"><error message="failed on teardown with &quot;assert not True&#10; +  where True = is_alive()&#10; +    where is_alive = &lt;Thread(Thread-255 (run), started daemon 42204)&gt;.is_alive&quot;">native_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000002D5F0DD9D30&gt;, automation=&lt;packages.automation.service.Ser...43514935c2cbef86131e95298575'}, run=&lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x000002D5F0E81050&gt;&gt;)
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6780/test_fresh_production_browser_0')
+
+    @pytest.fixture
+    def h(native_h, tmp_path):
+        owned = {}
+        for sid in ('ses_a', 'ses_b', 'ses_notice'):
+            session.save(session.Session(id=sid, name=sid, workdir=str(tmp_path), queue_paused=True))
+            owned[sid] = session.get(sid)
+        listener = socket.socket()
+        listener.bind(('127.0.0.1', 0))
+        port = listener.getsockname()[1]
+        assert port not in {8767, 8768}
+        server = uvicorn.Server(uvicorn.Config(native_h.app, lifespan='off', log_level='error'))
+        thread = threading.Thread(target=server.run, kwargs={'sockets': [listener]}, daemon=True)
+        thread.start()
+        for _ in range(200):
+            if server.started: break
+            time.sleep(.01)
+        assert server.started
+        client = httpx.Client(base_url=f'http://127.0.0.1:{port}', trust_env=False,
+                              headers={'Authorization': 'Bearer ' + native_h.token})
+        value = SimpleNamespace(**{**vars(native_h), 'client': client, 'owned': owned, 'tmp': tmp_path})
+        try:
+            yield value
+        finally:
+            client.close()
+            server.should_exit = True
+            thread.join(6)
+            listener.close()
+            if thread.is_alive():
+                # Preserve the real unresolved request identity instead of extending
+                # shutdown timeouts or silently dropping the assertion.
+                print('OWNED_HTTP_TEARDOWN_PENDING=' + repr([
+                    {'task': repr(task), 'stack': [(f.f_code.co_filename, f.f_lineno)
+                        for f in task.get_stack()]} for task in server.server_state.tasks]))
+&gt;           assert not thread.is_alive()
+E           assert not True
+E            +  where True = is_alive()
+E            +    where is_alive = &lt;Thread(Thread-255 (run), started daemon 42204)&gt;.is_alive
+
+tests\test_retirement_rev16_behavior.py:57: AssertionError</error></testcase></testsuite></testsuites>

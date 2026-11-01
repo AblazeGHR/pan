@@ -161,7 +161,10 @@ export function CanonicalSchedulerFields({
                   Blank follows the current Pan host timezone. DST gaps are skipped; repeated times
                   run once.
                 </p>
-                {rule.dstPolicy !== undefined && (
+                {rule.dstPolicy === undefined ? (
+                  <Button type="button" onClick={() => update('dstPolicy', 'gap-skip-fold-first')}>Customize DST policy</Button>
+                ) : (
+                  <>
                   <label className="block text-sm">
                     DST policy
                     <select
@@ -175,6 +178,12 @@ export function CanonicalSchedulerFields({
                       ))}
                     </select>
                   </label>
+                  <Button type="button" onClick={() => {
+                    const next = { ...rule };
+                    delete next.dstPolicy;
+                    setRules(rules.map((r, i) => i === index ? next : r));
+                  }}>Use default DST policy</Button>
+                  </>
                 )}
               </>
             )}
