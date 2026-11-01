@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.158" timestamp="2026-11-02T01:19:19.357416+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_templates" name="test_shared_scheduler_entry_and_misfire_do_not_replay_effects" time="1.621"><failure message="AssertionError: assert 'expired' == 'skipped'&#10;  &#10;  - skipped&#10;  + expired">canonical_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000266427646E0&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6702/test_shared_scheduler_entry_an0'))
+
+    def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(canonical_h):
+        from tests.test_retirement_rev16_behavior import schedule, fire, instant
+        from packages.jobs.final_service import definition
+        from packages.core import session
+        h = canonical_h
+        missed, due = instant(30), instant(35)
+        job, creator, _ = schedule(h, [{'ruleId':'original', 'type':'once', 'at':missed}])
+        cfg = definition('event_creator', creator)
+        cfg['config']['misfirePolicy'] = 'skip'
+        cfg['config']['graceSeconds'] = '0'
+        changed = h.client.put('/api/event-creators/' + creator['id'], json={
+            'definition':cfg, 'expectedRevision':creator['revision'], 'requestKey':'skip-misfire'})
+        assert changed.status_code == 200, changed.text
+        creator = changed.json()['result']['object']
+        fire(h, due)
+        skipped = h.service.creators.get(creator['id'])
+&gt;       assert skipped['drives'][-1]['outcome'] == 'skipped'
+E       AssertionError: assert 'expired' == 'skipped'
+E         
+E         - skipped
+E         + expired
+
+tests\test_job_action_templates.py:532: AssertionError</failure></testcase></testsuite></testsuites>

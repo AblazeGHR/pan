@@ -18,6 +18,7 @@ from packages.plugins.catalog import Catalog
 from packages.plugins.ipc import Bridge
 from packages.plugins.runtime import Runtime
 from packages.web import server as srv
+from tests.job_retirement_native_fixture import h as canonical_h  # noqa: F401
 
 
 @pytest.fixture
@@ -110,7 +111,7 @@ def test_all_seven_qq_tools_keep_legacy_wire_contract(mode, upstream, tmp_path):
     asyncio.run(run())
 
 
-def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch):
+def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch, canonical_h):
     from packages.core import background_jobs, qq_reports
     async def run():
         session = sess.create(name="qq-background", adapter="codex", adapter_config={
@@ -120,17 +121,25 @@ def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, mo
                                    "queued-before-upgrade": {"state": "pending", "target": "user:123456@999999", "text": "pending report"}}
         sess.save(session)
         monkeypatch.setattr(srv, "_qq_plugin_client", None)
-        monkeypatch.setitem(background_jobs._scheduled_task_hooks, "qq_send", srv._send_scheduled_qq)
         try:
-            job = background_jobs._create({'jobId': 'job_legacy_qq', 'kind': 'scheduled-task',
-                'status': 'scheduled', 'text': 'scheduled QQ', 'action': {'api': 'send_qq',
-                'args': {'targetType': 'user', 'targetId': '123456', 'botUin': '999999'}}})
-            result = await background_jobs._run_job_action(job, None, "old-job-fire")
-            assert result["status"] == "completed"
-            assert result["messageId"] == "fixture-message"
-            settled = background_jobs.get(job['jobId'])
-            assert settled['snapshotCleanup'] == 'cleaned' and 'attemptSnapshot' not in settled
-            assert settled['attempts'][-1]['dispatchKey'] == 'old-job-fire'
+            from tests.test_retirement_rev6_parity import qq_job
+            from tests.test_job_final_http_service import enabled, launch
+            h = canonical_h
+            srv._bind_qq_channel_provider(h.service)
+            h.service._install_product_actions()
+            value = qq_job(h, '999999')
+            value['steps'][0]['arguments']['text']['value'] = 'scheduled QQ'
+            job = enabled(h, value)
+            original = launch(h, job)
+            await h.service.dispatch_once()
+            settled = h.service.final.get(job['id'])
+            assert settled['runs'][original['runId']]['state'] == 'completed'
+            assert len(settled['attempts']) == len(settled['effects']) == 1
+            receipt = settled['effects'][0]['receipt']
+            assert receipt['receipt']['message_id'] == 'fixture-message'
+            assert receipt['effectKey']['runId'] == original['runId']
+            await h.service.dispatch_once()
+            assert h.service.final.get(job['id']) == settled
             qq_reports.start(srv._send_scheduled_qq, [session])
             await asyncio.gather(*list(qq_reports._tasks.values()))
             assert session.qq_report_outbox["old-attempt"]["state"] == "attempted"

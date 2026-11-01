@@ -15,6 +15,7 @@ from packages.core.character import CharacterManager
 from packages.core.manifest_loader import McpServer, SessionTemplate
 from packages.plugins.catalog import Catalog
 from packages.web import server as srv
+from tests.job_retirement_native_fixture import h as canonical_h  # noqa: F401
 
 
 def binding(plugin="qq", mode="gateway", enabled=True):
@@ -125,7 +126,7 @@ def test_handoff_and_branch_copy_logical_binding_independently(manager):
     assert archived.qq_subscriptions == set()
 
 
-def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch):
+def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch, canonical_h):
     from packages.jobs.actions import normalize_scheduled_qq_action
     from packages.core import background_jobs
     action = {"api": "send_qq", "args": {"targetType": "user", "targetId": "123456", "botUin": "999999"}}
@@ -136,15 +137,25 @@ def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monk
     normalized_again, problem = normalize_scheduled_qq_action(action)
     assert normalized_again == normalized and problem is None
     sender = AsyncMock(return_value={"ok": True, "message_id": "legacy-message-1"})
-    monkeypatch.setitem(background_jobs._scheduled_task_hooks, "qq_send", sender)
-    job = background_jobs._create({'jobId': 'job_legacy_qq', 'kind': 'scheduled-task',
-        'status': 'scheduled', 'action': action, 'text': 'scheduled without Worker'})
-    result = asyncio.run(background_jobs._run_job_action(job, None, "original-dispatch-key"))
-    assert result["status"] == "completed" and result["messageId"] == "legacy-message-1"
-    assert result["dispatchKey"] == "original-dispatch-key"
-    settled = background_jobs.get(job['jobId'])
-    assert settled['snapshotCleanup'] == 'cleaned' and 'attemptSnapshot' not in settled
-    assert settled['attempts'][-1]['dispatchKey'] == 'original-dispatch-key'
+    from packages.actions.qq_channel_provider import QQChannelProvider
+    from tests.test_retirement_rev6_parity import qq_job
+    from tests.test_job_final_http_service import enabled, launch
+    h = canonical_h
+    h.service.executor.channel_provider = QQChannelProvider(sender)
+    h.service._install_product_actions()
+    value = qq_job(h, '999999')
+    value['steps'][0]['arguments']['text']['value'] = 'scheduled without Worker'
+    job = enabled(h, value)
+    original = launch(h, job)
+    h.run(h.service.dispatch_once())
+    settled = h.service.final.get(job['id'])
+    assert settled['runs'][original['runId']]['state'] == 'completed'
+    assert len(settled['attempts']) == len(settled['effects']) == 1
+    receipt = settled['effects'][0]['receipt']
+    assert receipt['receipt']['message_id'] == 'legacy-message-1'
+    assert receipt['effectKey']['runId'] == original['runId']
+    h.run(h.service.dispatch_once())
+    assert h.service.final.get(job['id']) == settled
     sender.assert_awaited_once_with(target_type="private", target_id="123456", text="scheduled without Worker", bot_uin="999999")
 
 

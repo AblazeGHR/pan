@@ -331,3 +331,7 @@ Model source: docs/design/job-unification/JOB_FINAL_MODEL_20261025.md sections 2
 | `test_message_job_default_name_min_vacant` | packages.jobs.retired.RetiredEntryPoint: Legacy entrypoint start_message retired; use canonical FinalService/FinalRuntime/CreatorRuntime | Original business, original identity/no-replay and owner fence assertions retained; see group-specific disposition |
 
 Latest focused update: 152 of the original 263 identities now have intermediate exact passing observations in full-terminal-5a7/successor-observations.json. This is not a final full run. 111 original identities remain without a mapped passing successor; composition-sensitive provider reds are preserved separately from their five-node passing recheck.
+
+## 2026-11-02 canonical bridge/delivery and background provider followthrough
+
+Exact84f48cea public80pass and native100pass1existing skip, no source drift; provider five now proven in actual background combination. Evidence cohort84f4-combined. Bridge/delivery/QQ/misfire six original nodes now have explicit per-node mapping and focused evidence in bridge-delivery-successors/README.md. Bridge/delivery affected65pass0skip, QQ2pass, interval misfire1pass. Original diagnostics include newly preserved fixture reds; no semantic retirement inferred from a filename. successor-observations now163of263 exact identities have intermediate passing observations;100 remain without mapped green. These are not a final full gate or new-SHA CI acceptance.

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.857" timestamp="2026-11-02T01:18:36.575291+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_session_config" name="test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog" time="0.322"><failure message="StopIteration">manager = &lt;packages.core.character.CharacterManager object at 0x0000023A9FAA3B60&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023A9FB762C0&gt;
+canonical_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000023A9FBF8980&gt;, automation=&lt;packages.automation.service.Ser...43514935c2cbef86131e95298575'}, run=&lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x0000023A9FBF8830&gt;&gt;)
+
+    def test_legacy_scheduled_qq_action_is_unchanged_by_plugin_catalog(manager, monkeypatch, canonical_h):
+        from packages.jobs.actions import normalize_scheduled_qq_action
+        from packages.core import background_jobs
+        action = {"api": "send_qq", "args": {"targetType": "user", "targetId": "123456", "botUin": "999999"}}
+        normalized, problem = normalize_scheduled_qq_action(copy.deepcopy(action))
+        assert problem is None
+        assert normalized == action
+        Catalog(manager._manifest_config).compile([binding(mode="pan_native")])
+        normalized_again, problem = normalize_scheduled_qq_action(action)
+        assert normalized_again == normalized and problem is None
+        sender = AsyncMock(return_value={"ok": True, "message_id": "legacy-message-1"})
+        from packages.actions.qq_channel_provider import QQChannelProvider
+        from tests.test_retirement_rev6_parity import qq_job
+        from tests.test_job_final_http_service import enabled, launch
+        h = canonical_h
+        h.service.executor.channel_provider = QQChannelProvider(sender)
+&gt;       value = qq_job(h, '999999')
+                ^^^^^^^^^^^^^^^^^^^
+
+tests\test_plugin_session_config.py:145: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000023A9FBF8980&gt;, automation=&lt;packages.automation.service.Ser...43514935c2cbef86131e95298575'}, run=&lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x0000023A9FBF8830&gt;&gt;)
+bot = '999999'
+
+    def qq_job(h, bot=None):
+        actions = h.service.actions(actor=USER)
+&gt;       product = next(row for row in actions['items'] if row['id'] == 'product_channel')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests\test_retirement_rev6_parity.py:89: StopIteration</failure></testcase><testcase classname="tests.test_plugin_qq_integration" name="test_qq_job_and_outbox_continue_when_session_tools_are_disabled" time="0.474"><failure message="RuntimeError: coroutine raised StopIteration">async def run():
+        session = sess.create(name="qq-background", adapter="codex", adapter_config={
+            "plugin_bindings": [{"plugin_id": "qq", "enabled": False, "mode": "gateway"}], "mcp_servers": []})
+        session.qq_report_targets = {"user:123456@999999"}
+        session.qq_report_outbox = {"old-attempt": {"state": "attempted", "target": "user:123456@999999", "text": "never replay"},
+                                   "queued-before-upgrade": {"state": "pending", "target": "user:123456@999999", "text": "pending report"}}
+        sess.save(session)
+        monkeypatch.setattr(srv, "_qq_plugin_client", None)
+        try:
+            from tests.test_retirement_rev6_parity import qq_job
+            from tests.test_job_final_http_service import enabled, launch
+            h = canonical_h
+            srv._bind_qq_channel_provider(h.service)
+&gt;           value = qq_job(h, '999999')
+                    ^^^^^^^^^^^^^^^^^^^
+
+tests\test_plugin_qq_integration.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000023A9FD89400&gt;, automation=&lt;packages.automation.service.Ser...43514935c2cbef86131e95298575'}, run=&lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x0000023A9FDEC7D0&gt;&gt;)
+bot = '999999'
+
+    def qq_job(h, bot=None):
+        actions = h.service.actions(actor=USER)
+&gt;       product = next(row for row in actions['items'] if row['id'] == 'product_channel')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests\test_retirement_rev6_parity.py:89: StopIteration
+
+The above exception was the direct cause of the following exception:
+
+upstream = []
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023A9FC55BA0&gt;
+canonical_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000023A9FD89400&gt;, automation=&lt;packages.automation.service.Ser...43514935c2cbef86131e95298575'}, run=&lt;bound method Runner.run of &lt;asyncio.runners.Runner object at 0x0000023A9FDEC7D0&gt;&gt;)
+
+    def test_qq_job_and_outbox_continue_when_session_tools_are_disabled(upstream, monkeypatch, canonical_h):
+        from packages.core import background_jobs, qq_reports
+        async def run():
+            session = sess.create(name="qq-background", adapter="codex", adapter_config={
+                "plugin_bindings": [{"plugin_id": "qq", "enabled": False, "mode": "gateway"}], "mcp_servers": []})
+            session.qq_report_targets = {"user:123456@999999"}
+            session.qq_report_outbox = {"old-attempt": {"state": "attempted", "target": "user:123456@999999", "text": "never replay"},
+                                       "queued-before-upgrade": {"state": "pending", "target": "user:123456@999999", "text": "pending report"}}
+            sess.save(session)
+            monkeypatch.setattr(srv, "_qq_plugin_client", None)
+            try:
+                from tests.test_retirement_rev6_parity import qq_job
+                from tests.test_job_final_http_service import enabled, launch
+                h = canonical_h
+                srv._bind_qq_channel_provider(h.service)
+                value = qq_job(h, '999999')
+                value['steps'][0]['arguments']['text']['value'] = 'scheduled QQ'
+                job = enabled(h, value)
+                original = launch(h, job)
+                await h.service.dispatch_once()
+                settled = h.service.final.get(job['id'])
+                assert settled['runs'][original['runId']]['state'] == 'completed'
+                assert len(settled['attempts']) == len(settled['effects']) == 1
+                receipt = settled['effects'][0]['receipt']
+                assert receipt['receipt']['message_id'] == 'fixture-message'
+                assert receipt['effectKey']['runId'] == original['runId']
+                await h.service.dispatch_once()
+                assert h.service.final.get(job['id']) == settled
+                qq_reports.start(srv._send_scheduled_qq, [session])
+                await asyncio.gather(*list(qq_reports._tasks.values()))
+                assert session.qq_report_outbox["old-attempt"]["state"] == "attempted"
+                assert session.qq_report_outbox["queued-before-upgrade"]["state"] == "sent"
+                qq_reports.start(srv._send_scheduled_qq, [session])
+                if qq_reports._tasks:
+                    await asyncio.gather(*list(qq_reports._tasks.values()))
+                assert [body["text"] for _, _, body in upstream] == ["scheduled QQ", "pending report"]
+            finally:
+                await qq_reports.stop()
+                if srv._qq_plugin_client:
+                    await srv._qq_plugin_client.aclose()
+&gt;       asyncio.run(run())
+
+tests\test_plugin_qq_integration.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;ProactorEventLoop running=False closed=True debug=False&gt;
+future = &lt;Task finished name='Task-4' coro=&lt;test_qq_job_and_outbox_continue_when_session_tools_are_disabled.&lt;locals&gt;.run() done...n-readiness-20261101\tests\test_plugin_qq_integration.py:116&gt; exception=RuntimeError('coroutine raised StopIteration')&gt;
+
+    def run_until_complete(self, future):
+        """Run until the Future is done.
+    
+        If the argument is a coroutine, it is wrapped in a Task.
+    
+        WARNING: It would be disastrous to call run_until_complete()
+        with the same coroutine twice -- it would wrap it in two
+        different Tasks and that can't be good.
+    
+        Return the Future's result, or raise its exception.
+        """
+        self._check_closed()
+        self._check_running()
+    
+        new_task = not futures.isfuture(future)
+        future = tasks.ensure_future(future, loop=self)
+        if new_task:
+            # An exception is raised if the future didn't complete, so there
+            # is no need to log the "destroy pending task" message
+            future._log_destroy_pending = False
+    
+        future.add_done_callback(_run_until_complete_cb)
+        try:
+            self.run_forever()
+        except:
+            if new_task and future.done() and not future.cancelled():
+                # The coroutine raised a BaseException. Consume the exception
+                # to not log a warning, the caller doesn't have access to the
+                # local task.
+                future.exception()
+            raise
+        finally:
+            future.remove_done_callback(_run_until_complete_cb)
+        if not future.done():
+            raise RuntimeError('Event loop stopped before Future completed.')
+    
+&gt;       return future.result()
+               ^^^^^^^^^^^^^^^
+E       RuntimeError: coroutine raised StopIteration
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: RuntimeError</failure></testcase></testsuite></testsuites>

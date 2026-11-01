@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="2.187" timestamp="2026-11-02T01:19:38.428951+08:00" hostname="ablaze"><testcase classname="tests.test_job_action_templates" name="test_shared_scheduler_entry_and_misfire_do_not_replay_effects" time="1.804" /></testsuite></testsuites>

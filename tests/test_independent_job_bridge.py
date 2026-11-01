@@ -4,6 +4,7 @@ import pytest
 
 from packages.core import config
 from packages.jobs import pan_bridge as bridge
+from tests.test_job_final_http_service import h as canonical_h  # noqa: F401
 
 
 def test_disabled_does_not_import_or_start_service(monkeypatch):
@@ -96,26 +97,61 @@ def test_enqueue_survives_reload_and_ack_failure_does_not_duplicate(monkeypatch,
 
 
 def test_core_routes_only_new_generic_jobs_and_never_reconciles_remote(monkeypatch, tmp_path):
-    from packages.core import background_jobs as jobs
-    calls = []
-    remote = {"jobId": "job_remote", "kind": "background-process", "status": "running",
-              "targetSessionId": "ses_1", "createdAt": 1}
-    monkeypatch.setattr(jobs._sessions, "get", lambda _: object())
-    monkeypatch.setenv("PAN_BACKGROUND_JOBS_DIR", str(tmp_path / "local"))
-    def request(method, *args, **kwargs):
-        calls.append(method)
-        return {"jobs": [remote]} if method == "list" else remote
-    monkeypatch.setattr(bridge, "request", request)
-    result = jobs.start("ses_1", ["python", "owned.py"], str(tmp_path), name="Validate independent job bridge")
-    assert result["executionOwner"] == "independent-job-service"
-    assert list((tmp_path / "local" / "jobs").glob("*.json")) == []
-    assert jobs.reconcile_running() == 0
-    assert jobs.cancel("job_remote")["executionOwner"] == "independent-job-service"
-    assert jobs.retry("job_remote")["executionOwner"] == "independent-job-service"
-    assert calls == ["start", "list", "get", "cancel", "get", "retry"]
-    calls.clear()
-    assert jobs.list_jobs(tmp_path / "explicit") == []
-    assert calls == []
+    # E15: the remote port owns executions, while the canonical Job/Run owner
+    # retains admission and retry policy. It must never create a second Job.
+    import copy
+    from packages.jobs.independent_executor import ExecutionHost, ExecutionStore, ExecutionConflict
+    from packages.jobs.independent_service import JobStore
+    from tests.test_job_final_independent_execution import attempt, key, process_plan
+    def forbidden(*args, **kwargs):
+        raise AssertionError("canonical execution port called retired Job lifecycle")
+    monkeypatch.setattr(JobStore, 'create', forbidden)
+    monkeypatch.setattr(JobStore, 'retry', forbidden)
+    monkeypatch.setattr(bridge, 'request', forbidden)
+    store = ExecutionStore(tmp_path / 'executions')
+    launches = []
+    host = ExecutionHost(store, launch=lambda *args: launches.append(args))
+    request = {'jobId':'job_canonical', 'attempt':attempt(), 'effectKey':key(),
+               'frozenPlan':process_plan(tmp_path)}
+    original = host.submit_execution(request)
+    assert host.submit_execution(request) == original and len(launches) == 1
+    cold = ExecutionHost(ExecutionStore(store.root), launch=forbidden)
+    assert cold.get_execution(original['effectId']) == original
+    # Read-only cold lookup cannot infer a result or launch a replacement.
+    before = copy.deepcopy(original)
+    assert before['result'] is None and before['jobId'] == 'job_canonical'
+    with pytest.raises(ExecutionConflict):
+        cold.cancel_execution(original['effectId'], attempt(leaseId='foreign'))
+    assert cold.get_execution(original['effectId']) == before
+    cancelled = host.cancel_execution(original['effectId'], attempt())
+    assert cancelled['result']['receipt']['code'] == 'cancelled_before_effect'
+    assert cancelled['result']['cleanupProof'] == {'confirmed':True, 'effectStarted':False}
+    assert len(launches) == 1
+    # An explicitly authorized new Attempt retains the original Run/effect;
+    # the execution port does not invent policy, a Run, or a Job identity.
+    with pytest.raises(ExecutionConflict):
+        host.submit_execution({**request, 'retry':True,
+            'attempt':attempt(attemptId='cancelled_retry', generation=2)})
+    assert host.get_execution(original['effectId']) == cancelled
+    from packages.actions.typed_executor import EffectReceipt
+    failed_key = {**key(), 'targetId':'known-failure'}
+    failed_request = {**request, 'effectKey':failed_key}
+    failed = host.submit_execution(failed_request)
+    claimed = store.claim(failed['effectId'], attempt(), {'pid':7,'birth':'trusted-port-birth'})
+    failure = EffectReceipt(failed_key, 'rejected', {'exitCode':7,
+        'processIdentity':{'pid':8,'birth':'trusted-process-birth'}}, {'confirmed':True}).as_dict()
+    store.finish(failed['effectId'], attempt(), claimed['claim'], failure)
+    retry = {**failed_request, 'retry':True, 'attempt':attempt(attemptId='attempt_retry', generation=2)}
+    retried = host.submit_execution(retry)
+    assert len(launches) == 3
+    assert retried['effectId'] == failed['effectId']
+    assert retried['jobId'] == original['jobId'] and retried['effectKey'] == failed_key
+    assert retried['attempt']['runId'] == original['attempt']['runId']
+    assert retried['history'][0]['result'] == failure
+    with store.connect() as db:
+        assert db.execute('SELECT COUNT(*) FROM executions').fetchone()[0] == 2
+        assert db.execute("SELECT name FROM sqlite_master WHERE name='jobs'").fetchone() is None
+    assert not list((tmp_path / 'local' / 'jobs').glob('*.json'))
 
 
 def test_malformed_remote_list_has_static_error(monkeypatch, tmp_path):
@@ -126,17 +162,38 @@ def test_malformed_remote_list_has_static_error(monkeypatch, tmp_path):
         jobs.list_jobs()
 
 
-def test_unified_gui_reads_remote_and_refuses_local_metadata_mutation(monkeypatch, tmp_path):
-    from packages.jobs import api
-    remote = {"jobId": "job_remote", "kind": "background-process", "status": "completed"}
-    monkeypatch.setattr(api, "_job_root", lambda: tmp_path)
-    monkeypatch.setattr(bridge, "request", lambda method, *a: {"jobs": [remote]} if method == "list" else remote)
-    result = asyncio.run(api.list_jobs())
-    assert result["jobs"][0]["executionOwner"] == "independent-job-service"
-    assert api._find_job("job_remote")["jobId"] == "job_remote"
-    assert asyncio.run(api.patch_job("job_remote", {"name": "changed"}))["error"]["code"] == "unsupported_operation"
-    assert asyncio.run(api.delete_job("job_remote"))["error"]["code"] == "unsupported_operation"
-    assert list(tmp_path.rglob("*.json")) == []
+def test_unified_gui_reads_remote_and_refuses_local_metadata_mutation(canonical_h):
+    # E15 removes the second remote Job facade. The GUI queries the canonical
+    # Job/Run; metadata CAS may rename that Job without mutating its receipt.
+    import copy
+    from packages.jobs.final_service import definition
+    from tests.test_job_final_http_service import enabled, launch
+    h = canonical_h
+    job = enabled(h)
+    rid = launch(h, job)['runId']
+    asyncio.run(h.service.dispatch_once())
+    original = copy.deepcopy(h.service.final.get(job['id']))
+    original_plans = copy.deepcopy(h.service.final.store.get(job['id'])['finalRuntime']['plans'])
+    assert original['runs'][rid]['state'] == 'completed'
+    assert len(original['attempts']) == len(original['effects']) == 1
+    assert h.client.get('/api/job-runs/' + rid).json()['jobId'] == job['id']
+    assert h.client.get('/api/jobs/' + job['id']).json()['id'] == job['id']
+    cfg = definition('job', job)
+    cfg['name'] = 'Canonical metadata only'
+    result = h.client.put('/api/jobs/' + job['id'], json={'definition':cfg,
+        'expectedRevision':job['configRevision'], 'requestKey':'rename-canonical'})
+    assert result.status_code == 200, result.text
+    changed = h.service.final.get(job['id'])
+    for field in ('runs', 'attempts', 'effects'):
+        assert changed[field] == original[field]
+    assert h.service.final.store.get(job['id'])['finalRuntime']['plans'] == original_plans
+    # A stale GUI mutation is rejected with no additional effect or Run.
+    before = copy.deepcopy(changed)
+    stale = h.client.put('/api/jobs/' + job['id'], json={'definition':cfg,
+        'expectedRevision':job['configRevision'], 'requestKey':'stale-rename'})
+    assert stale.status_code == 409
+    assert h.service.final.get(job['id']) == before
+    assert len(h.service.list('job', actor={'type':'user','id':'local'})['items']) == 1
 
 
 def test_real_service_outbox_reaches_durable_pan_queue(monkeypatch, tmp_path):

@@ -8,6 +8,8 @@ from packages.actions.store import Store
 from packages.jobs.action_runtime import Runtime, Conflict
 from packages.jobs import system_actions
 from tests.test_automation_core import action
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h as delivery_h  # noqa: F401
 
 
 def config():
@@ -63,18 +65,14 @@ def test_recovery_exhausts_same_run_distinct_attempts(tmp_path,monkeypatch):
     asyncio.run(run())
 
 
-def test_system_delivery_confirmation_does_not_resend_receipts(monkeypatch):
-    async def run():
-        calls=[]
-        async def send(sid,*_,**__):calls.append(sid);return {'status':'queued'}
-        monkeypatch.setattr('packages.core.background_jobs._worker.send_session',send)
-        async def progress(**_):pass
-        progress.checkpoint={'targetIds':['known','unknown','new'],'targetResults':[
-            {'sessionId':'known','status':'queued'},{'sessionId':'unknown','status':'unknown'}]}
-        result=await system_actions.execute(system_actions.definition('session-broadcast'),
-            {'sessionIds':['changed'],'text':'secret'}, {'jobRoot':'unused'},progress)
-        assert calls==['new'] and result['status']=='uncertain'
-    asyncio.run(run())
+def test_system_delivery_confirmation_does_not_resend_receipts(delivery_h):
+    # Original accepted/unknown/new checkpoint semantics now live in the
+    # canonical SessionDelivery reservation, not system_actions.execute.
+    # Exercise real queue acceptance, lost ACK, durable child fences and a
+    # cold owner. Only the proven never-attempted slot may deliver; accepted
+    # and unknown originals are queried, never sent again.
+    from tests.test_retirement_session_runtime import test_mixed_accepted_unknown_and_unsent_only_unsent_retargets
+    test_mixed_accepted_unknown_and_unsent_only_unsent_retargets(delivery_h, False)
 
 
 def test_unavailable_event_retains_persistent_queue(tmp_path):

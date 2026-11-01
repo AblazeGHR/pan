@@ -14,6 +14,8 @@ from packages.core import background_jobs as jobs
 from packages.jobs.action_templates import Templates, Conflict, CreationPending, config_value
 from packages.jobs.action_runtime import Runtime, RUNTIMES
 from tests.test_automation_core import async_test, action, until
+from tests.job_retirement_native_fixture import h as native_h  # noqa: F401
+from tests.test_retirement_rev16_behavior import h as canonical_h  # noqa: F401
 
 
 def config(**fields):
@@ -511,25 +513,47 @@ async def test_notification_retry_is_independent_of_effect_and_snapshot(tmp_path
     finally:await rt.close()
 
 
-@async_test
-async def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(tmp_path,monkeypatch):
-    rt,calls=await setup(tmp_path)
-    monkeypatch.setattr(jobs,'_scheduled_task_root',lambda:rt.root)
-    monkeypatch.setattr(jobs,'_scheduled_task_config',lambda:{'enabled':True,'graceSec':0})
-    try:
-        job=rt.create(config(),True)
-        current=rt.get(job['jobId']);current['schedule'][0]['nextFireAt']=(datetime.now()-timedelta(seconds=5)).isoformat()
-        current['schedule'][0]['misfirePolicy']='skip';current['schedule'][0]['graceSec']=0
-        jobs._write_job(jobs._job_path(job['jobId'],rt.root),current)
-        await jobs.run_due_scheduled_tasks()
-        assert rt.get(job['jobId'])['lastExecution']['status']=='skipped' and not calls
-        current=rt.get(job['jobId']);current['schedule'][0]['nextFireAt']=datetime.now().replace(microsecond=0).isoformat()
-        current['schedule'][0]['misfirePolicy']='fire_now';current['schedule'][0]['graceSec']=60
-        jobs._write_job(jobs._job_path(job['jobId'],rt.root),current)
-        await jobs.run_due_scheduled_tasks();await finished(rt,job['jobId'])
-        assert calls==['selected'] and not rt.actions.read()['jobExecutions']
-        await jobs.run_due_scheduled_tasks();assert calls==['selected']
-    finally:await rt.close()
+def test_shared_scheduler_entry_and_misfire_do_not_replay_effects(canonical_h):
+    from tests.test_retirement_rev16_behavior import schedule, fire, instant
+    from packages.jobs.final_service import definition
+    from packages.core import session
+    h = canonical_h
+    missed, due = instant(30), instant(35)
+    job, creator, _ = schedule(h, [{'ruleId':'original', 'type':'interval', 'seconds':'60',
+        'anchor':missed, 'advanceMode':'grid'}])
+    cfg = definition('event_creator', creator)
+    cfg['config']['misfirePolicy'] = 'skip'
+    cfg['config']['graceSeconds'] = '0'
+    changed = h.client.put('/api/event-creators/' + creator['id'], json={
+        'definition':cfg, 'expectedRevision':creator['revision'], 'requestKey':'skip-misfire'})
+    assert changed.status_code == 200, changed.text
+    creator = changed.json()['result']['object']
+    fire(h, due)
+    skipped = h.service.creators.get(creator['id'])
+    assert skipped['drives'][-1]['outcome'] == 'skipped'
+    assert skipped['producedCount'] == 0
+    state = h.service.final.get(job['id'])
+    assert not state['runs'] and not state['attempts'] and not state['effects']
+    assert not session.get('ses_a').queue_pending
+    # Replace the exhausted rule through the same public CAS API. The new
+    # occurrence has its own Event; repeating its tick must not resend it.
+    next_at = instant(60)
+    cfg = definition('event_creator', creator)
+    cfg['config']['rules'] = [{'ruleId':'replacement', 'type':'once', 'at':next_at}]
+    cfg['config']['misfirePolicy'] = 'fire_now'
+    changed = h.client.put('/api/event-creators/' + creator['id'], json={
+        'definition':cfg, 'expectedRevision':creator['revision'], 'requestKey':'fire-now'})
+    assert changed.status_code == 200, changed.text
+    fire(h, next_at)
+    history = h.service.final.history(job['id'])
+    assert len(history['runs']) == len(h.service.final.get(job['id'])['attempts']) == len(history['effects']) == 1
+    event = h.service.events.get(history['runs'][0]['cause']['eventId'])['event']
+    assert event['payload']['ruleId'] == 'replacement'
+    assert event['payload']['scheduledAt'] == next_at
+    assert len(session.get('ses_a').queue_pending) == 1
+    fire(h, next_at)
+    assert h.service.final.history(job['id']) == history
+    assert len(session.get('ses_a').queue_pending) == 1
 
 
 @async_test

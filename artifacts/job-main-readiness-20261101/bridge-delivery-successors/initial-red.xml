@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="2.995" timestamp="2026-11-02T01:10:09.454194+08:00" hostname="ablaze"><testcase classname="tests.test_independent_job_bridge" name="test_core_routes_only_new_generic_jobs_and_never_reconciles_remote" time="0.054"><failure message="packages.jobs.independent_executor.ExecutionConflict: lease fence conflict; query/reconcile original effect before retry">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000013350E4A3F0&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6697/test_core_routes_only_new_gene0')
+
+    def test_core_routes_only_new_generic_jobs_and_never_reconciles_remote(monkeypatch, tmp_path):
+        # E15: the remote port owns executions, while the canonical Job/Run owner
+        # retains admission and retry policy. It must never create a second Job.
+        import copy
+        from packages.jobs.independent_executor import ExecutionHost, ExecutionStore, ExecutionConflict
+        from packages.jobs.independent_service import JobStore
+        from tests.test_job_final_independent_execution import attempt, key, process_plan
+        def forbidden(*args, **kwargs):
+            raise AssertionError("canonical execution port called retired Job lifecycle")
+        monkeypatch.setattr(JobStore, 'create', forbidden)
+        monkeypatch.setattr(JobStore, 'retry', forbidden)
+        monkeypatch.setattr(bridge, 'request', forbidden)
+        store = ExecutionStore(tmp_path / 'executions')
+        launches = []
+        host = ExecutionHost(store, launch=lambda *args: launches.append(args))
+        request = {'jobId':'job_canonical', 'attempt':attempt(), 'effectKey':key(),
+                   'frozenPlan':process_plan(tmp_path)}
+        original = host.submit_execution(request)
+        assert host.submit_execution(request) == original and len(launches) == 1
+        cold = ExecutionHost(ExecutionStore(store.root), launch=forbidden)
+        assert cold.get_execution(original['effectId']) == original
+        # Read-only cold lookup cannot infer a result or launch a replacement.
+        before = copy.deepcopy(original)
+        assert before['result'] is None and before['jobId'] == 'job_canonical'
+        with pytest.raises(ExecutionConflict):
+            cold.cancel_execution(original['effectId'], attempt(leaseId='foreign'))
+        assert cold.get_execution(original['effectId']) == before
+        cancelled = host.cancel_execution(original['effectId'], attempt())
+        assert cancelled['result']['receipt']['code'] == 'cancelled_before_effect'
+        assert cancelled['result']['cleanupProof'] == {'confirmed':True, 'effectStarted':False}
+        assert len(launches) == 1
+        # An explicitly authorized new Attempt retains the original Run/effect;
+        # the execution port does not invent policy, a Run, or a Job identity.
+        retry = {**request, 'retry':True, 'attempt':attempt(attemptId='attempt_retry', generation=2)}
+&gt;       retried = host.submit_execution(retry)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_independent_job_bridge.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+packages\jobs\independent_executor.py:570: in submit_execution
+    doc, created = self.store.admit(job_id=request["jobId"], attempt=request["attempt"],
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.independent_executor.ExecutionStore object at 0x0000013350EB5BE0&gt;
+job_id = 'job_canonical'
+attempt = {'attemptId': 'attempt_retry', 'runId': 'run_original', 'stepId': 'step_original', 'leaseId': 'lease_original', ...}
+effect_key = {'runId': 'run_original', 'stepId': 'step_original', 'targetId': 'original', 'operationOrdinal': 0}
+frozen_plan = {'operation': 'process', 'argv': ['D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scri...ass'], 'cwd': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6697\\test_core_routes_only_new_gene0'}
+retry = True
+
+    def admit(self, *, job_id, attempt, effect_key, frozen_plan, retry=False):
+        """Persist an admitted intent before dispatch; return (record, is_new)."""
+        current_fence = fence(attempt)
+        if attempt.get("state") != "running":
+            raise ExecutionConflict("Attempt is not running")
+        if not isinstance(job_id, str) or not job_id:
+            raise ValueError("canonical jobId is required")
+        identity = effect_id(effect_key)
+        if (attempt["runId"], attempt["stepId"]) != (effect_key["runId"], effect_key["stepId"]):
+            raise ExecutionConflict("Attempt and effect identities differ")
+        plan_digest = contracts.digest(dict(frozen_plan))
+        validate_monitoring_completion(frozen_plan.get("completion"))
+        with self.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            try:
+                previous = self._load(db, identity)
+            except KeyError:
+                previous = None
+            history = []
+            if previous is not None:
+                if previous["jobId"] != job_id or previous["planDigest"] != plan_digest:
+                    raise ExecutionConflict("effectKey already belongs to a different Job or frozen plan")
+                if fence(previous["attempt"]) == current_fence:
+                    db.commit()
+                    return previous, False
+                result = previous.get("result") or {}
+                safe_retry = (retry and result.get("outcome") == "rejected"
+                              and result.get("receipt", {}).get("code") != "cancelled_before_effect"
+                              and result.get("cleanupProof", {}).get("confirmed") is True
+                              and attempt["attemptId"] != previous["attempt"]["attemptId"]
+                              and all(item["attempt"]["attemptId"] != attempt["attemptId"] for item in previous["history"])
+                              and attempt["generation"] &gt; previous["attempt"]["generation"]
+                              and attempt["ownerEpoch"] &gt;= previous["attempt"]["ownerEpoch"])
+                if not safe_retry:
+&gt;                   raise ExecutionConflict("lease fence conflict; query/reconcile original effect before retry")
+E                   packages.jobs.independent_executor.ExecutionConflict: lease fence conflict; query/reconcile original effect before retry
+
+packages\jobs\independent_executor.py:156: ExecutionConflict</failure></testcase><testcase classname="tests.test_independent_job_bridge" name="test_unified_gui_reads_remote_and_refuses_local_metadata_mutation" time="0.475"><failure message="KeyError: 'plans'">canonical_h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000013350EB6A50&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='3ClSlXgsC9Hn0_8mSPnXJG-PgZruqv5RH5UBNlVc-GA')
+
+    def test_unified_gui_reads_remote_and_refuses_local_metadata_mutation(canonical_h):
+        # E15 removes the second remote Job facade. The GUI queries the canonical
+        # Job/Run; metadata CAS may rename that Job without mutating its receipt.
+        import copy
+        from packages.jobs.final_service import definition
+        from tests.test_job_final_http_service import enabled, launch
+        h = canonical_h
+        job = enabled(h)
+        rid = launch(h, job)['runId']
+        asyncio.run(h.service.dispatch_once())
+        original = copy.deepcopy(h.service.final.get(job['id']))
+        assert original['runs'][rid]['state'] == 'completed'
+        assert len(original['attempts']) == len(original['effects']) == 1
+        assert h.client.get('/api/job-runs/' + rid).json()['jobId'] == job['id']
+        assert h.client.get('/api/jobs/' + job['id']).json()['id'] == job['id']
+        cfg = definition('job', job)
+        cfg['name'] = 'Canonical metadata only'
+        result = h.client.put('/api/jobs/' + job['id'], json={'definition':cfg,
+            'expectedRevision':job['configRevision'], 'requestKey':'rename-canonical'})
+        assert result.status_code == 200, result.text
+        changed = h.service.final.get(job['id'])
+        for field in ('runs', 'attempts', 'effects', 'plans'):
+&gt;           assert changed[field] == original[field]
+                   ^^^^^^^^^^^^^^
+E           KeyError: 'plans'
+
+tests\test_independent_job_bridge.py:175: KeyError</failure></testcase><testcase classname="tests.test_job_completion_recovery" name="test_system_delivery_confirmation_does_not_resend_receipts" time="1.911" /></testsuite></testsuites>
