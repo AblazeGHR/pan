@@ -12,6 +12,7 @@ import json
 import sqlite3
 from contextlib import closing, contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from packages.jobs import final_contracts as fc
 from .providers import legacy_source_plan, timestamp
@@ -104,7 +105,7 @@ class PendingPublicationAdoption:
                     "originalDispatchKey": snapshot["dispatchKey"]}
         source_key = f"{snapshot['jobId']}:{snapshot['entryId']}"
         with self.owned():
-            if self.creators.root.parent.resolve() != __import__("pathlib").Path(source["profileRoot"]).resolve():
+            if self.creators.root.parent.resolve() != Path(source["profileRoot"]).resolve():
                 fail("reference_conflict", "JSON pending source profile differs from canonical owner")
             with self.creators.transaction() as db:
                 existing = db.execute("SELECT importKey,creatorId FROM legacy_scheduler_adoptions WHERE sourceId=?",

@@ -193,18 +193,14 @@ def _session(tmp_path,sid='ses_target'):
 # ── name / description 规范（所有 kind 统一，2026-09-25 用户拍板）──
 
 
-def test_message_job_default_name_min_vacant(monkeypatch, tmp_path):
-    """不传 name → job-N（存量最小空缺）；显式名字优先；description 缺省空串。"""
-    target = _session(tmp_path)
-    monkeypatch.setattr(sess, "get", lambda sid: target if sid == "ses_target" else None)
-    first = jobs.start_message("ses_target", "hi",
-                               {"type": "interval", "intervalSeconds": 60})
-    assert first["name"] == "job-1"
-    second = jobs.start_message("ses_target", "hi",
-                                {"type": "interval", "intervalSeconds": 60},
-                                name="  周报  ")
-    assert second["name"] == "周报"  # strip 收编
-    third = jobs.start_message("ses_target", "hi",
-                               {"type": "interval", "intervalSeconds": 60})
-    assert third["name"] == "job-2"
-    assert first["description"] == ""  # 缺省空串
+def test_message_job_default_name_min_vacant(h):
+    def post(h,key,**fields):
+        value=config(h,'session-message',sessionId='ses_a',text='hi');value.pop('name');value.update(fields)
+        return h.client.post('/api/jobs',json={'definition':value,'expectedRevision':0,'requestKey':key})
+    first=post(h,'first');assert first.status_code==201,first.text
+    second=post(h,'explicit',name='  周报  ');assert second.status_code==201,second.text
+    third=post(h,'third');assert third.status_code==201,third.text
+    assert first.json()['result']['object']['name']=='job-1'
+    assert second.json()['result']['object']['name']=='周报'
+    assert third.json()['result']['object']['name']=='job-2'
+    assert first.json()['result']['object']['description']==''

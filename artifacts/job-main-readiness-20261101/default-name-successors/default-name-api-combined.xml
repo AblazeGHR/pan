@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="33" time="18.873" timestamp="2026-11-02T01:33:24.073440+08:00" hostname="ablaze"><testcase classname="tests.test_job_default_names" name="test_omitted_name_smallest_vacancy_explicit_trim_and_default_description" time="0.455" /><testcase classname="tests.test_job_default_names" name="test_same_key_replay_and_cold_response_loss_never_allocates_another_name" time="0.385" /><testcase classname="tests.test_job_default_names" name="test_concurrent_different_keys_share_canonical_scope_without_name_collision" time="0.408" /><testcase classname="tests.test_job_default_names" name="test_invalid_creation_rolls_back_name_and_receipt_and_updates_stay_strict" time="0.361" /><testcase classname="tests.test_job_default_names" name="test_default_scope_uses_only_current_canonical_profile" time="0.360" /><testcase classname="tests.test_session_message_jobs" name="test_message_job_default_name_min_vacant" time="2.228"><failure message="AttributeError: 'types.SimpleNamespace' object has no attribute 'action'">h = namespace(client=&lt;httpx.Client object at 0x00000242A242EE40&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x00000242A236A900&gt;)
+
+    def test_message_job_default_name_min_vacant(h):
+        from tests.test_job_default_names import post
+&gt;       first=post(h,'first');assert first.status_code==201,first.text
+              ^^^^^^^^^^^^^^^
+
+tests\test_session_message_jobs.py:198: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_default_names.py:10: in post
+    value=job_def(h);value.pop('name');value.update(fields)
+          ^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(client=&lt;httpx.Client object at 0x00000242A242EE40&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x00000242A236A900&gt;)
+steps = 1, kwargs = {}
+
+    def job_def(h, *, steps=1, **kwargs):
+&gt;       return {"name": "job", "steps": [{"stepId": "s" + str(index), "actionRef": h.action,
+                                                                                   ^^^^^^^^
+                "arguments": {"sessionId": {"from": "literal", "value": "owned-test-session"},
+                              "text": {"from": "literal", "value": str(index)}},
+                "completion": {"contract": "durable-queue-accepted"}} for index in range(steps)],
+                "retention": {"policyRef": "test"}, **kwargs}
+E       AttributeError: 'types.SimpleNamespace' object has no attribute 'action'
+
+tests\test_job_final_http_service.py:76: AttributeError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_start_reports_missing_session" time="2.291" /><testcase classname="tests.test_background_job_api" name="test_http_start_invalid_argv_and_cwd" time="0.391" /><testcase classname="tests.test_background_job_api" name="test_http_start_forwards_creator_and_target_separately" time="2.433" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_defaults_to_current_session_and_checks_access" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_records_creator_when_target_is_managed" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_start_denies_unmanaged_target" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_get_list_cancel_retry_use_managed_target" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_http_retry_rejects_running_job" time="0.544" /><testcase classname="tests.test_background_job_api" name="test_http_cancel_reports_unsafe_pid" time="0.014" /><testcase classname="tests.test_background_job_api" name="test_http_message_job_creation_preserves_source_and_text" time="2.530" /><testcase classname="tests.test_background_job_api" name="test_http_selected_session_broadcast_reuses_send_session" time="0.006" /><testcase classname="tests.test_background_job_api" name="test_mcp_message_job_shortcuts_preserve_caller_prefix" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_http_scheduled_broadcast_checks_each_target_and_uses_broadcast_model" time="2.480" /><testcase classname="tests.test_background_job_api" name="test_mcp_scheduled_broadcast_preserves_prefix_and_denies_any_target" time="0.004" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[]" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[   ]" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[name2]" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_invalid[None]" time="0.002" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_required" time="0.005" /><testcase classname="tests.test_background_job_api" name="test_mcp_background_name_and_optional_label" time="0.003" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload0]" time="0.449"><failure message="assert (201 == 400)&#10; +  where 201 = &lt;Response [201 Created]&gt;.status_code">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000242A24A6C30&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000242A22E8210&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000242A394BA10&gt;, serial=0)
+payload = {}
+
+    @pytest.mark.parametrize("payload", [{}, {"name": ""}, {"name": "   "}, {"name": "x" * 201}])
+    def test_http_process_name_required_before_spawn(env, payload):
+        from tests.test_job_automatic_recovery import job_definition
+        value = job_definition(env, {'automatic': False})
+        value.pop('name')
+        value.update(payload)
+        response = env.client.post('/api/jobs', json={'definition':value,
+            'expectedRevision':0, 'requestKey':'invalid-name'})
+&gt;       assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
+E       assert (201 == 400)
+E        +  where 201 = &lt;Response [201 Created]&gt;.status_code
+
+tests\test_background_job_api.py:251: AssertionError</failure></testcase><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload1]" time="0.402" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload2]" time="0.469" /><testcase classname="tests.test_background_job_api" name="test_http_process_name_required_before_spawn[payload3]" time="0.429" /><testcase classname="tests.test_background_job_api" name="test_public_background_tool_schema_requires_name_only" time="0.005" /><testcase classname="tests.test_background_job_api" name="test_http_name_path_never_echoes_input_fields_or_values[unknown-field]" time="0.398" /><testcase classname="tests.test_background_job_api" name="test_http_name_path_never_echoes_input_fields_or_values[long-name]" time="0.392" /></testsuite></testsuites>

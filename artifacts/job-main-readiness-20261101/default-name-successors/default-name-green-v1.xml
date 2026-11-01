@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="4" time="2.127" timestamp="2026-11-02T01:33:01.847238+08:00" hostname="ablaze"><testcase classname="tests.test_job_default_names" name="test_omitted_name_smallest_vacancy_explicit_trim_and_default_description" time="0.485" /><testcase classname="tests.test_job_default_names" name="test_same_key_replay_and_cold_response_loss_never_allocates_another_name" time="0.444" /><testcase classname="tests.test_job_default_names" name="test_concurrent_different_keys_share_canonical_scope_without_name_collision" time="0.361" /><testcase classname="tests.test_job_default_names" name="test_invalid_creation_rolls_back_name_and_receipt_and_updates_stay_strict" time="0.343"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;reference_conflict&quot;,&quot;message&quot;:&quot;reference conflict&quot;,&quot;currentRevision&quot;:1}}&#10;assert 409 == 201&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000185278170E0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='HBETE-lbo_FqI0byDius2crAx1XD_aKiZOP62Qm-xd8')
+
+    def test_invalid_creation_rolls_back_name_and_receipt_and_updates_stay_strict(h):
+        value=job_def(h);value.pop('name');value['steps'][0]['actionRef']['revision']=999
+        r=h.client.post('/api/jobs',json={'definition':value,'expectedRevision':0,'requestKey':'broken'})
+        assert r.status_code in {400,409},r.text
+        assert not h.service.list('job',actor={'type':'user','id':'local'})['items']
+        with h.service.transaction(readonly=True) as db:
+            assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0]==0
+&gt;       r=post(h,'first');assert r.status_code==201,r.text
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: {"error":{"code":"reference_conflict","message":"reference conflict","currentRevision":1}}
+E       assert 409 == 201
+E        +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_job_default_names.py:56: AssertionError</failure></testcase></testsuite></testsuites>

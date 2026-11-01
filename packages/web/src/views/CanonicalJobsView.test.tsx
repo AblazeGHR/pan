@@ -62,6 +62,7 @@ beforeEach(() => {
           );
         return response(receipt(accepted ? 'accepted' : 'completed'));
       }
+      if (url === '/api/job-maintenance/records') return response({ items: [], message: '' });
       if (failure) return response({ error: { code: 'authorization_denied' } }, failure);
       if (url.includes('operations')) return response(receipt());
       if (url === '/api/jobs/actions') return response({ items: [], references: {}, nextCursor: null });
@@ -263,12 +264,15 @@ it('shows accepted as pending effect and queries by operationId', async () => {
 });
 it('renders loading and list errors with a retry', async () => {
   let resolve!: (value: Response) => void;
-  vi.mocked(fetch).mockImplementationOnce(
-    () =>
-      new Promise<Response>((done) => {
-        resolve = done;
-      }),
-  );
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  let delayed = false;
+  vi.mocked(fetch).mockImplementation((url, init) => {
+    if (!delayed && String(url).startsWith('/api/jobs?')) {
+      delayed = true;
+      return new Promise<Response>((done) => { resolve = done; });
+    }
+    return original(url, init);
+  });
   host();
   await screen.findByText('加载中…');
   resolve(response({ error: { code: 'authorization_denied' } }, 403));
@@ -280,7 +284,7 @@ it('keeps canonical navigation and performs no legacy transport requests', async
   host();
   await screen.findByText('Example');
   expect(screen.getByRole('link', { name: 'Automation' }).getAttribute('href')).toBe('/automation');
-  expect(vi.mocked(fetch).mock.calls.every(([url]) => /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(String(url)))).toBe(
+  expect(vi.mocked(fetch).mock.calls.every(([url]) => url === '/api/job-maintenance/records' || /^\/api\/(?:jobs|triggers|event-creators|job-templates|job-runs|operations)(?:\/|\?|$)/.test(String(url)))).toBe(
     true,
   );
 });
@@ -290,4 +294,16 @@ it('clears canonical data on logout and blocks unauthenticated reads', async () 
   click('Log out');
   await screen.findByText('请登录以加载 canonical 数据。');
   expect(screen.queryByText('Example')).toBeNull();
+});
+
+it('allows an omitted name only for new Jobs and sends the convenience input unchanged', async () => {
+  host();
+  await screen.findByRole('heading', { name: 'Canonical Jobs', level: 2 });
+  click('创建 Jobs');
+  expect((screen.getByLabelText('名称') as HTMLInputElement).required).toBe(false);
+  fireEvent.change(screen.getByLabelText('定义 JSON（名称单独填写）'), { target: { value: '{"description":"unnamed"}' } });
+  click('保存定义');
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0]!.body.definition).toEqual({ description: 'unnamed' });
+  expect(writes[0]!.body).toMatchObject({ expectedRevision: 0 });
 });

@@ -478,6 +478,8 @@ misfirePolicy=skip/fire_now，graceSeconds 与 pausePolicy 必须显式从来源
 | Event publish / receipts | provider 内部调用发布 service；同可信 IPC/capability 边界，提交 envelope+lease fence，返回 `{eventId,factDigest,persisted:true,receivedAt}` | Event immutable receipt 与来源 advance 分离恢复；普通公开 UI/MCP 不能自报 provider 身份发布 core Event。Trigger admission receipt 按 eventId+triggerId 查询 |
 | 查询/预览 | GET `/api/job-runs/{id}`、`/api/jobs/{id}/runs`、`/api/operations/{id}`；GET `/api/operations?requestKey=...&operation=...` 按可信principal/profile查原操作，即使响应丢失不知道operationId也可恢复；POST `/api/event-creators/preview`（definition+at+count，count1..100） | 预览无副作用、无 credentials/provider effect；分页返回 `{items,nextCursor}`，权限过滤不泄露隐藏对象。日志/资源/通知单独分页，历史兼容 payload 不混进 canonical detail |
 
+创建便利输入（2026-11-02，保留原默认命名能力）：仅 POST `/api/jobs` 可省略 `definition.name`。服务先按可信 principal/profile/requestKey 查询原 operation receipt；新请求才在原 owner-fenced canonical 创建事务内扫描当前 profile 的 Job 名称，分配最小空缺 `job-N`，再执行原严格 definition 校验和写入。显式名称在创建时 trim，description 缺省为空串；显式空白名称仍拒绝，更新仍要求显式合法名称。内部 Job schema 的 name 保持必填。并发不同 key 不重复分配，相同 key／冷恢复查询原身份不重新分配；不读取旧 registry，不启动 Job 或迁移旧数据。UI 留空名称调用同一服务端规则。
+
 所有成功写返回 `{operationId,requestKey,status,objectRefs,runId?,admissionId?,result?,error?,links}`；status=accepted/pending/completed/rejected/unknown，201仅表示新定义已创建，202表示后台操作已接纳，200表示完成或相同 key 查询。同步拒绝用结构化 error，异步失败保留同 operationId 和 error。未知结果服务重启后由原 operation 恢复，不转换成自动再次执行。
 
 | HTTP / code | 处理要求 |

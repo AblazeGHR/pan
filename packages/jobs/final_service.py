@@ -655,7 +655,7 @@ class FinalService:
             allowed.add("expectedCreatorRevisions")
         if set(body) - allowed:
             error("invalid_schema", "Unknown write fields")
-        value = fc.validate_write(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+        value = fc.validate_write_input(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
         if "form" in body:
             value["form"] = copy.deepcopy(body["form"])
         if "expectedReferences" in body:
@@ -666,9 +666,21 @@ class FinalService:
         with self.transaction() as db:
             def mutate(operation_id):
                 runtime_audit = None
+                # _operation has already resolved a repeated requestKey before
+                # this callback. Allocate only for a new creation, inside the
+                # existing profile owner fence and SQLite writer transaction.
+                creation_value = copy.deepcopy(request_value)
+                if kind == "job" and object_id is None and "name" not in creation_value["definition"]:
+                    taken = {row.get("canonical", {}).get("name") for row in self._all(db, "job")}
+                    number = 1
+                    while "job-" + str(number) in taken:
+                        number += 1
+                    creation_value["definition"]["name"] = "job-" + str(number)
+                    creation_value = fc.validate_write(kind, {key: creation_value[key]
+                        for key in ("definition", "expectedRevision", "requestKey")}, create=True)
                 value = (fc.validate_write(kind, self._normalize_template_form(db,
                              {key: request_value[key] for key in ("definition", "form", "expectedRevision", "requestKey")}, actor=actor), create=True)
-                         if "form" in request_value else request_value)
+                         if "form" in request_value else creation_value)
                 if kind == "trigger" and "expectedCreatorRevisions" in body:
                     expected = body["expectedCreatorRevisions"]
                     selector = value["definition"]["creatorSelector"]

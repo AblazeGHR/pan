@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="1.821" timestamp="2026-11-02T01:32:40.900668+08:00" hostname="ablaze"><testcase classname="tests.test_job_default_names" name="test_omitted_name_smallest_vacancy_explicit_trim_and_default_description" time="0.392"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;name&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000026AC1116900&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='231dhl-zfEwfu1B6ci5o7FVombHermkZjqiBI1QK4yg')
+
+    def test_omitted_name_smallest_vacancy_explicit_trim_and_default_description(h):
+        create(h,value={**job_def(h),'name':'job-1'},key='one')
+        create(h,value={**job_def(h),'name':'job-3'},key='three')
+&gt;       r=post(h,'auto');assert r.status_code==201,r.text
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"name"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_job_default_names.py:17: AssertionError</failure></testcase><testcase classname="tests.test_job_default_names" name="test_same_key_replay_and_cold_response_loss_never_allocates_another_name" time="0.319"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;name&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000026AC12F3620&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='F-fIfvan9RBfcEvDGpHc0Ad3MlIk719yTQXNUCzvvYA')
+
+    def test_same_key_replay_and_cold_response_loss_never_allocates_another_name(h):
+&gt;       first=post(h,'original');assert first.status_code==201,first.text
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"name"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_job_default_names.py:25: AssertionError</failure></testcase><testcase classname="tests.test_job_default_names" name="test_concurrent_different_keys_share_canonical_scope_without_name_collision" time="0.288"><failure message="packages.jobs.final_contracts.ContractError: job_definition: 'name' is a required property">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000026AC1581BE0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='NroeqXsMCcKyimVp6tAunIArqrtn9SIbLzwEoHYQ5dc')
+
+    def test_concurrent_different_keys_share_canonical_scope_without_name_collision(h):
+        def write(i):
+            value=job_def(h);value.pop('name')
+            return h.service.write('job',None,{'definition':value,'expectedRevision':0,'requestKey':'concurrent-'+str(i)},actor={'type':'user','id':'local'})
+&gt;       with ThreadPoolExecutor(max_workers=4) as pool:receipts=list(pool.map(write,range(4)))
+                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_default_names.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:639: in result_iterator
+    yield _result_or_cancel(fs.pop())
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:311: in _result_or_cancel
+    return fut.result(timeout)
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:443: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:86: in run
+    result = ctx.run(self.task)
+             ^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\thread.py:73: in run
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+tests\test_job_default_names.py:43: in write
+    return h.service.write('job',None,{'definition':value,'expectedRevision':0,'requestKey':'concurrent-'+str(i)},actor={'type':'user','id':'local'})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_service.py:658: in write
+    value = fc.validate_write(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2530: in validate_write
+    definition = validate_definition(kind, body["definition"], capabilities=capabilities)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:2441: in validate_definition
+    _validate_document(f"{kind}_definition", value)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'job_definition'
+instance = {'steps': [{'stepId': 's0', 'actionRef': {'id': 'test_message', 'revision': 1, 'digest': '42d8fe290ad120d19031080b8595...ed'}}], 'retention': {'policyRef': 'test', 'pinned': False}, 'description': '', 'inputSchema': {'type': 'object'}, ...}
+
+    def _validate_document(name: str, instance: Any) -&gt; None:
+        _validate_name_semantics(instance, kind=name.removesuffix("_definition"))
+        validator = _validators().get(name)
+        if validator is None:
+            raise ValueError(f"Unknown contract document: {name}")
+        errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.absolute_path))
+        if errors:
+&gt;           raise _validation_error(name, errors[0])
+E           packages.jobs.final_contracts.ContractError: job_definition: 'name' is a required property
+
+packages\jobs\final_contracts.py:1906: ContractError</failure></testcase><testcase classname="tests.test_job_default_names" name="test_invalid_creation_rolls_back_name_and_receipt_and_updates_stay_strict" time="0.301"><failure message="AssertionError: {&quot;error&quot;:{&quot;code&quot;:&quot;invalid_schema&quot;,&quot;message&quot;:&quot;invalid schema&quot;,&quot;path&quot;:&quot;name&quot;}}&#10;assert 400 == 201&#10; +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000026AC1581A90&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='qZo147EaoT83tLGxCSrjQ5wtqn4w0j_7Dn69IsDdgbY')
+
+    def test_invalid_creation_rolls_back_name_and_receipt_and_updates_stay_strict(h):
+        value=job_def(h);value.pop('name');value['steps'][0]['actionRef']['revision']=999
+        r=h.client.post('/api/jobs',json={'definition':value,'expectedRevision':0,'requestKey':'broken'})
+        assert r.status_code in {400,409},r.text
+        assert not h.service.list('job',actor={'type':'user','id':'local'})['items']
+        with h.service.transaction(readonly=True) as db:
+            assert db.execute('SELECT count(*) FROM final_operations').fetchone()[0]==0
+&gt;       r=post(h,'first');assert r.status_code==201,r.text
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema","path":"name"}}
+E       assert 400 == 201
+E        +  where 400 = &lt;Response [400 Bad Request]&gt;.status_code
+
+tests\test_job_default_names.py:56: AssertionError</failure></testcase></testsuite></testsuites>

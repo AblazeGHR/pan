@@ -2477,6 +2477,29 @@ def validate_definition(
     return value
 
 
+def validate_write_input(kind, body, *, create=False):
+    """Validate creation convenience without weakening canonical documents.
+
+    Omitted Job names remain omitted until the owner's creation transaction.
+    A temporary name checks the rest of the strict schema before admission;
+    it is never persisted or used to allocate a name.
+    """
+    raw = copy.deepcopy(body)
+    auto = (create and kind == "job" and isinstance(raw, dict)
+            and isinstance(raw.get("definition"), dict) and "name" not in raw["definition"])
+    if create and kind == "job" and isinstance(raw, dict) and isinstance(raw.get("definition"), dict):
+        definition = raw["definition"]
+        if isinstance(definition.get("name"), str):
+            definition["name"] = definition["name"].strip()
+        definition.setdefault("description", "")
+        if auto:
+            definition["name"] = "job-1"
+    value = validate_write(kind, raw, create=create)
+    if auto:
+        value["definition"].pop("name")
+    return value
+
+
 def validate_write(
     kind: str,
     body: Any,

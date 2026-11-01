@@ -1,0 +1,928 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="20" failures="3" errors="0" time="4.202">
+    <testsuite name="views/CanonicalJobsView.test.tsx" timestamp="2026-11-01T17:35:41.766Z" hostname="ablaze" tests="20" failures="3" errors="0" skipped="0" time="2.2651799">
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="blocks repeat Template instantiation after a lost receipt and queries the original operation" time="0.1071165">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires jobs with canonical CAS envelopes" time="0.1273449">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires triggers with canonical CAS envelopes" time="0.1176319">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires event-creators with canonical CAS envelopes" time="0.0983287">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires job-templates with canonical CAS envelopes" time="0.0940053">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs retry using Run state revision and current Job config" time="0.0621848">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs run-again using Run state revision and current Job config" time="0.0777024">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs clone-and-run using Run state revision and current Job config" time="0.0643545">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs cancel using Run state revision and current Job config" time="0.0613509">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs pause using Run state revision and current Job config" time="0.0626409">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs resume using Run state revision and current Job config" time="0.0603062">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 422 rejection for run operations" time="0.0475862">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 403 rejection for run operations" time="0.0465844">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps an edit draft on conflict and close does not submit" time="0.056771">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="does not resend an unconfirmed request and queries its original identity" time="0.0676022">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows accepted as pending effect and queries by operationId" time="0.0310333">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="renders loading and list errors with a retry" time="0.0279258">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+            <failure message="expected &apos;处置清单无法读取；原数据未改变。&apos; to contain &apos;没有执行此操作的权限&apos;" type="AssertionError">
+AssertionError: expected &apos;处置清单无法读取；原数据未改变。&apos; to contain &apos;没有执行此操作的权限&apos;
+
+Expected: &quot;没有执行此操作的权限&quot;
+Received: &quot;处置清单无法读取；原数据未改变。&quot;
+
+ ❯ views/CanonicalJobsView.test.tsx:276:58
+            </failure>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps canonical navigation and performs no legacy transport requests" time="0.0118359">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+            <failure message="expected false to be true // Object.is equality" type="AssertionError">
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ views/CanonicalJobsView.test.tsx:284:163
+            </failure>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="clears canonical data on logout and blocks unauthenticated reads" time="0.0349235">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="allows an omitted name only for new Jobs and sends the convenience input unchanged" time="1.0068172">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+            <failure message="Found multiple elements with the role &quot;heading&quot; and name &quot;Canonical Jobs&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+[36m&lt;h1[39m
+  [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+[36m&gt;[39m
+  [0mCanonical Jobs[0m
+[36m&lt;/h1&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;h2[39m
+  [33mclass[39m=[32m&quot;mr-auto text-lg font-semibold&quot;[39m
+[36m&gt;[39m
+  [0mCanonical [0m
+  [0mJobs[0m
+[36m&lt;/h2&gt;[39m
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Canonical management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto min-w-0 max-w-6xl space-y-4&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex min-w-0 flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mCanonical Jobs[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0m统一定义与 Run 管理 · 手动刷新[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;nav[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-3 text-sm&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/automation&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/a&gt;[39m
+          [36m&lt;/nav&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Job user authorization&quot;[39m
+          [33mclass[39m=[32m&quot;rounded border border-border-default p-3 text-xs space-y-2&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;p&gt;[39m
+            [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Preserved data history&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 space-y-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-xl&quot;[39m
+          [36m&gt;[39m
+            [0m不兼容的保留数据[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p /&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;nav[39m
+          [33maria-label[39m=[32m&quot;Canonical sections&quot;[39m
+          [33mclass[39m=[32m&quot;flex min-w-0 flex-wrap gap-2&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJobs[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTriggers[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEventCreators[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJobTemplates[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/nav&gt;[39m
+        [36m&lt;div[39m
+          [33mclass[39m=[32m&quot;min-w-0 space-y-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap items-center gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;h2[39m
+              [33mclass[39m=[32m&quot;mr-auto text-lg font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mCanonical [0m
+              [0mJobs[0m
+            [36m&lt;/h2&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [33mtype[39m=[32m&quot;button&quot;[39m
+            [36m&gt;[39m
+              [0m刷新列表[0m
+            [36m&lt;/button&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [33mtype[39m=[32m&quot;button&quot;[39m
+            [36m&gt;[39m
+              [0m创建 [0m
+              [0mJobs[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;grid min-w-0 gap-3 md:grid-cols-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;article[39m
+              [33maria-label[39m=[32m&quot;Jobs Example&quot;[39m
+              [33mclass[39m=[32m&quot;min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 &quot;[39m
+              [33mid[39m=[32m&quot;canonical/one&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;h3[39m
+                [33mclass[39m=[32m&quot;break-words font-medium&quot;[39m
+              [36m&gt;[39m
+                [0mExample[0m
+              [36m&lt;/h3&gt;[39m
+              [36m&lt;p[39m
+                [33mclass[39m=[32m&quot;break-all text-xs&quot;[39m
+              [36m&gt;[39m
+                [0mcanonical/one[0m
+              [36m&lt;/p&gt;[39m
+              [36m&lt;p[39m
+                [33mclass[39m=[32m&quot;break-words text-sm&quot;[39m
+              [36m&gt;[39m
+                [0mdraft[0m
+                [0m · 定义版本 [0m
+                [0m7[0m
+                [0m · 状态版本 [0m
+                [0m3[0m
+              [36m&lt;/p&gt;[39m
+              [36m&lt;div[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mEnable [0m
+                  [0mExample[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;编辑 Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0m编辑[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;retire Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0mretire[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;Runs Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0mRuns[0m
+                [36m&lt;/button&gt;[39m
+              [36m&lt;/div&gt;[39m
+            [36m&lt;/article&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/div&gt;[39m
+      [36m&lt;/div&gt;[39m
+    [36m&lt;/section&gt;[39m
+  [36m&lt;/div&gt;[39m
+[36m&lt;/body&gt;[39m
+
+Ignored nodes: comments, script, style
+[36m&lt;body&gt;[39m
+  [36m&lt;div&gt;[39m
+    [36m&lt;section[39m
+      [33maria-label[39m=[32m&quot;Canonical management&quot;[39m
+      [33mclass[39m=[32m&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;[39m
+    [36m&gt;[39m
+      [36m&lt;div[39m
+        [33mclass[39m=[32m&quot;mx-auto min-w-0 max-w-6xl space-y-4&quot;[39m
+      [36m&gt;[39m
+        [36m&lt;header[39m
+          [33mclass[39m=[32m&quot;flex min-w-0 flex-wrap items-center justify-between gap-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div&gt;[39m
+            [36m&lt;h1[39m
+              [33mclass[39m=[32m&quot;text-2xl font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mCanonical Jobs[0m
+            [36m&lt;/h1&gt;[39m
+            [36m&lt;p[39m
+              [33mclass[39m=[32m&quot;text-sm text-text-secondary&quot;[39m
+            [36m&gt;[39m
+              [0m统一定义与 Run 管理 · 手动刷新[0m
+            [36m&lt;/p&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;nav[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap gap-3 text-sm&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;a[39m
+              [33mdata-discover[39m=[32m&quot;true&quot;[39m
+              [33mhref[39m=[32m&quot;/automation&quot;[39m
+            [36m&gt;[39m
+              [0mAutomation[0m
+            [36m&lt;/a&gt;[39m
+          [36m&lt;/nav&gt;[39m
+        [36m&lt;/header&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Job user authorization&quot;[39m
+          [33mclass[39m=[32m&quot;rounded border border-border-default p-3 text-xs space-y-2&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;p&gt;[39m
+            [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+          [36m&lt;/p&gt;[39m
+          [36m&lt;button[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+          [36m&gt;[39m
+            [0mLog out[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;section[39m
+          [33maria-label[39m=[32m&quot;Preserved data history&quot;[39m
+          [33mclass[39m=[32m&quot;min-w-0 space-y-3&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;h2[39m
+            [33mclass[39m=[32m&quot;text-xl&quot;[39m
+          [36m&gt;[39m
+            [0m不兼容的保留数据[0m
+          [36m&lt;/h2&gt;[39m
+          [36m&lt;p /&gt;[39m
+        [36m&lt;/section&gt;[39m
+        [36m&lt;nav[39m
+          [33maria-label[39m=[32m&quot;Canonical sections&quot;[39m
+          [33mclass[39m=[32m&quot;flex min-w-0 flex-wrap gap-2&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;true&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJobs[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mTriggers[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mEventCreators[0m
+          [36m&lt;/button&gt;[39m
+          [36m&lt;button[39m
+            [33maria-pressed[39m=[32m&quot;false&quot;[39m
+            [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+            [33mtype[39m=[32m&quot;button&quot;[39m
+          [36m&gt;[39m
+            [0mJobTemplates[0m
+          [36m&lt;/button&gt;[39m
+        [36m&lt;/nav&gt;[39m
+        [36m&lt;div[39m
+          [33mclass[39m=[32m&quot;min-w-0 space-y-4&quot;[39m
+        [36m&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;flex flex-wrap items-center gap-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;h2[39m
+              [33mclass[39m=[32m&quot;mr-auto text-lg font-semibold&quot;[39m
+            [36m&gt;[39m
+              [0mCanonical [0m
+              [0mJobs[0m
+            [36m&lt;/h2&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [33mtype[39m=[32m&quot;button&quot;[39m
+            [36m&gt;[39m
+              [0m刷新列表[0m
+            [36m&lt;/button&gt;[39m
+            [36m&lt;button[39m
+              [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+              [33mtype[39m=[32m&quot;button&quot;[39m
+            [36m&gt;[39m
+              [0m创建 [0m
+              [0mJobs[0m
+            [36m&lt;/button&gt;[39m
+          [36m&lt;/div&gt;[39m
+          [36m&lt;div[39m
+            [33mclass[39m=[32m&quot;grid min-w-0 gap-3 md:grid-cols-2&quot;[39m
+          [36m&gt;[39m
+            [36m&lt;article[39m
+              [33maria-label[39m=[32m&quot;Jobs Example&quot;[39m
+              [33mclass[39m=[32m&quot;min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 &quot;[39m
+              [33mid[39m=[32m&quot;canonical/one&quot;[39m
+            [36m&gt;[39m
+              [36m&lt;h3[39m
+                [33mclass[39m=[32m&quot;break-words font-medium&quot;[39m
+              [36m&gt;[39m
+                [0mExample[0m
+              [36m&lt;/h3&gt;[39m
+              [36m&lt;p[39m
+                [33mclass[39m=[32m&quot;break-all text-xs&quot;[39m
+              [36m&gt;[39m
+                [0mcanonical/one[0m
+              [36m&lt;/p&gt;[39m
+              [36m&lt;p[39m
+                [33mclass[39m=[32m&quot;break-words text-sm&quot;[39m
+              [36m&gt;[39m
+                [0mdraft[0m
+                [0m · 定义版本 [0m
+                [0m7[0m
+                [0m · 状态版本 [0m
+                [0m3[0m
+              [36m&lt;/p&gt;[39m
+              [36m&lt;div[39m
+                [33mclass[39m=[32m&quot;flex flex-wrap gap-2&quot;[39m
+              [36m&gt;[39m
+                [36m&lt;button[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;[39m
+                [36m&gt;[39m
+                  [0mEnable [0m
+                  [0mExample[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;编辑 Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0m编辑[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;retire Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0mretire[0m
+                [36m&lt;/button&gt;[39m
+                [36m&lt;button[39m
+                  [33maria-label[39m=[32m&quot;Runs Example&quot;[39m
+                  [33mclass[39m=[32m&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;[39m
+                  [33mtype[39m=[32m&quot;button&quot;[39m
+                [36m&gt;[39m
+                  [0mRuns[0m
+                [36m&lt;/button&gt;[39m
+              [36m&lt;/div&gt;[39m
+            [36m&lt;/article&gt;[39m
+          [36m&lt;/div&gt;[39m
+        [36m&lt;/div&gt;[39m
+      [36m&lt;/div&gt;[39m
+    [36m&lt;/section&gt;[39m
+  [36m&lt;/div&gt;[39m
+[36m&lt;/body&gt;[39m" type="TestingLibraryElementError">
+TestingLibraryElementError: Found multiple elements with the role &quot;heading&quot; and name &quot;Canonical Jobs&quot;
+
+Here are the matching elements:
+
+Ignored nodes: comments, script, style
+&lt;h1
+  class=&quot;text-2xl font-semibold&quot;
+&gt;
+  Canonical Jobs
+&lt;/h1&gt;
+
+Ignored nodes: comments, script, style
+&lt;h2
+  class=&quot;mr-auto text-lg font-semibold&quot;
+&gt;
+  Canonical 
+  Jobs
+&lt;/h2&gt;
+
+(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Canonical management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto min-w-0 max-w-6xl space-y-4&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex min-w-0 flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Canonical Jobs
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;text-sm text-text-secondary&quot;
+            &gt;
+              统一定义与 Run 管理 · 手动刷新
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;nav
+            class=&quot;flex flex-wrap gap-3 text-sm&quot;
+          &gt;
+            &lt;a
+              data-discover=&quot;true&quot;
+              href=&quot;/automation&quot;
+            &gt;
+              Automation
+            &lt;/a&gt;
+          &lt;/nav&gt;
+        &lt;/header&gt;
+        &lt;section
+          aria-label=&quot;Job user authorization&quot;
+          class=&quot;rounded border border-border-default p-3 text-xs space-y-2&quot;
+        &gt;
+          &lt;p&gt;
+            User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section
+          aria-label=&quot;Preserved data history&quot;
+          class=&quot;min-w-0 space-y-3&quot;
+        &gt;
+          &lt;h2
+            class=&quot;text-xl&quot;
+          &gt;
+            不兼容的保留数据
+          &lt;/h2&gt;
+          &lt;p /&gt;
+        &lt;/section&gt;
+        &lt;nav
+          aria-label=&quot;Canonical sections&quot;
+          class=&quot;flex min-w-0 flex-wrap gap-2&quot;
+        &gt;
+          &lt;button
+            aria-pressed=&quot;true&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            Jobs
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            Triggers
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            EventCreators
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            JobTemplates
+          &lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;div
+          class=&quot;min-w-0 space-y-4&quot;
+        &gt;
+          &lt;div
+            class=&quot;flex flex-wrap items-center gap-2&quot;
+          &gt;
+            &lt;h2
+              class=&quot;mr-auto text-lg font-semibold&quot;
+            &gt;
+              Canonical 
+              Jobs
+            &lt;/h2&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              type=&quot;button&quot;
+            &gt;
+              刷新列表
+            &lt;/button&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              type=&quot;button&quot;
+            &gt;
+              创建 
+              Jobs
+            &lt;/button&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;grid min-w-0 gap-3 md:grid-cols-2&quot;
+          &gt;
+            &lt;article
+              aria-label=&quot;Jobs Example&quot;
+              class=&quot;min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 &quot;
+              id=&quot;canonical/one&quot;
+            &gt;
+              &lt;h3
+                class=&quot;break-words font-medium&quot;
+              &gt;
+                Example
+              &lt;/h3&gt;
+              &lt;p
+                class=&quot;break-all text-xs&quot;
+              &gt;
+                canonical/one
+              &lt;/p&gt;
+              &lt;p
+                class=&quot;break-words text-sm&quot;
+              &gt;
+                draft
+                 · 定义版本 
+                7
+                 · 状态版本 
+                3
+              &lt;/p&gt;
+              &lt;div
+                class=&quot;flex flex-wrap gap-2&quot;
+              &gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+                &gt;
+                  Enable 
+                  Example
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;编辑 Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  编辑
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;retire Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  retire
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;Runs Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  Runs
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/article&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+
+Ignored nodes: comments, script, style
+&lt;body&gt;
+  &lt;div&gt;
+    &lt;section
+      aria-label=&quot;Canonical management&quot;
+      class=&quot;h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6&quot;
+    &gt;
+      &lt;div
+        class=&quot;mx-auto min-w-0 max-w-6xl space-y-4&quot;
+      &gt;
+        &lt;header
+          class=&quot;flex min-w-0 flex-wrap items-center justify-between gap-3&quot;
+        &gt;
+          &lt;div&gt;
+            &lt;h1
+              class=&quot;text-2xl font-semibold&quot;
+            &gt;
+              Canonical Jobs
+            &lt;/h1&gt;
+            &lt;p
+              class=&quot;text-sm text-text-secondary&quot;
+            &gt;
+              统一定义与 Run 管理 · 手动刷新
+            &lt;/p&gt;
+          &lt;/div&gt;
+          &lt;nav
+            class=&quot;flex flex-wrap gap-3 text-sm&quot;
+          &gt;
+            &lt;a
+              data-discover=&quot;true&quot;
+              href=&quot;/automation&quot;
+            &gt;
+              Automation
+            &lt;/a&gt;
+          &lt;/nav&gt;
+        &lt;/header&gt;
+        &lt;section
+          aria-label=&quot;Job user authorization&quot;
+          class=&quot;rounded border border-border-default p-3 text-xs space-y-2&quot;
+        &gt;
+          &lt;p&gt;
+            User confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.
+          &lt;/p&gt;
+          &lt;button
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+          &gt;
+            Log out
+          &lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section
+          aria-label=&quot;Preserved data history&quot;
+          class=&quot;min-w-0 space-y-3&quot;
+        &gt;
+          &lt;h2
+            class=&quot;text-xl&quot;
+          &gt;
+            不兼容的保留数据
+          &lt;/h2&gt;
+          &lt;p /&gt;
+        &lt;/section&gt;
+        &lt;nav
+          aria-label=&quot;Canonical sections&quot;
+          class=&quot;flex min-w-0 flex-wrap gap-2&quot;
+        &gt;
+          &lt;button
+            aria-pressed=&quot;true&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            Jobs
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            Triggers
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            EventCreators
+          &lt;/button&gt;
+          &lt;button
+            aria-pressed=&quot;false&quot;
+            class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+            type=&quot;button&quot;
+          &gt;
+            JobTemplates
+          &lt;/button&gt;
+        &lt;/nav&gt;
+        &lt;div
+          class=&quot;min-w-0 space-y-4&quot;
+        &gt;
+          &lt;div
+            class=&quot;flex flex-wrap items-center gap-2&quot;
+          &gt;
+            &lt;h2
+              class=&quot;mr-auto text-lg font-semibold&quot;
+            &gt;
+              Canonical 
+              Jobs
+            &lt;/h2&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              type=&quot;button&quot;
+            &gt;
+              刷新列表
+            &lt;/button&gt;
+            &lt;button
+              class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+              type=&quot;button&quot;
+            &gt;
+              创建 
+              Jobs
+            &lt;/button&gt;
+          &lt;/div&gt;
+          &lt;div
+            class=&quot;grid min-w-0 gap-3 md:grid-cols-2&quot;
+          &gt;
+            &lt;article
+              aria-label=&quot;Jobs Example&quot;
+              class=&quot;min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3 space-y-2 &quot;
+              id=&quot;canonical/one&quot;
+            &gt;
+              &lt;h3
+                class=&quot;break-words font-medium&quot;
+              &gt;
+                Example
+              &lt;/h3&gt;
+              &lt;p
+                class=&quot;break-all text-xs&quot;
+              &gt;
+                canonical/one
+              &lt;/p&gt;
+              &lt;p
+                class=&quot;break-words text-sm&quot;
+              &gt;
+                draft
+                 · 定义版本 
+                7
+                 · 状态版本 
+                3
+              &lt;/p&gt;
+              &lt;div
+                class=&quot;flex flex-wrap gap-2&quot;
+              &gt;
+                &lt;button
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm &quot;
+                &gt;
+                  Enable 
+                  Example
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;编辑 Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  编辑
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;retire Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  retire
+                &lt;/button&gt;
+                &lt;button
+                  aria-label=&quot;Runs Example&quot;
+                  class=&quot;inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-3 py-1.5 text-sm max-w-full break-all&quot;
+                  type=&quot;button&quot;
+                &gt;
+                  Runs
+                &lt;/button&gt;
+              &lt;/div&gt;
+            &lt;/article&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+  &lt;/div&gt;
+&lt;/body&gt;
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ views/CanonicalJobsView.test.tsx:298:16
+            </failure>
+        </testcase>
+    </testsuite>
+</testsuites>

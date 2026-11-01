@@ -248,6 +248,13 @@ def test_http_process_name_required_before_spawn(env, payload):
     value.update(payload)
     response = env.client.post('/api/jobs', json={'definition':value,
         'expectedRevision':0, 'requestKey':'invalid-name'})
+    if not payload:
+        assert response.status_code == 201, response.text
+        job = response.json()['result']['object']
+        assert job['name'] == 'job-1' and job['description'] == ''
+        state = env.service.final.get(job['id'])
+        assert not state['runs'] and not state['attempts'] and not state['effects']
+        return
     assert response.status_code == 400 and response.json()['error']['code'] == 'invalid_schema'
     assert 'name' in str(response.json()['error'])
     assert env.service.list('job', actor={'type':'user','id':'local'})['items'] == []

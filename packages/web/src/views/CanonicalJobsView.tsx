@@ -278,7 +278,8 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
           onSubmit={(e) => {
             e.preventDefault();
             try {
-              const definition = { ...objectJson(editor.json), name: editor.name };
+              const definition: JsonObject = { ...objectJson(editor.json), name: editor.name };
+              if (kind === 'jobs' && !editor.item && !editor.name.trim()) delete definition.name;
               if (structuredEdited && canonicalFormErrors(kind, definition).length) throw new Error(canonicalFormErrors(kind, definition).join(' '));
               void mutate(editor.item ? 'update' : 'create', (key) =>
                 canonicalJobs.write(kind, editor.item, definition, key, undefined, kind === 'triggers' && reviewSourceRefs ? creatorRevisions : undefined),
@@ -293,7 +294,7 @@ export function CanonicalCollection({ kind, focusId, onChanged, sources = [], jo
             <input
               className={field}
               disabled={busy}
-              required
+              required={kind !== 'jobs' || !!editor.item}
               maxLength={200}
               value={editor.name}
               onChange={(e) => setEditor({ ...editor, name: e.target.value })}

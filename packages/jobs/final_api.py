@@ -292,7 +292,7 @@ def definition_routes(base, kind):
     def write_body(raw, *, create=False):
         extra = "expectedReferences" if kind == "event_creator" else "expectedCreatorRevisions" if kind == "trigger" else None
         extras = {extra: raw.pop(extra)} if extra and extra in raw else {}
-        value = contracts.validate_write(kind, raw, create=create)
+        value = contracts.validate_write_input(kind, raw, create=create)
         if "expectedReferences" in extras:
             if not isinstance(extras["expectedReferences"], str):
                 reject("invalid_schema", "expectedReferences must be a digest")

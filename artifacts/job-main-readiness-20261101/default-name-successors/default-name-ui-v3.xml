@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="20" failures="1" errors="0" time="3.223">
+    <testsuite name="views/CanonicalJobsView.test.tsx" timestamp="2026-11-01T17:36:32.366Z" hostname="ablaze" tests="20" failures="1" errors="0" skipped="0" time="1.3351877">
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="blocks repeat Template instantiation after a lost receipt and queries the original operation" time="0.105103">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires jobs with canonical CAS envelopes" time="0.1241601">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires triggers with canonical CAS envelopes" time="0.1114325">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires event-creators with canonical CAS envelopes" time="0.0937901">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="lists, creates, edits and retires job-templates with canonical CAS envelopes" time="0.1251579">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs retry using Run state revision and current Job config" time="0.0461482">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs run-again using Run state revision and current Job config" time="0.0619474">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs clone-and-run using Run state revision and current Job config" time="0.0637961">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs cancel using Run state revision and current Job config" time="0.0780585">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs pause using Run state revision and current Job config" time="0.0620697">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="performs resume using Run state revision and current Job config" time="0.063002">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 422 rejection for run operations" time="0.0480078">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows readable 403 rejection for run operations" time="0.0624233">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps an edit draft on conflict and close does not submit" time="0.0584302">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="does not resend an unconfirmed request and queries its original identity" time="0.0658926">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="shows accepted as pending effect and queries by operationId" time="0.0309568">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="renders loading and list errors with a retry" time="0.0208337">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+            <failure message="expected &apos;处置清单无法读取；原数据未改变。&apos; to contain &apos;没有执行此操作的权限&apos;" type="AssertionError">
+AssertionError: expected &apos;处置清单无法读取；原数据未改变。&apos; to contain &apos;没有执行此操作的权限&apos;
+
+Expected: &quot;没有执行此操作的权限&quot;
+Received: &quot;处置清单无法读取；原数据未改变。&quot;
+
+ ❯ views/CanonicalJobsView.test.tsx:276:58
+            </failure>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="keeps canonical navigation and performs no legacy transport requests" time="0.0128013">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="clears canonical data on logout and blocks unauthenticated reads" time="0.0273507">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+        <testcase classname="views/CanonicalJobsView.test.tsx" name="allows an omitted name only for new Jobs and sends the convenience input unchanged" time="0.0730268">
+            <system-err>
+Encountered two children with the same key, `test-user`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+
+            </system-err>
+        </testcase>
+    </testsuite>
+</testsuites>

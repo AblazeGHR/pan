@@ -339,3 +339,7 @@ Exact84f48cea public80pass and native100pass1existing skip, no source drift; pro
 ## Session timed delivery followthrough
 
 cohort50a3-combined:129pass0skip/sourceDrift[]. Session-time-successors:13pass1originalnamefail0skip; startup original1pass. Exact capabilities and unresolved automaticname contract are in session-time-successors/README.md. No generic retirement/unsupported resolution for the name capability. Current exact successor mapping176/263,87remaining; final frozen candidate fullCI remains required.
+
+## Canonical default name closure
+
+MA authorized server creation convenience is implemented; earlier session-time README decision request is superseded. See default-name-successors/README.md for exact boundary, schema distinction, receipt-before-allocation, owner-fenced same-profile scan, concurrent idempotence, UI and genuine Chromium lost-response proof. Backend33pass, expanded name cases6pass, UI20pass, build+compressed assets pass, realbrowser1pass. Dependency static original red fixed by normal pathlib import (no gate change), whole dependency file4pass. cohorte8f6-terminal preserved session49pass1fail and remaining2pass84fail1existing skip/sourceDrift[]; seven own generated audits/browser artifacts privately backed and restored only known paths. Exact mapped180/263;83 remain without mapped green (including original existing platform skip). Final affected source-freeze and full exactSHA CI still outstanding.
