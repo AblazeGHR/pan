@@ -1,0 +1,11 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "executorPort": 49318,
+    "canonicalPort": 49319,
+    "canonicalPortReleased": true
+  }
+}

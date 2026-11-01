@@ -1,0 +1,59 @@
+{
+  "platform": "linux",
+  "python": "3.12.15",
+  "executions": [
+    {
+      "effectId": "effect_335ad2738c80fc4c24a4a972467da454f56b3461489fd9e82013178170070f9b",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_c5df8aa84cf04a2999197fd5",
+        "leaseId": "lease_414a753df6b649898d2e1ec9",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 3135,
+        "kind": "starttime",
+        "birth": "16202",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 3135
+      },
+      "supervisorIdentity": {
+        "pid": 3132,
+        "kind": "starttime",
+        "birth": "16182",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 3132
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            3135
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "retiredParentUnchanged": true,
+    "lateReceiptLogPreserved": true,
+    "effects": 1
+  }
+}

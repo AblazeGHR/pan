@@ -1,0 +1,11 @@
+{
+  "platform": "linux",
+  "python": "3.12.15",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "executorPort": 42545,
+    "canonicalPort": 46503,
+    "canonicalPortReleased": true
+  }
+}

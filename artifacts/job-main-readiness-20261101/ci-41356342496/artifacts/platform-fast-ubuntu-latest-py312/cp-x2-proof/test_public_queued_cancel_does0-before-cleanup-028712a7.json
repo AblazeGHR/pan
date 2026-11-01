@@ -1,0 +1,15 @@
+{
+  "platform": "linux",
+  "python": "3.12.15",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "executorPort": 40233,
+    "queuedCancelled": true,
+    "attempts": 0,
+    "effects": 0,
+    "supervisors": 0,
+    "canonicalPort": 49231,
+    "canonicalPortReleased": true
+  }
+}

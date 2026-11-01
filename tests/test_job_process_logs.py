@@ -554,7 +554,13 @@ def test_large_unicode_log_leader_loss_remains_unknown_and_original_queryable(li
         assert child_pid in doc['result']['cleanupProof']['ownedTree']['remaining'] or doc['evidence']['processIdentity']['pgid'] in doc['result']['cleanupProof']['ownedTree']['remaining']
         import psutil
         assert psutil.pid_exists(child_pid)
+        # Publish the already-observed original native unknown receipt before
+        # taking the CAS revision. Cancel's same original-receipt lookup must
+        # not race a stale running revision from before that state transition.
+        asyncio.run(c.service.recover_external_receipts())
         run = c.client.get('/api/job-runs/' + c.rid).json()
+        assert run['state'] == 'uncertain'
+        assert c.store.get(c.eid)['attempt'] == original['attempt']
         response = c.client.post('/api/job-runs/' + c.rid + '/operations', json={
             'operation': 'cancel', 'expectedStateRevision': run['stateRevision'], 'requestKey': 'lost-leader-query'})
         assert response.status_code == 202, response.text

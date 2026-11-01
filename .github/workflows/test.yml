@@ -18,6 +18,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Original baseline characterization must remain executable in CI.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -79,6 +82,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Original baseline characterization must remain executable in CI.
+          fetch-depth: 0
 
       - name: Prepare fresh browser evidence
         # These are generated fixture outputs in this disposable checkout only.
@@ -145,6 +151,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Original baseline characterization must remain executable in CI.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -178,6 +187,9 @@ jobs:
         python-version: ["3.12", "3.14"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Original baseline characterization must remain executable in CI.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}

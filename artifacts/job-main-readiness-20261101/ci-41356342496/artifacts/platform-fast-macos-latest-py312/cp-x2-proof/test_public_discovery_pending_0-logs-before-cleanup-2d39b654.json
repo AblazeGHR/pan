@@ -1,0 +1,45 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [
+    {
+      "effectId": "effect_6eb81e345c1fc1535785ef022a1060440e9ef50f83430654bb77aeda7c49eeae",
+      "phase": "running",
+      "attempt": {
+        "attemptId": "attempt_d284d59a2c764eb68999d6a5",
+        "leaseId": "lease_4501244f513647e2b34c6b98",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": null,
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 3523,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3523:1793571555:503285",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3523
+      },
+      "supervisorIdentity": {
+        "pid": 3520,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3520:1793571555:122045",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3520
+      },
+      "supervisorExited": false,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": null
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "publicDiscovery": true,
+    "pendingHrefReadable": true,
+    "discoveryColdReopenExit": 0
+  }
+}

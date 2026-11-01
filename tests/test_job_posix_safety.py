@@ -229,7 +229,13 @@ def test_product_default_detached_executor_keeps_original_success_receipt(canoni
     asyncio.run(c.service.dispatch_once())
     state = c.service.final.store.get(c.job['id'])['finalRuntime']
     aid, = state['attempts']
-    effect, = state['effects']
+    if state['attempts'][aid]['state'] == 'running':
+        assert not state['effects']
+        effect, = state['effectAdmissions'].values()
+        assert effect['attemptId'] == aid
+    else:
+        effect, = state['effects']
+        assert effect['attemptId'] == aid
     host = ExecutionStore(c.service.root / 'executions')
     identity = effect_id(effect['effectKey'])
     doc = wait_for(lambda: host.get(identity), lambda d: d['result'] is not None)

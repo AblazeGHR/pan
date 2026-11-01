@@ -1,0 +1,18 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "executorPort": 49240,
+    "queuedCancelled": true,
+    "attempts": 0,
+    "effects": 0,
+    "supervisors": 0,
+    "canonicalPort": 49241,
+    "canonicalPortReleased": true,
+    "portReleased": true,
+    "ownedProcessesRemaining": [],
+    "supervisorsReaped": 0
+  }
+}

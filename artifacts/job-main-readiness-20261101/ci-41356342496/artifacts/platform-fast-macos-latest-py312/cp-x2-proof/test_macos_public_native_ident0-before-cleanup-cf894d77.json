@@ -1,0 +1,101 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [
+    {
+      "effectId": "effect_eee247b9d310af804ab7f318c247e1572b2c91ef028c4dc872072e4264de8c7e",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_d7f55d0772bb4774bc1da969",
+        "leaseId": "lease_4663f1b795274cd9a2d68d01",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 2390,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:2390:1793571513:6393",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 2390
+      },
+      "supervisorIdentity": {
+        "pid": 2389,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:2389:1793571512:672680",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 2389
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            2390,
+            2391
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [
+    {
+      "expected": {
+        "pid": 2390,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:2390:1793571513:6393",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 2390
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    },
+    {
+      "expected": {
+        "pid": 2391,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:2391:1793571513:58120",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 2390
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    },
+    {
+      "expected": {
+        "pid": 2389,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:2389:1793571512:672680",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 2389
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    }
+  ],
+  "checks": {
+    "executorPort": 49297,
+    "originalIdentityVerified": true,
+    "ownedProcessCount": 3,
+    "launcherIsSupervisor": true,
+    "ownershipRootIsScript": true,
+    "canonicalPort": 49298,
+    "canonicalPortReleased": true
+  }
+}

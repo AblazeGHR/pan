@@ -1,0 +1,60 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [
+    {
+      "effectId": "effect_e043aaeb1a9d9683d002b332bc9a378c45e54a65f4228e2d7fb260ec2fec4f93",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_237ebc28f7374e9ba8e093da",
+        "leaseId": "lease_f44673e8c1d24611a48717dc",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 3744,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3744:1793571561:282544",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3744
+      },
+      "supervisorIdentity": {
+        "pid": 3741,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3741:1793571561:84741",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3741
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            3744
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "invalidBearerRejected": true,
+    "revokedReadRejected": true,
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "platform": "linux",
+  "python": "3.12.15",
+  "executions": [
+    {
+      "effectId": "effect_9e2a44617ea935a48fe176c81330712df48e5991f83d8fa1fda519860f069c50",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_e700186130dd44ac91cbbaad",
+        "leaseId": "lease_bb97a6592e7949ebb54b2b4c",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 3111,
+        "kind": "starttime",
+        "birth": "16047",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 3111
+      },
+      "supervisorIdentity": {
+        "pid": 3108,
+        "kind": "starttime",
+        "birth": "16028",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 3108
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            3111
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 3111,
+            "kind": "starttime",
+            "birth": "16047",
+            "platform": "posix",
+            "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+            "pgid": 3111
+          },
+          "observed": {
+            "pid": 3111,
+            "kind": "starttime",
+            "birth": "16047",
+            "platform": "posix",
+            "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+            "pgid": 3111
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            3111
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true
+  }
+}

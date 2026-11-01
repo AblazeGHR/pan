@@ -1,0 +1,110 @@
+{
+  "platform": "linux",
+  "python": "3.12.15",
+  "executions": [
+    {
+      "effectId": "effect_a7c6e77ab0de77f03115445d9756a06b123e43a97f28e5958dbd890d67be3dab",
+      "phase": "succeeded",
+      "attempt": {
+        "attemptId": "attempt_9f0287e88f1c4318831fcdd3",
+        "leaseId": "lease_4a1a62cbdc1b4b7aa9acb332",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "succeeded",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 2610,
+        "kind": "starttime",
+        "birth": "11123",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 2610
+      },
+      "supervisorIdentity": {
+        "pid": 2597,
+        "kind": "starttime",
+        "birth": "11103",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 2597
+      },
+      "supervisorExited": true,
+      "cleanupRevision": null,
+      "cleanupStatus": null,
+      "cleanupRequestProof": null,
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            2610,
+            2613
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [
+    {
+      "expected": {
+        "pid": 2610,
+        "kind": "starttime",
+        "birth": "11123",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 2610
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    },
+    {
+      "expected": {
+        "pid": 2613,
+        "kind": "starttime",
+        "birth": "11126",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 2610
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    },
+    {
+      "expected": {
+        "pid": 2597,
+        "kind": "starttime",
+        "birth": "11103",
+        "platform": "posix",
+        "boot_id": "a37535ab-d7ab-4134-b0ce-27956e20b1f6",
+        "pgid": 2597
+      },
+      "status": "dead",
+      "ours": null,
+      "observed": null
+    }
+  ],
+  "checks": {
+    "executorPort": 43895,
+    "originalIdentityVerified": true,
+    "ownedProcessCount": 3,
+    "launcherIsSupervisor": true,
+    "ownershipRootIsScript": true,
+    "oldFrozenPlanUnchanged": true,
+    "newReleaseImmutable": true,
+    "staleFencesRejected": 4,
+    "finishAttemptStillRejectsUncertain": true,
+    "originalAttemptReconciled": true,
+    "effects": 1,
+    "canonicalPort": 49671,
+    "canonicalPortReleased": true,
+    "portReleased": true,
+    "ownedProcessesRemaining": [],
+    "supervisorsReaped": 1
+  }
+}

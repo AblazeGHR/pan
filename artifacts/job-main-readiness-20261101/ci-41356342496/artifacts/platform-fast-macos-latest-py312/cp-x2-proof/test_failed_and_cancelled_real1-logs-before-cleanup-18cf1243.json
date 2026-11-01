@@ -1,0 +1,89 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [
+    {
+      "effectId": "effect_85418a5d1af64e006a08b3084353cd62c79c65e2de8771eca9f4ef7b69a2c324",
+      "phase": "rejected",
+      "attempt": {
+        "attemptId": "attempt_c52b699e4d864f66a44ce48a",
+        "leaseId": "lease_06b84176ffc24d859e9fa88f",
+        "ownerEpoch": 1,
+        "generation": 1
+      },
+      "outcome": "rejected",
+      "receiptCode": null,
+      "processIdentity": {
+        "pid": 3484,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3484:1793571552:679018",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3484
+      },
+      "supervisorIdentity": {
+        "pid": 3481,
+        "kind": "proc_uniqueid",
+        "birth": "lifetime-v1:3481:1793571552:529271",
+        "platform": "posix",
+        "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+        "pgid": 3481
+      },
+      "supervisorExited": true,
+      "cleanupRevision": 1,
+      "cleanupStatus": "confirmed",
+      "cleanupRequestProof": {
+        "confirmed": true,
+        "rootExited": true,
+        "ownedTree": {
+          "owned": [
+            3484
+          ],
+          "remaining": [],
+          "confirmed": true
+        },
+        "identityCheck": {
+          "status": "alive",
+          "ours": true,
+          "expected": {
+            "pid": 3484,
+            "kind": "proc_uniqueid",
+            "birth": "lifetime-v1:3484:1793571552:679018",
+            "platform": "posix",
+            "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+            "pgid": 3484
+          },
+          "observed": {
+            "pid": 3484,
+            "kind": "proc_uniqueid",
+            "birth": "lifetime-v1:3484:1793571552:679018",
+            "platform": "posix",
+            "boot_id": "e58594cb-5ccf-42a6-8500-169fcfee9c0b",
+            "pgid": 3484
+          }
+        }
+      },
+      "cleanupProof": {
+        "confirmed": true,
+        "identityVerified": true,
+        "treeTerminated": true,
+        "ownedTree": {
+          "owned": [
+            3484
+          ],
+          "remaining": [],
+          "confirmed": true
+        }
+      }
+    }
+  ],
+  "probes": [],
+  "checks": {
+    "originalFence": true,
+    "ownedTreeConfirmed": true,
+    "supervisorExited": true,
+    "outputRetained": true,
+    "effects": 1,
+    "cancelled": true
+  }
+}

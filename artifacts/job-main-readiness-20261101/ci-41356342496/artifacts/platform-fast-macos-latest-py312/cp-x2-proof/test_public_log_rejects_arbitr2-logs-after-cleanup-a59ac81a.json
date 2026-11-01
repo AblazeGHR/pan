@@ -1,0 +1,10 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "executions": [],
+  "probes": [],
+  "checks": {
+    "portReleased": true,
+    "supervisorsRemaining": []
+  }
+}

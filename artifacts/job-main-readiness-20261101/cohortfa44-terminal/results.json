@@ -1,0 +1,14 @@
+[
+  {
+    "name": "contract-crash",
+    "exitCode": 0
+  },
+  {
+    "name": "terminal-dependencies",
+    "exitCode": 0
+  },
+  {
+    "name": "http-and-worker-isolation",
+    "exitCode": 0
+  }
+]
