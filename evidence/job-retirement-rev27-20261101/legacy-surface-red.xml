@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="13" skipped="0" tests="22" time="3.272" timestamp="2026-11-01T17:06:31.576955+08:00" hostname="ablaze"><testcase classname="tests.test_scheduler_surface_retirement" name="test_production_route_and_catalog_snapshot" time="0.306" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_create-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_create-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_update-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_update-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_delete-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_delete-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_pause-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_pause-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_resume-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_resume-ses_owned]" time="0.014"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_run_now-None]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_mcp_names_are_absent_and_unknown_before_any_transport[scheduler_run_now-ses_owned]" time="0.004"><failure message="Failed: DID NOT RAISE ToolError">tests\test_scheduler_surface_retirement.py:56: in test_removed_mcp_names_are_absent_and_unknown_before_any_transport
+    asyncio.run(check())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_scheduler_surface_retirement.py:54: in check
+    with pytest.raises(ToolError, match='Unknown tool: ' + name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ToolError</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[GET]" time="0.125" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[POST]" time="0.099" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[PUT]" time="0.114" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[PATCH]" time="0.092" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_removed_owner_switch_is_404_with_no_data_or_broadcast_effect[DELETE]" time="0.091" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_production_owner_switch_is_not_a_catchall_or_an_alias" time="0.007" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_no_removed_function_can_register_during_import" time="0.026" /><testcase classname="tests.test_scheduler_surface_retirement" name="test_real_stdio_tools_list_and_unknown_calls_without_http[core]" time="0.642"><failure message="AssertionError('assert (\'Unknown tool: \' + \'scheduler_create\') in \'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\'\n +  where \'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\' = TextContent(type=\'text\', text=\'{&quot;ok&quot;: false, &quot;error&quot;: {&quot;code&quot;: &quot;capability_unsupported&quot;, &quot;message&quot;: &quot;old scheduler fie...-&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job&quot;}}\', annotations=None, meta=None).text') [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_scheduler_surface_retirement.py", line 146, in test_real_stdio_tools_list_and_unknown_calls_without_http
+  |     asyncio.run(check())
+  |     ~~~~~~~~~~~^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_scheduler_surface_retirement.py", line 124, in check
+  |     async with stdio_client(parameters) as streams, ClientSession(*streams) as client:
+  |                ~~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_scheduler_surface_retirement.py", line 124, in check
+    |     async with stdio_client(parameters) as streams, ClientSession(*streams) as client:
+    |                                                     ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\project\Pan-main\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\job-entry-notification-closure-20261029\tests\test_scheduler_surface_retirement.py", line 135, in check
+      |     assert 'Unknown tool: ' + name in result.content[0].text
+      | AssertionError: assert ('Unknown tool: ' + 'scheduler_create') in '{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}'
+      |  +  where '{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fields lack a canonical Event Cre...eate(definition, request_key) -&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}' = TextContent(type='text', text='{"ok": false, "error": {"code": "capability_unsupported", "message": "old scheduler fie...-&gt; event_creator_control(enable); trigger_create binds the Creator to a canonical Job"}}', annotations=None, meta=None).text
+      +------------------------------------</failure></testcase><testcase classname="tests.test_scheduler_surface_retirement" name="test_real_stdio_tools_list_and_unknown_calls_without_http[native]" time="0.703" /></testsuite></testsuites>

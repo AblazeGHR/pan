@@ -1,0 +1,15 @@
+{
+  "sourceSha": "fee7ffa0c3439668597ab3c58f3e218751bb9b8f",
+  "gate": "legacy-surface-red",
+  "counts": {
+    "passed": 9,
+    "failed": 13,
+    "error": 0,
+    "skipped": 0
+  },
+  "exit": 1,
+  "junit": "legacy-surface-red.xml",
+  "log": "legacy-surface-red.log",
+  "junitSha256": "5c2aef46a38eaf2f6572ff30f8dc7a99b38da75587ec35b6eb4ad85c97359256",
+  "logSha256": "29d31a07a2be81f9c687875a7b88cc4c1dd5dafe0b06c956d9e3eff89bc137b5"
+}
