@@ -10,6 +10,7 @@ from tests.test_automation_core import async_test, action, trigger, event, until
 from tests.support.legacy_automation import harness, close
 from tests.test_authorization_permissions import full_permissions
 from tests.test_job_action_templates import config, finished
+from tests.test_job_automatic_recovery import env  # noqa: F401
 
 
 @async_test
@@ -128,30 +129,10 @@ async def test_revoked_retry_does_not_reserve_recovery_and_user_confirmation_can
     finally:await close(h)
 
 
-@async_test
-async def test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt(tmp_path,monkeypatch):
-    h=await harness(tmp_path,monkeypatch)
-    effects=[]
-    async def no_signal(*args):effects.append(1);return {'ok':True,'processTreeEnded':True}
-    monkeypatch.setattr('packages.jobs.system_actions.execute',no_signal)
-    try:
-        h.svc.auth.change_permissions(full_permissions(),0)
-        cfg={**config(),'actionId':'system_background_process',
-             'arguments':{'sessionId':'owned','argv':['synthetic'],'cwd':str(tmp_path)},
-             'completion':{'kind':'monitoring','signalType':'owned.done'},
-             'recovery':{'enabled':True,'monitoring':True,'maxAttempts':3,'backoffSec':[0,0,0],'stableResetSec':300}}
-        j=h.rt.create(cfg,True,{'type':'agent','revision':1})
-        await h.rt.launch(j['jobId'],1)
-        await finished(h.rt,j['jobId'],'restarting')
-        before=h.rt.get(j['jobId'])
-        assert len(before['attempts'])==1 and before['status']=='restarting'
-        h.svc.auth.change_permissions(full_permissions(False),1)
-        await h.rt.tick({'enabled':True})
-        after=h.rt.get(j['jobId'])
-        assert len(after['attempts'])==1 and effects==[1]
-        assert after['recoveryFailures']==before['recoveryFailures']
-        assert after['nextAttemptAt']==before['nextAttemptAt']
-    finally:await close(h)
+def test_automatic_recovery_revocation_keeps_budget_and_never_starts_another_attempt(env):
+    from tests.test_retirement_rev6_parity import (
+        test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect)
+    test_actual_failed_process_revocation_preserves_attempt_budget_without_second_effect(env)
 
 
 @async_test

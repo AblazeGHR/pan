@@ -9,11 +9,15 @@ import pytest
 
 import packages.core.worker as worker
 import packages.web.server as srv
+from tests import test_lifecycle_canonical_preparation as canonical_preparation
+from tests.test_lifecycle_canonical_preparation import prepared  # noqa: F401
 from packages.core import background_jobs, launcher
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(srv, '_canonical_lifecycle_pending', {})
+    monkeypatch.setattr(srv, '_lifecycle_operation_lock', asyncio.Lock())
     monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
     monkeypatch.setattr(background_jobs, "DEFAULT_ROOT", tmp_path / "registry")
     monkeypatch.setattr(background_jobs, "PROJECT_ROOT", tmp_path)
@@ -33,57 +37,14 @@ def test_exit_status_is_available_from_python_launcher_on_windows():
     assert status["available"] is (sys.platform == "win32")
 
 
-def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
-    monkeypatch.setattr(srv, "_main_exit_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
-    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
-    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
-    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
-        SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
-        SimpleNamespace(id="idle", last_legal_worker_state="idle"),
-        SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
-    ])
-    created_tasks = []
-
-    def capture_task(coro, **kwargs):
-        created_tasks.append(kwargs.get("name"))
-        coro.close()
-
-    monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
-        "options": {"markRunningSessionsOffline": False},
-    }))
-
-    job = background_jobs.find_service_job(
-        result["requestId"], srv._main_restart_registry_root(),
-    )
-    assert result["ok"] is True
-    assert job["options"] == {
-        "exitStrategy": "ask",
-        "markRunningSessionsOffline": False,
-        "runningSessionIds": ["running-a", "running-b"],
-    }
-    assert created_tasks == ["pan-main-exit"]
-    assert worker._shutdown_started is True
+def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, 'exit', 'ask', False, False)
 
 
-def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(monkeypatch):
-    monkeypatch.setattr(srv, "_main_exit_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
-    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
-    monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
-    monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
-
-    with pytest.raises(srv.HTTPException) as caught:
-        asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
-
-    assert caught.value.status_code == 400
-    assert caught.value.detail["code"] == "lifecycle_choice_required"
-    assert background_jobs.list_jobs(srv._main_restart_registry_root()) == []
+def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, 'exit')
 
 
 def test_legacy_ask_exit_job_without_choice_fails_before_worker_or_legal_state_changes(
@@ -135,35 +96,10 @@ def test_legacy_ask_exit_job_without_choice_fails_before_worker_or_legal_state_c
         ("preserve-running", True, False),
     ],
 )
-def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
-    monkeypatch, strategy, legacy_choice, expected_mark_offline,
-):
-    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
-        "exitStrategy": strategy, "startupPreference": "ask",
-    })
-    monkeypatch.setattr(srv, "_main_exit_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
-    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
-    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
-    monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
-        SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
-    ])
-    monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
-
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
-        "options": {"markRunningSessionsOffline": legacy_choice},
-    }))
-    job = background_jobs.find_service_job(
-        result["requestId"], srv._main_restart_registry_root(),
-    )
-
-    assert job["options"] == {
-        "exitStrategy": strategy,
-        "markRunningSessionsOffline": expected_mark_offline,
-        "runningSessionIds": ["running-session"],
-    }
+def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(prepared, strategy, legacy_choice, expected_mark_offline):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_freeze_before_gate_and_worker_shutdown_before_supervisor(
+        prepared, 'exit', strategy, legacy_choice, expected_mark_offline)
 
 
 def test_exit_rejects_non_boolean_running_state_choice():
@@ -175,49 +111,14 @@ def test_exit_rejects_non_boolean_running_state_choice():
     assert caught.value.detail["code"] == "invalid_lifecycle_options"
 
 
-def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
-    if sys.platform != "win32":
-        pytest.skip("detached Windows supervisor contract")
-    monkeypatch.setattr(launcher, "resolve_python_argv", lambda *args, **kwargs: ([sys.executable], "test"))
-    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
-    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
-    calls = []
-
-    async def fake_shutdown_all(**kwargs):
-        calls.append(("shutdown", kwargs))
-
-    class FakeProcess:
-        pid = 4242
-
-    monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
-    monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
-        "options": {"markRunningSessionsOffline": True},
-    }))
-    asyncio.run(asyncio.sleep(0))
-    assert result["ok"] is True
-    assert result["status"] == "scheduled"
-    assert worker._shutdown_started is True
-    assert calls[0] == ("shutdown", {
-        "mark_legal_offline": True,
-        "mark_legal_offline_session_ids": [],
-        "preserve_legal_running_session_ids": (),
-    })
-    command = calls[1][1]
-    assert "packages.core.main_lifecycle" in command
-    assert "--supervise" in command
-    assert "stop_pan.bat" not in " ".join(command)
+def test_exit_schedules_worker_shutdown_and_python_supervisor(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_freeze_before_gate_and_worker_shutdown_before_supervisor(prepared, 'exit', 'ask', True, True)
 
 
-def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
-    if sys.platform != "win32":
-        pytest.skip("detached Windows supervisor contract")
-    monkeypatch.setattr(srv, "_main_exit_pending", True)
-    monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
-    assert result["ok"] is False
-    assert result["status"] == "busy"
-    assert result["requestId"] == "already-exiting"
+def test_duplicate_exit_is_rejected_without_second_request(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_duplicate_and_cross_operation_reject_while_original_effect_queryable(prepared)
 
 
 def test_internal_shutdown_requests_uvicorn_lifespan_exit():

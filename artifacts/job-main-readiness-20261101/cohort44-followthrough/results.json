@@ -1,0 +1,10 @@
+[
+  {
+    "name": "canonical-transport",
+    "exitCode": 0
+  },
+  {
+    "name": "owned-lifecycle",
+    "exitCode": 1
+  }
+]

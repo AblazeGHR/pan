@@ -651,16 +651,21 @@ def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
     ])
     asyncio.run(worker._read_stdout(w))
     sid = s.id
-    assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
-    assert s.last_result["status"] == "done"
-    assert len(_jsonl_lines(sid)) == 1
-    assert _no_ts(_jsonl_lines(sid)) == [{"role": "assistant", "content": "hello"}]
+    assert len(s.history) == 2
+    assistant, terminal = s.history
+    assert _no_ts([assistant]) == [{"role": "assistant", "content": "hello"}]
+    assert terminal['role'] == terminal['kind'] == 'terminal' and terminal['content'] == ''
+    assert terminal['terminal']['status'] == 'done'
+    assert terminal['terminal']['anchorMessageId'] == assistant['messageId']
+    assert s.last_result["status"] == "done" and s.last_result['result'] == 'hello'
+    persisted = _jsonl_lines(sid)
+    assert len(persisted) == 2 and persisted == s.history
 
     # 冷启动重载：完整
     _cleanup()
     monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
     s2 = _sess.get(sid)
-    assert _no_ts(s2.history) == [{"role": "assistant", "content": "hello"}]
+    assert s2.history == persisted
     assert s2.cli_session_id == "cbc-e2e"
     assert s2.last_result["status"] == "done"
     _cleanup()

@@ -265,10 +265,12 @@ def test_runtime_issue_uses_structured_host_identity_only():
 
 def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):
     async def scenario():
-        from tests.test_event_store import setup as service_setup
+        from tests.support.canonical_host import build
         from tests.test_automation_core import until
         from packages.core.runtime_issues import observe as notify_observer
-        svc, _ = await service_setup(tmp_path)
+        host = build(tmp_path)
+        svc = host.automation
+        await svc.start()
         seen = []
         original = svc.quota_policy.observe
 
@@ -317,6 +319,7 @@ def test_service_persists_runtime_issue_and_keeps_quota_observer(tmp_path):
         finally:
             if not svc.stopping:
                 await svc.close()
+            await host.service.close()
 
     run(scenario())
 
@@ -436,3 +439,32 @@ def test_discovery_http_is_read_only_and_available_without_runtime():
     assert schema.status_code == 200
     assert schema.json()["systemFields"] == {
         "version": 1, "path": "/api/automation/system-fields"}
+
+
+def test_closing_old_canonical_service_keeps_current_runtime_observer(tmp_path):
+    async def scenario():
+        from tests.support.canonical_host import build
+        from tests.test_automation_core import until
+        from packages.core.runtime_issues import observe
+        first = build(tmp_path / 'first')
+        current = build(tmp_path / 'current')
+        try:
+            await first.automation.start()
+            await current.automation.start()
+            await first.automation.close()
+            mapping = map_runtime_issue({'type': 'error', 'status': 429,
+                'error': {'code': 'model_capacity_exceeded'}}, adapter='cbc',
+                metadata={'session_id': 'owned-current', 'worker_id': 'owned-worker'})
+            observe(mapping)
+            async def stored():
+                return current.automation.events.lookup(mapping['event']['id'])
+            await until(stored)
+            assert first.automation.events.lookup(mapping['event']['id']) is None
+            assert (await stored())['event']['id'] == mapping['event']['id']
+            assert current.service.list("job", actor={"type": "user", "id": "local"})["items"] == []
+        finally:
+            await first.automation.close()
+            await current.automation.close()
+            await first.service.close()
+            await current.service.close()
+    run(scenario())

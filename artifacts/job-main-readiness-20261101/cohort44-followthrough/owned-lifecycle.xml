@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="15" time="133.669" timestamp="2026-11-02T00:15:05.915998+08:00" hostname="ablaze"><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[SIGINT]" time="7.026"><failure message="AssertionError: POST /__test/host-signal/SIGINT: 404 {&quot;detail&quot;:&quot;Not Found&quot;}&#10;Owned server log:&#10;2026-11-02 00:15:06 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available&#10;2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py&#10;[+16 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6665/test_owned_host_signal_vs_exit0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B832DD0180&gt;
+method = 'SIGINT'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+&gt;               instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\lifecycle_host_diagnostic.py:141: in observed_request
+    response = original_request(instance, method, path, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001B832D2EF90&gt;
+method = 'POST', path = '/__test/host-signal/SIGINT', kwargs = {}
+
+    def request(self, method: str, path: str, **kwargs) -&gt; dict:
+        with httpx.Client(
+            base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+        ) as client:
+            response = client.request(method, path, **kwargs)
+        if response.status_code != 200:
+            # Preserve the owned server traceback in JUnit, not just its 500 body.
+            log = self.data_root / 'pan.log'
+            details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+&gt;           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+E           AssertionError: POST /__test/host-signal/SIGINT: 404 {"detail":"Not Found"}
+E           Owned server log:
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: kimi (Kimi CLI) -&gt; C:\Users\14709\.kimi-code\bin\kimi.exe
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: opencode (OpenCode CLI) -&gt; D:\node_npm\node_global\node_modules\opencode-ai\bin\opencode.exe
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: claude (Claude Code CLI) -&gt; D:\node_npm\node_global\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: codex (OpenAI Codex CLI) -&gt; D:\software\nodeJs\node.EXE D:\node_npm\node_global\node_modules\@openai\codex\bin\codex.js
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] CLI ready: dsh (DeepSeek Harness) -&gt; D:\project\DSH\DeepSeek Harness.exe
+E           2026-11-02 00:15:06 INFO     [pan] Pan v0.4.0 starting on 127.0.0.1:52931
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] QQ module disabled (qq.enabled=false), skipping bot.py
+E           2026-11-02 00:15:06 INFO     [pan] [Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py
+E           INFO:     Started server process [40068]
+E           INFO:     Waiting for application startup.
+E           2026-11-02 00:15:07 INFO     [packages.core.worker] [Pan] Global watchdog started (tick=30s)
+E           INFO:     Application startup complete.
+E           INFO:     Uvicorn running on http://127.0.0.1:52931 (Press CTRL+C to quit)
+E           2026-11-02 00:15:09 INFO     [packages.core.worker] [Session ses_b0a46d6ff79f0683] queued task id=q_15068312128f4740a06703f9bdae936c source=user sourceSessionId=None
+E           2026-11-02 00:15:09 INFO     [packages.core.worker] [Worker ses_b0a46d6ff79f0683] Claude MCP launch: process_cwd=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit0\host-exit session_workdir=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit0\host-exit\workdirs\real-fifo-host-exit-proof argv_flags=['--output-format', '--input-format', '--model', '--permission-mode', '--settings', '--mcp-config'] descriptors=[{'name': 'pan', 'command': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'cwd': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101', 'env_keys': ['PAN_AGENT_SESSION_ID', 'PAN_AGENT_SESSION_TITLE', 'PAN_API_URL', 'PAN_PLUGIN_IPC', 'PAN_PYTHON', 'PYTHONPATH']}]
+E           2026-11-02 00:15:09 INFO     [packages.core.worker] [Session ses_b0a46d6ff79f0683] queued task id=q_f81ae63036324fc5b505afa07c34cf51 source=user sourceSessionId=None
+
+tests\test_real_queue_http_e2e.py:288: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[SIGTERM]" time="7.720"><failure message="AssertionError: POST /__test/host-signal/SIGTERM: 404 {&quot;detail&quot;:&quot;Not Found&quot;}&#10;Owned server log:&#10;2026-11-02 00:15:14 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available&#10;2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py&#10;[+16 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6665/test_owned_host_signal_vs_exit1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B833085910&gt;
+method = 'SIGTERM'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+&gt;               instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\lifecycle_host_diagnostic.py:141: in observed_request
+    response = original_request(instance, method, path, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001B833032E90&gt;
+method = 'POST', path = '/__test/host-signal/SIGTERM', kwargs = {}
+
+    def request(self, method: str, path: str, **kwargs) -&gt; dict:
+        with httpx.Client(
+            base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+        ) as client:
+            response = client.request(method, path, **kwargs)
+        if response.status_code != 200:
+            # Preserve the owned server traceback in JUnit, not just its 500 body.
+            log = self.data_root / 'pan.log'
+            details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+&gt;           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+E           AssertionError: POST /__test/host-signal/SIGTERM: 404 {"detail":"Not Found"}
+E           Owned server log:
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: kimi (Kimi CLI) -&gt; C:\Users\14709\.kimi-code\bin\kimi.exe
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: opencode (OpenCode CLI) -&gt; D:\node_npm\node_global\node_modules\opencode-ai\bin\opencode.exe
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: claude (Claude Code CLI) -&gt; D:\node_npm\node_global\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: codex (OpenAI Codex CLI) -&gt; D:\software\nodeJs\node.EXE D:\node_npm\node_global\node_modules\@openai\codex\bin\codex.js
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] CLI ready: dsh (DeepSeek Harness) -&gt; D:\project\DSH\DeepSeek Harness.exe
+E           2026-11-02 00:15:14 INFO     [pan] Pan v0.4.0 starting on 127.0.0.1:51020
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] QQ module disabled (qq.enabled=false), skipping bot.py
+E           2026-11-02 00:15:14 INFO     [pan] [Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py
+E           INFO:     Started server process [38716]
+E           INFO:     Waiting for application startup.
+E           2026-11-02 00:15:14 INFO     [packages.core.worker] [Pan] Global watchdog started (tick=30s)
+E           INFO:     Application startup complete.
+E           INFO:     Uvicorn running on http://127.0.0.1:51020 (Press CTRL+C to quit)
+E           2026-11-02 00:15:17 INFO     [packages.core.worker] [Session ses_603d9b015e069d24] queued task id=q_cef0c9004b3d4b48be3a76075ad5c03b source=user sourceSessionId=None
+E           2026-11-02 00:15:17 INFO     [packages.core.worker] [Worker ses_603d9b015e069d24] Claude MCP launch: process_cwd=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit1\host-exit session_workdir=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit1\host-exit\workdirs\real-fifo-host-exit-proof argv_flags=['--output-format', '--input-format', '--model', '--permission-mode', '--settings', '--mcp-config'] descriptors=[{'name': 'pan', 'command': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'cwd': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101', 'env_keys': ['PAN_AGENT_SESSION_ID', 'PAN_AGENT_SESSION_TITLE', 'PAN_API_URL', 'PAN_PLUGIN_IPC', 'PAN_PYTHON', 'PYTHONPATH']}]
+E           2026-11-02 00:15:17 INFO     [packages.core.worker] [Session ses_603d9b015e069d24] queued task id=q_b80c4758e4a94157820af145df2368e0 source=user sourceSessionId=None
+
+tests\test_real_queue_http_e2e.py:288: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[idle-SIGINT]" time="7.732"><failure message="AssertionError: POST /__test/host-signal/SIGINT: 404 {&quot;detail&quot;:&quot;Not Found&quot;}&#10;Owned server log:&#10;2026-11-02 00:15:22 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available&#10;2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py&#10;[+17 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6665/test_owned_host_signal_vs_exit2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B83307EAD0&gt;
+method = 'idle-SIGINT'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+&gt;               instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\lifecycle_host_diagnostic.py:141: in observed_request
+    response = original_request(instance, method, path, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001B833033C50&gt;
+method = 'POST', path = '/__test/host-signal/SIGINT', kwargs = {}
+
+    def request(self, method: str, path: str, **kwargs) -&gt; dict:
+        with httpx.Client(
+            base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+        ) as client:
+            response = client.request(method, path, **kwargs)
+        if response.status_code != 200:
+            # Preserve the owned server traceback in JUnit, not just its 500 body.
+            log = self.data_root / 'pan.log'
+            details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+&gt;           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+E           AssertionError: POST /__test/host-signal/SIGINT: 404 {"detail":"Not Found"}
+E           Owned server log:
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: kimi (Kimi CLI) -&gt; C:\Users\14709\.kimi-code\bin\kimi.exe
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: opencode (OpenCode CLI) -&gt; D:\node_npm\node_global\node_modules\opencode-ai\bin\opencode.exe
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: claude (Claude Code CLI) -&gt; D:\node_npm\node_global\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: codex (OpenAI Codex CLI) -&gt; D:\software\nodeJs\node.EXE D:\node_npm\node_global\node_modules\@openai\codex\bin\codex.js
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] CLI ready: dsh (DeepSeek Harness) -&gt; D:\project\DSH\DeepSeek Harness.exe
+E           2026-11-02 00:15:22 INFO     [pan] Pan v0.4.0 starting on 127.0.0.1:57922
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] QQ module disabled (qq.enabled=false), skipping bot.py
+E           2026-11-02 00:15:22 INFO     [pan] [Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py
+E           INFO:     Started server process [38960]
+E           INFO:     Waiting for application startup.
+E           2026-11-02 00:15:22 INFO     [packages.core.worker] [Pan] Global watchdog started (tick=30s)
+E           INFO:     Application startup complete.
+E           INFO:     Uvicorn running on http://127.0.0.1:57922 (Press CTRL+C to quit)
+E           2026-11-02 00:15:24 INFO     [packages.core.worker] [Session ses_8052ff3a5a692086] queued task id=q_5145144afc554ab68fbcc493d1eeda81 source=user sourceSessionId=None
+E           2026-11-02 00:15:24 INFO     [packages.core.worker] [Worker ses_8052ff3a5a692086] Claude MCP launch: process_cwd=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit2\host-exit session_workdir=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit2\host-exit\workdirs\real-fifo-host-exit-proof argv_flags=['--output-format', '--input-format', '--model', '--permission-mode', '--settings', '--mcp-config'] descriptors=[{'name': 'pan', 'command': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'cwd': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101', 'env_keys': ['PAN_AGENT_SESSION_ID', 'PAN_AGENT_SESSION_TITLE', 'PAN_API_URL', 'PAN_PLUGIN_IPC', 'PAN_PYTHON', 'PYTHONPATH']}]
+E           2026-11-02 00:15:25 INFO     [packages.core.worker] [Session ses_8052ff3a5a692086] queued task id=q_e2320f6a01cf48ec932e63f018e441ed source=user sourceSessionId=None
+E           2026-11-02 00:15:25 INFO     [packages.core.worker] [Session ses_8052ff3a5a692086] usage enrichment complete key=seq:1 attempts=0
+
+tests\test_real_queue_http_e2e.py:288: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[idle-SIGTERM]" time="7.669"><failure message="AssertionError: POST /__test/host-signal/SIGTERM: 404 {&quot;detail&quot;:&quot;Not Found&quot;}&#10;Owned server log:&#10;2026-11-02 00:15:29 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available&#10;2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py&#10;[+16 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6665/test_owned_host_signal_vs_exit3')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B832E12E50&gt;
+method = 'idle-SIGTERM'
+
+    @pytest.mark.parametrize("method", ["SIGINT", "SIGTERM", "idle-SIGINT", "idle-SIGTERM", "safe-api", "preserve-api", "q-config", "q-menu", "q-menu-2", "q-menu-3", "q-triple"])
+    def test_owned_host_signal_vs_exit_api_handshake(tmp_path, monkeypatch, method):
+        monkeypatch.setenv("PAN_TEST_HOST_EXIT_PROBE", "1")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        assert port not in {8767, 8768}
+        monkeypatch.setattr(real, "PORT", port)
+        instance = _PanRuntime(tmp_path / "host-exit")
+        if method in {"q-config", "q-triple"}:
+            instance.data_root.mkdir(parents=True)
+            (instance.data_root / "config.json").write_text(
+                json.dumps({"session_lifecycle": {"exitStrategy": "offline"}}), encoding="utf-8")
+        instance.start()
+        try:
+            session = _create(instance, "real-fifo-host-exit-proof")
+            sid = session["id"]
+            _enqueue(instance, sid, "hold-A", "active")
+            _wait_for(lambda: _received(instance, cwd=session["workdir"], text="hold-A"))
+            paused(instance, sid, True)
+            _enqueue(instance, sid, "B", "pending")
+            assert durable(instance, sid)["legal_offline"] is False
+            if method.startswith("idle-"):
+                instance.gates["hold-A"].touch()
+                _wait_for(lambda: durable(instance, sid)["legal_offline"], label="safe Idle committed")
+            if method.startswith("q-"):
+                from packages.core.console_exit import ConsoleExit
+                now = [0.0]
+                console = ConsoleExit(lambda payload: instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload}),
+                    lambda: "ask" if method.startswith("q-menu") else "offline", clock=lambda: now[0])
+                console.line("qqq" if method == "q-triple" else "q")
+                now[0] = 2.1
+                console.tick()
+                if method.startswith("q-menu"):
+                    console.line(method[-1] if method[-1].isdigit() else "1")
+                assert console.accepted
+            elif method.endswith("api"):
+                payload = {"options": {"markRunningSessionsOffline": method == "safe-api"}}
+                assert instance.request("POST", "/api/system-actions/main-lifecycle", json={"operation": "exit", **payload})["accepted"]
+            else:
+&gt;               instance.request("POST", f"/__test/host-signal/{method.removeprefix('idle-')}")
+
+tests\test_legal_offline_http.py:226: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\lifecycle_host_diagnostic.py:141: in observed_request
+    response = original_request(instance, method, path, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001B83309DA70&gt;
+method = 'POST', path = '/__test/host-signal/SIGTERM', kwargs = {}
+
+    def request(self, method: str, path: str, **kwargs) -&gt; dict:
+        with httpx.Client(
+            base_url=self.base_url, timeout=15, trust_env=False, verify=False,
+        ) as client:
+            response = client.request(method, path, **kwargs)
+        if response.status_code != 200:
+            # Preserve the owned server traceback in JUnit, not just its 500 body.
+            log = self.data_root / 'pan.log'
+            details = log.read_text(encoding='utf-8', errors='replace')[-16000:] if log.exists() else ''
+&gt;           raise AssertionError(f"{method} {path}: {response.status_code} {response.text}\nOwned server log:\n{details}")
+E           AssertionError: POST /__test/host-signal/SIGTERM: 404 {"detail":"Not Found"}
+E           Owned server log:
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] Agent CLI preflight: 6/6 supported CLI(s) available
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: cbc (CodeBuddy CLI) -&gt; D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Scripts\python.exe D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\fake_stream_cli.py
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: kimi (Kimi CLI) -&gt; C:\Users\14709\.kimi-code\bin\kimi.exe
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: opencode (OpenCode CLI) -&gt; D:\node_npm\node_global\node_modules\opencode-ai\bin\opencode.exe
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: claude (Claude Code CLI) -&gt; D:\node_npm\node_global\node_modules\@anthropic-ai\claude-code\bin\claude.exe
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: codex (OpenAI Codex CLI) -&gt; D:\software\nodeJs\node.EXE D:\node_npm\node_global\node_modules\@openai\codex\bin\codex.js
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] CLI ready: dsh (DeepSeek Harness) -&gt; D:\project\DSH\DeepSeek Harness.exe
+E           2026-11-02 00:15:29 INFO     [pan] Pan v0.4.0 starting on 127.0.0.1:52641
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] QQ module disabled (qq.enabled=false), skipping bot.py
+E           2026-11-02 00:15:29 INFO     [pan] [Pan] WeChat module disabled (wechat.enabled=false), skipping bot.py
+E           INFO:     Started server process [10016]
+E           INFO:     Waiting for application startup.
+E           2026-11-02 00:15:29 INFO     [packages.core.worker] [Pan] Global watchdog started (tick=30s)
+E           INFO:     Application startup complete.
+E           INFO:     Uvicorn running on http://127.0.0.1:52641 (Press CTRL+C to quit)
+E           2026-11-02 00:15:32 INFO     [packages.core.worker] [Session ses_82a416e78d01eec7] queued task id=q_7f6c368a430f4495aa0aa196b7cb66cf source=user sourceSessionId=None
+E           2026-11-02 00:15:32 INFO     [packages.core.worker] [Worker ses_82a416e78d01eec7] Claude MCP launch: process_cwd=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit3\host-exit session_workdir=C:\Users\14709\AppData\Local\Temp\pytest-of-ablaze\pytest-6665\test_owned_host_signal_vs_exit3\host-exit\workdirs\real-fifo-host-exit-proof argv_flags=['--output-format', '--input-format', '--model', '--permission-mode', '--settings', '--mcp-config'] descriptors=[{'name': 'pan', 'command': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe', 'cwd': 'D:\\project\\pan-worktrees\\job-main-readiness-20261101', 'env_keys': ['PAN_AGENT_SESSION_ID', 'PAN_AGENT_SESSION_TITLE', 'PAN_API_URL', 'PAN_PLUGIN_IPC', 'PAN_PYTHON', 'PYTHONPATH']}]
+E           2026-11-02 00:15:32 INFO     [packages.core.worker] [Session ses_82a416e78d01eec7] queued task id=q_f637c368a1a742de860af4dfd00866b3 source=user sourceSessionId=None
+
+tests\test_real_queue_http_e2e.py:288: AssertionError</failure></testcase><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[safe-api]" time="14.494" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[preserve-api]" time="14.032" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-config]" time="14.064" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu]" time="14.964" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu-2]" time="14.488" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-menu-3]" time="15.126" /><testcase classname="tests.test_legal_offline_http" name="test_owned_host_signal_vs_exit_api_handshake[q-triple]" time="13.902" /><testcase classname="tests.test_lifecycle_followthrough" name="test_observation_requires_existing_store_and_never_creates_it" time="0.003" /><testcase classname="tests.test_lifecycle_followthrough" name="test_observation_verifies_original_fence_and_persisted_frozen_options" time="0.035" /><testcase classname="tests.test_lifecycle_followthrough" name="test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[after-submit-return]" time="0.928" /><testcase classname="tests.test_lifecycle_followthrough" name="test_controller_crash_retains_original_supervisor_and_cleans_owned_tree[before-submit-return]" time="0.935" /></testsuite></testsuites>

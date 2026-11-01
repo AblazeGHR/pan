@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="8" time="0.751" timestamp="2026-11-02T00:18:52.663859+08:00" hostname="ablaze"><testcase classname="tests.test_session_incremental" name="test_worker_path_saves_incrementally_and_reloads" time="0.228" /><testcase classname="tests.test_persistence_sharding" name="test_usage_merge_and_terminal_events_keep_durable_order" time="0.038"><failure message="AssertionError: assert 3 == 2&#10; +  where 3 = len([{'role': 'assistant', 'content': 'answer', 'messageId': 'pan:9a7b352615534cb8bcf9787c4783ad3c', 'ts': '2026-11-02T00:...al', 'content': '', 'messageId': 'terminal:worker:terminal-worker:generation:0:b401b1d3c8654db89316be9ce2ca91b5', ...}])&#10;[+1 more line; full report in element text]">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002944B4CDBA0&gt;
+
+    def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):
+        """Usage merge stays after base save; terminal result is persisted before events."""
+        session = _sess.create(name="terminal-order", model="initial")
+        session.cli_session_id = "cli-terminal-order"
+        session.queue_pending = [{"type": "task", "text": "queued"}]
+        _sess.save(session)
+        events = []
+    
+        async def broadcast(event):
+            events.append(event)
+    
+        worker.set_broadcaster(broadcast)
+        worker._usage_enrichment_adapters.clear()
+        worker._usage_enrichment_tasks.clear()
+        worker._usage_enrichment_locks.clear()
+    
+        class Adapter:
+            name = "cbc"
+    
+            def enrich_after_result(self, snapshot):
+                snapshot.model = "provider-model"
+                return [{"model": "provider-model",
+                         "rawUsage": {"completion_tokens": 3}}]
+    
+        worker._queue_usage_enrichment(
+            session, Adapter(), task_id="terminal-task", task_seq=1,
+            worker_id="terminal-worker", generation=1,
+        )
+        monkeypatch.setattr(worker, "_schedule_usage_enrichment", lambda _sid: None)
+        task_worker = worker.Worker(
+            worker_id="terminal-worker", session_id=session.id,
+            adapter=CbcAdapter(), status="idle", process=MagicMock(),
+            pending_signal=asyncio.Queue(),
+        )
+    
+        async def scenario():
+            # Run the provider merge through its detached snapshot path first.  It
+            # must persist usage without removing the unrelated durable queue row.
+            await worker._run_usage_enrichment(session.id)
+            assert session.model == "provider-model"
+            # The stream publishes its body; terminal persistence appends only a
+            # terminal fact and must not invent/replace an assistant message.
+            _sess.append_history(session, {'role': 'assistant', 'content': 'answer'})
+            terminal = await worker._persist_terminal_state(
+                task_worker, session, "done", "answer",
+            )
+            await worker._publish_terminal_events(task_worker, terminal, session)
+    
+        try:
+            asyncio.run(scenario())
+            assert [event["type"] for event in events] == [
+                "worker.result", "worker.status",
+            ]
+            _sess._cache.clear()
+            loaded = _sess.get(session.id)
+            assert loaded.last_result["status"] == "done"
+&gt;           assert len(loaded.history) == 2
+E           AssertionError: assert 3 == 2
+E            +  where 3 = len([{'role': 'assistant', 'content': 'answer', 'messageId': 'pan:9a7b352615534cb8bcf9787c4783ad3c', 'ts': '2026-11-02T00:...al', 'content': '', 'messageId': 'terminal:worker:terminal-worker:generation:0:b401b1d3c8654db89316be9ce2ca91b5', ...}])
+E            +    where [{'role': 'assistant', 'content': 'answer', 'messageId': 'pan:9a7b352615534cb8bcf9787c4783ad3c', 'ts': '2026-11-02T00:...al', 'content': '', 'messageId': 'terminal:worker:terminal-worker:generation:0:b401b1d3c8654db89316be9ce2ca91b5', ...}] = Session(id='ses_70d152150d2a6191', name='terminal-order', adapter='cbc', model='provider-model', permission_mode=None,...tbox={}, qq_subscriptions=set(), wechat_subscriptions=set(), notification_settings={'browser': False, 'system': False}).history
+
+tests\test_persistence_sharding.py:522: AssertionError</failure></testcase><testcase classname="tests.test_history_terminal_events" name="test_terminal_commit_cold_reopen_and_dedup[done-answer]" time="0.006" /><testcase classname="tests.test_history_terminal_events" name="test_terminal_commit_cold_reopen_and_dedup[error-partial answer]" time="0.037" /><testcase classname="tests.test_history_terminal_events" name="test_terminal_commit_cold_reopen_and_dedup[error-]" time="0.030" /><testcase classname="tests.test_history_terminal_events" name="test_freezes_anchor_before_await_and_next_done_preserves_error" time="0.010" /><testcase classname="tests.test_history_terminal_events" name="test_old_history_missing_metadata_and_reimport_keeps_known_facts" time="0.033" /><testcase classname="tests.test_history_terminal_events" name="test_failed_base_commit_retries_original_event_without_duplicate" time="0.009" /></testsuite></testsuites>

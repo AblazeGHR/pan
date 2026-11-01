@@ -28,7 +28,10 @@ def instrument_owned_host(request, monkeypatch):
     import test_real_queue_http_e2e as real
     # Normal collection uses the actual copied main entry. The opt-in plugin
     # still offers the old non-main diagnostic comparison with its False default.
-    genuine = request.config.getoption("--cpx1-genuine-main", default=True)
+    genuine = (request.config.getoption("--cpx1-genuine-main", default=True)
+               and 'SIG' not in request.node.callspec.params['method'])
+    # Signal probes belong to the existing isolated signal host, which owns
+    # /__test/host-signal. Only legal exit paths need the real main identity.
 
     original_start, original_stop, original_request = real._PanRuntime.start, real._PanRuntime.stop, real._PanRuntime.request
     source = real.SERVER_LAUNCHER.read_text(encoding="utf-8")

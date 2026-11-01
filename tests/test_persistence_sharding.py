@@ -503,6 +503,11 @@ def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):
         # must persist usage without removing the unrelated durable queue row.
         await worker._run_usage_enrichment(session.id)
         assert session.model == "provider-model"
+        # The stream publishes its body; terminal persistence appends only a
+        # terminal fact and must not invent/replace an assistant message.
+        streamed = {'role': 'assistant', 'content': 'answer'}
+        _sess.append_history(session, streamed)
+        task_worker._current_task_assistant_ids.add(streamed['messageId'])
         terminal = await worker._persist_terminal_state(
             task_worker, session, "done", "answer",
         )
@@ -516,7 +521,13 @@ def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):
         _sess._cache.clear()
         loaded = _sess.get(session.id)
         assert loaded.last_result["status"] == "done"
-        assert loaded.history[-1]["content"] == "answer"
+        assert len(loaded.history) == 2
+        assistant, fact = loaded.history
+        assert assistant['role'] == 'assistant' and assistant['content'] == 'answer'
+        assert fact['role'] == fact['kind'] == 'terminal' and fact['content'] == ''
+        assert fact['terminal']['status'] == 'done'
+        assert fact['terminal']['anchorMessageId'] == assistant['messageId']
+        assert loaded.last_result['result'] == 'answer'
         assert loaded.queue_pending == [{"type": "task", "text": "queued"}]
         assert loaded.total_usage["completion_tokens"] == 3
     finally:

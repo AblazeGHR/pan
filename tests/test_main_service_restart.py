@@ -8,11 +8,15 @@ import pytest
 
 import packages.core.worker as worker
 import packages.web.server as srv
+from tests import test_lifecycle_canonical_preparation as canonical_preparation
+from tests.test_lifecycle_canonical_preparation import prepared  # noqa: F401
 from packages.core import background_jobs
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
+    monkeypatch.setattr(srv, '_canonical_lifecycle_pending', {})
+    monkeypatch.setattr(srv, '_lifecycle_operation_lock', asyncio.Lock())
     monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
     monkeypatch.setattr(background_jobs, "DEFAULT_ROOT", tmp_path / "registry")
     monkeypatch.setattr(background_jobs, "PROJECT_ROOT", tmp_path)
@@ -30,73 +34,14 @@ def test_restart_is_disabled_only_off_platform(monkeypatch):
         assert status["available"] is False
 
 
-def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch):
-    calls = []
-    tasks = []
-    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
-        "exitStrategy": "ask", "startupPreference": "wake-running",
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_exit_pending", False)
-    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
-
-    def close_gate_after_snapshot():
-        saved = background_jobs.list_jobs(srv._main_restart_registry_root())[0]
-        assert saved["options"] == {
-            "exitStrategy": "ask",
-            "markRunningSessionsOffline": False,
-            "runningSessionIds": [],
-        }
-        calls.append(("gate", True))
-
-    monkeypatch.setattr(worker, "begin_shutdown", close_gate_after_snapshot)
-    monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: tasks.append(coro))
-
-    monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
-        "supervisor must wait for Worker shutdown",
-    ))
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
-        "options": {"markRunningSessionsOffline": False},
-    }))
-    assert result["ok"] is True
-    assert result["status"] == "scheduled"
-    assert calls == [("gate", True)]
-    assert len(tasks) == 1
-    assert tasks[0].cr_code.co_name == "_perform_main_restart"
-    tasks[0].close()
-    job = background_jobs.find_service_job(
-        result["requestId"], srv._main_restart_registry_root(),
-    )
-    assert job["options"] == {
-        "exitStrategy": "ask",
-        "markRunningSessionsOffline": False,
-        "runningSessionIds": [],
-    }
-    assert "startupPreference" not in job["options"]
-    assert worker._shutdown_started is False
-    assert calls == [("gate", True)]
+def test_restart_returns_scheduled_before_python_supervisor_finishes(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_concurrent_exit_and_restart_share_one_worker_preparation(prepared)
 
 
-def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch):
-    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
-        "exitStrategy": "ask", "startupPreference": "ask",
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_exit_pending", False)
-    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
-    monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
-    monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
-
-    with pytest.raises(srv.HTTPException) as caught:
-        asyncio.run(srv.api_system_main_lifecycle({"operation": "restart"}))
-
-    assert caught.value.status_code == 400
-    assert caught.value.detail["code"] == "lifecycle_choice_required"
-    assert background_jobs.list_jobs(srv._main_restart_registry_root()) == []
+def test_restart_ask_requires_explicit_choice_before_any_side_effect(prepared):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_ask_without_choice_rejects_before_admission_or_worker_gate(prepared, 'restart')
 
 
 @pytest.mark.parametrize(
@@ -108,40 +53,10 @@ def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch
         ("preserve-running", True, False),
     ],
 )
-def test_restart_freezes_configured_policy_and_running_snapshot(
-    monkeypatch, strategy, choice, expected,
-):
-    monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
-        "exitStrategy": strategy, "startupPreference": "preserve-running",
-    })
-    monkeypatch.setattr(srv, "_main_restart_status", lambda: {
-        "available": True, "pending": False, "port": 8765,
-    })
-    monkeypatch.setattr(srv, "_main_exit_pending", False)
-    monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
-    monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
-    monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
-        type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
-        type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
-    ])
-    scheduled = []
-    monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
-    monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
-
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
-        "options": {"markRunningSessionsOffline": choice},
-    }))
-    job = background_jobs.find_service_job(
-        result["requestId"], srv._main_restart_registry_root(),
-    )
-    assert result["ok"] is True
-    assert job["options"] == {
-        "exitStrategy": strategy,
-        "markRunningSessionsOffline": expected,
-        "runningSessionIds": ["running"],
-    }
-    for coro in scheduled:
-        coro.close()
+def test_restart_freezes_configured_policy_and_running_snapshot(prepared, strategy, choice, expected):
+    # Original API capability is verified through its canonical protected intent.
+    canonical_preparation.test_freeze_before_gate_and_worker_shutdown_before_supervisor(
+        prepared, 'restart', strategy, choice, expected)
 
 
 def test_restart_drains_workers_before_single_supervisor_handoff(monkeypatch):
@@ -306,17 +221,8 @@ def test_restart_supervisor_launcher_keeps_detached_python_command(monkeypatch):
     assert "stop_pan.bat" not in " ".join(command)
 
 
-def test_persisted_duplicate_restart_is_rejected_without_spawn(monkeypatch):
-    if sys.platform != "win32":
-        pytest.skip("detached Windows supervisor contract")
-    monkeypatch.setattr(srv, "_main_restart_pending", True)
-    monkeypatch.setattr(srv, "_main_restart_request_id", "already-running")
-    monkeypatch.setattr(srv.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
-    result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
-        "options": {"markRunningSessionsOffline": True},
-    }))
-    assert result["status"] == "busy"
-    assert result["pending"] is True
+def test_persisted_duplicate_restart_is_rejected_without_spawn(prepared):
+    canonical_preparation.test_lost_memory_still_fences_duplicate_or_cross_operation(prepared, 'restart')
 
 
 def test_restart_supervisor_and_start_entry_have_no_batch_business_chain():

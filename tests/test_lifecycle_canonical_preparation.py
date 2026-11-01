@@ -117,6 +117,7 @@ def test_concurrent_exit_and_restart_share_one_worker_preparation(prepared):
         first = asyncio.create_task(server.api_system_main_lifecycle({"operation": "exit",
             "options": {"markRunningSessionsOffline": True}}))
         await entered.wait()
+        assert first.done() and first.result()['status'] == 'scheduled'
         second = asyncio.create_task(server.api_system_main_lifecycle({"operation": "restart",
             "options": {"markRunningSessionsOffline": False}}))
         await asyncio.sleep(0)

@@ -28,6 +28,13 @@ def set_observer(callback):
     _OBSERVER = callback
 
 
+def clear_observer(callback):
+    """Release only the original composition root's own observer."""
+    global _OBSERVER
+    if _OBSERVER is callback:
+        _OBSERVER = None
+
+
 def observe(mapping):
     if _OBSERVER is not None:
         _OBSERVER(mapping)

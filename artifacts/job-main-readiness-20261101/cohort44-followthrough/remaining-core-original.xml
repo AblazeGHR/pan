@@ -1,0 +1,574 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="16" skipped="0" tests="95" time="24.456" timestamp="2026-11-02T00:17:48.568871+08:00" hostname="ablaze"><testcase classname="tests.test_main_service_exit" name="test_exit_status_is_available_from_python_launcher_on_windows" time="0.010" /><testcase classname="tests.test_main_service_exit" name="test_exit_job_records_choice_and_exact_pre_exit_running_snapshot" time="0.043"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916B567490&gt;
+
+    def test_exit_job_records_choice_and_exact_pre_exit_running_snapshot(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            SimpleNamespace(id="running-b", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+            SimpleNamespace(id="idle", last_legal_worker_state="idle"),
+            SimpleNamespace(id="running-a", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        created_tasks = []
+    
+        def capture_task(coro, **kwargs):
+            created_tasks.append(kwargs.get("name"))
+            coro.close()
+    
+        monkeypatch.setattr(srv.asyncio, "create_task", capture_task)
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+    
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_exit.py:62: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_ask_requires_explicit_choice_before_job_or_worker_gate" time="0.024"><failure message="Failed: DID NOT RAISE HTTPException">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CD6FE30&gt;
+
+    def test_exit_ask_requires_explicit_choice_before_job_or_worker_gate(monkeypatch):
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
+    
+&gt;       with pytest.raises(srv.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_main_service_exit.py:81: Failed</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_legacy_ask_exit_job_without_choice_fails_before_worker_or_legal_state_changes" time="0.118" /><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-True-True]" time="0.021"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF38160&gt;
+strategy = 'ask', legacy_choice = True, expected_mark_offline = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[ask-False-False]" time="0.020"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CFDA650&gt;
+strategy = 'ask', legacy_choice = False, expected_mark_offline = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[offline-False-True]" time="0.004"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CFDAF50&gt;
+strategy = 'offline', legacy_choice = False, expected_mark_offline = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload[preserve-running-True-False]" time="0.007"><failure message="TypeError: 'NoneType' object is not subscriptable">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF2AF30&gt;
+strategy = 'preserve-running', legacy_choice = True
+expected_mark_offline = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "legacy_choice", "expected_mark_offline"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_exit_policy_is_frozen_in_job_and_overrides_legacy_payload(
+        monkeypatch, strategy, legacy_choice, expected_mark_offline,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_exit_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {"pending": False})
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **_kwargs: [
+            SimpleNamespace(id="running-session", last_legal_worker_state="idle", execution_operations={"run": {"state": "running", "safeTerminal": False}}),
+        ])
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **_kwargs: coro.close())
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": legacy_choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+    
+&gt;       assert job["options"] == {
+               ^^^^^^^^^^^^^^
+            "exitStrategy": strategy,
+            "markRunningSessionsOffline": expected_mark_offline,
+            "runningSessionIds": ["running-session"],
+        }
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests\test_main_service_exit.py:162: TypeError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_exit_rejects_non_boolean_running_state_choice" time="0.002" /><testcase classname="tests.test_main_service_exit" name="test_exit_schedules_worker_shutdown_and_python_supervisor" time="0.004"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916B48BD90&gt;
+
+    def test_exit_schedules_worker_shutdown_and_python_supervisor(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(launcher, "resolve_python_argv", lambda *args, **kwargs: ([sys.executable], "test"))
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda pid: 12.5)
+        calls = []
+    
+        async def fake_shutdown_all(**kwargs):
+            calls.append(("shutdown", kwargs))
+    
+        class FakeProcess:
+            pid = 4242
+    
+        monkeypatch.setattr(worker, "shutdown_all", fake_shutdown_all)
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda command, **kwargs: calls.append(("spawn", command)) or FakeProcess())
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit",
+            "options": {"markRunningSessionsOffline": True},
+        }))
+        asyncio.run(asyncio.sleep(0))
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_exit.py:198: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_duplicate_exit_is_rejected_without_second_request" time="0.003"><failure message="AssertionError: assert 'request_1a48...9d8b96288900f' == 'already-exiting'&#10;  &#10;  - already-exiting&#10;  + request_1a488b7527f9d8b96288900f">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916B489EF0&gt;
+
+    def test_duplicate_exit_is_rejected_without_second_request(monkeypatch):
+        if sys.platform != "win32":
+            pytest.skip("detached Windows supervisor contract")
+        monkeypatch.setattr(srv, "_main_exit_pending", True)
+        monkeypatch.setattr(srv, "_main_exit_request_id", "already-exiting")
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "exit"}))
+        assert result["ok"] is False
+        assert result["status"] == "busy"
+&gt;       assert result["requestId"] == "already-exiting"
+E       AssertionError: assert 'request_1a48...9d8b96288900f' == 'already-exiting'
+E         
+E         - already-exiting
+E         + request_1a488b7527f9d8b96288900f
+
+tests\test_main_service_exit.py:220: AssertionError</failure></testcase><testcase classname="tests.test_main_service_exit" name="test_internal_shutdown_requests_uvicorn_lifespan_exit" time="0.002" /><testcase classname="tests.test_main_service_exit" name="test_exit_wrapper_is_launcher_only" time="0.003" /><testcase classname="tests.test_main_service_restart" name="test_restart_is_disabled_only_off_platform" time="0.004" /><testcase classname="tests.test_main_service_restart" name="test_restart_returns_scheduled_before_python_supervisor_finishes" time="0.026"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CD995A0&gt;
+
+    def test_restart_returns_scheduled_before_python_supervisor_finishes(monkeypatch):
+        calls = []
+        tasks = []
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": "ask", "startupPreference": "wake-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [])
+    
+        def close_gate_after_snapshot():
+            saved = background_jobs.list_jobs(srv._main_restart_registry_root())[0]
+            assert saved["options"] == {
+                "exitStrategy": "ask",
+                "markRunningSessionsOffline": False,
+                "runningSessionIds": [],
+            }
+            calls.append(("gate", True))
+    
+        monkeypatch.setattr(worker, "begin_shutdown", close_gate_after_snapshot)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: tasks.append(coro))
+    
+        monkeypatch.setattr(srv.subprocess, "Popen", lambda *args, **kwargs: pytest.fail(
+            "supervisor must wait for Worker shutdown",
+        ))
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": False},
+        }))
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:63: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_ask_requires_explicit_choice_before_any_side_effect" time="0.003"><failure message="Failed: DID NOT RAISE HTTPException">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CD99D30&gt;
+
+    def test_restart_ask_requires_explicit_choice_before_any_side_effect(monkeypatch):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": "ask", "startupPreference": "ask",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: pytest.fail("must reject before snapshot"))
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: pytest.fail("must not close worker gate"))
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda *args, **kwargs: pytest.fail("must not schedule"))
+    
+&gt;       with pytest.raises(srv.HTTPException) as caught:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE HTTPException
+
+tests\test_main_service_restart.py:94: Failed</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-True-True]" time="0.005"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF67B10&gt;
+strategy = 'ask', choice = True, expected = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:137: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[ask-False-False]" time="0.004"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF67F70&gt;
+strategy = 'ask', choice = False, expected = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:137: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[offline-False-True]" time="0.004"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF320F0&gt;
+strategy = 'offline', choice = False, expected = True
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:137: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_freezes_configured_policy_and_running_snapshot[preserve-running-True-False]" time="0.005"><failure message="assert False is True">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CFE4050&gt;
+strategy = 'preserve-running', choice = True, expected = False
+
+    @pytest.mark.parametrize(
+        ("strategy", "choice", "expected"),
+        [
+            ("ask", True, True),
+            ("ask", False, False),
+            ("offline", False, True),
+            ("preserve-running", True, False),
+        ],
+    )
+    def test_restart_freezes_configured_policy_and_running_snapshot(
+        monkeypatch, strategy, choice, expected,
+    ):
+        monkeypatch.setattr(srv, "_session_lifecycle_preferences", lambda config=None: {
+            "exitStrategy": strategy, "startupPreference": "preserve-running",
+        })
+        monkeypatch.setattr(srv, "_main_restart_status", lambda: {
+            "available": True, "pending": False, "port": 8765,
+        })
+        monkeypatch.setattr(srv, "_main_exit_pending", False)
+        monkeypatch.setattr(srv.main_lifecycle, "listener_owner", lambda _port: 41)
+        monkeypatch.setattr(srv.main_lifecycle, "process_create_time", lambda _pid: 12.5)
+        monkeypatch.setattr(srv.sess, "list_all", lambda **kwargs: [
+            type("Session", (), {"id": "running", "last_legal_worker_state": "idle", "execution_operations": {"run": {"state": "running", "safeTerminal": False}}})(),
+            type("Session", (), {"id": "idle", "last_legal_worker_state": "idle"})(),
+        ])
+        scheduled = []
+        monkeypatch.setattr(worker, "begin_shutdown", lambda: None)
+        monkeypatch.setattr(srv.asyncio, "create_task", lambda coro, **kwargs: scheduled.append(coro))
+    
+        result = asyncio.run(srv.api_system_main_lifecycle({"operation": "restart",
+            "options": {"markRunningSessionsOffline": choice},
+        }))
+        job = background_jobs.find_service_job(
+            result["requestId"], srv._main_restart_registry_root(),
+        )
+&gt;       assert result["ok"] is True
+E       assert False is True
+
+tests\test_main_service_restart.py:137: AssertionError</failure></testcase><testcase classname="tests.test_main_service_restart" name="test_restart_drains_workers_before_single_supervisor_handoff" time="0.159" /><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_failure_is_durable_and_does_not_repeat_worker_shutdown" time="0.173" /><testcase classname="tests.test_main_service_restart" name="test_restart_worker_shutdown_failure_does_not_launch_supervisor" time="0.144" /><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_launcher_keeps_detached_python_command" time="0.080" /><testcase classname="tests.test_main_service_restart" name="test_persisted_duplicate_restart_is_rejected_without_spawn" time="0.016" /><testcase classname="tests.test_main_service_restart" name="test_restart_supervisor_and_start_entry_have_no_batch_business_chain" time="0.003" /><testcase classname="tests.test_main_service_restart" name="test_restart_compatibility_wrapper_only_delegates_to_python" time="0.002" /><testcase classname="tests.test_session_incremental" name="test_lifecycle_create_append_result_reload" time="0.016" /><testcase classname="tests.test_session_incremental" name="test_append_tail_kept_main_file_constant" time="0.078" /><testcase classname="tests.test_session_incremental" name="test_delete_removes_both_json_and_jsonl" time="0.056" /><testcase classname="tests.test_session_incremental" name="test_delete_legacy_json_only_no_crash" time="0.005" /><testcase classname="tests.test_session_incremental" name="test_legacy_and_incremental_formats_coexist" time="0.008" /><testcase classname="tests.test_session_incremental" name="test_crash_partial_line_tolerated" time="0.013" /><testcase classname="tests.test_session_incremental" name="test_save_full_replaces_history_wholesale" time="0.015" /><testcase classname="tests.test_session_incremental" name="test_history_ts_stamped_on_append_only" time="0.008" /><testcase classname="tests.test_session_incremental" name="test_append_history_persists_unique_pan_ids_for_searchable_bodies" time="0.006" /><testcase classname="tests.test_session_incremental" name="test_history_ts_not_fabricated_for_replaced_history" time="0.015" /><testcase classname="tests.test_session_incremental" name="test_history_ts_not_fabricated_for_imported_or_forked_history" time="0.021" /><testcase classname="tests.test_session_incremental" name="test_concurrent_save_async_no_duplication" time="0.044" /><testcase classname="tests.test_session_incremental" name="test_save_async_freezes_history_end_during_blocked_write" time="0.010" /><testcase classname="tests.test_session_incremental" name="test_queue_ops_do_not_scale_with_history" time="0.069" /><testcase classname="tests.test_session_incremental" name="test_worker_path_saves_incrementally_and_reloads" time="0.038"><failure message="AssertionError: assert [{'role': 'as...19006', ...}}] == [{'role': 'as...nt': 'hello'}]&#10;  &#10;  Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:b55a4ad13bae4b658d3517d8ef381b17', 'status': 'done', 'occurredAt': '2026-11-02T00:17:50.819006', ...}}&#10;  Use -v to get more diff">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6666/test_worker_path_saves_increme0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CF139A0&gt;
+
+    def test_worker_path_saves_incrementally_and_reloads(tmp_path, monkeypatch):
+        """真实 worker 读取路径（init → 流式块 → result）→ 落盘 → 冷启动重载。"""
+        _cleanup()
+        monkeypatch.setattr(_sess, "SESSION_DIR", tmp_path / "sessions")
+        s = _sess.create(name="wkr")
+        w = worker.Worker(
+            worker_id="worker-e2e",
+            session_id=s.id,
+            adapter=CbcAdapter(),
+            status="idle",
+            process=MagicMock(),
+            pending_signal=asyncio.Queue(),
+            _replaying=False,
+            _hist_flush_event=asyncio.Event(),
+        )
+        worker.workers[w.worker_id] = w
+        w.process = MockProcess([
+            _system_init_event(cbc_sid="cbc-e2e"),
+            _assistant_event(text="hello"),
+            _result_event(result="hello"),
+        ])
+        asyncio.run(worker._read_stdout(w))
+        sid = s.id
+&gt;       assert _no_ts(s.history) == [{"role": "assistant", "content": "hello"}]
+E       AssertionError: assert [{'role': 'as...19006', ...}}] == [{'role': 'as...nt': 'hello'}]
+E         
+E         Left contains one more item: {'role': 'terminal', 'kind': 'terminal', 'content': '', 'terminal': {'eventId': 'terminal:worker:worker-e2e:generation...e2e:generation:0:b55a4ad13bae4b658d3517d8ef381b17', 'status': 'done', 'occurredAt': '2026-11-02T00:17:50.819006', ...}}
+E         Use -v to get more diff
+
+tests\test_session_incremental.py:654: AssertionError</failure></testcase><testcase classname="tests.test_session_incremental" name="test_perf_incremental_vs_full" time="0.866" /><testcase classname="tests.test_session_incremental" name="test_incremental_save_never_scans_persisted_history" time="0.174" /><testcase classname="tests.test_persistence_sharding" name="test_different_sessions_flush_without_cross_session_blocking" time="0.014" /><testcase classname="tests.test_persistence_sharding" name="test_same_session_flushes_are_fifo_and_do_not_duplicate_history" time="0.009" /><testcase classname="tests.test_persistence_sharding" name="test_sync_save_after_async_reservation_does_not_deadlock" time="0.007" /><testcase classname="tests.test_persistence_sharding" name="test_executor_submission_failure_retires_ticket" time="0.007" /><testcase classname="tests.test_persistence_sharding" name="test_same_session_backlog_leaves_threads_for_other_sessions" time="0.017" /><testcase classname="tests.test_persistence_sharding" name="test_queued_save_survives_repeated_cancellation" time="0.011" /><testcase classname="tests.test_persistence_sharding" name="test_async_writer_preserves_context_and_does_not_use_default_executor" time="0.012" /><testcase classname="tests.test_persistence_sharding" name="test_async_backlog_advances_while_event_loop_is_in_a_sync_save" time="0.078" /><testcase classname="tests.test_persistence_sharding" name="test_queued_submission_rejection_releases_following_tickets" time="0.012" /><testcase classname="tests.test_persistence_sharding" name="test_history_replace_keeps_append_after_blocked_full_flush" time="0.012" /><testcase classname="tests.test_persistence_sharding" name="test_save_failure_releases_ticket_and_reports_bounded_diagnostics" time="0.008" /><testcase classname="tests.test_persistence_sharding" name="test_cancelled_save_waits_for_writer_and_releases_ticket" time="0.007" /><testcase classname="tests.test_persistence_sharding" name="test_queue_receipt_uses_sharded_session_persistence" time="0.007" /><testcase classname="tests.test_persistence_sharding" name="test_usage_merge_and_terminal_events_keep_durable_order" time="0.011"><failure message="AssertionError: assert '' == 'answer'&#10;  &#10;  - answer">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001916CDDA0B0&gt;
+
+    def test_usage_merge_and_terminal_events_keep_durable_order(monkeypatch):
+        """Usage merge stays after base save; terminal result is persisted before events."""
+        session = _sess.create(name="terminal-order", model="initial")
+        session.cli_session_id = "cli-terminal-order"
+        session.queue_pending = [{"type": "task", "text": "queued"}]
+        _sess.save(session)
+        events = []
+    
+        async def broadcast(event):
+            events.append(event)
+    
+        worker.set_broadcaster(broadcast)
+        worker._usage_enrichment_adapters.clear()
+        worker._usage_enrichment_tasks.clear()
+        worker._usage_enrichment_locks.clear()
+    
+        class Adapter:
+            name = "cbc"
+    
+            def enrich_after_result(self, snapshot):
+                snapshot.model = "provider-model"
+                return [{"model": "provider-model",
+                         "rawUsage": {"completion_tokens": 3}}]
+    
+        worker._queue_usage_enrichment(
+            session, Adapter(), task_id="terminal-task", task_seq=1,
+            worker_id="terminal-worker", generation=1,
+        )
+        monkeypatch.setattr(worker, "_schedule_usage_enrichment", lambda _sid: None)
+        task_worker = worker.Worker(
+            worker_id="terminal-worker", session_id=session.id,
+            adapter=CbcAdapter(), status="idle", process=MagicMock(),
+            pending_signal=asyncio.Queue(),
+        )
+    
+        async def scenario():
+            # Run the provider merge through its detached snapshot path first.  It
+            # must persist usage without removing the unrelated durable queue row.
+            await worker._run_usage_enrichment(session.id)
+            assert session.model == "provider-model"
+            terminal = await worker._persist_terminal_state(
+                task_worker, session, "done", "answer",
+            )
+            await worker._publish_terminal_events(task_worker, terminal, session)
+    
+        try:
+            asyncio.run(scenario())
+            assert [event["type"] for event in events] == [
+                "worker.result", "worker.status",
+            ]
+            _sess._cache.clear()
+            loaded = _sess.get(session.id)
+            assert loaded.last_result["status"] == "done"
+&gt;           assert loaded.history[-1]["content"] == "answer"
+E           AssertionError: assert '' == 'answer'
+E             
+E             - answer
+
+tests\test_persistence_sharding.py:519: AssertionError</failure></testcase><testcase classname="tests.test_scheduler_store" name="test_data_root_redirected" time="0.003" /><testcase classname="tests.test_scheduler_store" name="test_env_var_overrides_root" time="0.003" /><testcase classname="tests.test_scheduler_store" name="test_create_writes_job_record" time="0.090" /><testcase classname="tests.test_scheduler_store" name="test_no_tmp_files_left_behind" time="0.089" /><testcase classname="tests.test_scheduler_store" name="test_create_generates_id_and_timestamps" time="0.079" /><testcase classname="tests.test_scheduler_store" name="test_create_computes_next_fire_at" time="0.072" /><testcase classname="tests.test_scheduler_store" name="test_create_defaults" time="0.069" /><testcase classname="tests.test_scheduler_store" name="test_create_interval_defaults_anchor_to_created_at" time="0.071" /><testcase classname="tests.test_scheduler_store" name="test_create_once_and_cron" time="0.134" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload0]" time="0.022" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload1]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload2]" time="0.022" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload3]" time="0.021" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload4]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_invalid[payload5]" time="0.023" /><testcase classname="tests.test_scheduler_store" name="test_create_rejects_bad_misfire_policy" time="0.022" /><testcase classname="tests.test_scheduler_store" name="test_get_roundtrip" time="0.070" /><testcase classname="tests.test_scheduler_store" name="test_get_missing_or_traversal_returns_none" time="0.004" /><testcase classname="tests.test_scheduler_store" name="test_list_filters_disabled" time="0.136" /><testcase classname="tests.test_scheduler_store" name="test_update_recomputes_next_fire_on_schedule_change" time="0.124" /><testcase classname="tests.test_scheduler_store" name="test_update_keeps_explicit_next_fire_at" time="0.124" /><testcase classname="tests.test_scheduler_store" name="test_update_disable_clears_next_fire_at" time="0.175" /><testcase classname="tests.test_scheduler_store" name="test_update_rejects_bad_policy_and_returns_none_for_missing" time="0.101" /><testcase classname="tests.test_scheduler_store" name="test_delete" time="0.165" /><testcase classname="tests.test_scheduler_store" name="test_append_and_list_runs" time="0.114" /><testcase classname="tests.test_scheduler_store" name="test_runs_roll_over_at_500" time="17.783" /><testcase classname="tests.test_scheduler_store" name="test_list_runs_on_empty_store" time="0.003" /><testcase classname="tests.test_scheduler_store" name="test_claim_leader_stub_is_idempotent" time="0.002" /><testcase classname="tests.test_scheduler_store" name="test_migrate_legacy_tasks_roundtrip" time="0.094" /><testcase classname="tests.test_scheduler_store" name="test_migrate_is_idempotent" time="0.127" /><testcase classname="tests.test_scheduler_store" name="test_migrate_skips_invalid_files" time="0.043" /><testcase classname="tests.test_scheduler_store" name="test_migrate_merges_legacy_runs" time="0.085" /><testcase classname="tests.test_scheduler_store" name="test_create_defaults_name_to_min_vacant_job_n" time="0.327" /><testcase classname="tests.test_scheduler_store" name="test_create_blank_name_variants_all_get_default" time="0.272" /><testcase classname="tests.test_scheduler_store" name="test_name_is_editable_and_description_roundtrip" time="0.189" /><testcase classname="tests.test_scheduler_store" name="test_description_defaults_empty_and_exports" time="0.071" /><testcase classname="tests.test_scheduler_store" name="test_migrated_legacy_task_gets_name_description" time="0.089" /></testsuite></testsuites>

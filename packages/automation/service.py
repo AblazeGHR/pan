@@ -47,6 +47,7 @@ class Service:
         self.ingester = None
         self.job_runtime = None
         self.engine_started = False
+        self._runtime_issue_observer = self._observe_runtime_mapping
         from .quota_policy import Runtime as QuotaPolicy
         self.quota_policy = QuotaPolicy(root, Path(root).parent / 'background_jobs')
         from .quota_host import bind_readonly
@@ -67,6 +68,14 @@ class Service:
                 self.ingress.put_nowait(self.bus.prepare(self.core, 'workers.all_idle', {'runningCount': 0}))
             except Exception as exc:
                 self.diagnostic('core-ingress', exc)
+
+    def _observe_runtime_mapping(self, mapping):
+        # Retain both original consumers without starting the retired host.
+        try:
+            self.quota_policy.observe(mapping)
+        except Exception as exc:
+            self.diagnostic('runtime-issue-quota', exc)
+        self.observe_runtime_issue(mapping)
 
     def observe_runtime_issue(self, mapping):
         """Enqueue a mapped RuntimeIssue Event through trusted core admission.
@@ -339,11 +348,15 @@ class Service:
         self.dispatcher = asyncio.create_task(self.dispatch(), name='automation-event-dispatch')
         self.ingester = asyncio.create_task(self.ingest_core(), name='automation-core-ingress')
         self.worker.set_running_observer(self.observe)
+        from packages.core.runtime_issues import set_observer
+        set_observer(self._runtime_issue_observer)
 
     async def close(self):
         if self.started:
             self.worker.set_running_observer(None)
         self.stopping = True
+        from packages.core.runtime_issues import clear_observer
+        clear_observer(self._runtime_issue_observer)
         await self.quota_policy.close()
         self.wake.set()
         # Settle accepted writes before returning; pending records survive close.
