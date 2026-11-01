@@ -12,7 +12,7 @@ import sqlite3
 import threading
 import uuid
 
-from packages.core.platform.runtime_lock import RuntimeLock
+from packages.core.platform.runtime_lock import RuntimeLock, RuntimeLockBusy
 from packages.jobs.final_contracts import ContractError
 
 _local = threading.local()
@@ -89,7 +89,7 @@ class OwnerFence:
         except NotImplementedError as exc:
             from packages.jobs.final_contracts import ContractError
             raise ContractError("capability_unsupported", str(exc)) from exc
-        except OSError:
+        except RuntimeLockBusy:
             raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
         try:
             with self.transaction() as db:

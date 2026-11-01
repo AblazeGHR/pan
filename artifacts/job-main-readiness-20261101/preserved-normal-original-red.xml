@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="6" time="2.641" timestamp="2026-11-01T19:06:01.275848+08:00" hostname="ablaze"><testcase classname="tests.test_job_preserved_data" name="test_normal_owner_unknown_visible_user_delete_archives_without_execution" time="0.407"><failure message="assert 409 == 200&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">preserved = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000015E901CE7B0&gt;, automation=&lt;packages.automation.service.Se...d_jobs/jobs/original-unknown.json', 'sha256': 'cacaea28287bd2b4c51c955e999dd6c7061ed126d8bdf05373f05b538e9be2ae', ...})
+
+    def test_normal_owner_unknown_visible_user_delete_archives_without_execution(preserved):
+        h, source, raw, row = preserved
+        listed = h.client.get('/api/job-maintenance/records')
+&gt;       assert listed.status_code == 200
+E       assert 409 == 200
+E        +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_job_preserved_data.py:37: AssertionError</failure></testcase><testcase classname="tests.test_job_preserved_data" name="test_preserved_delete_conflicts_do_not_remove_or_execute[hash]" time="0.326" /><testcase classname="tests.test_job_preserved_data" name="test_preserved_delete_conflicts_do_not_remove_or_execute[revision]" time="0.362" /><testcase classname="tests.test_job_preserved_data" name="test_preserved_delete_conflicts_do_not_remove_or_execute[source]" time="0.356" /><testcase classname="tests.test_job_preserved_data" name="test_preserved_delete_conflicts_do_not_remove_or_execute[pin]" time="0.354" /><testcase classname="tests.test_job_preserved_data" name="test_preserved_delete_conflicts_do_not_remove_or_execute[unauthenticated]" time="0.358"><failure message="AssertionError: {&quot;detail&quot;:&quot;Maintenance mode is not active&quot;}&#10;assert 409 == 401&#10; +  where 409 = &lt;Response [409 Conflict]&gt;.status_code">preserved = (namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000015E9088A270&gt;, automation=&lt;packages.automation.service.Se...d_jobs/jobs/original-unknown.json', 'sha256': 'cacaea28287bd2b4c51c955e999dd6c7061ed126d8bdf05373f05b538e9be2ae', ...})
+change = 'unauthenticated'
+
+    @pytest.mark.parametrize('change', ['hash', 'revision', 'source', 'pin', 'unauthenticated'])
+    def test_preserved_delete_conflicts_do_not_remove_or_execute(preserved, change):
+        h, source, raw, row = preserved
+        kwargs = {}
+        if change == 'hash':
+            kwargs['expectedSha256'] = '0' * 64
+        elif change == 'revision':
+            kwargs['expectedRevision'] = 2
+        elif change == 'source':
+            source.write_bytes(b'changed data')
+        elif change == 'pin':
+            (source.parent.parent / 'pins.json').write_text(json.dumps({row['originalId']: True}))
+        else:
+            h.client.headers['Authorization'] = 'Bearer invalid'
+        before = source.read_bytes()
+        response = delete(h, row, **kwargs)
+&gt;       assert response.status_code == (401 if change == 'unauthenticated' else 409), response.text
+E       AssertionError: {"detail":"Maintenance mode is not active"}
+E       assert 409 == 401
+E        +  where 409 = &lt;Response [409 Conflict]&gt;.status_code
+
+tests\test_job_preserved_data.py:72: AssertionError</failure></testcase></testsuite></testsuites>

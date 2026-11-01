@@ -24,7 +24,7 @@ def state_for(root, conflict):
             'root': Path(root), 'auth': None}
 
 
-def dispositions(root):
+def dispositions(root, *, service=None):
     path = root / 'job-dispositions.json'
     if not path.exists():
         return {'items': [], 'manifestState': 'missing', 'message': '未提供离线处置清单；原数据未迁移、未执行。'}
@@ -51,8 +51,21 @@ def dispositions(root):
         if relative.is_absolute() or '..' in relative.parts or '\\' in row['sourceFile'] or ':' in row['sourceFile']:
             raise ValueError('Invalid disposition source path')
         ids.add(row['id'])
-        items.append({**row, 'recognition': 'unrecognized', 'deleteBlocked': True,
-                      'deleteReason': '原 owner 未核实，禁止修改原文件；未知效果未结算、不会重放。'})
+        owned = service is not None and service.owner.token is not None and service.owner.lock.file is not None
+        resource_blocked = bool(set(row['reasonCodes']) & {'active_resource', 'uncertain_effect', 'pending_notice', 'unverified_authority'})
+        receipt = None
+        if service is not None:
+            with service.transaction(readonly=True) as db:
+                try:
+                    receipt = service._get(db, 'migration_receipt', 'preserved-delete:' + row['id'])
+                except KeyError:
+                    pass
+        items.append({**row, 'recognition': 'unrecognized', 'deleted': receipt is not None,
+                      'deleteBlocked': not owned or resource_blocked or receipt is not None,
+                      'deleteReason': '已删除原记录，原字节仍保留在本地审计备份；未知效果未结算。' if receipt else
+                      '原资源或收据尚未核实，原记录保留，先按原身份核对。' if owned and resource_blocked else
+                      '删除仅移除原记录并保留审计备份，不停止资源、不结算或重放未知效果。' if owned else
+                      '原 owner 未核实，禁止修改原文件；未知效果未结算、不会重放。'})
     return {'items': items, 'manifestState': 'loaded', 'message': '原数据已保留，未迁移；建议手动创建新的 Job。'}
 
 
@@ -80,9 +93,12 @@ def install(app):
 
     def current(request):
         state = getattr(request.app.state, 'job_maintenance', None)
-        if not state:
-            raise HTTPException(409, 'Maintenance mode is not active')
-        return state
+        if state:
+            return state
+        service = getattr(request.app.state, 'job_final_service', None)
+        if service is None:
+            raise HTTPException(503, 'Job owner is unavailable')
+        return {'mode': 'active', 'root': service.owner.root, 'auth': service.auth, 'service': service}
 
     def auth(state):
         if state['auth'] is None:
@@ -115,15 +131,34 @@ def install(app):
     async def records(request: Request):
         state = authorized(request)
         try:
-            return dispositions(state['root'])
+            return dispositions(state['root'], service=state.get('service'))
         except (ValueError, OSError):
             return JSONResponse(status_code=409, content={'ok': False, 'error': {
                 'code': 'invalid_disposition_manifest', 'message': '处置清单无效；原数据未改变、未执行。'}})
 
     @router.delete('/records/{record_id}')
     async def delete(record_id: str, request: Request):
-        # Authentication never grants ownership. No file is read or removed,
-        # even if the caller supplies the right original hash and revision.
-        return blocked(authorized(request))
+        state = authorized(request)
+        if state['mode'] == 'maintenance':
+            return blocked(state)
+        from packages.jobs.final_api import body, fields
+        from packages.jobs.migration_history import delete_preserved
+        try:
+            value = await body(request)
+            names = {'expectedRevision', 'expectedSha256', 'expectedSourceFile', 'requestKey'}
+            fields(value, names, names)
+            record = next((row for row in dispositions(state['root'])['items'] if row['id'] == record_id), None)
+            if record is None:
+                raise final_contracts.ContractError('not_found', 'Original disposition record not found')
+            from packages.plugins.lifecycle import io
+            return await io(delete_preserved, state['service'], record, value, actor={'type': 'user', 'id': 'local'})
+        except final_contracts.ContractError as exc:
+            return JSONResponse(status_code=exc.status, content={'ok': False, 'error': exc.as_dict()})
+        except ValueError:
+            return JSONResponse(status_code=409, content={'ok': False, 'error': {
+                'code': 'invalid_disposition_manifest', 'message': '处置清单无效，未准入删除。'}})
+        except OSError:
+            return JSONResponse(status_code=503, content={'ok': False, 'error': {
+                'code': 'storage_unavailable', 'message': '删除存储结果未确认；保留原请求身份及审计备份，查询原操作。'}})
 
     app.include_router(router)

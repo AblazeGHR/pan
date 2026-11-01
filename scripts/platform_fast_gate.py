@@ -29,6 +29,8 @@ FAST_TESTS = (
     "tests/test_platform_process_posix_unit.py",
     "tests/test_job_posix_safety.py",
     "tests/test_job_runtime_owner.py",
+    "tests/test_runtime_lock_errors.py",
+    "tests/test_job_preserved_data.py",
     "tests/test_job_attempt_epoch.py",
     "tests/test_worker_platform_admission.py",
     "tests/test_plugin_ipc_endpoint.py",

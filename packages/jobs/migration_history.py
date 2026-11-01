@@ -6,6 +6,7 @@ the executor. All rows commit with activation, and retries only verify them.
 import base64
 import copy
 import hashlib
+import os
 
 from packages.jobs import final_contracts as fc
 
@@ -81,6 +82,83 @@ def read_receipt(service, original_key, *, actor):
     service._permit(actor, "job", "read")
     with service.transaction(readonly=True) as db:
         return service._get(db, "migration_receipt", original_key)
+
+
+def delete_preserved(service, record, request, *, actor):
+    """Explicit data archival/removal, using the current owner's transaction.
+
+    No old payload is parsed and no resource/unknown effect is settled. Shared
+    registries are not removable files. Bytes remain in permanent local audit.
+    """
+    from pathlib import PurePosixPath
+    from packages.jobs.final_runtime.coordinator import JsonPins
+    if actor.get('type') != 'user':
+        raise fc.ContractError('authorization_denied', 'Explicit user deletion required')
+    service._permit(actor, 'job', 'delete')
+    payload = {'recordId': record['id'], **{k: v for k, v in request.items() if k != 'requestKey'}}
+    root = service.owner.root
+
+    def plain(path):
+        require(path.resolve().is_relative_to(root) and not any(p.is_symlink() or
+                (hasattr(p, 'is_junction') and p.is_junction()) for p in (path, *path.parents)),
+                'Preserved data path contains a link or escapes the owner profile')
+        return path
+
+    with service.transaction() as db:
+        def mutate(operation_id):
+            if (type(request['expectedRevision']) is not int
+                    or request['expectedRevision'] != record['revision']
+                    or request['expectedSha256'] != record['sha256']
+                    or request['expectedSourceFile'] != record['sourceFile']):
+                raise fc.ContractError('revision_conflict', 'Original disposition path/hash/revision changed')
+            require(not set(record['reasonCodes']) & {'active_resource', 'uncertain_effect', 'pending_notice', 'unverified_authority'},
+                    'Original resource or receipt requires reconciliation; source retained')
+            relative = PurePosixPath(record['sourceFile'])
+            if (len(relative.parts) != 3 or relative.parts[:2] not in
+                    {('background_jobs', 'jobs'), ('scheduler', 'tasks')} or relative.suffix != '.json'):
+                raise fc.ContractError('unsupported_operation', 'Shared registries require record-specific offline review')
+            pin_path = plain(root / 'background_jobs' / 'pins.json')
+            try:
+                pins = JsonPins(pin_path.parent).read()
+            except (OSError, ValueError) as exc:
+                raise fc.ContractError('reference_conflict', 'Original pin policy cannot be verified') from exc
+            require(not pins.get(record['originalId'], False), 'Original record is pinned')
+            source = plain(root / relative)
+            archive_relative = 'preserved-history/' + hashlib.sha256(record['id'].encode()).hexdigest() + '-' + record['sha256'] + '.bin'
+            archive = plain(service.root / archive_relative)
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            plain(archive)
+            if source.exists():
+                before = source.stat()
+                require(before.st_nlink == 1 and source.is_file(), 'Original source is not an exclusive plain file')
+                if before.st_size > 32 * 1024 * 1024:
+                    raise fc.ContractError('capacity_exceeded', 'Preserved record exceeds the bounded archive limit')
+                raw = source.read_bytes()
+                require(hashlib.sha256(raw).hexdigest() == record['sha256'], 'Original source hash changed')
+                if archive.exists():
+                    require(archive.read_bytes() == raw, 'Preserved audit backup changed')
+                else:
+                    with archive.open('xb') as stream:
+                        stream.write(raw)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                current = source.stat()
+                require((before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) ==
+                        (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns), 'Original source changed before removal')
+                plain(source).unlink()
+            else:
+                # Crash after unlink but before the existing operation receipt
+                # commits: reconcile this exact archive/hash, never an effect.
+                require(archive.is_file() and hashlib.sha256(archive.read_bytes()).hexdigest() == record['sha256'],
+                        'Original data missing without its verified audit backup')
+            result = {'deleted': True, 'originalId': record['originalId'], 'sourceFile': record['sourceFile'],
+                      'sourceSha256': record['sha256'], 'revision': record['revision'],
+                      'archive': archive_relative, 'unknownSettlementAttempted': False,
+                      'recordType': 'historicalEvidenceOnly', 'executable': False}
+            service._save(db, 'migration_receipt', 'preserved-delete:' + record['id'],
+                          {**result, 'operationId': operation_id})
+            return result, [], False
+        return service._operation(db, actor, 'retire', request['requestKey'], payload, 'job', mutate)
 
 
 def read_log(service, original_id, *, actor):

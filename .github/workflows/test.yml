@@ -122,7 +122,7 @@ jobs:
           PYTHONIOENCODING: utf-8
         shell: bash
         run: |
-          python scripts/run_tests_isolated.py -- python -m pytest tests/test_notification_http.py tests/test_history_terminal_http.py tests/test_job_maintenance_startup.py tests/test_job_maintenance_browser.py tests/test_retirement_rev16_mcp_stdio.py -q -ra --junitxml=evidence/cp-x1-ubuntu-browser/pytest.xml 2>&1 | tee evidence/cp-x1-ubuntu-browser/pytest.log
+          python scripts/run_tests_isolated.py -- python -m pytest tests/test_notification_http.py tests/test_history_terminal_http.py tests/test_job_maintenance_startup.py tests/test_job_preserved_data.py tests/test_job_maintenance_browser.py tests/test_retirement_rev16_mcp_stdio.py -q -ra --junitxml=evidence/cp-x1-ubuntu-browser/pytest.xml 2>&1 | tee evidence/cp-x1-ubuntu-browser/pytest.log
 
       - name: Upload fresh Ubuntu browser results and owned cleanup evidence
         if: always()

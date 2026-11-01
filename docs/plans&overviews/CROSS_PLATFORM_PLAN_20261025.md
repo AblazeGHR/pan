@@ -98,7 +98,7 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 
 | 能力 | Windows | macOS | Linux | 说明 |
 |---|---|---|---|---|
-| `job.runtimeOwner` | 实现；本轮 fixture 实测 | 实现；本轮未实测 | 实现；本轮未实测 | 本地文件系统上的进程存活锁 + SQLite FULL/BEGIN IMMEDIATE epoch CAS；旧异步 pass/runner 持久 reservation；未知平台显式 unsupported。不提供网络文件系统/跨主机租约。具名 owner 冲突可进入无效果维护 web，仍拒绝认领、业务 readiness 和执行，见 `docs/design/job-unification/JOB_OWNERSHIP_MAINTENANCE.md`；原 fence 见 `docs/design/job-unification/R4_RUNTIME_OWNER.md` |
+| `job.runtimeOwner` | 实现；本轮 fixture 实测 | 实现；本轮未实测 | 实现；本轮未实测 | 本地 Windows LockFileEx / POSIX flock + SQLite FULL/BEGIN IMMEDIATE epoch CAS；只将原生非阻塞竞争分类为 busy，普通 I/O/权限/磁盘错误原样抛出；旧异步 pass/runner 持久 reservation；未知平台显式 unsupported。不提供网络文件系统/跨主机租约。具名 owner 冲突可进入无效果维护 web，仍拒绝认领、业务 readiness 和执行；正常 owner 的非执行数据处置复用同一 fence/receipt，见 `docs/design/job-unification/JOB_OWNERSHIP_MAINTENANCE.md`；原 fence 见 `docs/design/job-unification/R4_RUNTIME_OWNER.md` |
 | `terminal.native` | 可用 | 不可用 | 不可用 | Windows ConPTY + Job Object；POSIX PTY 属 Phase D |
 | `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
 | `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |

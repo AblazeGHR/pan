@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="0.183" timestamp="2026-11-01T19:03:08.295317+08:00" hostname="ablaze"><testcase classname="tests.test_runtime_lock_errors" name="test_lock_open_errors_are_not_ownership_conflicts[13]" time="0.010"><failure message="packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile">path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_0/job-runtime-owner.lock')
+args = ('a+b',), kwargs = {}
+
+    def broken(path, *args, **kwargs):
+        if path == owner.lock.path:
+&gt;           raise failure
+E           PermissionError: [Errno 13] owned fixture open failure
+
+tests\test_runtime_lock_errors.py:18: PermissionError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000131BDAE4180&gt;
+number = 13
+
+    @pytest.mark.parametrize('number', [errno.EACCES, errno.ENOSPC, errno.EIO])
+    def test_lock_open_errors_are_not_ownership_conflicts(tmp_path, monkeypatch, number):
+        owner = OwnerFence(tmp_path)
+        failure = OSError(number, 'owned fixture open failure')
+        original = Path.open
+    
+        def broken(path, *args, **kwargs):
+            if path == owner.lock.path:
+                raise failure
+            return original(path, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, 'open', broken)
+        with pytest.raises(OSError) as raised:
+&gt;           owner.claim(0)
+
+tests\test_runtime_lock_errors.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.runtime_owner.OwnerFence object at 0x00000131BDA4B770&gt;
+expected_epoch = 0
+
+    def claim(self, expected_epoch):
+        if self.token is not None:
+            refused("Runtime already acquired an owner epoch")
+        try:
+            self.lock.acquire()
+        except NotImplementedError as exc:
+            from packages.jobs.final_contracts import ContractError
+            raise ContractError("capability_unsupported", str(exc)) from exc
+        except OSError:
+&gt;           raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
+E           packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile
+
+packages\jobs\runtime_owner.py:93: OwnershipConflict</failure></testcase><testcase classname="tests.test_runtime_lock_errors" name="test_lock_open_errors_are_not_ownership_conflicts[28]" time="0.003"><failure message="packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile">path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_1/job-runtime-owner.lock')
+args = ('a+b',), kwargs = {}
+
+    def broken(path, *args, **kwargs):
+        if path == owner.lock.path:
+&gt;           raise failure
+E           OSError: [Errno 28] owned fixture open failure
+
+tests\test_runtime_lock_errors.py:18: OSError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000131BDAE4050&gt;
+number = 28
+
+    @pytest.mark.parametrize('number', [errno.EACCES, errno.ENOSPC, errno.EIO])
+    def test_lock_open_errors_are_not_ownership_conflicts(tmp_path, monkeypatch, number):
+        owner = OwnerFence(tmp_path)
+        failure = OSError(number, 'owned fixture open failure')
+        original = Path.open
+    
+        def broken(path, *args, **kwargs):
+            if path == owner.lock.path:
+                raise failure
+            return original(path, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, 'open', broken)
+        with pytest.raises(OSError) as raised:
+&gt;           owner.claim(0)
+
+tests\test_runtime_lock_errors.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.runtime_owner.OwnerFence object at 0x00000131BDABE990&gt;
+expected_epoch = 0
+
+    def claim(self, expected_epoch):
+        if self.token is not None:
+            refused("Runtime already acquired an owner epoch")
+        try:
+            self.lock.acquire()
+        except NotImplementedError as exc:
+            from packages.jobs.final_contracts import ContractError
+            raise ContractError("capability_unsupported", str(exc)) from exc
+        except OSError:
+&gt;           raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
+E           packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile
+
+packages\jobs\runtime_owner.py:93: OwnershipConflict</failure></testcase><testcase classname="tests.test_runtime_lock_errors" name="test_lock_open_errors_are_not_ownership_conflicts[5]" time="0.003"><failure message="packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile">path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_2/job-runtime-owner.lock')
+args = ('a+b',), kwargs = {}
+
+    def broken(path, *args, **kwargs):
+        if path == owner.lock.path:
+&gt;           raise failure
+E           OSError: [Errno 5] owned fixture open failure
+
+tests\test_runtime_lock_errors.py:18: OSError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_lock_open_errors_are_not_2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000131BDAFA450&gt;
+number = 5
+
+    @pytest.mark.parametrize('number', [errno.EACCES, errno.ENOSPC, errno.EIO])
+    def test_lock_open_errors_are_not_ownership_conflicts(tmp_path, monkeypatch, number):
+        owner = OwnerFence(tmp_path)
+        failure = OSError(number, 'owned fixture open failure')
+        original = Path.open
+    
+        def broken(path, *args, **kwargs):
+            if path == owner.lock.path:
+                raise failure
+            return original(path, *args, **kwargs)
+    
+        monkeypatch.setattr(Path, 'open', broken)
+        with pytest.raises(OSError) as raised:
+&gt;           owner.claim(0)
+
+tests\test_runtime_lock_errors.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.runtime_owner.OwnerFence object at 0x00000131BDABF250&gt;
+expected_epoch = 0
+
+    def claim(self, expected_epoch):
+        if self.token is not None:
+            refused("Runtime already acquired an owner epoch")
+        try:
+            self.lock.acquire()
+        except NotImplementedError as exc:
+            from packages.jobs.final_contracts import ContractError
+            raise ContractError("capability_unsupported", str(exc)) from exc
+        except OSError:
+&gt;           raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
+E           packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile
+
+packages\jobs\runtime_owner.py:93: OwnershipConflict</failure></testcase><testcase classname="tests.test_runtime_lock_errors" name="test_noncontention_lock_io_error_preserves_original_exception" time="0.002"><failure message="packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile">def broken():
+&gt;       raise failure
+E       OSError: [Errno 28] owned fixture write/disk failure
+
+tests\test_runtime_lock_errors.py:33: OSError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6582/test_noncontention_lock_io_err0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000131BDCB4D10&gt;
+
+    def test_noncontention_lock_io_error_preserves_original_exception(tmp_path, monkeypatch):
+        owner = OwnerFence(tmp_path)
+        failure = OSError(errno.ENOSPC, 'owned fixture write/disk failure')
+        def broken():
+            raise failure
+        monkeypatch.setattr(owner.lock, 'acquire', broken)
+        with pytest.raises(OSError) as raised:
+&gt;           owner.claim(0)
+
+tests\test_runtime_lock_errors.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;packages.jobs.runtime_owner.OwnerFence object at 0x00000131BDAE6C40&gt;
+expected_epoch = 0
+
+    def claim(self, expected_epoch):
+        if self.token is not None:
+            refused("Runtime already acquired an owner epoch")
+        try:
+            self.lock.acquire()
+        except NotImplementedError as exc:
+            from packages.jobs.final_contracts import ContractError
+            raise ContractError("capability_unsupported", str(exc)) from exc
+        except OSError:
+&gt;           raise OwnershipConflict('owner_busy', "Another canonical runtime owns this profile")
+E           packages.jobs.runtime_owner.OwnershipConflict: Another canonical runtime owns this profile
+
+packages\jobs\runtime_owner.py:93: OwnershipConflict</failure></testcase></testsuite></testsuites>

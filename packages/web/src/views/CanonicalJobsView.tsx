@@ -26,6 +26,7 @@ import { useAutomationDraft } from '@/components/automation/DraftBoundary';
 import { CanonicalDefinitionFields, canonicalFormErrors } from '@/components/automation/CanonicalDefinitionFields';
 import { TimeTemplateFields } from '@/components/automation/TimeTemplateFields';
 import { SimpleTemplateForm } from '@/components/automation/SimpleTemplateForm';
+import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -108,6 +109,7 @@ export default function CanonicalJobsView() {
           </nav>
         </header>
         <JobUserAuthorization />
+        {token && <PreservedDataPanel key={token} authorization={token} />}
         {token ? <Workspace key={token} /> : <p role="status">请登录以加载 canonical 数据。</p>}
       </div>
     </section>
