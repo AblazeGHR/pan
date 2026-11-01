@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="4" time="23.142" timestamp="2026-11-02T04:53:47.139884+08:00" hostname="ablaze"><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]" time="0.706" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-independent]" time="1.070" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]" time="20.600"><failure message="AssertionError: owned canonical execution deadline: False">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6740/test_owned_multigeneration_tre2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F937649910&gt;
+kind = 'legacy', failure = 'wait-error'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
+    def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+        if kind=='legacy':
+            from tests.helpers.canonical_creation_edge import check_multigeneration
+&gt;           return check_multigeneration(tmp_path,failure)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\helpers\canonical_creation_edge.py:77: in check_multigeneration
+    wait_value(gate.exists,bool)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+read = &lt;bound method Path.exists of WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6740/test_owned_multigeneration_tre2/gate.json')&gt;
+predicate = &lt;class 'bool'&gt;, timeout = 20
+
+    def wait_value(read, predicate, timeout=20):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() &lt; deadline:
+            value = read()
+            if predicate(value): return value
+            time.sleep(.02)
+&gt;       raise AssertionError('owned canonical execution deadline: ' + repr(value))
+E       AssertionError: owned canonical execution deadline: False
+
+tests\test_job_hidden_production.py:64: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-independent]" time="0.533" /></testsuite></testsuites>

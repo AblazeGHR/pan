@@ -59,6 +59,9 @@ def kill(handle):
 @pytest.mark.parametrize('fault',['pre-import','post-create'])
 @pytest.mark.parametrize('launch_mode',['base','venv-outer','venv-inner'])
 def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monkeypatch,kind,fault,launch_mode):
+ if kind=='legacy':
+  from tests.helpers.canonical_creation_edge import check_creation_edge
+  return check_creation_edge(tmp_path,fault,launch_mode)
  from packages.jobs import independent_service
  root=tmp_path/'registry';gate=tmp_path/'gate.json';marker=tmp_path/'must-not-run'
  monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR',str(root))
@@ -138,6 +141,9 @@ def test_runner_death_at_creation_edge_converges_without_survivors(tmp_path,monk
 @pytest.mark.parametrize('kind', ['legacy', 'independent'])
 @pytest.mark.parametrize('failure', ['root-exit', 'wait-error'])
 def test_owned_multigeneration_tree_cleanup_on_exit_or_exception(tmp_path, monkeypatch, kind, failure):
+    if kind=='legacy':
+        from tests.helpers.canonical_creation_edge import check_multigeneration
+        return check_multigeneration(tmp_path,failure)
     root = tmp_path / 'registry'
     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
     monkeypatch.setattr(legacy._sessions, 'get', lambda sid: {'id': sid})
@@ -248,6 +254,9 @@ def test_job_attribute_failure_prevents_creation_and_deletes_list(tmp_path, monk
 
 @pytest.mark.parametrize('kind', ['legacy', 'independent'])
 def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_path, monkeypatch, kind):
+    if kind=='legacy':
+        from tests.helpers.canonical_creation_edge import check_controller_loss
+        return check_controller_loss(tmp_path)
     root = tmp_path / 'registry'
     monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
     helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
@@ -308,84 +317,5 @@ def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_pa
 
 @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
 def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
-    import psutil
-    runtime = sys._base_executable
-    if runtime_profile == 'venv':
-        runtime = os.environ.get('PAN_TEST_LIFECYCLE_VENV')
-        if not runtime and sys.prefix != sys.base_prefix:
-            runtime = sys.executable
-        if not runtime:
-            import venv
-            venv.EnvBuilder(with_pip=False, system_site_packages=True).create(tmp_path / 'venv')
-            runtime = str(tmp_path / 'venv/Scripts/python.exe')
-    assert Path(runtime).is_file()
-    root = tmp_path / 'registry'
-    monkeypatch.setenv('PAN_BACKGROUND_JOBS_DIR', str(root))
-    helper = Path(__file__).parent / 'helpers/lifecycle_controller_host.py'
-    tree = Path(__file__).parent / 'helpers/lifecycle_tree_probe.py'
-    host = subprocess.Popen([sys._base_executable, str(helper.resolve()), 'legacy', str(root),
-                             str(tree.resolve()), str(tmp_path), 'post-spawn', runtime],
-                            creationflags=subprocess.CREATE_NO_WINDOW,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    host_ft = read_creation_filetime(int(host._handle))
-    runner = None
-    redirector = None
-    handles = []
-    try:
-        assert until(lambda: (tmp_path / 'tree-0.json').exists())
-        spawn = json.loads((tmp_path / 'spawn.json').read_text())
-        redirector = retain(spawn['pid'], spawn['creationFiletime'])
-        rows = [json.loads((tmp_path / f'tree-{i}.json').read_text()) for i in (2, 1, 0)]
-        handles = [retain(row['pid'], row['creationFiletime']) for row in rows]
-        claimed = legacy.get(spawn['jobId'])
-        runner = retain(claimed['runnerPid'], int(claimed['runnerFiletime']))
-        witness = rows[0]['runnerAncestors'][-1]
-        assert witness['pid'] == claimed['runnerPid']
-        assert witness['creationFiletime'] == int(claimed['runnerFiletime'])
-        assert Path(witness['executable']).resolve() == Path(sys._base_executable).resolve()
-        assert abs(read_creation_filetime(runner)/10_000_000-11644473600-claimed['runnerProcessCreatedAt']) < .000001
-        if runtime_profile == 'base':
-            assert claimed['runnerPid'] == spawn['pid']
-            assert int(claimed['runnerFiletime']) == spawn['creationFiletime']
-        else:
-            assert claimed['runnerPid'] != spawn['pid']
-            assert psutil.Process(claimed['runnerPid']).ppid() == spawn['pid']
-            assert Path(psutil.Process(spawn['pid']).exe()).resolve() == Path(runtime).resolve()
-        assert legacy._owns_process({'pid': claimed['runnerPid'],
-                                    'processCreatedAt': claimed['runnerProcessCreatedAt'] + 1000}) is None
-        assert read_creation_filetime(int(host._handle)) == host_ft
-        kill(int(host._handle)); host.wait(timeout=5)
-        assert legacy.reconcile_running(root) == 0, 'Live owned runner lost because parent never published its PID'
-        fact = legacy.get(spawn['jobId'])
-        assert fact['status'] == 'running'
-        assert fact['runnerPid'] == claimed['runnerPid']
-        assert fact['runnerFiletime'] == claimed['runnerFiletime']
-        assert legacy.reconcile_running(root) == 0
-        assert all(wait_state(h) is ProcessStatus.ALIVE for h in [runner, redirector, *handles])
-        legacy.cancel(spawn['jobId'])
-        assert until(lambda: all(wait_state(h) is ProcessStatus.DEAD for h in handles))
-        assert until(lambda: wait_state(runner) is ProcessStatus.DEAD)
-        assert until(lambda: wait_state(redirector) is ProcessStatus.DEAD)
-        assert until(lambda: desktop_gone(rows[0]['desktop']))
-        assert legacy.get(spawn['jobId'])['status'] == 'cancelled'
-        target = os.environ.get('PAN_TEST_LIFECYCLE_EVIDENCE')
-        if target:
-            with Path(target).open('a', encoding='utf8') as f:
-                f.write(json.dumps(dict(fault='controller-post-spawn', runtimeProfile=runtime_profile,
-                                       runtime=runtime, spawn=spawn, claim=claimed, task=rows[0],
-                                       registryStatus='cancelled', retainedAllDead=True, desktopGone=True)) + '\n')
-    finally:
-        if host.poll() is None: kill(int(host._handle)); host.wait(timeout=5)
-        host._handle.Close()
-        if runner and wait_state(runner) is not ProcessStatus.DEAD: kill(runner)
-        for handle in handles:
-            if wait_state(handle) is not ProcessStatus.DEAD: kill(handle)
-            assert until(lambda: wait_state(handle) is ProcessStatus.DEAD)
-            close_handle_checked(handle)
-        if runner:
-            assert until(lambda: wait_state(runner) is ProcessStatus.DEAD)
-            close_handle_checked(runner)
-        if redirector:
-            if wait_state(redirector) is not ProcessStatus.DEAD: kill(redirector)
-            assert until(lambda: wait_state(redirector) is ProcessStatus.DEAD)
-            close_handle_checked(redirector)
+    from tests.helpers.canonical_creation_edge import check_controller_loss
+    return check_controller_loss(tmp_path,runtime_profile,blocked=True)

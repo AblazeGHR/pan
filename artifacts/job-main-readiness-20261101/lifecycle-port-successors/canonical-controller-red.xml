@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="3.941" timestamp="2026-11-02T04:55:49.522105+08:00" hostname="ablaze"><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]" time="0.944"><failure message="AssertionError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_controller_process_crash_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E4E73FA80&gt;
+kind = 'legacy'
+
+    @pytest.mark.parametrize('kind', ['legacy', 'independent'])
+    def test_controller_process_crash_keeps_owned_runner_then_restart_cancels(tmp_path, monkeypatch, kind):
+        if kind=='legacy':
+            from tests.helpers.canonical_creation_edge import check_controller_loss
+&gt;           return check_controller_loss(tmp_path)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_controller_process_crash_0')
+runtime_profile = 'base', blocked = False
+
+    def check_controller_loss(tmp_path,runtime_profile='base',blocked=False):
+        import subprocess
+        from tests.test_job_lifecycle_prevention import retain,kill,desktop_gone
+        from packages.core.terminal.identity import probe_process
+        runtime=sys._base_executable
+        if runtime_profile=='venv':
+            venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'canonical-venv')
+            runtime=str(tmp_path/'canonical-venv/Scripts/python.exe')
+        root=tmp_path/'canonical-executions';helper=Path(__file__).with_name('canonical_controller_host.py')
+        from packages.jobs.window import command_window_options
+        controller=subprocess.Popen([sys.executable,str(helper),str(root),str(tmp_path),runtime,'blocked' if blocked else 'published'],
+            stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,**command_window_options())
+        birth=read_creation_filetime(int(controller._handle));handles=[];supervisor=None
+        try:
+            wait_value(lambda:(tmp_path/'tree-0.json').exists(),bool)
+            wait_value(lambda:(tmp_path/('spawn.json' if blocked else 'job.json')).exists(),bool)
+            if blocked:assert not (tmp_path/'job.json').exists()
+            request=json.loads((tmp_path/'request.json').read_text())
+            observed=json.loads((tmp_path/'runner.json').read_text())
+            store=ExecutionStore(root)
+            from packages.jobs.independent_executor import effect_id
+            doc=store.get(effect_id(request['effectKey']))
+            assert doc['supervisorIdentity']['pid']==observed['runnerPid']
+            assert doc['supervisorIdentity']['birth']==str(observed['runnerFiletime'])
+            supervisor=retain(observed['runnerPid'],observed['runnerFiletime'])
+            handles.append(supervisor)
+            if runtime_profile=='venv':
+                wrapper=retain(observed['runnerParent']);handles.append(wrapper)
+                assert observed['runnerPid']!=observed['runnerParent']
+                import psutil
+                assert Path(psutil.Process(observed['runnerParent']).exe()).resolve()==Path(runtime).resolve()
+            rows=[json.loads((tmp_path/('tree-'+str(i)+'.json')).read_text()) for i in [2,1,0]]
+            handles.extend(retain(row['pid'],row['creationFiletime']) for row in rows)
+            assert all(row['desktop'].startswith('PanJob_') for row in rows)
+            assert read_creation_filetime(int(controller._handle))==birth
+            kill(int(controller._handle));controller.wait(timeout=5)
+            assert read_creation_filetime(int(controller._handle))==birth
+            assert all(wait_state(h) is ProcessStatus.ALIVE for h in handles)
+            cold=ExecutionStore(root);cold.recover(supervisor_alive)
+            assert cold.get(doc['effectId'])==doc and doc['result'] is None
+            host=ExecutionHost(cold,launch=lambda *args:(_ for _ in ()).throw(AssertionError('original must not relaunch')))
+            assert host.submit_execution(request)==doc
+            result=host.cleanup_execution(doc['effectId'],doc['attempt'])
+            assert result['cleanupRequest']['status']=='requested'
+            final=wait_value(lambda:cold.get(doc['effectId']),lambda d:d.get('cleanupRequest',{}).get('status')=='confirmed')
+            assert final['cleanupRequest']['proof']['confirmed'] is True
+            assert final['cleanupRequest']['proof']['ownedTree']['remaining']==[]
+            wait_value(lambda:[wait_state(h) for h in handles],lambda states:all(s is ProcessStatus.DEAD for s in states))
+            wait_value(lambda:desktop_gone(rows[0]['desktop']),bool)
+&gt;           assert host.get_execution(doc['effectId'])==final
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError
+
+tests\helpers\canonical_creation_edge.py:160: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_controller_process_crash_keeps_owned_runner_then_restart_cancels[independent]" time="0.825" /><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]" time="0.918"><failure message="AssertionError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_legacy_runner_registers_i0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E4EBCAD50&gt;
+runtime_profile = 'base'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        from tests.helpers.canonical_creation_edge import check_controller_loss
+&gt;       return check_controller_loss(tmp_path,runtime_profile,blocked=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_legacy_runner_registers_i0')
+runtime_profile = 'base', blocked = True
+
+    def check_controller_loss(tmp_path,runtime_profile='base',blocked=False):
+        import subprocess
+        from tests.test_job_lifecycle_prevention import retain,kill,desktop_gone
+        from packages.core.terminal.identity import probe_process
+        runtime=sys._base_executable
+        if runtime_profile=='venv':
+            venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'canonical-venv')
+            runtime=str(tmp_path/'canonical-venv/Scripts/python.exe')
+        root=tmp_path/'canonical-executions';helper=Path(__file__).with_name('canonical_controller_host.py')
+        from packages.jobs.window import command_window_options
+        controller=subprocess.Popen([sys.executable,str(helper),str(root),str(tmp_path),runtime,'blocked' if blocked else 'published'],
+            stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,**command_window_options())
+        birth=read_creation_filetime(int(controller._handle));handles=[];supervisor=None
+        try:
+            wait_value(lambda:(tmp_path/'tree-0.json').exists(),bool)
+            wait_value(lambda:(tmp_path/('spawn.json' if blocked else 'job.json')).exists(),bool)
+            if blocked:assert not (tmp_path/'job.json').exists()
+            request=json.loads((tmp_path/'request.json').read_text())
+            observed=json.loads((tmp_path/'runner.json').read_text())
+            store=ExecutionStore(root)
+            from packages.jobs.independent_executor import effect_id
+            doc=store.get(effect_id(request['effectKey']))
+            assert doc['supervisorIdentity']['pid']==observed['runnerPid']
+            assert doc['supervisorIdentity']['birth']==str(observed['runnerFiletime'])
+            supervisor=retain(observed['runnerPid'],observed['runnerFiletime'])
+            handles.append(supervisor)
+            if runtime_profile=='venv':
+                wrapper=retain(observed['runnerParent']);handles.append(wrapper)
+                assert observed['runnerPid']!=observed['runnerParent']
+                import psutil
+                assert Path(psutil.Process(observed['runnerParent']).exe()).resolve()==Path(runtime).resolve()
+            rows=[json.loads((tmp_path/('tree-'+str(i)+'.json')).read_text()) for i in [2,1,0]]
+            handles.extend(retain(row['pid'],row['creationFiletime']) for row in rows)
+            assert all(row['desktop'].startswith('PanJob_') for row in rows)
+            assert read_creation_filetime(int(controller._handle))==birth
+            kill(int(controller._handle));controller.wait(timeout=5)
+            assert read_creation_filetime(int(controller._handle))==birth
+            assert all(wait_state(h) is ProcessStatus.ALIVE for h in handles)
+            cold=ExecutionStore(root);cold.recover(supervisor_alive)
+            assert cold.get(doc['effectId'])==doc and doc['result'] is None
+            host=ExecutionHost(cold,launch=lambda *args:(_ for _ in ()).throw(AssertionError('original must not relaunch')))
+            assert host.submit_execution(request)==doc
+            result=host.cleanup_execution(doc['effectId'],doc['attempt'])
+            assert result['cleanupRequest']['status']=='requested'
+            final=wait_value(lambda:cold.get(doc['effectId']),lambda d:d.get('cleanupRequest',{}).get('status')=='confirmed')
+            assert final['cleanupRequest']['proof']['confirmed'] is True
+            assert final['cleanupRequest']['proof']['ownedTree']['remaining']==[]
+            wait_value(lambda:[wait_state(h) for h in handles],lambda states:all(s is ProcessStatus.DEAD for s in states))
+            wait_value(lambda:desktop_gone(rows[0]['desktop']),bool)
+&gt;           assert host.get_execution(doc['effectId'])==final
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError
+
+tests\helpers\canonical_creation_edge.py:160: AssertionError</failure></testcase><testcase classname="tests.test_job_lifecycle_prevention" name="test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]" time="0.957"><failure message="AssertionError">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_legacy_runner_registers_i1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E4EB5EE00&gt;
+runtime_profile = 'venv'
+
+    @pytest.mark.parametrize('runtime_profile', ['base', 'venv'])
+    def test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication(tmp_path, monkeypatch, runtime_profile):
+        from tests.helpers.canonical_creation_edge import check_controller_loss
+&gt;       return check_controller_loss(tmp_path,runtime_profile,blocked=True)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_job_lifecycle_prevention.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6742/test_legacy_runner_registers_i1')
+runtime_profile = 'venv', blocked = True
+
+    def check_controller_loss(tmp_path,runtime_profile='base',blocked=False):
+        import subprocess
+        from tests.test_job_lifecycle_prevention import retain,kill,desktop_gone
+        from packages.core.terminal.identity import probe_process
+        runtime=sys._base_executable
+        if runtime_profile=='venv':
+            venv.EnvBuilder(with_pip=False,system_site_packages=True).create(tmp_path/'canonical-venv')
+            runtime=str(tmp_path/'canonical-venv/Scripts/python.exe')
+        root=tmp_path/'canonical-executions';helper=Path(__file__).with_name('canonical_controller_host.py')
+        from packages.jobs.window import command_window_options
+        controller=subprocess.Popen([sys.executable,str(helper),str(root),str(tmp_path),runtime,'blocked' if blocked else 'published'],
+            stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,**command_window_options())
+        birth=read_creation_filetime(int(controller._handle));handles=[];supervisor=None
+        try:
+            wait_value(lambda:(tmp_path/'tree-0.json').exists(),bool)
+            wait_value(lambda:(tmp_path/('spawn.json' if blocked else 'job.json')).exists(),bool)
+            if blocked:assert not (tmp_path/'job.json').exists()
+            request=json.loads((tmp_path/'request.json').read_text())
+            observed=json.loads((tmp_path/'runner.json').read_text())
+            store=ExecutionStore(root)
+            from packages.jobs.independent_executor import effect_id
+            doc=store.get(effect_id(request['effectKey']))
+            assert doc['supervisorIdentity']['pid']==observed['runnerPid']
+            assert doc['supervisorIdentity']['birth']==str(observed['runnerFiletime'])
+            supervisor=retain(observed['runnerPid'],observed['runnerFiletime'])
+            handles.append(supervisor)
+            if runtime_profile=='venv':
+                wrapper=retain(observed['runnerParent']);handles.append(wrapper)
+                assert observed['runnerPid']!=observed['runnerParent']
+                import psutil
+                assert Path(psutil.Process(observed['runnerParent']).exe()).resolve()==Path(runtime).resolve()
+            rows=[json.loads((tmp_path/('tree-'+str(i)+'.json')).read_text()) for i in [2,1,0]]
+            handles.extend(retain(row['pid'],row['creationFiletime']) for row in rows)
+            assert all(row['desktop'].startswith('PanJob_') for row in rows)
+            assert read_creation_filetime(int(controller._handle))==birth
+            kill(int(controller._handle));controller.wait(timeout=5)
+            assert read_creation_filetime(int(controller._handle))==birth
+            assert all(wait_state(h) is ProcessStatus.ALIVE for h in handles)
+            cold=ExecutionStore(root);cold.recover(supervisor_alive)
+            assert cold.get(doc['effectId'])==doc and doc['result'] is None
+            host=ExecutionHost(cold,launch=lambda *args:(_ for _ in ()).throw(AssertionError('original must not relaunch')))
+            assert host.submit_execution(request)==doc
+            result=host.cleanup_execution(doc['effectId'],doc['attempt'])
+            assert result['cleanupRequest']['status']=='requested'
+            final=wait_value(lambda:cold.get(doc['effectId']),lambda d:d.get('cleanupRequest',{}).get('status')=='confirmed')
+            assert final['cleanupRequest']['proof']['confirmed'] is True
+            assert final['cleanupRequest']['proof']['ownedTree']['remaining']==[]
+            wait_value(lambda:[wait_state(h) for h in handles],lambda states:all(s is ProcessStatus.DEAD for s in states))
+            wait_value(lambda:desktop_gone(rows[0]['desktop']),bool)
+&gt;           assert host.get_execution(doc['effectId'])==final
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError
+
+tests\helpers\canonical_creation_edge.py:160: AssertionError</failure></testcase></testsuite></testsuites>

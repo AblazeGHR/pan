@@ -1221,31 +1221,36 @@
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[legacy-exe]": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml",
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   },
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[hidden-exe]": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml",
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   },
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[hidden-cmd]": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml",
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   },
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[hidden-powershell]": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml",
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   },
   "tests.test_plugin_provider_window::test_owned_api_provider_console_lifecycle[shown-exe]": {
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
-      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml"
+      "artifacts/job-main-readiness-20261101/cohort84f4-combined/native-process-combination.xml",
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   },
   "tests.test_session_message_jobs::test_once_delay_persists_and_dispatches_via_send_semantics": {
@@ -1438,6 +1443,72 @@
     "status": "intermediate successor passed; final full gate outstanding",
     "evidence": [
       "artifacts/job-main-readiness-20261101/venv-port-successors/window-policy-canonical.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-pre-import-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[base-post-create-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-pre-import-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-outer-post-create-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-pre-import-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_runner_death_at_creation_edge_converges_without_survivors[venv-inner-post-create-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[root-exit-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_owned_multigeneration_tree_cleanup_on_exit_or_exception[wait-error-legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_controller_process_crash_keeps_owned_runner_then_restart_cancels[legacy]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[base]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
+    ]
+  },
+  "tests.test_job_lifecycle_prevention::test_legacy_runner_registers_itself_if_controller_dies_before_pid_publication[venv]": {
+    "status": "intermediate successor passed; final full gate outstanding",
+    "evidence": [
+      "artifacts/job-main-readiness-20261101/lifecycle-port-successors/lifecycle-provider-current.xml"
     ]
   }
 }

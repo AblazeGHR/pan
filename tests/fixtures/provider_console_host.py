@@ -62,7 +62,8 @@ async def main():
                 assert not first['desktop_windows'], evidence
         else:
             assert not first['desktop_windows'], evidence
-        assert (await provider.request('call', payload))['structuredContent'] == first
+        second = (await provider.request('call', payload))['structuredContent']
+        assert second == first, {'first': first, 'second': second, 'mode': mode, 'launcher': launcher}
     finally:
         await provider.close()
         assert provider.process.returncode is not None
