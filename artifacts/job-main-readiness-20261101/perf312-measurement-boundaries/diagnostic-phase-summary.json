@@ -1,0 +1,55 @@
+[
+  {
+    "kind": "gc",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "thread": "MainThread",
+    "generation": 0,
+    "seconds": 0.00011140000015075202
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "name": "_save_body",
+    "thread": "pan-session-save_0",
+    "seconds": 0.0024028999998790823
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "name": "_save_body",
+    "thread": "pan-session-save_0",
+    "seconds": 0.001795899999933681
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "name": "_flush_history_now",
+    "seconds": 0.0024131000000124914
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "name": "_persist_terminal_state",
+    "seconds": 0.005858100000068589
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_backend_perf_opt.py::test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+    "name": "_publish_terminal_events",
+    "seconds": 2.790000007735216e-05
+  },
+  {
+    "kind": "gc",
+    "node": "tests/test_eventloop_history_offload.py::test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection",
+    "thread": "Dummy-4",
+    "generation": 0,
+    "seconds": 0.0003959000000577362
+  },
+  {
+    "kind": "phase",
+    "node": "tests/test_eventloop_history_offload.py::test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection",
+    "name": "_summary_projection_from_jsonl",
+    "thread": "asyncio_0",
+    "seconds": 0.9663164999999481
+  }
+]

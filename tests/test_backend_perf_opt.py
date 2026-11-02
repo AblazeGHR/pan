@@ -251,19 +251,24 @@ def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(mo
     async def fake_bcast(data):
         broadcasts.append(data)
 
-    async def fake_save(sess):
-        pass
+    saved = []
+
+    def fake_save(sess, **_kwargs):
+        saved.append(sess.id)
 
     worker.set_broadcaster(fake_bcast)
-    monkeypatch.setattr(_sess, "save_async", fake_save)
+    # Terminal outcomes use the ordered writer body, not save_async.
+    # Isolate notification latency at the actual persistence boundary.
+    monkeypatch.setattr(_sess, "_save_body", fake_save)
     notifications.set_system_sender(slow_sender)
     try:
         w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
 
         async def scenario():
-            started = time.monotonic()
+            started = time.perf_counter()
             await worker._read_stdout(w)
-            elapsed = time.monotonic() - started
+            elapsed = time.perf_counter() - started
+            assert calls == [], "terminal completion must precede slow sender completion"
             # Let the background sender finish so failure handling is observed.
             await asyncio.sleep(0.25)
             return elapsed
@@ -272,6 +277,7 @@ def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(mo
         assert elapsed < 0.12, f"terminal path waited for notification: {elapsed:.3f}s"
         assert len([e for e in broadcasts if e.get("type") == "worker.result"]) == 1
         assert len([e for e in broadcasts if e.get("type") == "worker.status" and e.get("status") == "idle"]) == 1
+        assert saved and all(sid == s.id for sid in saved)
         assert len(calls) == 1
     finally:
         notifications.set_system_sender(notifications.default_system_sender)

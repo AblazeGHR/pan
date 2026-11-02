@@ -1,0 +1,1 @@
+Original exacta3b4 CI41395433951 completedfailure independently of local PC shutdown. Sevenjobs succeeded; Python312only2timing failures, preserved rawJUnit/source/summary. Local full584c shutdown interrupted(no finalJUnit), distinct from remote failures. Timing measurement/fixture diagnosis in ../perf312-measurement-boundaries; no productionfix or gate relaxation claimed.

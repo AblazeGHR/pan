@@ -1,0 +1,45 @@
+[
+  {
+    "python": "3.12",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "2",
+        "skipped": "102",
+        "tests": "8588",
+        "time": "4392.641",
+        "timestamp": "2026-11-02T05:43:26.309254+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": [
+      {
+        "classname": "tests.test_backend_perf_opt",
+        "name": "test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification",
+        "time": "0.402"
+      },
+      {
+        "classname": "tests.test_eventloop_history_offload",
+        "name": "test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_projection",
+        "time": "0.567"
+      }
+    ]
+  },
+  {
+    "python": "3.14",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "103",
+        "tests": "8588",
+        "time": "4109.889",
+        "timestamp": "2026-11-02T05:42:28.971930+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": []
+  }
+]

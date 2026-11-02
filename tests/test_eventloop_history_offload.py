@@ -399,11 +399,14 @@ def test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_proje
         AssertionError("backfill must use the streaming projection reader")
     ))
     streaming_calls = 0
+    streaming_threads = []
+    caller_thread = threading.get_ident()
     original_streaming_reader = _sess._summary_projection_from_jsonl
 
     def instrumented_streaming_reader(path, **kwargs):
         nonlocal streaming_calls
         streaming_calls += 1
+        streaming_threads.append(threading.get_ident())
         return original_streaming_reader(path, **kwargs)
 
     monkeypatch.setattr(_sess, "_summary_projection_from_jsonl", instrumented_streaming_reader)
@@ -413,13 +416,15 @@ def test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_proje
         done = asyncio.Event()
         ticks = 0
         gaps: list[float] = []
-        last = loop.time()
+        # Python3.12 Windows loop.time uses a 15.625ms tick; use the
+        # high-resolution monotonic counter for the unchanged50ms budget.
+        last = time.perf_counter()
 
         async def ticker():
             nonlocal ticks, last
             while not done.is_set():
                 await asyncio.sleep(0)
-                now = loop.time()
+                now = time.perf_counter()
                 gaps.append(now - last)
                 last = now
                 ticks += 1
@@ -436,6 +441,7 @@ def test_incomplete_120k_summary_backfill_runs_off_loop_and_persists_exact_proje
     assert result["state"] == "completed"
     assert result["repaired"] == 1
     assert streaming_calls == 1
+    assert streaming_threads and all(tid != caller_thread for tid in streaming_threads)
     assert ticks > 0
     assert max(gaps) < 0.05
     persisted = json.loads(main_path.read_text(encoding="utf-8"))
