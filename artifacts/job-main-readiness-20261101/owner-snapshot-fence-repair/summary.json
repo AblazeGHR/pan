@@ -1,0 +1,26 @@
+{
+  "crash-owner-pulse-green.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "58",
+      "time": "101.647",
+      "timestamp": "2026-11-02T12:02:22.563570+08:00",
+      "hostname": "ablaze"
+    }
+  ],
+  "cold-http.xml": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "2",
+      "time": "15.146",
+      "timestamp": "2026-11-02T12:02:56.603223+08:00",
+      "hostname": "ablaze"
+    }
+  ]
+}

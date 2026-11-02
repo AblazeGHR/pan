@@ -1743,7 +1743,7 @@ class FinalService:
     def _dispatch_candidates(self):
         # This is only a detached candidate snapshot. _drive_run rechecks the
         # original Run under the canonical owner/writer fence before mutation.
-        with self.transaction(readonly=True) as db:
+        with self.owner.writer(canonical=True), self.transaction(readonly=True) as db:
             candidates = []
             for job in self._all(db, "job"):
                 runs = list(aggregate(job, self.root)["runs"].values())
@@ -2513,7 +2513,7 @@ class FinalService:
         return await asyncio.to_thread(self.admit_event, event, target, condition_result=result)
 
     def _subscription_snapshot(self):
-        with self.transaction(readonly=True) as db:
+        with self.owner.writer(canonical=True), self.transaction(readonly=True) as db:
             return {item["id"]: {**item, "subscriptionId": item["id"],
                 "creatorIds": item["creatorSelector"].get("ids", [])} for item in self._all(db, "trigger")}
 
@@ -2554,7 +2554,7 @@ class FinalService:
 
     def _pending_outbox_snapshot(self):
         # Reservation below re-reads the original row under the writer fence.
-        with self.transaction(readonly=True) as db:
+        with self.owner.writer(canonical=True), self.transaction(readonly=True) as db:
             return [(job["jobId"], copy.deepcopy(row)) for job in self._all(db, "job")
                     for row in aggregate(job, self.root)["outbox"].values() if row["status"] == "pending"]
 

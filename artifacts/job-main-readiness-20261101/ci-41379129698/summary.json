@@ -1,0 +1,76 @@
+[
+  {
+    "python": "3.12",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "4",
+        "skipped": "102",
+        "tests": "8581",
+        "time": "4532.378",
+        "timestamp": "2026-11-02T02:44:23.238805+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": [
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]",
+        "time": "2.197"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]",
+        "time": "2.288"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]",
+        "time": "2.166"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]",
+        "time": "2.280"
+      }
+    ]
+  },
+  {
+    "python": "3.14",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "4",
+        "skipped": "103",
+        "tests": "8581",
+        "time": "3983.849",
+        "timestamp": "2026-11-02T02:43:52.574210+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": [
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]",
+        "time": "1.503"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]",
+        "time": "1.503"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]",
+        "time": "1.576"
+      },
+      {
+        "classname": "tests.test_retirement_session_runtime",
+        "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]",
+        "time": "3.050"
+      }
+    ]
+  }
+]

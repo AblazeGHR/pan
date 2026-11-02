@@ -103,3 +103,23 @@ def test_outbox_snapshot_cannot_send_after_owner_release(h, monkeypatch):
         asyncio.run(service.deliver_outbox())
     assert service.final.store.get(item['id']) == before
     assert len(h.provider.calls) == 1 and sent == []
+
+
+def test_empty_pulse_snapshots_reject_stale_owner_without_mutation(h):
+    import pytest
+    from packages.jobs import final_contracts as fc
+    service = h.service
+    service.owner.claim(0)
+    service.owner.set_state('active')
+    service.owner.release()
+    authority = service.owner.status()
+    with service.transaction(readonly=True) as db:
+        before = list(db.iterdump())
+    for name in ['_dispatch_candidates', '_subscription_snapshot', '_pending_outbox_snapshot']:
+        with pytest.raises(fc.ContractError) as rejected:
+            getattr(service, name)()
+        assert rejected.value.code == 'revision_conflict'
+        assert service.owner.status() == authority
+        with service.transaction(readonly=True) as db:
+            assert list(db.iterdump()) == before
+    assert h.provider.calls == []

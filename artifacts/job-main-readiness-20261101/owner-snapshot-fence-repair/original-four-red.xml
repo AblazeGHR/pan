@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="13.647" timestamp="2026-11-02T12:01:54.699322+08:00" hostname="ablaze"><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]" time="3.210"><failure message="Failed: DID NOT RAISE ContractError">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000157CD794440&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6826/test_actual_process_crash_at_c0'))
+phase = 'before-reservation', expected = 'completed', count = 1
+
+    @pytest.mark.parametrize('phase,expected,count', [
+        ('before-reservation', 'completed', 1), ('before-invoke', 'uncertain', 0),
+        ('after-enqueue', 'completed', 1), ('after-receipt', 'completed', 1),
+    ])
+    def test_actual_process_crash_at_committed_fences_cold_original_identity(h, phase, expected, count):
+        job, rid, frozen = admitted(h)
+        root = Path(__file__).resolve().parents[1]
+        path = h.tmp / 'crash-input.json'
+        barrier = h.tmp / 'committed-barrier.txt'
+        path.write_text(json.dumps({'root': str(h.root), 'auth': str(h.automation.auth.path.parent),
+            'sessions': str(session.SESSION_DIR), 'job': job['id'], 'run': rid,
+            'barrier': str(barrier), 'phase': phase}), encoding='utf-8')
+        result = subprocess.run([sys.executable, str(root / 'scripts/run_tests_isolated.py'), '--',
+            sys.executable, str(root / 'tests/retirement_runtime_crash_child.py'), str(path)],
+            cwd=root, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 71, result.stdout + result.stderr
+        assert barrier.read_text() == phase
+        session._cache.pop('ses_a', None)  # cold actual on-disk queue, not stale fixture cache
+        session._all_loaded = False
+        session.list_all(load_history=False)  # same metadata-only production bootstrap
+        cold = FinalService(h.root, h.automation.auth)
+        old_owner = cold.owner.status()
+        assert old_owner['epoch'] == 1
+        cold.owner.claim(old_owner['epoch'])
+        assert cold.owner.token[0] == 2
+        try:
+&gt;           with pytest.raises(fc.ContractError) as stale_owner:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ContractError
+
+tests\test_retirement_session_runtime.py:273: Failed</failure></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]" time="3.033"><failure message="Failed: DID NOT RAISE ContractError">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000157CDB3C590&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6826/test_actual_process_crash_at_c1'))
+phase = 'before-invoke', expected = 'uncertain', count = 0
+
+    @pytest.mark.parametrize('phase,expected,count', [
+        ('before-reservation', 'completed', 1), ('before-invoke', 'uncertain', 0),
+        ('after-enqueue', 'completed', 1), ('after-receipt', 'completed', 1),
+    ])
+    def test_actual_process_crash_at_committed_fences_cold_original_identity(h, phase, expected, count):
+        job, rid, frozen = admitted(h)
+        root = Path(__file__).resolve().parents[1]
+        path = h.tmp / 'crash-input.json'
+        barrier = h.tmp / 'committed-barrier.txt'
+        path.write_text(json.dumps({'root': str(h.root), 'auth': str(h.automation.auth.path.parent),
+            'sessions': str(session.SESSION_DIR), 'job': job['id'], 'run': rid,
+            'barrier': str(barrier), 'phase': phase}), encoding='utf-8')
+        result = subprocess.run([sys.executable, str(root / 'scripts/run_tests_isolated.py'), '--',
+            sys.executable, str(root / 'tests/retirement_runtime_crash_child.py'), str(path)],
+            cwd=root, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 71, result.stdout + result.stderr
+        assert barrier.read_text() == phase
+        session._cache.pop('ses_a', None)  # cold actual on-disk queue, not stale fixture cache
+        session._all_loaded = False
+        session.list_all(load_history=False)  # same metadata-only production bootstrap
+        cold = FinalService(h.root, h.automation.auth)
+        old_owner = cold.owner.status()
+        assert old_owner['epoch'] == 1
+        cold.owner.claim(old_owner['epoch'])
+        assert cold.owner.token[0] == 2
+        try:
+&gt;           with pytest.raises(fc.ContractError) as stale_owner:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ContractError
+
+tests\test_retirement_session_runtime.py:273: Failed</failure></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]" time="3.014"><failure message="Failed: DID NOT RAISE ContractError">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000157CD7942F0&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6826/test_actual_process_crash_at_c2'))
+phase = 'after-enqueue', expected = 'completed', count = 1
+
+    @pytest.mark.parametrize('phase,expected,count', [
+        ('before-reservation', 'completed', 1), ('before-invoke', 'uncertain', 0),
+        ('after-enqueue', 'completed', 1), ('after-receipt', 'completed', 1),
+    ])
+    def test_actual_process_crash_at_committed_fences_cold_original_identity(h, phase, expected, count):
+        job, rid, frozen = admitted(h)
+        root = Path(__file__).resolve().parents[1]
+        path = h.tmp / 'crash-input.json'
+        barrier = h.tmp / 'committed-barrier.txt'
+        path.write_text(json.dumps({'root': str(h.root), 'auth': str(h.automation.auth.path.parent),
+            'sessions': str(session.SESSION_DIR), 'job': job['id'], 'run': rid,
+            'barrier': str(barrier), 'phase': phase}), encoding='utf-8')
+        result = subprocess.run([sys.executable, str(root / 'scripts/run_tests_isolated.py'), '--',
+            sys.executable, str(root / 'tests/retirement_runtime_crash_child.py'), str(path)],
+            cwd=root, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 71, result.stdout + result.stderr
+        assert barrier.read_text() == phase
+        session._cache.pop('ses_a', None)  # cold actual on-disk queue, not stale fixture cache
+        session._all_loaded = False
+        session.list_all(load_history=False)  # same metadata-only production bootstrap
+        cold = FinalService(h.root, h.automation.auth)
+        old_owner = cold.owner.status()
+        assert old_owner['epoch'] == 1
+        cold.owner.claim(old_owner['epoch'])
+        assert cold.owner.token[0] == 2
+        try:
+&gt;           with pytest.raises(fc.ContractError) as stale_owner:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ContractError
+
+tests\test_retirement_session_runtime.py:273: Failed</failure></testcase><testcase classname="tests.test_retirement_session_runtime" name="test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]" time="3.273"><failure message="Failed: DID NOT RAISE ContractError">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000157CE091E80&gt;, automation=&lt;packages.automation.service.Ser...})}, tmp=WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6826/test_actual_process_crash_at_c3'))
+phase = 'after-receipt', expected = 'completed', count = 1
+
+    @pytest.mark.parametrize('phase,expected,count', [
+        ('before-reservation', 'completed', 1), ('before-invoke', 'uncertain', 0),
+        ('after-enqueue', 'completed', 1), ('after-receipt', 'completed', 1),
+    ])
+    def test_actual_process_crash_at_committed_fences_cold_original_identity(h, phase, expected, count):
+        job, rid, frozen = admitted(h)
+        root = Path(__file__).resolve().parents[1]
+        path = h.tmp / 'crash-input.json'
+        barrier = h.tmp / 'committed-barrier.txt'
+        path.write_text(json.dumps({'root': str(h.root), 'auth': str(h.automation.auth.path.parent),
+            'sessions': str(session.SESSION_DIR), 'job': job['id'], 'run': rid,
+            'barrier': str(barrier), 'phase': phase}), encoding='utf-8')
+        result = subprocess.run([sys.executable, str(root / 'scripts/run_tests_isolated.py'), '--',
+            sys.executable, str(root / 'tests/retirement_runtime_crash_child.py'), str(path)],
+            cwd=root, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 71, result.stdout + result.stderr
+        assert barrier.read_text() == phase
+        session._cache.pop('ses_a', None)  # cold actual on-disk queue, not stale fixture cache
+        session._all_loaded = False
+        session.list_all(load_history=False)  # same metadata-only production bootstrap
+        cold = FinalService(h.root, h.automation.auth)
+        old_owner = cold.owner.status()
+        assert old_owner['epoch'] == 1
+        cold.owner.claim(old_owner['epoch'])
+        assert cold.owner.token[0] == 2
+        try:
+&gt;           with pytest.raises(fc.ContractError) as stale_owner:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ContractError
+
+tests\test_retirement_session_runtime.py:273: Failed</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,22 @@
+[
+  {
+    "classname": "tests.test_retirement_session_runtime",
+    "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-reservation-completed-1]",
+    "time": "2.839"
+  },
+  {
+    "classname": "tests.test_retirement_session_runtime",
+    "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[before-invoke-uncertain-0]",
+    "time": "2.939"
+  },
+  {
+    "classname": "tests.test_retirement_session_runtime",
+    "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-enqueue-completed-1]",
+    "time": "2.929"
+  },
+  {
+    "classname": "tests.test_retirement_session_runtime",
+    "name": "test_actual_process_crash_at_committed_fences_cold_original_identity[after-receipt-completed-1]",
+    "time": "3.022"
+  }
+]
