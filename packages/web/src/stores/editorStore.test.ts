@@ -52,6 +52,7 @@ function seedEditor(workdir: string | null = WORKDIR, overrides: Partial<EditorS
     activePath: null,
     dirty: new Set(),
     contents: {},
+    previewErrors: {},
     imagePreviews: {},
     mdViewMode: {},
     pendingLocation: null,
@@ -118,6 +119,7 @@ describe('editorStore.setRoot', () => {
       openPaths: [],
       activePath: null,
       contents: {},
+    previewErrors: {},
       mdViewMode: {},
     });
     expect(useEditorStore.getState().dirty).toEqual(new Set());
@@ -486,6 +488,7 @@ describe('editorStore async root protection', () => {
       openPaths: [],
       activePath: null,
       contents: {},
+    previewErrors: {},
     });
   });
 
@@ -800,6 +803,7 @@ describe('editorStore save/rename/delete serialization', () => {
       activePath: null,
       selectedPath: null,
       contents: {},
+    previewErrors: {},
     });
     expect(useEditorStore.getState().dirty).toEqual(new Set());
   });
@@ -1005,3 +1009,49 @@ describe('editorStore save/rename/delete serialization', () => {
     });
   });
 });
+
+describe('unpreviewable file tabs', () => {
+  it.each(['File too large (max 5 MiB)', 'Cannot read binary file'])('opens read-only failure: %s', async (reason) => {
+    vi.mocked(readFile).mockRejectedValueOnce(new Error(reason));
+    expect(await useEditorStore.getState().openFile('raw.bin')).toBe(true);
+    expect(useEditorStore.getState().previewErrors['raw.bin']).toBe(reason);
+    expect(useEditorStore.getState().contents['raw.bin']).toBeUndefined();
+    useEditorStore.getState().markDirty('raw.bin', 'corrupt');
+    await useEditorStore.getState().saveFile();
+    expect(writeFile).not.toHaveBeenCalled();
+    useEditorStore.getState().closeFile('raw.bin');
+    expect(useEditorStore.getState().previewErrors['raw.bin']).toBeUndefined();
+  });
+});
+
+ it('does not open a stale failed preview after Session changes', async () => {
+   let reject!: (error: Error) => void;
+   vi.mocked(readFile).mockImplementationOnce(() => new Promise((_resolve, r) => { reject = r; }));
+   const pending = useEditorStore.getState().openFile('stale.bin');
+   seedEditor(null, {sessionId: 's2', rootGeneration: 1});
+   reject(new Error('Cannot read binary file'));
+   expect(await pending).toBe(false);
+   expect(useEditorStore.getState().openPaths).toEqual([]);
+   expect(useEditorStore.getState().previewErrors).toEqual({});
+ });
+
+ it('moves and clears failed-preview state through rename and delete', async () => {
+   vi.mocked(readFile).mockRejectedValueOnce(new Error('Cannot read binary file'));
+   await useEditorStore.getState().openFile('old.bin');
+   await useEditorStore.getState().renameFile('old.bin', 'new.bin');
+   expect(useEditorStore.getState().previewErrors).toEqual({'new.bin': 'Cannot read binary file'});
+   await useEditorStore.getState().deleteFile('new.bin');
+   expect(useEditorStore.getState().previewErrors).toEqual({});
+   expect(useEditorStore.getState().openPaths).toEqual([]);
+ });
+ it('does not let an older failed read steal a newer file selection', async () => {
+   let reject!: (error: Error) => void;
+   vi.mocked(readFile).mockImplementationOnce(() => new Promise((_resolve, r) => { reject = r; }));
+   const pending = useEditorStore.getState().openFile('old.bin');
+   vi.mocked(readFile).mockResolvedValueOnce('new text');
+   await useEditorStore.getState().openFile('new.txt');
+   reject(new Error('File too large (max 5 MiB)'));
+   expect(await pending).toBe(false);
+   expect(useEditorStore.getState().activePath).toBe('new.txt');
+   expect(useEditorStore.getState().previewErrors).toEqual({});
+ });

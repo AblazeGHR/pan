@@ -1730,12 +1730,13 @@ def _project_worker_event(data: dict) -> dict:
     event_type = data.get("type")
     if event_type == "worker.result" and isinstance(data.get("result"), str):
         projected = _project_editor_links(session_id, data["result"])
-        return {**data, "result": projected} if projected != data["result"] else data
+        return {**data, "rawResult": data["result"], "result": projected} if projected != data["result"] else data
 
     if event_type != "worker.stream" or not isinstance(data.get("event"), dict):
         return data
 
     event = dict(data["event"])
+    event["rawEvent"] = data["event"]
     changed = False
     for key in ("content", "stream_text"):
         value = event.get(key)
@@ -2138,6 +2139,7 @@ async def _replay_agent_results(
                 "workerId": row.get("workerId", ""),
                 "sessionId": sid,
                 "status": row.get("status"),
+                "rawResult": str(row.get("result") or ""),
                 "result": _project_editor_links(
                     sid, str(row.get("result") or "")),
                 "taskSeq": task_seq,
@@ -2268,6 +2270,7 @@ def _session_to_api(
     if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
             **last_result,
+            "rawResult": last_result["result"],
             "result": _project_editor_links(s.id, last_result["result"]),
         }
     mcp_lock_reason = _get_mcp_locked_state(s)
@@ -2529,6 +2532,7 @@ def _project_session_list_row(session_id, api, page, history_epoch):
     """Only private snapshots cross to the projection thread, never live Sessions."""
     result = api.get("lastResult")
     if isinstance(result, dict) and isinstance(result.get("result"), str):
+        result["rawResult"] = result["result"]
         result["result"] = _project_editor_links(session_id, result["result"])
     if page is None:
         history = []
@@ -5162,6 +5166,7 @@ def _api_history(
         safe_message = {
             **public_message,
             "content": content,
+            "rawContent": message["content"],
             **({"messageId": wire_identity} if wire_identity else {}),
         }
         if isinstance(message.get("parts"), list):
@@ -14957,6 +14962,8 @@ async def api_fs_read(session_id: str, path: str = "", download: bool = False):
         return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
     try:
         content = target.read_text(encoding="utf-8")
+        if "\x00" in content:
+            return {"error": "Cannot read binary file"}
         return {"content": content, "size": len(content)}
     except UnicodeDecodeError:
         return {"error": "Cannot read binary file"}

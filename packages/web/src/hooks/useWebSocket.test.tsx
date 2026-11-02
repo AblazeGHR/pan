@@ -2835,6 +2835,22 @@ describe('useWebSocket worker.stream lastMessage preview', () => {
     expect(lastMessageOf('B')).toBe('final-result');
   });
 
+  it('keeps raw cumulative text across projected deltas, plain tails and final', () => {
+    renderHook(() => useWebSocket());
+    const emit = (event: object) => act(() => wsMock.trigger('worker.stream', {
+      type: 'worker.stream', sessionId: 'A', workerId: 'w1', event,
+    }));
+    emit({ type: 'assistant', delta: true, item_id: 'raw-item',
+      content: '[local](/api/attachments/editor/opaque)',
+      rawEvent: { type: 'assistant', delta: true, content: '[local](notes.md)' } });
+    emit({ type: 'assistant', delta: true, item_id: 'raw-item', content: ' tail' });
+    expect(useSessionStore.getState().currentMessages[0]?.rawContent).toBe('[local](notes.md) tail');
+    emit({ type: 'assistant', final: true, item_id: 'raw-item',
+      content: '[local](/api/attachments/editor/opaque) tail',
+      rawEvent: { type: 'assistant', content: '[local](notes.md) tail' } });
+    expect(useSessionStore.getState().currentMessages[0]?.rawContent).toBe('[local](notes.md) tail');
+  });
+
   it('merges native app-server deltas and replaces them with the final item', () => {
     renderHook(() => useWebSocket());
 

@@ -1,0 +1,46 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/src
+
+stderr | hooks/reaudit.orderedEvents.test.tsx > reaudit · ordered event pipeline > E1b · Codex delta and final tool envelope with one item renders once
+[sessionStore] loadSessions failed
+
+ ❯ hooks/reaudit.orderedEvents.test.tsx (20 tests | 1 failed | 19 skipped) 20ms
+   × reaudit · ordered event pipeline > E1b · Codex delta and final tool envelope with one item renders once 19ms
+     → expected [ { role: 'tool', …(3) } ] to deeply equal [ { role: 'tool', …(2) } ]
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  hooks/reaudit.orderedEvents.test.tsx > reaudit · ordered event pipeline > E1b · Codex delta and final tool envelope with one item renders once
+AssertionError: expected [ { role: 'tool', …(3) } ] to deeply equal [ { role: 'tool', …(2) } ]
+
+- Expected
++ Received
+
+  Array [
+    Object {
+      "content": "Command({\"command\":\"echo hi\"})",
+      "nativeItemId": "exec-X",
+      "role": "tool",
++     "turnId": "T",
+    },
+  ]
+
+ ❯ hooks/reaudit.orderedEvents.test.tsx:384:56
+    382|     });
+    383| 
+    384|     expect(useSessionStore.getState().currentMessages).toEqual([
+       |                                                        ^
+    385|       { role: 'tool', content: 'Command({"command":"echo hi"})', nativ…
+    386|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  10:47:58
+   Duration  2.21s (transform 305ms, setup 12ms, collect 551ms, tests 20ms, environment 480ms, prepare 112ms)
+
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vitest" not found
+
+Did you mean "pnpm exec vitest"?

@@ -1,0 +1,36 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/src
+
+ ❯ stores/editorStore.test.ts (40 tests | 2 failed | 38 skipped) 7ms
+   × unpreviewable file tabs > opens read-only failure: File too large (max 5 MiB) 6ms
+     → expected false to be true // Object.is equality
+   × unpreviewable file tabs > opens read-only failure: Cannot read binary file 0ms
+     → expected false to be true // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  stores/editorStore.test.ts > unpreviewable file tabs > opens read-only failure: File too large (max 5 MiB)
+ FAIL  stores/editorStore.test.ts > unpreviewable file tabs > opens read-only failure: Cannot read binary file
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ stores/editorStore.test.ts:1012:65
+    1010|   it.each(['File too large (max 5 MiB)', 'Cannot read binary file'])('…
+    1011|     vi.mocked(readFile).mockRejectedValueOnce(new Error(reason));
+    1012|     expect(await useEditorStore.getState().openFile('raw.bin')).toBe(t…
+       |                                                                 ^
+    1013|     expect(useEditorStore.getState().previewErrors['raw.bin']).toBe(re…
+    1014|     expect(useEditorStore.getState().contents['raw.bin']).toBeUndefine…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 38 skipped (40)
+   Start at  10:45:26
+   Duration  1.85s (transform 94ms, setup 10ms, collect 103ms, tests 7ms, environment 578ms, prepare 111ms)
+

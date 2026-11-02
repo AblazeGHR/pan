@@ -1,0 +1,39 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first()
+
+    at D:\project\pan-worktrees\editor-raw-download-20261102\packages\web\e2e\editor-raw-download.e2e.mjs:20:87 {
+  log: [
+    "  - waiting for locator('[data-session-card-id]').filter({ hasText: 'Chat Stream' }).first()"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.1
+cleanup verified {
+  port: 53141,
+  runtime: 'D:\\project\\pan-worktrees\\editor-raw-download-20261102\\packages\\web\\test-results\\raw-download-1793587788764'
+}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1 !== 0
+
+    at file:///D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/e2e/editor-raw-download-runner.mjs:86:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.1

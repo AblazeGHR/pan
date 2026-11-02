@@ -12,6 +12,7 @@ interface EditorFileTopBarProps {
   /** Session-relative path used by backend operations and attachment queue. */
   operationPath: string;
   imagePreview?: boolean;
+  previewFailed?: boolean;
   imageDisplayName?: string;
   imageDownloadHref?: string;
 }
@@ -69,6 +70,7 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
 export function EditorFileTopBar({
   operationPath,
   imagePreview = false,
+  previewFailed = false,
   imageDisplayName,
   imageDownloadHref,
 }: EditorFileTopBarProps) {
@@ -202,7 +204,7 @@ export function EditorFileTopBar({
         type="button"
         aria-label="保存文件"
         title={isDirty ? '保存文件' : '文件没有未保存修改'}
-        disabled={!isDirty}
+        disabled={!isDirty || previewFailed}
         onClick={() => requestSave(operationPath)}
         className="flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -228,7 +230,7 @@ export function EditorFileTopBar({
       >
         <ExternalLink size={14} />
       </button>
-      {(isMobile || imagePreview) && (
+      {(isMobile || imagePreview || previewFailed) && (
         <>
           <button
             type="button"

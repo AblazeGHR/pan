@@ -255,6 +255,7 @@ interface SessionStore {
       status?: string;
       cancelled?: boolean;
       result?: string;
+      rawResult?: string;
       historyTerminalId?: string;
       terminalCoverage?: TerminalCoverage;
       historyEpoch?: string;
@@ -296,7 +297,7 @@ interface SessionStore {
    *  `_applyWorkerUpdate` 的就地更新路径）。 */
   applyResultToSession: (
     id: string,
-    e: { status?: string; cancelled?: boolean; result?: string },
+    e: { status?: string; cancelled?: boolean; result?: string; rawResult?: string },
   ) => void;
   toggleMultiSelect: (id?: string) => void;
   toggleSelection: (id: string) => void;
@@ -1795,7 +1796,7 @@ function projectLiveRows(
         const merged = {
           ...target,
           ...live,
-          ...(keepDurableBody ? { content: target.content } : {}),
+          ...(keepDurableBody ? { content: target.content, rawContent: target.rawContent } : {}),
         };
         inheritMessageIdentity(merged, target);
         if (completedLiveRows.has(live) || completedLiveRows.has(target)) completedLiveRows.add(merged);
@@ -3584,7 +3585,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       let appendedResult = false;
       if (hasResult) {
         finalized = liveMessages.map((message, index) => {
-          const next = index === finalSlot ? { ...message, content: result } : { ...message };
+          const next = index === finalSlot ? { ...message, content: result, ...(event.rawResult !== undefined || message.rawContent !== undefined ? { rawContent: event.rawResult ?? result } : {}) } : { ...message };
           inheritMessageIdentity(next, message);
           return next;
         });
@@ -3592,6 +3593,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           const row: Message = {
             role: 'assistant',
             content: result,
+            ...(event.rawResult !== undefined ? { rawContent: event.rawResult } : {}),
             ...(meta.turnId ? { nativeItemId: `turn:${meta.turnId}` } : {}),
           };
           finalized = [...finalized, row];
@@ -4699,7 +4701,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         if (typeof result === 'string' && result.trim()) {
           const last = history[history.length - 1];
           if (!(last && last.role === 'assistant' && last.content === result)) {
-            history.push({ role: 'assistant', content: result });
+            history.push({ role: 'assistant', content: result, ...(e.rawResult !== undefined ? { rawContent: e.rawResult } : {}) });
             historyTotal += 1;
           }
         }

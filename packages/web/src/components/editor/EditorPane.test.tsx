@@ -60,6 +60,7 @@ beforeEach(() => {
     dirty: new Set(),
     mdViewMode: {},
     imagePreviews: {},
+    previewErrors: {},
     downloadFile: vi.fn(),
   });
   useUIStore.setState({ toastQueue: [], chatAttachmentRequests: [] });
@@ -185,3 +186,16 @@ describe('EditorPane editor action wiring', () => {
     expect(screen.getByRole('img', { name: 'photo.png' }).getAttribute('src')).toBe(attachmentBSrc);
   });
 });
+
+ it('renders failed previews read-only with desktop download and no Markdown controls', async () => {
+   mockMatchMedia(false);
+   useEditorStore.setState({openPaths: ['huge.md'], activePath: 'huge.md', contents: {},
+     previewErrors: {'huge.md': 'File too large (max 5 MiB)'}});
+   render(<MemoryRouter><EditorPane /></MemoryRouter>);
+   expect(screen.getByRole('alert').textContent).toContain('File too large');
+   expect(screen.queryByTestId('code-editor')).toBeNull();
+   expect(screen.queryByTitle('Edit')).toBeNull();
+   expect((screen.getByRole('button', {name: '保存文件'}) as HTMLButtonElement).disabled).toBe(true);
+   fireEvent.click(screen.getByRole('button', {name: '下载当前文件'}));
+   expect(useEditorStore.getState().downloadFile).toHaveBeenCalledWith('huge.md');
+ });

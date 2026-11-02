@@ -1202,6 +1202,10 @@ function appendEventToMessages(
   if (t === 'result') return initialMessages;
   let messages = initialMessages;
   const blocks = extractBlocks(event);
+  // Extract from the same provider envelope before projection, preserving block
+  // order without new identities, requests, or a second stream merger.
+  const rawEvent = event.rawEvent ?? event;
+  const rawBlocks = extractBlocks(rawEvent);
   // A single native event may contain thinking, text, and tool blocks for the
   // same item. Each block must consume a different existing row; otherwise a
   // repeated findIndex() updates the first row and later blocks drift into it.
@@ -1222,6 +1226,9 @@ function appendEventToMessages(
   // according to the adapter's event semantics, never according to the
   // render timing or the current viewport position.
   for (const [blockIndex, b] of blocks.entries()) {
+    const rawBody = rawBlocks[blockIndex]?.content ?? b.content;
+    const rawCumulative = cumulativeStreamText !== undefined
+      ? rawEvent.stream_text ?? cumulativeStreamText : undefined;
     // A Codex assistant reply is one logical message for the whole turn. The
     // native bridge can expose different item ids for its delta and completed
     // notifications (and an interleaved tool can become the last message), so
@@ -1379,7 +1386,7 @@ function appendEventToMessages(
       itemId && aliasedItemId && target?.nativeItemId === aliasedItemId && itemId !== aliasedItemId,
     );
     if (event.replace && target && (target.role === b.role || nativeIndex >= 0)) {
-      const updated = { ...target, role: b.role, content: b.content, ...(eventTs ? { ts: eventTs } : {}) };
+      const updated = { ...target, role: b.role, content: b.content, ...(event.rawEvent || target.rawContent !== undefined ? { rawContent: rawBody } : {}), ...(eventTs ? { ts: eventTs } : {}) };
       if (blockId && !updated.blockId) updated.blockId = blockId;
       inheritMessageIdentity(updated, target);
       messages = messages.map((message, index) => index === targetIndex ? updated : message);
@@ -1400,6 +1407,9 @@ function appendEventToMessages(
         const updated = {
           ...target,
           content,
+          ...(event.rawEvent || target.rawContent !== undefined ? { rawContent: event.replace ? rawBody
+            : cumulativeContent !== undefined ? rawCumulative
+            : (target.rawContent ?? target.content) + rawBody } : {}),
           ...(nativeItemId && !target?.nativeItemId ? { nativeItemId } : {}),
           ...(blockId && !target?.blockId ? { blockId } : {}),
         };
@@ -1415,6 +1425,8 @@ function appendEventToMessages(
           content: cumulativeStreamText !== undefined
             && (b.role === 'assistant' || b.role === 'thinking')
             ? cumulativeStreamText : b.content,
+          ...(event.rawEvent ? { rawContent: rawCumulative !== undefined
+            && (b.role === 'assistant' || b.role === 'thinking') ? rawCumulative : rawBody } : {}),
           ...(nativeItemId ? { nativeItemId } : {}),
           ...(blockId ? { blockId } : {}),
         };
@@ -1447,6 +1459,7 @@ function appendEventToMessages(
           ...target,
           role: b.role,
           content: b.content,
+          ...(event.rawEvent || target.rawContent !== undefined ? { rawContent: rawBody } : {}),
           ...(nativeItemId && !target.nativeItemId ? { nativeItemId } : {}),
           ...(eventTs ? { ts: eventTs } : {}),
         };
@@ -1458,8 +1471,8 @@ function appendEventToMessages(
     }
     if (event.final && target && (target.role === b.role || nativeIndex >= 0)
         && target.content === b.content) {
-      if (target.role !== b.role) {
-        const updated = { ...target, role: b.role };
+      if (target.role !== b.role || (event.rawEvent && target.rawContent !== rawBody)) {
+        const updated = { ...target, role: b.role, ...(event.rawEvent ? { rawContent: rawBody } : {}) };
         inheritMessageIdentity(updated, target);
         messages = messages.map((message, index) => index === targetIndex ? updated : message);
       }
@@ -1480,7 +1493,7 @@ function appendEventToMessages(
     if (b.role === 'assistant') {
       const message = {
         role: 'assistant',
-        content: b.content,
+        content: b.content, ...(event.rawEvent ? { rawContent: rawBody } : {}),
         ...(nativeItemId ? { nativeItemId } : {}),
         ...(blockId ? { blockId } : {}),
         ...(eventTs ? { ts: eventTs } : {}),
@@ -1491,7 +1504,7 @@ function appendEventToMessages(
     } else if (b.role === 'thinking') {
       const message = {
         role: 'thinking',
-        content: b.content,
+        content: b.content, ...(event.rawEvent ? { rawContent: rawBody } : {}),
         ...(nativeItemId ? { nativeItemId } : {}),
         ...(blockId ? { blockId } : {}),
       };
@@ -1501,7 +1514,7 @@ function appendEventToMessages(
     } else if (b.role === 'tool') {
       const message = {
         role: 'tool',
-        content: b.content,
+        content: b.content, ...(event.rawEvent ? { rawContent: rawBody } : {}),
         ...(nativeItemId ? { nativeItemId } : {}),
         ...(blockId ? { blockId } : {}),
       };

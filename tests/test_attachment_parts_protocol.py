@@ -474,3 +474,25 @@ def test_text_fallback_cannot_use_a_foreign_session_attachment_link(monkeypatch,
         "code": "attachment_session_mismatch",
         "message": "Attachment belongs to another session",
     }
+
+def test_raw_body_survives_history_and_live_projection(monkeypatch, tmp_path):
+    first, _ = _setup(tmp_path, monkeypatch)
+    (tmp_path / 'raw.md').write_text('file', encoding='utf-8')
+    raw = '```html\n<b>literal</b>\n```\n[local](raw.md) [web](https://example.test/x)'
+    history = srv._api_history(first.id, [{'role': 'assistant', 'content': raw}])
+    assert history[0]['rawContent'] == raw
+    assert '/api/attachments/editor/' in history[0]['content']
+    stream = srv._project_worker_event({'type': 'worker.stream', 'sessionId': first.id,
+        'event': {'type': 'assistant', 'content': raw}})
+    assert stream['event']['rawEvent']['content'] == raw
+    result = srv._project_worker_event({'type': 'worker.result', 'sessionId': first.id, 'result': raw})
+    assert result['rawResult'] == raw
+
+@pytest.mark.parametrize('body', [b'\xff\xfe\x80', b'UTF8\x00binary'])
+def test_binary_preview_rejected_download_preserves_bytes(monkeypatch, tmp_path, body):
+    first, _ = _setup(tmp_path, monkeypatch)
+    target = tmp_path / 'binary.bin'
+    target.write_bytes(body)
+    assert asyncio.run(srv.api_fs_read(first.id, 'binary.bin')) == {'error': 'Cannot read binary file'}
+    response = asyncio.run(srv.api_fs_read(first.id, 'binary.bin', download=True))
+    assert Path(response.path).read_bytes() == body

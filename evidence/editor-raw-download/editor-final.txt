@@ -1,0 +1,10 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/src
+
+ ✓ stores/editorStore.test.ts (43 tests) 16ms
+
+ Test Files  1 passed (1)
+      Tests  43 passed (43)
+   Start at  11:14:30
+   Duration  1.67s (transform 79ms, setup 10ms, collect 89ms, tests 16ms, environment 427ms, prepare 105ms)
+

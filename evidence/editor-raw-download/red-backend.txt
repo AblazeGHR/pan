@@ -1,0 +1,20 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\editor-raw-download-20261102
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____________ test_raw_body_survives_history_and_live_projection ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027850CF63F0>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6822/test_raw_body_survives_history0')
+
+    def test_raw_body_survives_history_and_live_projection(monkeypatch, tmp_path):
+        first, _ = _setup(tmp_path, monkeypatch)
+        (tmp_path / 'raw.md').write_text('file', encoding='utf-8')
+        raw = '```html\n<b>literal</b>\n```\n[local](raw.md) [web](https://example.test/x)'
+        history = srv._api_history(first.id, [{'role': 'assistant', 'content': raw}])
+>       assert history[0]['rawContent'] == raw
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'rawContent'
+
+tests\test_attachment_parts_protocol.py:483: KeyError
+=========================== short test summary info ===========================
+FAILED tests/test_attachment_parts_protocol.py::test_raw_body_survives_history_and_live_projection

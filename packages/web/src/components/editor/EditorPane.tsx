@@ -19,6 +19,8 @@ export function EditorPane() {
   // gates exposure; a workdir-less session may still have browsable roots.
   const editorRootMatchesSession = editorSessionId === currentSession?.id;
   const activePath = editorRootMatchesSession ? storedActivePath : null;
+  const previewErrors = useEditorStore((s) => s.previewErrors);
+  const previewError = activePath ? previewErrors[activePath] : undefined;
   const contents = useEditorStore((s) => s.contents);
   const imagePreviews = useEditorStore((s) => s.imagePreviews);
   const imagePreview = activePath ? imagePreviews[activePath] : undefined;
@@ -29,7 +31,7 @@ export function EditorPane() {
 
   const isMarkdown =
     activePath
-      ? languageFromPath(activePath) === 'markdown'
+      ? !previewError && languageFromPath(activePath) === 'markdown'
       : false;
 
   const currentMode = isMarkdown
@@ -71,13 +73,18 @@ export function EditorPane() {
       </div>
       {activePath && <EditorFileTopBar
         operationPath={activePath}
+        previewFailed={!!previewError}
         imagePreview={!!imagePreview}
         imageDisplayName={imagePreview?.displayName}
         imageDownloadHref={imagePreview?.downloadHref}
       />}
 
       <Suspense fallback={<div className="flex-1 p-4 text-sm text-text-tertiary">Loading...</div>}>
-      {activePath && imagePreview ? (
+      {activePath && previewError ? (
+        <div role="alert" className="flex-1 p-4 text-sm text-text-secondary">
+          无法预览此文件：{previewError}。可使用“下载当前文件”获取原始文件。
+        </div>
+      ) : activePath && imagePreview ? (
         <EditorImagePreview src={imagePreview.src} alt={imagePreview.displayName} />
       ) : !activePath ? (
         <div className="flex-1 flex items-center justify-center text-text-tertiary text-sm">

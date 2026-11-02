@@ -1,0 +1,5 @@
+PASS production HTTP Chromium: raw exact history/live, literal HTML, large/binary readonly Editor and exact downloads desktop/mobile, foreign Session negative control
+cleanup verified {
+  port: 60121,
+  runtime: 'D:\\project\\pan-worktrees\\editor-raw-download-20261102\\packages\\web\\test-results\\raw-download-1793587905071'
+}
