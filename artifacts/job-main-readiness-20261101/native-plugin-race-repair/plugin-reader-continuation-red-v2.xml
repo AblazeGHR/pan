@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.371" timestamp="2026-11-02T13:33:11.961525+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_event_lifecycle" name="test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]" time="0.688"><failure message="AssertionError: assert (True and not False and True and False)&#10; +  where True = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.closed&#10; +  and   False = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.ready&#10; +  and   True = &lt;built-in method done of _asyncio.Task object at 0x0000022869691150&gt;()&#10;[+5 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6834/test_real_peer_self_cleanup_wi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000228694BA060&gt;
+cause = 'reader_cancel'
+
+    @pytest.mark.parametrize('cause', ['reader_cancel', 'slow_consumer'])
+    def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause):
+        async def run():
+            sessions = {'a': session('a', ['observer', 'producer'])}
+            svc, manager, _ = await setup(tmp_path, sessions, manifest())
+            try:
+                await manager.reconcile()
+                await manager.settle()
+                c = manager.connections['observer']
+                handle = c.handle
+                identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]
+                if cause == 'reader_cancel':
+                    original_shield = asyncio.shield
+                    def reader_continuation(future):
+                        protected = original_shield(future)
+                        if asyncio.current_task() is c.reader and future is c.cleanup:
+                            async def finish_reader():
+                                result = await protected
+                                # Reader completion follows cleanup completion on
+                                # its own turn; force that legal scheduling order.
+                                await asyncio.sleep(.01)
+                                return result
+                            return finish_reader()
+                        return protected
+                    monkeypatch.setattr(asyncio, 'shield', reader_continuation)
+                    c.reader.cancel()
+                else:
+                    monkeypatch.setattr(adapter, 'TIMEOUT', .2)
+                    (tmp_path / 'plugins/observer/stall').touch()
+                    publish(tmp_path, type='producer.ping', payload={'value': 1})
+                # No EventRuntime watcher exists in this test. Cleanup must start
+                # on the actual terminal condition rather than a later reconcile.
+                await until(lambda: c.cleanup is not None)
+                await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+                assert c.closed and not c.ready and c.stderr.done() and c.reader.done()
+                assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers
+                assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)
+            finally:
+                await manager.close()
+                await svc.close()
+&gt;       asyncio.run(run())
+
+tests\test_plugin_event_lifecycle.py:347: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        sessions = {'a': session('a', ['observer', 'producer'])}
+        svc, manager, _ = await setup(tmp_path, sessions, manifest())
+        try:
+            await manager.reconcile()
+            await manager.settle()
+            c = manager.connections['observer']
+            handle = c.handle
+            identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]
+            if cause == 'reader_cancel':
+                original_shield = asyncio.shield
+                def reader_continuation(future):
+                    protected = original_shield(future)
+                    if asyncio.current_task() is c.reader and future is c.cleanup:
+                        async def finish_reader():
+                            result = await protected
+                            # Reader completion follows cleanup completion on
+                            # its own turn; force that legal scheduling order.
+                            await asyncio.sleep(.01)
+                            return result
+                        return finish_reader()
+                    return protected
+                monkeypatch.setattr(asyncio, 'shield', reader_continuation)
+                c.reader.cancel()
+            else:
+                monkeypatch.setattr(adapter, 'TIMEOUT', .2)
+                (tmp_path / 'plugins/observer/stall').touch()
+                publish(tmp_path, type='producer.ping', payload={'value': 1})
+            # No EventRuntime watcher exists in this test. Cleanup must start
+            # on the actual terminal condition rather than a later reconcile.
+            await until(lambda: c.cleanup is not None)
+            await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+&gt;           assert c.closed and not c.ready and c.stderr.done() and c.reader.done()
+E           AssertionError: assert (True and not False and True and False)
+E            +  where True = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.closed
+E            +  and   False = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.ready
+E            +  and   True = &lt;built-in method done of _asyncio.Task object at 0x0000022869691150&gt;()
+E            +    where &lt;built-in method done of _asyncio.Task object at 0x0000022869691150&gt; = &lt;Task cancelled name='Task-18' coro=&lt;EventConnection.drain_stderr() done, defined at D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\event_adapter.py:158&gt;&gt;.done
+E            +      where &lt;Task cancelled name='Task-18' coro=&lt;EventConnection.drain_stderr() done, defined at D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\event_adapter.py:158&gt;&gt; = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.stderr
+E            +  and   False = &lt;built-in method done of _asyncio.Task object at 0x00000228695C9AE0&gt;()
+E            +    where &lt;built-in method done of _asyncio.Task object at 0x00000228695C9AE0&gt; = &lt;Task cancelling name='events-observer' coro=&lt;EventConnection.read() running at D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\event_adapter.py:239&gt; wait_for=&lt;Future pending cb=[Task.task_wakeup()]&gt;&gt;.done
+E            +      where &lt;Task cancelling name='events-observer' coro=&lt;EventConnection.read() running at D:\project\pan-worktrees\job-main-readiness-20261101\packages\plugins\event_adapter.py:239&gt; wait_for=&lt;Future pending cb=[Task.task_wakeup()]&gt;&gt; = &lt;packages.plugins.event_adapter.EventConnection object at 0x00000228695F63C0&gt;.reader
+
+tests\test_plugin_event_lifecycle.py:341: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,46 @@
+[
+  {
+    "python": "3.12",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "102",
+        "tests": "8582",
+        "time": "4893.977",
+        "timestamp": "2026-11-02T04:08:28.370018+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": [
+      {
+        "classname": "tests.test_plugin_event_lifecycle",
+        "name": "test_real_peer_self_cleanup_without_watch_cycle[reader_cancel]",
+        "time": "1.377"
+      }
+    ]
+  },
+  {
+    "python": "3.14",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "103",
+        "tests": "8582",
+        "time": "4056.691",
+        "timestamp": "2026-11-02T04:08:21.468179+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": [
+      {
+        "classname": "tests.test_codex_native_admission",
+        "name": "test_proxy_requires_durable_ack_and_preserves_unknown[ack-lost-turn/start]",
+        "time": "0.094"
+      }
+    ]
+  }
+]

@@ -43,6 +43,10 @@ def test_proxy_requires_durable_ack_and_preserves_unknown(monkeypatch, case, ope
                 ack.update(receipt, ok=True)
             except OSError:
                 ack.update(requestId=event["requestId"], ok=False)
+            except RuntimeError as exc:
+                assert case in {"ack-lost", "late-ack"} and "retired" in str(exc)
+                assert app._native_admission.state == "cancelled" and sent == []
+                ack.update(requestId=event["requestId"], ok=False)
             if case == "owner-switch":
                 app.control_owner.switch("pan", 1)
             if case == "thread-switch":
@@ -328,3 +332,50 @@ def test_provider_rpc_rejection_uses_correlated_response_without_erasing_started
         assert value.state == "rejected" and not app._native_turn_pending.is_set()
         refusal = next(e for e in events if e["type"] == "pan.native_turn_not_forwarded")
         assert refusal["requestId"] == value.id and refusal["runId"] == "run"
+
+
+@pytest.mark.parametrize("same_runtime", [True, False])
+@pytest.mark.parametrize("proof", ["pre-forward", "foreign-run", "provider-rejected"])
+def test_not_forwarded_before_admission_context_finishes_never_opens_run(monkeypatch, same_runtime, proof):
+    async def run():
+        s, w = setup()
+        w.adapter = SimpleNamespace(name="codex")
+        s.cli_session_id = "thread"
+        w.native_control_mode, w.native_control_generation = "native", 1
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        before = session._path(s.id).read_bytes()
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_context = worker._auto_report.context
+        async def blocked_context():
+            entered.set()
+            await release.wait()
+            return await original_context()
+        monkeypatch.setattr(worker._auto_report, "context", blocked_context)
+        pending = asyncio.create_task(worker._admit_native_turn(w, runtime,
+            request_id="cancel-before-commit", thread_id="thread", control_generation=1))
+        await asyncio.wait_for(entered.wait(), 2)
+        cancelled_runtime = runtime if same_runtime else (w, w.generation + 1, w.process, w.process.stdin)
+        try:
+            await worker._retire_native_admission(w, cancelled_runtime,
+                {"requestId": "cancel-before-commit",
+                 "runId": "foreign-run" if proof == "foreign-run" else None,
+                 "providerRejected": proof == "provider-rejected"})
+        finally:
+            release.set()
+        if same_runtime and proof == "pre-forward":
+            with pytest.raises(RuntimeError, match="retired"):
+                await pending
+            assert s.legal_offline and s.offline_run is None
+            assert s.task_seq == w._execution_seq == 0
+            assert not w._native_external_turn_active
+            assert session._path(s.id).read_bytes() == before
+            with pytest.raises(RuntimeError, match="retired"):
+                await worker._admit_native_turn(w, runtime, request_id="cancel-before-commit",
+                    thread_id="thread", control_generation=1)
+        else:
+            receipt = await pending
+            assert not s.legal_offline and receipt["runId"] == s.offline_run["id"]
+            assert s.task_seq == w._execution_seq == 1
+            assert await worker._retire_native_admission(w, runtime, receipt)
+            assert s.legal_offline
+    asyncio.run(run())

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.749" timestamp="2026-11-02T13:32:21.206598+08:00" hostname="ablaze"><testcase classname="tests.test_codex_native_admission" name="test_not_forwarded_before_admission_context_finishes_never_opens_run[True]" time="0.028"><failure message="Failed: DID NOT RAISE RuntimeError">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000134FFD1D350&gt;
+same_runtime = True
+
+    @pytest.mark.parametrize("same_runtime", [True, False])
+    def test_not_forwarded_before_admission_context_finishes_never_opens_run(monkeypatch, same_runtime):
+        async def run():
+            s, w = setup()
+            w.adapter = SimpleNamespace(name="codex")
+            s.cli_session_id = "thread"
+            w.native_control_mode, w.native_control_generation = "native", 1
+            runtime = (w, w.generation, w.process, w.process.stdin)
+            entered, release = asyncio.Event(), asyncio.Event()
+            original_context = worker._auto_report.context
+            async def blocked_context():
+                entered.set()
+                await release.wait()
+                return await original_context()
+            monkeypatch.setattr(worker._auto_report, "context", blocked_context)
+            pending = asyncio.create_task(worker._admit_native_turn(w, runtime,
+                request_id="cancel-before-commit", thread_id="thread", control_generation=1))
+            await asyncio.wait_for(entered.wait(), 2)
+            cancelled_runtime = runtime if same_runtime else (w, w.generation + 1, w.process, w.process.stdin)
+            try:
+                await worker._retire_native_admission(w, cancelled_runtime,
+                    {"requestId": "cancel-before-commit", "runId": None})
+            finally:
+                release.set()
+            if same_runtime:
+                with pytest.raises(RuntimeError, match="retired"):
+                    await pending
+                assert s.legal_offline and s.offline_run is None
+                assert s.task_seq == w._execution_seq == 0
+                assert not w._native_external_turn_active
+                with pytest.raises(RuntimeError, match="retired"):
+                    await worker._admit_native_turn(w, runtime, request_id="cancel-before-commit",
+                        thread_id="thread", control_generation=1)
+            else:
+                receipt = await pending
+                assert not s.legal_offline and receipt["runId"] == s.offline_run["id"]
+                assert s.task_seq == w._execution_seq == 1
+                assert await worker._retire_native_admission(w, runtime, receipt)
+                assert s.legal_offline
+&gt;       asyncio.run(run())
+
+tests\test_codex_native_admission.py:372: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        s, w = setup()
+        w.adapter = SimpleNamespace(name="codex")
+        s.cli_session_id = "thread"
+        w.native_control_mode, w.native_control_generation = "native", 1
+        runtime = (w, w.generation, w.process, w.process.stdin)
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_context = worker._auto_report.context
+        async def blocked_context():
+            entered.set()
+            await release.wait()
+            return await original_context()
+        monkeypatch.setattr(worker._auto_report, "context", blocked_context)
+        pending = asyncio.create_task(worker._admit_native_turn(w, runtime,
+            request_id="cancel-before-commit", thread_id="thread", control_generation=1))
+        await asyncio.wait_for(entered.wait(), 2)
+        cancelled_runtime = runtime if same_runtime else (w, w.generation + 1, w.process, w.process.stdin)
+        try:
+            await worker._retire_native_admission(w, cancelled_runtime,
+                {"requestId": "cancel-before-commit", "runId": None})
+        finally:
+            release.set()
+        if same_runtime:
+&gt;           with pytest.raises(RuntimeError, match="retired"):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests\test_codex_native_admission.py:358: Failed</failure></testcase><testcase classname="tests.test_codex_native_admission" name="test_not_forwarded_before_admission_context_finishes_never_opens_run[False]" time="0.024" /></testsuite></testsuites>

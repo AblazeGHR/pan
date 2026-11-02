@@ -1,0 +1,5 @@
+{
+  "packages/core/worker.py": "f799174b08ae38a543e0788f1ae4206532b0533886c11cb69df6c1caa685b6fd",
+  "tests/test_codex_native_admission.py": "2a8173eb1d1453d633551cc725e37d896c41917b880f8a6e993423f3628c06ef",
+  "tests/test_plugin_event_lifecycle.py": "445d446bdb1c1a6a0d16443ef051e7c6170f3d485cb077111b99b23cd4376791"
+}

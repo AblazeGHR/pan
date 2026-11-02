@@ -316,6 +316,19 @@ def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause
             handle = c.handle
             identities = [(p.pid, p.create_time()) for p in [psutil.Process(c.process.pid), *psutil.Process(c.process.pid).children(recursive=True)]]
             if cause == 'reader_cancel':
+                original_shield = asyncio.shield
+                def reader_continuation(future):
+                    protected = original_shield(future)
+                    if asyncio.current_task() is c.reader and future is c.cleanup:
+                        async def finish_reader():
+                            result = await protected
+                            # Reader completion follows cleanup completion on
+                            # its own turn; force that legal scheduling order.
+                            await asyncio.sleep(.01)
+                            return result
+                        return finish_reader()
+                    return protected
+                monkeypatch.setattr(asyncio, 'shield', reader_continuation)
                 c.reader.cancel()
             else:
                 monkeypatch.setattr(adapter, 'TIMEOUT', .2)
@@ -324,7 +337,12 @@ def test_real_peer_self_cleanup_without_watch_cycle(tmp_path, monkeypatch, cause
             # No EventRuntime watcher exists in this test. Cleanup must start
             # on the actual terminal condition rather than a later reconcile.
             await until(lambda: c.cleanup is not None)
-            await asyncio.wait_for(asyncio.shield(c.cleanup), .5)
+            # Cleanup owns the process tree; the reader then finishes its
+            # finally continuation. Join both within the original total bound.
+            await asyncio.wait_for(asyncio.gather(
+                asyncio.shield(c.cleanup), asyncio.shield(c.reader),
+                return_exceptions=True), .5)
+            assert not c.cleanup.cancelled() and c.cleanup.exception() is None
             assert c.closed and not c.ready and c.stderr.done() and c.reader.done()
             assert handle not in svc.bus.handles and 'plugin.observer' not in svc.bus.subscribers
             assert all(not psutil.pid_exists(pid) or psutil.Process(pid).create_time() != created for pid, created in identities)

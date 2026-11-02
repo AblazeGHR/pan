@@ -3073,6 +3073,16 @@ async def _retire_native_admission(w, runtime, event) -> bool:
     async with queue_lock(w.session_id):
         s = _session(w)
         run = (s.offline_run or {}) if s else {}
+        request_id = event.get("requestId")
+        if (s is not None and _control_runtime_matches(w.worker_id, runtime)
+                and isinstance(request_id, str) and request_id
+                and event.get("runId") is None and not event.get("providerRejected")
+                and run.get("nativeAdmissionId") != request_id):
+            # A pre-forward cancellation may overtake admission's off-loop
+            # context read. Reuse the original seen-ID fence so that late
+            # admission cannot open a Run after its cancellation was consumed.
+            w._native_admission_ids.add(request_id)
+            return True
         if (s is None or not _control_runtime_matches(w.worker_id, runtime)
                 or not event.get("requestId") or run.get("nativeAdmissionId") != event["requestId"]
                 or run.get("state") != "running" or s.legal_offline is not False
