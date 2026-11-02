@@ -1,0 +1,53 @@
+[
+  {
+    "group": "terminal",
+    "tests": 12,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "12",
+        "time": "73.207",
+        "timestamp": "2026-11-02T10:38:38.505253+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  },
+  {
+    "group": "cold-http",
+    "tests": 2,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "2",
+        "time": "16.680",
+        "timestamp": "2026-11-02T10:39:52.351807+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  },
+  {
+    "group": "canonical",
+    "tests": 78,
+    "skipped": 0,
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "78",
+        "time": "69.657",
+        "timestamp": "2026-11-02T10:40:09.677467+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  }
+]

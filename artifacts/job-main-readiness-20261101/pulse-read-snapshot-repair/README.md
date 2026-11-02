@@ -1,0 +1,25 @@
+# Owned isolated repair for the two remaining exact4939 CI failures
+
+Base source cce292b3bb4b2b5fdebbfae9c18997a2986d019b exported into ignored nonGit .validation/readiness/repair-cce2. Outer candidate sources are unchanged while original frozen fulljob_558df1684c1ee85fec633575 runs. candidate.patch contains the actual production/test diff prepared for application after original source freeze; it is not yet a committed/pushed candidate. Original CI41363710779 exact4939 failure JUnits remain ../ci-41363710779.
+
+## Time precision
+
+Fixed fixture input microsecond537630 deterministically produces both assign/session-message old assertion failures (3tests2fail) on unchanged production. Existing providers.timestamp removes insignificant trailing decimal zeros; no precision is discarded. Successor asserts BOTH exact canonical timestamp string and exact Decimal instant. OriginalEvent creator/Trigger identity, manual cursor unchanged, actual queue arguments/source/taskIDs and count2, multi-tick no replay all remain. Whole file3pass,0skip. No production formatter/schema change.
+
+## Pulse storage blocking
+
+Private diagnosticv1 asyncio debug adds observer overhead and fails the unchanged performance test; retained as diagnostic red, never acceptance. Diagnosticv2 removes debug; records full generation2GC50.728ms and original MainThread FinalService transactions13-25ms during idle pulse; it passes the real test but does not identify the oldCI146ms gap uniquely. Raw synthetic-profile probes and stderr are privately retained under pulse-snapshot-repair. No claim that GC is fixed, no GC disable/freeze/threshold change.
+
+Small production repair reuses original FinalService and CreatorStore readonly connection: _subscription_snapshot, _dispatch_candidates, _pending_outbox_snapshot execute via asyncio.to_thread. Only detached data/ID snapshots cross threads; bus subscription assignment remains on owning loop. Sync refresh_subscriptions uses the same read helper. Real _drive_run and each outbox reservation re-read original identities in unchanged canonical writer transactions. No provider execution, outbox sending, new scheduler/ledger/owner engine moved to another loop. No error suppression, timeout or platform skip changes.
+
+Meaningful slow-store negative control: each real canonical scan's _all sleeps80ms; unchanged base fails heartbeat bound; repaired pulse leaves5ms heartbeat responsive, verifies exactly three actual scans on non-main threads with SQLite query_only=1, no new Job/provider calls/notification sends. Formal unchanged-base red JUnit retained. Final regression source also adds two owner-loss cases: claim actual owner, obtain original pending Run/outbox snapshot, release owner before consuming it; each operation raises the original fence error and whole stored Job aggregate equals before (including Run/Attempt/effects/outbox), provider/send counts unchanged. Together with existing test_job_runtime_owner.py:31passed0skip24.976seconds. Existing owner tests cover actual normal dispatch, cold owner recovery, unknown notification never sent twice, canonical epoch CAS, stale writers and real process crash.
+
+## Frozen isolated combination
+
+PersistentJob job_18977f4a54556a4da21d85d8 terminalcompleted0/processTreeEndedtrue/notificationdelivered; internal cold-http2pass14.476s and canonical48pass52.093s, no skips/errors/failures, sourceDrift[]. canonical includes pulse regression, whole time schedule, canonical real HTTP service, postcommit observations, Event/Trigger reliability. Those source-before/after hashes bind the earlier one-case pulse file; later added owner-loss cases are bound separately in owner-followthrough-source-hashes.json and pulse-owner-combination.xml. Production FinalService and time test unchanged between those runs.
+
+Real unmodified HTTP/WS cold-read test used no diagnosticGC/debug/transaction wrappers. Original50ms sustained and100ms severe limits and20ms external sampling unchanged. Coldstart maxServerGap63.396ms/p95RTT8.056ms; steady maxServerGap40.395ms/p95RTT5.781ms, real worker streaming observed and all HTTP statuses200. Summary retained; raw full synthetic fixture heartbeat/evidence stays in owned validation. Local pass is not proof old remote scheduling/GC pause cannot recur: new exactSHA complete CI remains required.
+
+Pending: original outer full terminal/source manifest and generated-output preservation, apply this exact prepared patch, normal hooks/commit, push only feat/job-main-readiness-20261101, new full local and exactSHA remoteCI. Currentcce2CI41371403667/watchjob_eb11010cbb7e95f67de219c8 remains independent original chain. Main/practical/realservices/source profile/8unknown leases untouched; unknown source deletion still blocked.
+
+Update: prepared patch has now been applied to the outer candidate. Coherent actual-source validation and final terminal observation repair are recorded in ../coherent-repair-outer. Earlier pending paragraphs describe the source freeze at the time of the independent snapshot evidence. Final newSHA full/CI binding still required.

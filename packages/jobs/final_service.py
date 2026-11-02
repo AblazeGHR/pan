@@ -1737,22 +1737,28 @@ class FinalService:
         await self.recover_session_receipts()
         await self.recover_external_receipts()
         async with self._dispatch_lock:
-            with self.transaction() as db:
-                candidates = []
-                for job in self._all(db, "job"):
-                    runs = list(aggregate(job, self.root)["runs"].values())
-                    # Unknown effects still occupy concurrency capacity.
-                    # Queued cancellation, however, needs no effect slot.
-                    candidates.extend((job["jobId"], run["runId"]) for run in runs if run["state"] == "cancelling")
-                    occupied = sum(run["state"] in {"running", "uncertain", "settling"} for run in runs)
-                    ready = [r for r in runs if r["state"] in {"queued", "retry_wait", "paused_at_boundary"}
-                             and self._automatic_due(aggregate(job, self.root)["plans"][r["runId"]])]
-                    # Canonical JSON sorts map keys, so dictionary iteration
-                    # after reload is not admission order.
-                    ready.sort(key=lambda run: (run["createdAt"], run["runId"]))
-                    slots = max(0, job["config"]["overlap"]["maxActive"] - occupied)
-                    candidates.extend((job["jobId"], run["runId"]) for run in ready[:slots])
+            candidates = await asyncio.to_thread(self._dispatch_candidates)
             await asyncio.gather(*(self._drive_run(job_id, run_id) for job_id, run_id in candidates))
+
+    def _dispatch_candidates(self):
+        # This is only a detached candidate snapshot. _drive_run rechecks the
+        # original Run under the canonical owner/writer fence before mutation.
+        with self.transaction(readonly=True) as db:
+            candidates = []
+            for job in self._all(db, "job"):
+                runs = list(aggregate(job, self.root)["runs"].values())
+                # Unknown effects still occupy concurrency capacity.
+                # Queued cancellation, however, needs no effect slot.
+                candidates.extend((job["jobId"], run["runId"]) for run in runs if run["state"] == "cancelling")
+                occupied = sum(run["state"] in {"running", "uncertain", "settling"} for run in runs)
+                ready = [r for r in runs if r["state"] in {"queued", "retry_wait", "paused_at_boundary"}
+                         and self._automatic_due(aggregate(job, self.root)["plans"][r["runId"]])]
+                # Canonical JSON sorts map keys, so dictionary iteration
+                # after reload is not admission order.
+                ready.sort(key=lambda run: (run["createdAt"], run["runId"]))
+                slots = max(0, job["config"]["overlap"]["maxActive"] - occupied)
+                candidates.extend((job["jobId"], run["runId"]) for run in ready[:slots])
+        return candidates
 
     async def _drive_run(self, job_id, run_id):
         marker, original = await self._automatic_original(job_id, run_id)
@@ -2506,10 +2512,13 @@ class FinalService:
         result = await evaluate(target.get("condition"), self.state_reader, {})
         return await asyncio.to_thread(self.admit_event, event, target, condition_result=result)
 
-    def refresh_subscriptions(self):
-        with self.transaction() as db:
-            self.bus.subscriptions = {item["id"]: {**item, "subscriptionId": item["id"],
+    def _subscription_snapshot(self):
+        with self.transaction(readonly=True) as db:
+            return {item["id"]: {**item, "subscriptionId": item["id"],
                 "creatorIds": item["creatorSelector"].get("ids", [])} for item in self._all(db, "trigger")}
+
+    def refresh_subscriptions(self):
+        self.bus.subscriptions = self._subscription_snapshot()
 
     def scheduler_migration(self, legacy_events):
         """Explicit reviewed handoff port; never instantiated by startup scans."""
@@ -2517,7 +2526,8 @@ class FinalService:
         return SourceMigration(self, legacy_events)
 
     async def tick(self):
-        self.refresh_subscriptions()
+        # Publish on the owning loop only after the offloaded immutable read.
+        self.bus.subscriptions = await asyncio.to_thread(self._subscription_snapshot)
         await self.creator_runtime.tick()
         for event in await asyncio.to_thread(self.events.page):
             snapshot = await asyncio.to_thread(self.events.get, event["eventId"])
@@ -2542,14 +2552,18 @@ class FinalService:
         await self.dispatch_once()
         await self.deliver_outbox()
 
+    def _pending_outbox_snapshot(self):
+        # Reservation below re-reads the original row under the writer fence.
+        with self.transaction(readonly=True) as db:
+            return [(job["jobId"], copy.deepcopy(row)) for job in self._all(db, "job")
+                    for row in aggregate(job, self.root)["outbox"].values() if row["status"] == "pending"]
+
     async def deliver_outbox(self):
         from packages.jobs.notification_delivery import NOTIFICATION_RUNTIME, is_local_no_attempt
         if self.outbox_sender is None:
             return
         async with self._outbox_lock:
-            with self.transaction() as db:
-                pending = [(job["jobId"], copy.deepcopy(row)) for job in self._all(db, "job")
-                           for row in aggregate(job, self.root)["outbox"].values() if row["status"] == "pending"]
+            pending = await asyncio.to_thread(self._pending_outbox_snapshot)
             for job_id, row in pending:
                 with self.transaction() as db:
                     job = self._get(db, "job", job_id)

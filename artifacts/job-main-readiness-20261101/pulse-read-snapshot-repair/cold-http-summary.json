@@ -1,0 +1,147 @@
+{
+  "commit": "cce292b3bb4b2b5fdebbfae9c18997a2986d019b",
+  "worktree": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2",
+  "port": 55716,
+  "cleanup": {
+    "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\isolated_http_server.py --port 55716 --data-root D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root",
+    "createTime": 1793584588.2388277,
+    "forceKilled": [],
+    "ownedProcessesGone": true,
+    "pid": 7600,
+    "port": 55716,
+    "portOwnerPids": [
+      47036
+    ],
+    "portReleased": true,
+    "processTree": [
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\isolated_http_server.py --port 55716 --data-root D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root",
+        "createTime": 1793584588.2388277,
+        "ownsIsolatedPort": false,
+        "parentPid": 38296,
+        "pid": 7600,
+        "rawFiletime": "134380581882388277"
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\mcp-configs\\ses_cbb344dfeaa19f50.mcp.json",
+        "createTime": 1793584592.189688,
+        "ownsIsolatedPort": false,
+        "parentPid": 47036,
+        "pid": 23648,
+        "rawFiletime": "134380581921896880"
+      },
+      {
+        "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+        "createTime": 1793584588.248319,
+        "ownsIsolatedPort": false,
+        "parentPid": 7600,
+        "pid": 38636,
+        "rawFiletime": "134380581882483189"
+      },
+      {
+        "commandLine": "\\??\\C:\\Windows\\system32\\conhost.exe 0x4",
+        "createTime": 1793584592.1956763,
+        "ownsIsolatedPort": false,
+        "parentPid": 23648,
+        "pid": 42764,
+        "rawFiletime": "134380581921956764"
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\isolated_http_server.py --port 55716 --data-root D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root",
+        "createTime": 1793584588.2636735,
+        "ownsIsolatedPort": true,
+        "parentPid": 7600,
+        "pid": 47036,
+        "rawFiletime": "134380581882636737"
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\mcp-configs\\ses_cbb344dfeaa19f50.mcp.json",
+        "createTime": 1793584592.217562,
+        "ownsIsolatedPort": false,
+        "parentPid": 23648,
+        "pid": 54044,
+        "rawFiletime": "134380581922175621"
+      }
+    ],
+    "remainingListenerPids": [],
+    "returnCode": 15,
+    "stderr": "",
+    "stderrPath": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\pan.stderr.log",
+    "stdout": "",
+    "stdoutPath": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\pan.stdout.log",
+    "terminated": [
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\mcp-configs\\ses_cbb344dfeaa19f50.mcp.json",
+        "createTime": 1793584592.217562,
+        "pid": 54044,
+        "returnCode": 15
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\fake_stream_cli.py -p --output-format stream-json --input-format stream-json -y --model deepseek-v4-flash --permission-mode bypassPermissions --settings {\"alwaysThinkingEnabled\": false} --mcp-config D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root\\mcp-configs\\ses_cbb344dfeaa19f50.mcp.json",
+        "createTime": 1793584592.189688,
+        "pid": 23648,
+        "returnCode": 15
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\isolated_http_server.py --port 55716 --data-root D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root",
+        "createTime": 1793584588.2636735,
+        "pid": 47036,
+        "returnCode": 15
+      },
+      {
+        "commandLine": "D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\ci-venv\\Scripts\\python.exe D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-cce2\\tests\\support\\isolated_http_server.py --port 55716 --data-root D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-coherent-v1\\cold-http-temp\\test_real_http_history_coldloa0\\persistent-data-root",
+        "createTime": 1793584588.2388277,
+        "pid": 7600,
+        "returnCode": 15
+      }
+    ]
+  },
+  "windows": {
+    "coldStartIndexLoad": {
+      "server": {
+        "maxGapMs": 63.539,
+        "maxProbeLatenessMs": 9.889,
+        "maxRttMs": 43.396,
+        "maxServerGapMs": 63.396,
+        "p50RttMs": 1.82,
+        "p95RttMs": 8.056,
+        "samples": 168
+      },
+      "inProcess": {
+        "maxGapMs": 69.645,
+        "maxProbeLatenessMs": 19.756,
+        "maxRttMs": 40.018,
+        "maxServerGapMs": 60.018,
+        "p50RttMs": 1.835,
+        "p95RttMs": 9.304,
+        "samples": 124
+      },
+      "requests": 734,
+      "allStatus200": true,
+      "streamEventDuringWindow": true
+    },
+    "steadyStateColdReads": {
+      "server": {
+        "maxGapMs": 40.697,
+        "maxProbeLatenessMs": 7.366,
+        "maxRttMs": 20.395,
+        "maxServerGapMs": 40.395,
+        "p50RttMs": 1.223,
+        "p95RttMs": 5.781,
+        "samples": 174
+      },
+      "inProcess": {
+        "maxGapMs": 41.32,
+        "maxProbeLatenessMs": 15.99,
+        "maxRttMs": 12.325,
+        "maxServerGapMs": 32.325,
+        "p50RttMs": 1.408,
+        "p95RttMs": 5.525,
+        "samples": 127
+      },
+      "requests": 929,
+      "allStatus200": true,
+      "streamEventDuringWindow": true
+    }
+  }
+}

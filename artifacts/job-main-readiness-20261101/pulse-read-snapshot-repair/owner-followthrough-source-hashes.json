@@ -1,0 +1,5 @@
+{
+  "packages/jobs/final_service.py": "f260d0287922cce5f46641b2fdbec2ed9ef90242829f4709aa5842a50b76c3b6",
+  "tests/test_retirement_rev6_schedule.py": "3808ab35b077d8c97ded7dc6ff159af3f9ef6a1e57404dec1397c5daf94ff209",
+  "tests/test_job_pulse_responsiveness.py": "baceac17a8d2bc70792b48c18a62618fc645f9d09abf960ac3dc18ac50777a11"
+}

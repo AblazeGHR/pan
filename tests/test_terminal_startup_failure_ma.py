@@ -362,11 +362,17 @@ def _node_children(pid: int) -> dict[int, float]:
     except ImportError:  # pragma: no cover
         return {}
     found: dict[int, float] = {}
-    for proc in psutil.process_iter(["pid", "name", "ppid", "create_time"]):
+    # process_iter retains Process objects; on Windows their cached parent/name
+    # can belong to a previous occupant of a reused PID after a long test suite.
+    # Fresh objects plus is_running bind every observation to its current birth.
+    for child_pid in psutil.pids():
         try:
-            if "node" in (proc.info.get("name") or "").lower() and int(proc.info.get("ppid") or -1) == pid:
-                found[int(proc.info["pid"])] = float(proc.info["create_time"])
-        except Exception:  # noqa: BLE001
+            proc = psutil.Process(child_pid)
+            info = proc.as_dict(attrs=["pid", "name", "ppid", "create_time"])
+            if "node" in (info.get("name") or "").lower() and int(info.get("ppid") or -1) == pid:
+                if proc.is_running():
+                    found[int(info["pid"])] = float(info["create_time"])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return found
 
@@ -434,6 +440,37 @@ def test_close_waits_bounded_for_own_spawn_wrapper_then_exits(tmp_path):
         assert gone, f"runner 仍有残留（{detail}）"
     finally:
         service.shutdown(budget=20.0)
+
+
+@requires_sidecar
+def test_node_child_observation_ignores_cached_parent_from_reused_pid(monkeypatch):
+    """A reused process_iter object must not hide an actual owned Node child."""
+    import psutil
+    import shutil
+
+    node = shutil.which("node")
+    assert node is not None
+    child = subprocess.Popen(
+        [node, "-e", "setInterval(() => {}, 1000)"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    try:
+        observed = {p.pid: p for p in psutil.process_iter(["pid", "name", "ppid", "create_time"])}
+        cached = observed[child.pid]
+        assert cached.ppid() == os.getpid()
+        # Windows caches ppid on each Process. A process_iter object retained
+        # across PID reuse can therefore describe the previous parent.
+        monkeypatch.setattr(cached, "_ppid", os.getpid() + 1)
+        assert cached.ppid() != os.getpid()
+        assert psutil.Process(child.pid).ppid() == os.getpid()
+        found = _node_children(os.getpid())
+        assert child.pid in found
+        assert found[child.pid] == psutil.Process(child.pid).create_time()
+    finally:
+        child.terminate()
+        child.wait(timeout=10)
+        psutil.process_iter.cache_clear()
 
 
 @requires_sidecar

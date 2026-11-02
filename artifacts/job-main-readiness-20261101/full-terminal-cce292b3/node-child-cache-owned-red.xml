@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="6.590" timestamp="2026-11-02T10:37:41.847050+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_startup_failure_ma" name="test_node_child_observation_ignores_cached_parent_from_reused_pid" time="6.331"><failure message="AssertionError: assert 50216 in {}&#10; +  where 50216 = &lt;Popen: returncode: None args: ['D:\\software\\nodeJs\\node.EXE', '-e', 'set...&gt;.pid">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000011D4AAA89D0&gt;
+
+    @requires_sidecar
+    def test_node_child_observation_ignores_cached_parent_from_reused_pid(monkeypatch):
+        """A reused process_iter object must not hide an actual owned Node child."""
+        import psutil
+        import shutil
+    
+        node = shutil.which("node")
+        assert node is not None
+        child = subprocess.Popen(
+            [node, "-e", "setInterval(() =&gt; {}, 1000)"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        try:
+            observed = {p.pid: p for p in psutil.process_iter(["pid", "name", "ppid", "create_time"])}
+            cached = observed[child.pid]
+            assert cached.ppid() == os.getpid()
+            # Windows caches ppid on each Process. A process_iter object retained
+            # across PID reuse can therefore describe the previous parent.
+            monkeypatch.setattr(cached, "_ppid", os.getpid() + 1)
+            assert cached.ppid() != os.getpid()
+            assert psutil.Process(child.pid).ppid() == os.getpid()
+            found = _node_children(os.getpid())
+&gt;           assert child.pid in found
+E           AssertionError: assert 50216 in {}
+E            +  where 50216 = &lt;Popen: returncode: None args: ['D:\\software\\nodeJs\\node.EXE', '-e', 'set...&gt;.pid
+
+tests\test_terminal_startup_failure_ma.py:462: AssertionError</failure></testcase></testsuite></testsuites>

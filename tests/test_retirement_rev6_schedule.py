@@ -10,7 +10,7 @@ from tests.test_session_product_closure import config
 from tests.test_job_final_http_service import launch
 from tests.test_job_final_http_service import enabled
 from tests.test_job_final_creators import config as time_config
-from packages.scheduler.providers import time_definition
+from packages.scheduler.providers import time_definition, instant, timestamp
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ def owned_paused_targets(h):
 
 @pytest.mark.parametrize('operation', ['assign', 'session-message'])
 def test_explicit_passive_time_template_reuses_original_worker_and_manual_keeps_cursor(h, operation):
-    fire = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat().replace('+00:00', 'Z')
+    fire = (datetime.now(timezone.utc) + timedelta(seconds=30)).replace(microsecond=537630).isoformat().replace('+00:00', 'Z')
     source = time_definition('owned schedule', time_config([{'ruleId': 'once', 'type': 'once', 'at': fire}]))
     job = config(h, operation, sessionId='ses_a', text='original scheduled text', source='automation')
     value = {'name': 'owned field template', 'jobDefinition': job, 'composition': {
@@ -64,7 +64,8 @@ def test_explicit_passive_time_template_reuses_original_worker_and_manual_keeps_
     original_event = h.service.events.get(event_run['cause']['eventId'])['event']
     assert original_event['creatorId'] == ids['creators']['clock']
     assert original_event['payload']['ruleId'] == 'once'
-    assert original_event['payload']['scheduledAt'] == fire
+    assert original_event['payload']['scheduledAt'] == timestamp(fire)
+    assert instant(original_event['payload']['scheduledAt']) == instant(fire)
     queue = h.owned['ses_a'].queue_pending
     assert len(queue) == 2 and len({r['id'] for r in queue}) == 2
     assert all(r['text'] == 'original scheduled text' and r['source'] == 'automation' for r in queue)

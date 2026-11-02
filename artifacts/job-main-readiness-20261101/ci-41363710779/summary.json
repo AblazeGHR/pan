@@ -1,0 +1,80 @@
+{
+  "runId": 41363710779,
+  "headSha": "49393b53715c85e9d2ef5c3994d4f99963859c9f",
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "name": "pytest (3.12)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019328926"
+    },
+    {
+      "name": "windows-owned-combination (Python 3.14)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329123"
+    },
+    {
+      "name": "pytest (3.14)",
+      "status": "completed",
+      "conclusion": "failure",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329160"
+    },
+    {
+      "name": "windows-owned-combination (Python 3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329167"
+    },
+    {
+      "name": "platform-fast (macos-latest, Python 3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329203"
+    },
+    {
+      "name": "ubuntu-browser (authenticated production HTTP, Python 3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329213"
+    },
+    {
+      "name": "platform-fast (windows-latest, Python 3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329259"
+    },
+    {
+      "name": "platform-fast (ubuntu-latest, Python 3.12)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41363710779/job/125019329328"
+    }
+  ],
+  "suites": [
+    {
+      "artifact": "pytest-3.12",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "102",
+      "tests": "8577",
+      "time": "5041.309",
+      "timestamp": "2026-11-01T23:48:29.656661+00:00",
+      "hostname": "runnervmdaln5"
+    },
+    {
+      "artifact": "pytest-3.14",
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "103",
+      "tests": "8577",
+      "time": "5302.252",
+      "timestamp": "2026-11-01T23:48:42.770264+00:00",
+      "hostname": "runnervmdaln5"
+    }
+  ],
+  "failedObservations": 2
+}

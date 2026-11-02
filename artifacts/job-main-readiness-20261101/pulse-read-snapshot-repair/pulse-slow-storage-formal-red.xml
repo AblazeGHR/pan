@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.141" timestamp="2026-11-02T09:56:06.972311+08:00" hostname="ablaze"><testcase classname="tests.test_job_pulse_responsiveness" name="test_idle_pulse_scans_yield_to_heartbeat_without_writes" time="0.630"><failure message="AssertionError: [0.012109400006011128, 0.0836328000004869, 0.009527500020340085, 0.015385099977720529, 0.1705950000032317]&#10;assert 0.1705950000032317 &lt; 0.06&#10; +  where 0.1705950000032317 = max([0.012109400006011128, 0.0836328000004869, 0.009527500020340085, 0.015385099977720529, 0.1705950000032317])">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000145C3CDEBA0&gt;, automation=&lt;packages.automation.service.Ser...2d8fe290ad120d19031080b85953f6666e4484c78215e81e88550eca7b2b4d8'}, token='rccVVThglRFWh2w861P6lvKC08AKetAlrwOllCOQsUc')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000145C3C9AB10&gt;
+
+    def test_idle_pulse_scans_yield_to_heartbeat_without_writes(h, monkeypatch):
+        service = h.service
+        # Recovery/provider work has independent contracts; this test isolates the
+        # three pulse snapshot scans against an actual initialized canonical store.
+        async def no_recovery():
+            return None
+        monkeypatch.setattr(service, 'recover_session_receipts', no_recovery)
+        monkeypatch.setattr(service, 'recover_external_receipts', no_recovery)
+        async def unexpected_notification(_row):
+            raise AssertionError('idle snapshot must not send a notification')
+        monkeypatch.setattr(service, 'outbox_sender', unexpected_notification)
+        scans = []
+        original_all = service._all
+        main_thread = threading.get_ident()
+        def slow_all(db, kind):
+            scans.append((kind, threading.get_ident(), db.execute('PRAGMA query_only').fetchone()[0]))
+            time.sleep(.08)
+            return original_all(db, kind)
+        monkeypatch.setattr(service, '_all', slow_all)
+        async def run():
+            loop = asyncio.get_running_loop()
+            samples = []
+            stop = asyncio.Event()
+            async def heartbeat():
+                previous = loop.time()
+                while not stop.is_set():
+                    await asyncio.sleep(.005)
+                    current = loop.time()
+                    samples.append(current - previous)
+                    previous = current
+            task = asyncio.create_task(heartbeat())
+            await asyncio.sleep(.01)
+            try:
+                await service.tick()
+            finally:
+                stop.set()
+                await task
+            assert max(samples) &lt; .06, samples
+&gt;       asyncio.run(run())
+
+tests\test_job_pulse_responsiveness.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run():
+        loop = asyncio.get_running_loop()
+        samples = []
+        stop = asyncio.Event()
+        async def heartbeat():
+            previous = loop.time()
+            while not stop.is_set():
+                await asyncio.sleep(.005)
+                current = loop.time()
+                samples.append(current - previous)
+                previous = current
+        task = asyncio.create_task(heartbeat())
+        await asyncio.sleep(.01)
+        try:
+            await service.tick()
+        finally:
+            stop.set()
+            await task
+&gt;       assert max(samples) &lt; .06, samples
+E       AssertionError: [0.012109400006011128, 0.0836328000004869, 0.009527500020340085, 0.015385099977720529, 0.1705950000032317]
+E       assert 0.1705950000032317 &lt; 0.06
+E        +  where 0.1705950000032317 = max([0.012109400006011128, 0.0836328000004869, 0.009527500020340085, 0.015385099977720529, 0.1705950000032317])
+
+tests\test_job_pulse_responsiveness.py:46: AssertionError</failure></testcase></testsuite></testsuites>
