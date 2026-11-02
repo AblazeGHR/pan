@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="5" time="0.206" timestamp="2026-11-02T22:46:48.837223+08:00" hostname="ablaze"><testcase classname="tests.test_codex_owned_kernel_exit" name="test_confirmed_dead_returns_observed_code_without_method_or_guess[0]" time="0.010"><failure message="assert exit_code == 0&#10; +  where exit_code = poll()&#10; +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x00000269732C01A0&gt;.poll">code = 0
+
+    @pytest.mark.parametrize('code', [0, 7, 259, None])
+    def test_confirmed_dead_returns_observed_code_without_method_or_guess(code):
+        process = kernel(True, code)
+&gt;       assert process.poll() == code
+E       assert exit_code == 0
+E        +  where exit_code = poll()
+E        +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x00000269732C01A0&gt;.poll
+
+tests\test_codex_owned_kernel_exit.py:23: AssertionError</failure></testcase><testcase classname="tests.test_codex_owned_kernel_exit" name="test_confirmed_dead_returns_observed_code_without_method_or_guess[7]" time="0.003"><failure message="assert exit_code == 7&#10; +  where exit_code = poll()&#10; +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x0000026973259D10&gt;.poll">code = 7
+
+    @pytest.mark.parametrize('code', [0, 7, 259, None])
+    def test_confirmed_dead_returns_observed_code_without_method_or_guess(code):
+        process = kernel(True, code)
+&gt;       assert process.poll() == code
+E       assert exit_code == 7
+E        +  where exit_code = poll()
+E        +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x0000026973259D10&gt;.poll
+
+tests\test_codex_owned_kernel_exit.py:23: AssertionError</failure></testcase><testcase classname="tests.test_codex_owned_kernel_exit" name="test_confirmed_dead_returns_observed_code_without_method_or_guess[259]" time="0.002"><failure message="assert exit_code == 259&#10; +  where exit_code = poll()&#10; +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x000002697325AAD0&gt;.poll">code = 259
+
+    @pytest.mark.parametrize('code', [0, 7, 259, None])
+    def test_confirmed_dead_returns_observed_code_without_method_or_guess(code):
+        process = kernel(True, code)
+&gt;       assert process.poll() == code
+E       assert exit_code == 259
+E        +  where exit_code = poll()
+E        +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x000002697325AAD0&gt;.poll
+
+tests\test_codex_owned_kernel_exit.py:23: AssertionError</failure></testcase><testcase classname="tests.test_codex_owned_kernel_exit" name="test_confirmed_dead_returns_observed_code_without_method_or_guess[None]" time="0.002"><failure message="assert exit_code == None&#10; +  where exit_code = poll()&#10; +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x000002697327DE00&gt;.poll">code = None
+
+    @pytest.mark.parametrize('code', [0, 7, 259, None])
+    def test_confirmed_dead_returns_observed_code_without_method_or_guess(code):
+        process = kernel(True, code)
+&gt;       assert process.poll() == code
+E       assert exit_code == None
+E        +  where exit_code = poll()
+E        +    where poll = &lt;packages.core.adapters.codex.owned_kernel.OwnedKernel object at 0x000002697327DE00&gt;.poll
+
+tests\test_codex_owned_kernel_exit.py:23: AssertionError</failure></testcase><testcase classname="tests.test_codex_owned_kernel_exit" name="test_unproven_exit_never_reads_or_invents_exit_code" time="0.002" /></testsuite></testsuites>

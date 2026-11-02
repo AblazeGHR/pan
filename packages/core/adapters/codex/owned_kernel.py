@@ -30,7 +30,7 @@ class OwnedKernel:
             pass
 
     def poll(self):
-        return self.backend.exit_code if self.backend.wait_dead(0) else None
+        return self.backend.exit_code() if self.backend.wait_dead(0) else None
 
     @property
     def returncode(self):
@@ -46,7 +46,7 @@ class OwnedKernel:
     def wait(self, timeout=None):
         if not self.backend.wait_dead(2 if timeout is None else timeout):
             raise subprocess.TimeoutExpired("native-kernel", timeout)
-        return self.backend.exit_code
+        return self.backend.exit_code()
 
     def close(self):
         self._reader.join(1)

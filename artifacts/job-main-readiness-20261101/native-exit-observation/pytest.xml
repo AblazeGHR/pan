@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="4" time="15.181" timestamp="2026-11-02T22:44:33.731585+08:00" hostname="ablaze"><testcase classname="tests.test_codex_native_kernel_real" name="test_real_worker_persists_independent_native_and_pan_turns" time="6.152" /><testcase classname="tests.test_codex_native_kernel_real" name="test_wrapper_startup_failure_exits_cleanly_with_stdin_open" time="0.790"><failure message="AssertionError: assert 'Object of ty... serializable' == 'Codex native...re connection'&#10;  &#10;  - Codex native kernel exited before connection&#10;  + Object of type method is not JSON serializable">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6854/test_wrapper_startup_failure_e0')
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows owned Codex kernel")
+    def test_wrapper_startup_failure_exits_cleanly_with_stdin_open(tmp_path):
+        """A failed kernel must report its cause before reading the still-open pipe."""
+        from packages.core.adapters.codex.adapter import _resolve_codex_node
+        root = Path(__file__).resolve().parents[1]
+        home = tmp_path / "codex-home"
+        home.mkdir()
+        argv = [sys.executable, "-u", str(root / "packages/core/adapters/codex/wrapper.py"),
+                "--app-server", "--native-control", "--node-path", _resolve_codex_node(),
+                "--codex-path", str(tmp_path / "missing-codex.js")]
+        backend = subprocess.Popen(argv, cwd=str(tmp_path),
+            env=dict(os.environ, CODEX_HOME=str(home)), stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+        try:
+            # communicate() closes stdin and would hide the daemon-reader failure.
+            assert backend.wait(15) == 1
+            event = json.loads(backend.stdout.readline())
+            assert event["type"] == "result" and event["is_error"] is True
+&gt;           assert event["result"] == "Codex native kernel exited before connection"
+E           AssertionError: assert 'Object of ty... serializable' == 'Codex native...re connection'
+E             
+E             - Codex native kernel exited before connection
+E             + Object of type method is not JSON serializable
+
+tests\test_codex_native_kernel_real.py:152: AssertionError</failure></testcase><testcase classname="tests.test_codex_native_kernel_real" name="test_real_wrapper_mode_round_trip_does_not_exit_kernel[False]" time="2.312" /><testcase classname="tests.test_codex_native_kernel_real" name="test_real_wrapper_mode_round_trip_does_not_exit_kernel[True]" time="5.507" /></testsuite></testsuites>
