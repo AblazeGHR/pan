@@ -540,7 +540,8 @@ def test_default_detached_process_budget_exhaustion(env, extra):
     assert len(doc["history"]) == extra
 
 
-def test_owned_http_default_process_cold_reopen_and_pulse(env):
+@pytest.mark.parametrize("observation_delay", [0, .4])
+def test_owned_http_default_process_cold_reopen_and_pulse(env, observation_delay):
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
@@ -561,7 +562,24 @@ def test_owned_http_default_process_cold_reopen_and_pulse(env):
     try:
         jid, rid = create(env, job_definition(env, policy(backoffSeconds=["0.3"]), code))
         async def run():
-            await drive_until(env, jid, rid, "retry_wait")
+            # dispatch_once reconciles receipts AND dispatches due retries. A
+            # scheduling gap beyond the .3s backoff can consume retry_wait in
+            # that same call, before this test can perform its cold reopen.
+            # Launch once, then use the existing receipt-only boundary until
+            # the first real failed process has been reconciled.
+            await env.service.dispatch_once()
+            assert state(env, jid)["runs"][rid]["state"] == "running"
+            deadline = time.monotonic() + 30
+            while True:
+                await env.service.recover_external_receipts()
+                if state(env, jid)["runs"][rid]["state"] == "retry_wait":
+                    break
+                assert time.monotonic() < deadline
+                await asyncio.sleep(.04)
+            await asyncio.sleep(observation_delay)
+            assert state(env, jid)["runs"][rid]["state"] == "retry_wait"
+            assert len(state(env, jid)["attempts"]) == 1
+            assert count.read_text() == "1"
             before = copy.deepcopy(env.service.final.store.get(jid)["finalRuntime"]["plans"][rid]["autoRecovery"])
             frozen = copy.deepcopy(env.service.final.store.get(jid)["finalRuntime"]["plans"][rid]["frozen"])
             first_state = state(env, jid)

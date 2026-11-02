@@ -1,0 +1,20 @@
+import asyncio
+import pytest
+
+@pytest.fixture(autouse=True)
+def slow_receipt_boundary(request, monkeypatch):
+    if request.node.name != 'test_owned_http_default_process_cold_reopen_and_pulse':
+        return
+    from packages.jobs.final_service import FinalService
+    original = FinalService.recover_external_receipts
+    async def recover(self):
+        await original(self)
+        with self.transaction(readonly=True) as db:
+            waiting = any(r['state'] == 'retry_wait'
+                          for j in self._all(db, 'job')
+                          for r in j['finalRuntime']['runs'].values())
+        if waiting:
+            # A real scheduling gap beyond the unchanged .3s backoff. Do not
+            # alter clocks, receipts, process exit, policy, or dispatch.
+            await asyncio.sleep(.4)
+    monkeypatch.setattr(FinalService, 'recover_external_receipts', recover)

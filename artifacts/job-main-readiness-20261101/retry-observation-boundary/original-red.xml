@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="36.400" timestamp="2026-11-03T06:07:43.651350+08:00" hostname="ablaze"><testcase classname="tests.test_job_automatic_recovery" name="test_owned_http_default_process_cold_reopen_and_pulse" time="35.517"><failure message="AssertionError: owned default process did not reach retry_wait: {'admissionId': 'adm_ae9c8ee9927d44c4b558eeb1', 'cause': {'type': 'manual'}, 'configRevision': 1, 'createdAt': '2026-11-02T22:07:47.256213Z', 'finishedAt': '2026-11-02T22:07:48.679104Z', 'jobId': 'job_e1fd57104b2f4ccbb543f71b', 'planDigest': '43d531d5a7bd24279f39344339e3ec16933f6d6cc1a14c84bd93f2a3fad3a99a', 'profileId': 'profile_c178d263f0216c34a549f0c0', 'runId': 'run_9098e82de72240c8812af95a', 'startedAt': '2026-11-02T22:07:47.27...&#10;[truncated; full report in element text]">env = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000245B1248D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000245B1248440&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000245B1121D30&gt;, serial=1)
+
+    def test_owned_http_default_process_cold_reopen_and_pulse(env):
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        assert port not in (8767, 8768)
+        server = uvicorn.Server(uvicorn.Config(env.app, lifespan="off", log_level="error"))
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + 10
+        while not server.started:
+            assert time.monotonic() &lt; deadline
+            time.sleep(.02)
+        client = httpx.Client(base_url=f"http://127.0.0.1:{port}", headers=dict(env.client.headers))
+        old_client = env.client
+        env.client = client
+        count = env.tmp / "counter.txt"
+        code = (f"from pathlib import Path; p=Path({str(count)!r}); n=int(p.read_text()) if p.exists() else 0; "
+                "p.write_text(str(n+1)); raise SystemExit(7 if n == 0 else 0)")
+        try:
+            jid, rid = create(env, job_definition(env, policy(backoffSeconds=["0.3"]), code))
+            async def run():
+                await drive_until(env, jid, rid, "retry_wait")
+                before = copy.deepcopy(env.service.final.store.get(jid)["finalRuntime"]["plans"][rid]["autoRecovery"])
+                frozen = copy.deepcopy(env.service.final.store.get(jid)["finalRuntime"]["plans"][rid]["frozen"])
+                first_state = state(env, jid)
+                first_attempt = first_state["attempts"][before["afterAttemptId"]]
+                first_key = first_state["effects"][0]["effectKey"]
+                original = await env.service._external_adapter(jid).lookup_execution(attempt=first_attempt, effect_key=first_key)
+                assert env.service._cleanup_complete(original)
+                await env.service.close()
+                restored = FinalService(env.root, env.auth)
+                env.service = restored
+                env.app.state.job_final_service = restored
+                restored.recover()
+                assert restored.final.store.get(jid)["finalRuntime"]["plans"][rid]["autoRecovery"] == before
+                await restored.start()  # Real existing quarter-second pulse, default detached adapter.
+                try:
+                    deadline = time.monotonic() + 30
+                    while state(env, jid)["runs"][rid]["state"] != "completed":
+                        assert time.monotonic() &lt; deadline
+                        await asyncio.sleep(.04)
+                finally:
+                    await restored.close()
+                result = state(env, jid)
+                assert len(result["runs"]) == 1 and len(result["attempts"]) == 2
+                assert result["steps"][rid]["s0"]["attemptCount"] == 2
+                assert len({fc.digest(e["effectKey"]) for e in result["effects"]}) == 1
+                assert restored.final.store.get(jid)["finalRuntime"]["plans"][rid]["frozen"] == frozen
+                assert count.read_text() == "2"
+                doc = ExecutionStore(env.root / "executions").get(effect_id(result["effects"][-1]["effectKey"]))
+                assert len(doc["history"]) == 1
+                assert doc["history"][0]["attempt"]["attemptId"] != doc["attempt"]["attemptId"]
+                assert restored.get_run(rid, actor=USER)["state"] == "completed"
+                out = Path("evidence/job-automatic-recovery-rev3/default-detached-proof.json")
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(json.dumps({"transport": "owned-loopback-HTTP", "executor": "product-default-detached",
+                    "pulse": "FinalService.start", "coldReopen": True, "originalCleanupComplete": True,
+                    "originalSupervisorExited": original["supervisorExitProof"]["confirmed"],
+                    "runs": len(result["runs"]), "attempts": len(result["attempts"]),
+                    "distinctEffects": len({fc.digest(e["effectKey"]) for e in result["effects"]}),
+                    "actualInvocations": int(count.read_text()), "executorHistoryRows": len(doc["history"])}, indent=2) + "\n", encoding="utf-8")
+&gt;           asyncio.run(run())
+
+tests\test_job_automatic_recovery.py:604: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_job_automatic_recovery.py:564: in run
+    await drive_until(env, jid, rid, "retry_wait")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+h = namespace(service=&lt;packages.jobs.final_service.FinalService object at 0x00000245B1248D70&gt;, client=&lt;starlette.testclien...nicalUserAuth object at 0x00000245B1248440&gt;, app=&lt;fastapi.applications.FastAPI object at 0x00000245B1121D30&gt;, serial=1)
+jid = 'job_e1fd57104b2f4ccbb543f71b', rid = 'run_9098e82de72240c8812af95a'
+desired = 'retry_wait', timeout = 30
+
+    async def drive_until(h, jid, rid, desired, timeout=30):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() &lt; deadline:
+            await h.service.dispatch_once()
+            run = state(h, jid)["runs"][rid]
+            if run["state"] == desired:
+                return run
+            await asyncio.sleep(.04)
+&gt;       raise AssertionError("owned default process did not reach " + desired + ": " + repr(run))
+E       AssertionError: owned default process did not reach retry_wait: {'admissionId': 'adm_ae9c8ee9927d44c4b558eeb1', 'cause': {'type': 'manual'}, 'configRevision': 1, 'createdAt': '2026-11-02T22:07:47.256213Z', 'finishedAt': '2026-11-02T22:07:48.679104Z', 'jobId': 'job_e1fd57104b2f4ccbb543f71b', 'planDigest': '43d531d5a7bd24279f39344339e3ec16933f6d6cc1a14c84bd93f2a3fad3a99a', 'profileId': 'profile_c178d263f0216c34a549f0c0', 'runId': 'run_9098e82de72240c8812af95a', 'startedAt': '2026-11-02T22:07:47.273381Z', 'state': 'completed', 'stateRevision': 5, 'transitionSeq': 5}
+
+tests\test_job_automatic_recovery.py:526: AssertionError</failure></testcase></testsuite></testsuites>
