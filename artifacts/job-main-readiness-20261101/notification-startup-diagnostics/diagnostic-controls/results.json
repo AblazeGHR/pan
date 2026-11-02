@@ -1,0 +1,14 @@
+[
+  {
+    "control": "startup-status-unavailable",
+    "pytestExitCode": 1,
+    "expectedRedPreserved": true,
+    "diagnosticCaptured": true
+  },
+  {
+    "control": "entry-script-unavailable",
+    "pytestExitCode": 1,
+    "expectedRedPreserved": true,
+    "diagnosticCaptured": true
+  }
+]

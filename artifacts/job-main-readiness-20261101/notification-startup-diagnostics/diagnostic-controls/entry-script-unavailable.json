@@ -1,0 +1,27 @@
+{
+  "networkFailures": [
+    {
+      "url": "http://127.0.0.1:58006/react/assets/index-yeTR2r6s-pc2.js",
+      "failure": {
+        "errorText": "net::ERR_FAILED"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:58006/react/assets/react-vendor-DNy7vAOG.js",
+      "failure": {
+        "errorText": "net::ERR_FAILED"
+      }
+    }
+  ],
+  "responses": [],
+  "consoleErrors": [
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "errors": [],
+  "browserProvider": "recording fake",
+  "source": "production React",
+  "pageUrl": "http://127.0.0.1:58006/react/",
+  "body": "",
+  "failure": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[title=\"App settings\"]:visible').first()\u001b[22m\n"
+}

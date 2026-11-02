@@ -1,0 +1,195 @@
+[
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-macos-latest-py312\\collect.xml",
+    "sha256": "ad1d84bae6113e88ecec11f50258d15cdc85762d4fc64d146bbd6f32122fc63c",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "0",
+        "time": "14.676",
+        "timestamp": "2026-11-02T07:30:48.776362+00:00",
+        "hostname": "sjc22-bm212-dbfe3fe2-9913-4530-bbf7-791a0e0555ff-761C6E893F26.local"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-macos-latest-py312\\fast.xml",
+    "sha256": "f8a5427bbcc7e29d9d726123db2693f842b3b352e2dfcf75effe92911bace8b3",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "21",
+        "tests": "456",
+        "time": "101.922",
+        "timestamp": "2026-11-02T07:31:04.582300+00:00",
+        "hostname": "sjc22-bm212-dbfe3fe2-9913-4530-bbf7-791a0e0555ff-761C6E893F26.local"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-ubuntu-latest-py312\\collect.xml",
+    "sha256": "96f17b773dd8ed4f49dc0d00f315bbbe826946178f9f475efeff64bba4ab98b8",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "0",
+        "time": "25.359",
+        "timestamp": "2026-11-02T07:30:49.010139+00:00",
+        "hostname": "runnervm48cm3"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-ubuntu-latest-py312\\fast.xml",
+    "sha256": "ced9369998d7e9c0be3af9e47b488d04b2ffbdf4832ee0bb1016ec82465a43c6",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "23",
+        "tests": "456",
+        "time": "89.832",
+        "timestamp": "2026-11-02T07:31:15.874871+00:00",
+        "hostname": "runnervm48cm3"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-windows-latest-py312\\collect.xml",
+    "sha256": "f268c06974a113103374b40270af6ccc8335585292b866c88045f853dfeb7a4d",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "0",
+        "time": "24.331",
+        "timestamp": "2026-11-02T07:31:28.593786+00:00",
+        "hostname": "runnervmhao91"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\platform-fast-windows-latest-py312\\fast.xml",
+    "sha256": "6f5f52a83454325ea63949f048a44033977b64337b367d9147ca316f10220a3a",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "32",
+        "tests": "456",
+        "time": "296.275",
+        "timestamp": "2026-11-02T07:31:54.442049+00:00",
+        "hostname": "runnervmhao91"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\pytest-results-3.12\\pytest-results.xml",
+    "sha256": "ead11a99362b21d68b1e71d221c9ff983c7857d8dbabc5fc3b2f2eac3298e013",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "102",
+        "tests": "8588",
+        "time": "4410.288",
+        "timestamp": "2026-11-02T07:32:33.725209+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\pytest-results-3.14\\pytest-results.xml",
+    "sha256": "69b3c380053fe2160b70431c32424cea16350b59b22bca11891be7d315c485ef",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "103",
+        "tests": "8588",
+        "time": "4461.978",
+        "timestamp": "2026-11-02T07:32:30.531756+00:00",
+        "hostname": "runnervmhao91"
+      }
+    ],
+    "failures": [
+      {
+        "class": "tests.test_notification_kind_http",
+        "name": "test_shared_kind_exclusions_browser_and_background",
+        "kind": "failure"
+      }
+    ]
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\ubuntu-browser-py312\\evidence\\cp-x1-ubuntu-browser\\pytest.xml",
+    "sha256": "f3964030e845779bf10a1fdba65b9208813e560886ea904461482af92b8f84b0",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "23",
+        "time": "32.594",
+        "timestamp": "2026-11-02T07:31:43.963231+00:00",
+        "hostname": "runnervm48cm3"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\windows-owned-combination-3.12\\owned-combination.xml",
+    "sha256": "2ac9b45358cb5107dba725b10c3261d3e8015226c380a30fe4f754a09e937c62",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "25",
+        "time": "18.137",
+        "timestamp": "2026-11-02T07:31:14.940371+00:00",
+        "hostname": "runnervmdaln5"
+      }
+    ],
+    "failures": []
+  },
+  {
+    "path": ".validation\\readiness\\ci-41406716824-artifacts\\windows-owned-combination-3.14\\owned-combination.xml",
+    "sha256": "80f3b771859d0718e234c5f65930964eb47eac234a956cfda2eb2530f117dc3b",
+    "suites": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "25",
+        "time": "12.960",
+        "timestamp": "2026-11-02T07:31:09.233469+00:00",
+        "hostname": "runnervmhao91"
+      }
+    ],
+    "failures": []
+  }
+]

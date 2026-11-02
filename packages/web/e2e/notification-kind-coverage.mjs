@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 const [base, out, owner] = process.argv.slice(2);
 if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(base) || /:(8767|8768)$/.test(base)) throw Error('Owned random port only');
 const browser = await chromium.launch({ headless: true });
-const evidence = { errors: [], browserProvider: 'recording fake', source: 'production React' };
+let page;
+const evidence = { networkFailures: [], responses: [], consoleErrors: [], errors: [], browserProvider: 'recording fake', source: 'production React' };
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   await context.addInitScript(() => {
@@ -20,9 +21,13 @@ try {
     headers: { Origin: base }, data: { key: process.env.PAN_TEST_NOTIFICATION_KEY },
   });
   expect(login.status()).toBe(200);
-  const page = await context.newPage();
+  page = await context.newPage();
+  page.on('requestfailed', (request) => evidence.networkFailures.push({ url: request.url(), failure: request.failure() }));
+  page.on('response', (response) => { if (response.status() >= 400 || response.url().includes('job-maintenance/status')) evidence.responses.push({ url: response.url(), status: response.status() }); });
+  page.on('console', (message) => { if (message.type() === 'error') evidence.consoleErrors.push(message.text()); });
   page.on('pageerror', (error) => evidence.errors.push(error.message));
-  await page.goto(base + '/react/');
+  const navigation = await page.goto(base + '/react/');
+  expect(navigation?.status(), 'production React entry status').toBe(200);
   const fixture = { 'x-notification-fixture': process.env.PAN_TEST_NOTIFICATION_NONCE };
   const emit = async (id, errorKind, code) => {
     const response = await context.request.post(base + '/__test/notification/emit', { headers: fixture,
@@ -121,6 +126,11 @@ try {
     browserCount: notices.length, scrollWindow: bounds, chromiumVersion: browser.version() });
   await fs.writeFile(out + '/browser.json', JSON.stringify(evidence, null, 2));
 } catch (error) {
+  if (page) {
+    evidence.pageUrl = page.url();
+    evidence.body = (await page.locator('body').innerText().catch(String)).slice(0, 12000);
+    await page.screenshot({ path: out + '/browser-failure.png' }).catch(() => {});
+  }
   await fs.writeFile(out + '/browser-failure.json', JSON.stringify({ ...evidence, failure: String(error) }, null, 2));
   throw error;
 } finally { await browser.close(); }

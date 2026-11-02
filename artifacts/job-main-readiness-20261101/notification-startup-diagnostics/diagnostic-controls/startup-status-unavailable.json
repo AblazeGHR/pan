@@ -1,0 +1,18 @@
+{
+  "networkFailures": [],
+  "responses": [
+    {
+      "url": "http://127.0.0.1:58111/api/job-maintenance/status",
+      "status": 503
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+  ],
+  "errors": [],
+  "browserProvider": "recording fake",
+  "source": "production React",
+  "pageUrl": "http://127.0.0.1:58111/react/",
+  "body": "无法核实启动状态，请刷新后重试。",
+  "failure": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[title=\"App settings\"]:visible').first()\u001b[22m\n"
+}

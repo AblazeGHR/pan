@@ -40,7 +40,9 @@ def test_shared_kind_exclusions_browser_and_background(tmp_path, monkeypatch):
         browser = subprocess.run(['node', 'packages/web/e2e/notification-kind-coverage.mjs', rt.base_url, str(OUT.resolve()), owner['id']],
             env={**os.environ, 'PAN_TEST_NOTIFICATION_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=120)
         (OUT / 'browser.txt').write_text(browser.stdout + '\n' + browser.stderr, encoding='utf-8')
-        assert browser.returncode == 0, browser.stderr
+        failure = OUT / 'browser-failure.json'
+        detail = failure.read_text(encoding='utf-8') if browser.returncode and failure.is_file() else ''
+        assert browser.returncode == 0, browser.stderr + '\n' + detail
         def records():
             return rt.request('GET', '/__test/notification/records', headers=fixture)
         before = records()

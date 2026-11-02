@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="35.635" timestamp="2026-11-02T16:59:12.220844+08:00" hostname="ablaze"><testcase classname="tests.test_notification_kind_http" name="test_shared_kind_exclusions_browser_and_background" time="35.242"><failure message="AssertionError: node:internal/modules/run_main:107&#10;      triggerUncaughtException(&#10;      ^&#10;  &#10;  locator.click: Timeout 30000ms exceeded.&#10;  Call log:&#10;  #x1B[2m  - waiting for locator('button[title=&quot;App settings&quot;]:visible').first()#x1B[22m&#10;  &#10;      at open (D:\project\pan-worktrees\job-main-readiness-20261101\.validation\readiness\repair-notification-cd19311c\packages\web\e2e\notification-kind-coverage.mjs:90:72)&#10;[+29 more lines; full report in element text]">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6849/test_shared_kind_exclusions_br0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021969794E90&gt;
+
+    def test_shared_kind_exclusions_browser_and_background(tmp_path, monkeypatch):
+        assert h.PORT not in {8767, 8768}
+        nonce = secrets.token_hex(24)
+        monkeypatch.setenv('PAN_TEST_NOTIFICATION_NONCE', nonce)
+        monkeypatch.setattr(h, 'SERVER_LAUNCHER', Path(__file__).parent / 'support/notification_http_server.py')
+        rt = h._PanRuntime(tmp_path / 'data')
+        rt.data_root.mkdir()
+        (rt.data_root / 'config.json').write_text(json.dumps({'memory': {'enabled': False}}), encoding='utf-8')
+        OUT.mkdir(parents=True, exist_ok=True)
+        evidence = {'port': h.PORT, 'realProviders': False}
+        fixture = {'x-notification-fixture': nonce}
+        try:
+            rt.start()
+            evidence['ownedPidBirths'] = [[pid, born] for pid, born, _ in rt._owned_processes]
+            identity = rt.request('GET', '/__test/job-inbox-identity')
+            assert Path(identity['sessions']).parent == rt.data_root
+            key = (rt.data_root / 'automation/user.key').read_text(encoding='utf-8')
+            token = rt.request('POST', '/api/automation/login', json={'key': key})['token']
+            auth = {'Authorization': 'Bearer ' + token}
+            owner = rt.request('POST', '/api/sessions', json={'name': 'notification-kind-owned', 'adapter': 'cbc', 'model': 'deepseek-v4-flash', 'mcpServers': []})
+            routes = {'enabled': False, 'system': True, 'browser': True, 'qqReport': True, 'qqTargets': ['user:123@456']}
+            rt.request('PUT', '/api/settings/ui', headers=auth, json={'sessionErrorBridge': True,
+                'errorNotificationExclusions': {'enabled': False, 'types': ['codex_error_payload/serverOverloaded']},
+                'notifications': {'newError': routes}})
+            rt.request('PATCH', '/api/sessions/' + owner['id'], headers=auth, json={'notificationSettings': {'system': True, 'browser': True}})
+            rt.request('PUT', '/api/sessions/' + owner['id'] + '/qq-report', headers=auth,
+                json={'target': 'user:123@456', 'enabled': True, 'expectedEnabled': False})
+            browser = subprocess.run(['node', 'packages/web/e2e/notification-kind-coverage.mjs', rt.base_url, str(OUT.resolve()), owner['id']],
+                env={**os.environ, 'PAN_TEST_NOTIFICATION_KEY': key}, capture_output=True, text=True, encoding='utf-8', timeout=120)
+            (OUT / 'browser.txt').write_text(browser.stdout + '\n' + browser.stderr, encoding='utf-8')
+            failure = OUT / 'browser-failure.json'
+            detail = failure.read_text(encoding='utf-8') if browser.returncode and failure.is_file() else ''
+&gt;           assert browser.returncode == 0, browser.stderr + '\n' + detail
+E           AssertionError: node:internal/modules/run_main:107
+E                 triggerUncaughtException(
+E                 ^
+E             
+E             locator.click: Timeout 30000ms exceeded.
+E             Call log:
+E             #x1B[2m  - waiting for locator('button[title="App settings"]:visible').first()#x1B[22m
+E             
+E                 at open (D:\project\pan-worktrees\job-main-readiness-20261101\.validation\readiness\repair-notification-cd19311c\packages\web\e2e\notification-kind-coverage.mjs:90:72)
+E                 at D:\project\pan-worktrees\job-main-readiness-20261101\.validation\readiness\repair-notification-cd19311c\packages\web\e2e\notification-kind-coverage.mjs:96:26 {
+E               log: [
+E                 `  - waiting for locator('button[title="App settings"]:visible').first()`
+E               ],
+E               name: 'TimeoutError'
+E             }
+E             
+E             Node.js v24.22.1
+E             
+E             {
+E               "networkFailures": [],
+E               "responses": [
+E                 {
+E                   "url": "http://127.0.0.1:58111/api/job-maintenance/status",
+E                   "status": 503
+E                 }
+E               ],
+E               "consoleErrors": [
+E                 "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+E               ],
+E               "errors": [],
+E               "browserProvider": "recording fake",
+E               "source": "production React",
+E               "pageUrl": "http://127.0.0.1:58111/react/",
+E               "body": "无法核实启动状态，请刷新后重试。",
+E               "failure": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button[title=\"App settings\"]:visible').first()\u001b[22m\n"
+E             }
+E           assert 1 == 0
+E            +  where 1 = CompletedProcess(args=['node', 'packages/web/e2e/notification-kind-coverage.mjs', 'http://127.0.0.1:58111', 'D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-notification-cd19311c\\artifacts\\notification-kind-coverage\\owned-http', 'ses_b112e53fcdec5c24'], returncode=1, stdout='', stderr='node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nlocator.click: Timeout 30000ms exceeded.\nCall log:\n\x1b[2m  - waiting for locator(\'button[title="App settings"]:visible\').first()\x1b[22m\n\n    at open (D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-notification-cd19311c\\packages\\web\\e2e\\notification-kind-coverage.mjs:90:72)\n    at D:\\project\\pan-worktrees\\job-main-readiness-20261101\\.validation\\readiness\\repair-notification-cd19311c\\packages\\web\\e2e\\notification-kind-coverage.mjs:96:26 {\n  log: [\n    `  - waiting for locator(\'button[title="App settings"]:visible\').first()`\n  ],\n  name: \'TimeoutError\'\n}\n\nNode.js v24.22.1\n').returncode
+
+tests\test_notification_kind_http.py:45: AssertionError</failure></testcase></testsuite></testsuites>
