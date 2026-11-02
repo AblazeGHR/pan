@@ -221,6 +221,12 @@ def test_http_auth_attachments_owner_counts_and_terminal(tmp_path,monkeypatch):
     from packages.web import server
     from packages.interactions.api import register
     source=session.create('owner',workdir=str(tmp_path)); other=session.create('other',workdir=str(tmp_path))
+    # This HTTP fixture owns card/auth state, not a CLI execution lifecycle.
+    # Exercise actual reminder admission behind the existing durable pause gate.
+    source.queue_paused=True
+    session.save(source)
+    from packages.core import worker
+    before_workers=dict(worker.workers)
     app=FastAPI(); register(app)
     app.state.user_inbox_principal=lambda request: USER if request.headers.get('Authorization')=='Bearer test' else None
     auth={'Authorization':'Bearer test'}; caller={'X-Pan-Queue-Caller':source.id}
@@ -232,6 +238,10 @@ def test_http_auth_attachments_owner_counts_and_terminal(tmp_path,monkeypatch):
     denied={**data,'attachments':[{'id':'foreign','name':'x'}]}
     assert client.post(route,json=denied,headers=auth).status_code==403
     card=client.post(route,json=data,headers=auth).json()['card']
+    assert worker.workers==before_workers
+    reminders=session.get(source.id,load_history=False).queue_pending
+    assert len(reminders)==1 and reminders[0]['noticeKind']=='user_card_reminder'
+    assert session.get(source.id,load_history=False).queue_paused is True
     assert client.get('/api/user-lockers',headers=auth).json()['lockers'][0]['unread']==0
     tool='/api/reminding-card-tools/'
     assert client.post(tool+'list_pending',json={},headers={'X-Pan-Queue-Caller':other.id}).json()['cards']==[]

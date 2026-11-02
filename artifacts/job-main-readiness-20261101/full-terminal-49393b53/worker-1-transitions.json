@@ -1,0 +1,33 @@
+[
+  {
+    "nodeid": "tests/test_action_groups.py::test_command_cleanup_error_preserves_cancellation",
+    "workers": [],
+    "retryTasks": []
+  },
+  {
+    "nodeid": "tests/test_user_cards.py::test_http_auth_attachments_owner_counts_and_terminal",
+    "workers": [
+      {
+        "workerId": "worker-1",
+        "objectId": 2097755023760,
+        "sessionId": "ses_ee4af8f5398b48a0",
+        "status": "idle",
+        "processType": "Process",
+        "processLoop": 2098047763728,
+        "loopClosed": true
+      }
+    ],
+    "retryTasks": [
+      {
+        "key": "ses_ee4af8f5398b48a0",
+        "loop": 2098047763728,
+        "done": false
+      }
+    ]
+  },
+  {
+    "nodeid": "tests/test_web_frontend.py::test_root_redirects_to_react_when_dist_exists",
+    "workers": [],
+    "retryTasks": []
+  }
+]

@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="6.742" timestamp="2026-11-02T09:11:06.554132+08:00" hostname="ablaze"><testcase classname="tests.test_user_cards" name="test_http_auth_attachments_owner_counts_and_terminal" time="1.609" /><testcase classname="tests.test_web_frontend" name="test_root_redirects_to_react_when_dist_exists" time="0.772"><failure message="RuntimeError: queue retry cancellation failed: Event loop is closed; Worker worker-1 process stop failed: Task &lt;Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=&lt;TaskHandle._run_coro() running at D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Lib\site-packages\anyio\_core\_tasks.py:327&gt; cb=[TaskGroup._spawn.&lt;locals&gt;.task_done() at D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:89...&#10;[truncated; full report in element text]">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002170CCA28B0&gt;
+
+    def test_root_redirects_to_react_when_dist_exists(monkeypatch):
+        monkeypatch.setattr(server, "REACT_DIST_EXISTS", True)
+&gt;       with TestClient(server.app) as client:
+             ^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_web_frontend.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.validation\ci-venv\Lib\site-packages\starlette\testclient.py:584: in __exit__
+    self.exit_stack.close()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:627: in close
+    self.__exit__(None, None, None)
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:619: in __exit__
+    raise exc
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:604: in __exit__
+    if cb(*exc_details):
+       ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:482: in _exit_wrapper
+    callback(*args, **kwds)
+.validation\ci-venv\Lib\site-packages\starlette\testclient.py:576: in wait_shutdown
+    portal.call(self.wait_shutdown)
+.validation\ci-venv\Lib\site-packages\anyio\from_thread.py:347: in call
+    return cast(T_Retval, self.start_task_soon(func, *args).result())
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:450: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+.validation\ci-venv\Lib\site-packages\anyio\from_thread.py:272: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.validation\ci-venv\Lib\site-packages\starlette\testclient.py:624: in wait_shutdown
+    await receive()
+.validation\ci-venv\Lib\site-packages\starlette\testclient.py:614: in receive
+    self.task.result()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:443: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\concurrent\futures\_base.py:395: in __get_result
+    raise self._exception
+.validation\ci-venv\Lib\site-packages\anyio\from_thread.py:272: in _call_func
+    retval = await retval_or_awaitable
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.validation\ci-venv\Lib\site-packages\starlette\testclient.py:589: in lifespan
+    await self.app(scope, self.stream_receive.receive, self.stream_send.send)
+.validation\ci-venv\Lib\site-packages\fastapi\applications.py:1181: in __call__
+    await lifespan(
+.validation\ci-venv\Lib\site-packages\fastapi\telemetry\_runtime.py:238: in lifespan
+    await app(scope, wrapped_receive, wrapped_send)
+.validation\ci-venv\Lib\site-packages\starlette\applications.py:96: in __call__
+    await self.middleware_stack(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\starlette\middleware\errors.py:151: in __call__
+    await self.app(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\fastapi\telemetry\_asgi.py:151: in __call__
+    await self.app(scope, receive, send)
+packages\automation\api.py:47: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:4273: in __call__
+    await self.app(scope, receive, send)
+packages\web\server.py:2302: in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\web\server.py:476: in __call__
+    await self.app(scope, receive, response if scope['type'] == 'http' else send)
+packages\jobs\maintenance.py:88: in __call__
+    await self.app(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\starlette\middleware\exceptions.py:49: in __call__
+    await self.app(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py:18: in __call__
+    await self.app(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\starlette\routing.py:683: in __call__
+    await self.middleware_stack(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:2798: in app
+    await self.lifespan(scope, receive, send)
+.validation\ci-venv\Lib\site-packages\starlette\routing.py:661: in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+.validation\ci-venv\Lib\site-packages\fastapi\routing.py:248: in merged_lifespan
+    async with original_context(app) as maybe_original_state:
+               ^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+packages\web\server.py:239: in lifespan
+    async with _owned_lifespan(app, owner):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py:221: in __aexit__
+    await anext(self.gen)
+packages\web\server.py:424: in _owned_lifespan
+    await worker.shutdown_all()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+recovery_drain_timeout = 10.0, mark_legal_offline = False
+preserve_legal_running_session_ids = (), mark_legal_offline_session_ids = ()
+legal_state_source = 'pan/main-exit'
+
+    async def shutdown_all(
+        *, recovery_drain_timeout: float = 10.0,
+        mark_legal_offline: bool = False,
+        preserve_legal_running_session_ids: list[str] | tuple[str, ...] = (),
+        mark_legal_offline_session_ids: list[str] | tuple[str, ...] = (),
+        legal_state_source: str = "pan/main-exit",
+    ):
+        """关闭所有 worker 的 cbc 进程树 + takeover 终端。
+    
+        使用 psutil 递归杀进程树（避免 node.exe 等孤儿进程）。
+        """
+        errors: list[str] = []
+        preserve_ids = set(preserve_legal_running_session_ids)
+        offline_ids = set(mark_legal_offline_session_ids)
+        legal_state_source = str(legal_state_source or "pan/main-exit")
+    
+        for task in list(_queue_retry_tasks.values()):
+            try:
+                await _cancel_worker_task(task)
+            except Exception as exc:
+                errors.append(f"queue retry cancellation failed: {exc}")
+        _queue_retry_tasks.clear()
+        # Recovery tasks are handled by drain_recoveries' bounded wait (a task
+        # cancelled mid real subprocess spawn may never finish on the Windows
+        # Proactor loop; awaiting it unboundedly deadlocks the shutdown).  If the
+        # caller skipped drain_recoveries, fall back to a best-effort bounded
+        # drain here so shutdown can never block indefinitely on them.
+        try:
+            await drain_recoveries(timeout=recovery_drain_timeout)
+        except Exception as exc:
+            errors.append(f"recovery drain failed: {exc}")
+        ids = list(workers.keys())
+        for wid in ids:
+            w = workers.get(wid)
+            if not w:
+                continue
+            worker_errors_before = len(errors)
+            if not mark_legal_offline or w.session_id in preserve_ids:
+                try:
+                    await _detect_offline_exit(w, _offline.owner(w), legal_state_source + "/unauthorized-or-preserved")
+                except Exception as exc:
+                    errors.append(f"Worker {wid} Illegal commit failed: {exc}")
+            stop_steps = (
+                (w._watchdog_task, "watchdog cancellation"),
+                (w._consume_task, "consumer cancellation"),
+                (w._stdout_task, "stdout cancellation"),
+                (w._interrupt_guard_task, "interrupt-guard cancellation"),
+            )
+            for task, label in stop_steps:
+                if task:
+                    try:
+                        await _cancel_worker_task(task)
+                    except Exception as exc:
+                        errors.append(f"Worker {wid} {label} failed: {exc}")
+            try:
+                await _stop_worker_tasks(w)
+            except Exception as exc:
+                errors.append(f"Worker {wid} task shutdown failed: {exc}")
+            # A1 崩溃安全：关闭前 flush 防抖缓冲的流式块
+            if w._hist_dirty:
+                try:
+                    await _flush_history_now(w)
+                except Exception as exc:
+                    errors.append(f"Worker {wid} history flush failed: {exc}")
+            try:
+                await _kill_process_tree(w)
+            except Exception as exc:
+                errors.append(f"Worker {wid} process stop failed: {exc}")
+            try:
+                await _kill_takeover_terminal(w)
+            except Exception as exc:
+                errors.append(f"Worker {wid} takeover terminal stop failed: {exc}")
+            if (mark_legal_offline and w.session_id not in preserve_ids
+                    and _runtime_stopped(w) and len(errors) == worker_errors_before):
+                try:
+                    await _finish_offline_stop(w, _offline.owner(w), legal_state_source)
+                except Exception as exc:
+                    errors.append(f"Worker {wid} legality commit failed: {exc}")
+            if (mark_legal_offline and w.session_id not in preserve_ids
+                    and _runtime_stopped(w)):
+                if not await _record_legal_worker_state(w, "offline", legal_state_source):
+                    errors.append(f"Worker {wid} legal offline state was not persisted")
+    
+        workers.clear()
+        _workers_by_session.clear()
+        _worker_generations.clear()
+        _recovery_required.clear()
+        if errors:
+&gt;           raise RuntimeError("; ".join(errors))
+E           RuntimeError: queue retry cancellation failed: Event loop is closed; Worker worker-1 process stop failed: Task &lt;Task pending name='anyio.from_thread.BlockingPortal._call_func' coro=&lt;TaskHandle._run_coro() running at D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Lib\site-packages\anyio\_core\_tasks.py:327&gt; cb=[TaskGroup._spawn.&lt;locals&gt;.task_done() at D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci-venv\Lib\site-packages\anyio\_backends\_asyncio.py:894]&gt; got Future &lt;Future pending&gt; attached to a different loop
+
+packages\core\worker.py:12087: RuntimeError</failure></testcase><testcase classname="tests.test_terminal_archive_scope_ma" name="test_real_external_kill_is_exited_and_archivable" time="2.336"><failure message="AssertionError: assert ('running' == 'exited'&#10;  &#10;  - exited&#10;  + running)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6807/test_real_external_kill_is_exi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002170DA6F890&gt;
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="real retained Windows process handle")
+    def test_real_external_kill_is_exited_and_archivable(tmp_path, monkeypatch):
+        repo = Path(__file__).resolve().parents[1]
+        if not (repo / "packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless/package.json").exists():
+            pytest.skip("sidecar dependencies unavailable")
+        from packages.core.terminal.identity import kill_verified
+        from packages.core.terminal.win_pipe import ProcessIdentityHandle
+        from packages.core.terminal.contracts import ProcessStatus
+        import psutil
+        service = TerminalService(tmp_path)
+        view = service.create()
+        tid = view["terminal_id"]
+        state = service._states[tid]
+        children = []
+        try:
+            for child in psutil.Process(state.runner_pid).children(recursive=True):
+                handle = ProcessIdentityHandle.open(child.pid)
+                if handle is not None:
+                    children.append(handle)
+            result = kill_verified(state.runner_pid, state.runner_filetime)
+            assert result.killed is True
+            # A fresh lookup can fail after death; the original retained handle is authoritative.
+            monkeypatch.setattr(service, "_identity_evidence", lambda *_args: {"status": "unattributable"})
+            deadline = time.monotonic() + 5
+            while not service._spawn_handle_exit_evidence(state).get("exited"):
+                assert time.monotonic() &lt; deadline
+                time.sleep(.05)
+            dead = service.get(tid)
+&gt;           assert dead["status"] == "exited" and dead["cleanup_pending"] is True
+E           AssertionError: assert ('running' == 'exited'
+E             
+E             - exited
+E             + running)
+
+tests\test_terminal_archive_scope_ma.py:107: AssertionError</failure></testcase></testsuite></testsuites>

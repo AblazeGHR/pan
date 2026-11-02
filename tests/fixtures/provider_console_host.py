@@ -49,21 +49,24 @@ async def main():
         evidence['child'] = first
         child_handle = kernel.OpenProcess(0x100000, False, first['pid'])
         assert child_handle, ctypes.get_last_error()
-        assert bool(first['hwnd']) == (mode == 'legacy'), evidence
-        if mode == 'legacy':
-            # The negative control deliberately omits CREATE_NO_WINDOW. A
-            # classic console must be observable; a pseudoconsole has an HWND
-            # but is not itself a visible terminal window.
-            assert first['window_class'] in {'ConsoleWindowClass', 'PseudoConsoleWindow'}, evidence
-            if first['window_class'] == 'ConsoleWindowClass' and first['visible']:
-                assert any(w['hwnd'] == first['hwnd'] and w['pid'] == first['window_pid']
-                           for w in first['desktop_windows']), evidence
-            else:
-                assert not first['desktop_windows'], evidence
-        else:
-            assert not first['desktop_windows'], evidence
         second = (await provider.request('call', payload))['structuredContent']
-        assert second == first, {'first': first, 'second': second, 'mode': mode, 'launcher': launcher}
+        evidence['second_child'] = second
+        # The provider process and its console must be the same on both calls.
+        # Desktop enumeration is an observation, not immutable provider state:
+        # Windows can add its UAC input-indicator overlay between requests.
+        identity_fields = ('pid', 'ppid', 'hwnd', 'visible', 'window_pid', 'window_class')
+        assert {k: second[k] for k in identity_fields} == {k: first[k] for k in identity_fields}, evidence
+        for observed in (first, second):
+            assert bool(observed['hwnd']) == (mode == 'legacy'), evidence
+            if mode == 'legacy':
+                assert observed['window_class'] in {'ConsoleWindowClass', 'PseudoConsoleWindow'}, evidence
+                if observed['window_class'] == 'ConsoleWindowClass' and observed['visible']:
+                    assert any(w['hwnd'] == observed['hwnd'] and w['pid'] == observed['window_pid']
+                               for w in observed['desktop_windows']), evidence
+                else:
+                    assert not observed['desktop_windows'], evidence
+            else:
+                assert not observed['desktop_windows'], evidence
     finally:
         await provider.close()
         assert provider.process.returncode is not None

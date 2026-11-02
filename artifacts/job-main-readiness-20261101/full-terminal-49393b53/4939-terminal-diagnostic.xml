@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.924" timestamp="2026-11-02T09:11:25.388346+08:00" hostname="ablaze"><testcase classname="tests.test_terminal_archive_scope_ma" name="test_real_external_kill_is_exited_and_archivable" time="2.331"><failure message="AssertionError: {'view': {'terminal_id': 'term_14d7d37240c4420a', 'status': 'running', 'archived': False, 'cleanup_pending': False, .....'client_id': 'pan-owner-term_14d7d37240c4420a', 'interval_seconds': 1.0, 'grace_seconds': 2.0, 'beats': 0, ...}}, ...}}&#10;assert ('running' == 'exited'&#10;  &#10;  - exited&#10;  + running)">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6808/test_real_external_kill_is_exi0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002B56EBDB820&gt;
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="real retained Windows process handle")
+    def test_real_external_kill_is_exited_and_archivable(tmp_path, monkeypatch):
+        repo = Path(__file__).resolve().parents[1]
+        if not (repo / "packages/core/terminal/emulator_sidecar/node_modules/@xterm/headless/package.json").exists():
+            pytest.skip("sidecar dependencies unavailable")
+        from packages.core.terminal.identity import kill_verified
+        from packages.core.terminal.win_pipe import ProcessIdentityHandle
+        from packages.core.terminal.contracts import ProcessStatus
+        import psutil
+        service = TerminalService(tmp_path)
+        view = service.create()
+        tid = view["terminal_id"]
+        state = service._states[tid]
+        children = []
+        try:
+            for child in psutil.Process(state.runner_pid).children(recursive=True):
+                handle = ProcessIdentityHandle.open(child.pid)
+                if handle is not None:
+                    children.append(handle)
+            result = kill_verified(state.runner_pid, state.runner_filetime)
+            assert result.killed is True
+            # A fresh lookup can fail after death; the original retained handle is authoritative.
+            monkeypatch.setattr(service, "_identity_evidence", lambda *_args: {"status": "unattributable"})
+            deadline = time.monotonic() + 5
+            while not service._spawn_handle_exit_evidence(state).get("exited"):
+                assert time.monotonic() &lt; deadline
+                time.sleep(.05)
+            dead = service.get(tid)
+&gt;           assert dead["status"] == "exited" and dead["cleanup_pending"] is True, {"view": dead, "handle": service._spawn_handle_exit_evidence(state), "wrapper": service._spawn_wrapper_exit_evidence(state), "diagnostics": service.describe()}
+E           AssertionError: {'view': {'terminal_id': 'term_14d7d37240c4420a', 'status': 'running', 'archived': False, 'cleanup_pending': False, .....'client_id': 'pan-owner-term_14d7d37240c4420a', 'interval_seconds': 1.0, 'grace_seconds': 2.0, 'beats': 0, ...}}, ...}}
+E           assert ('running' == 'exited'
+E             
+E             - exited
+E             + running)
+
+tests\test_terminal_archive_scope_ma.py:107: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,5 @@
+{
+  "tests/fixtures/provider_console_host.py": "76bee2d7d86755dc1fd4c8638b7e9df1b2ef0fe0fc22d20f79962eab6628e61a",
+  "tests/test_user_cards.py": "d70ea6c5267b460594703bd22d7aaa726dc3ed81973031c68286ac6287a29f4f",
+  "tests/test_terminal_archive_scope_ma.py": "db4fb56fd56307536ec2dc1cb94144bb49b57fd63e249f3e0a3baf15080465b9"
+}

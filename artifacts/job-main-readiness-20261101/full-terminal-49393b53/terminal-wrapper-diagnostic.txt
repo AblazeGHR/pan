@@ -1,0 +1,92 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\job-main-readiness-20261101
+[
+  {
+    "view": {
+      "terminal_id": "term_0d0841043bee4cd9",
+      "status": "running",
+      "archived": false,
+      "cleanup_pending": false,
+      "owner": "service",
+      "rows": 24,
+      "cols": 80,
+      "pid": 52664,
+      "process_created_at_filetime": "134380555323706552",
+      "detached": false,
+      "detached_at": null,
+      "scope": {
+        "workspace_id": null,
+        "session_id": null
+      },
+      "exit": {
+        "code": null,
+        "reason": null
+      },
+      "lease_grace_seconds": 2.0,
+      "created_by": "service",
+      "created_at": 1793581932.3370683,
+      "updated_at": 1793581932.6461887,
+      "attached": true,
+      "authorization": "scope-is-metadata-not-permission",
+      "heartbeat": {
+        "client_id": "pan-owner-term_0d0841043bee4cd9",
+        "beats": 0,
+        "lost": false
+      }
+    },
+    "handle": {
+      "exited": true,
+      "source": "runner-retained-handle",
+      "detail": "same-handle-signaled"
+    },
+    "wrapper": {
+      "present": true,
+      "exited": false,
+      "returncode": null,
+      "spawn_pid": 36860,
+      "source": "self-spawn-handle"
+    },
+    "diagnostics": {
+      "root_exists": true,
+      "capacity": 8,
+      "attached": [
+        "term_0d0841043bee4cd9"
+      ],
+      "heartbeats": {
+        "term_0d0841043bee4cd9": {
+          "client_id": "pan-owner-term_0d0841043bee4cd9",
+          "interval_seconds": 1.0,
+          "grace_seconds": 2.0,
+          "beats": 0,
+          "failures": 0,
+          "consecutive_failures": 0,
+          "last_error_type": null,
+          "lost": false,
+          "running": true
+        }
+      },
+      "shutdown_done": false,
+      "events": [
+        {
+          "event": "create-record-persisted",
+          "detail": "term_0d0841043bee4cd9"
+        },
+        {
+          "event": "terminal-running",
+          "detail": "term_0d0841043bee4cd9"
+        },
+        {
+          "event": "reconcile-spawn-wrapper-still-exiting",
+          "detail": "term_0d0841043bee4cd9"
+        }
+      ]
+    }
+  }
+]
+Traceback (most recent call last):
+  File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\readiness\terminal_diagnostic.py", line 6, in <module>
+    try:test_real_external_kill_is_exited_and_archivable(Path(d),m)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\test_terminal_archive_scope_ma.py", line 107, in test_real_external_kill_is_exited_and_archivable
+    assert dead["status"] == "exited" and dead["cleanup_pending"] is True, {"view": dead, "handle": service._spawn_handle_exit_evidence(state), "wrapper": service._spawn_wrapper_exit_evidence(state), "diagnostics": service.describe()}
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'view': {'terminal_id': 'term_0d0841043bee4cd9', 'status': 'running', 'archived': False, 'cleanup_pending': False, 'owner': 'service', 'rows': 24, 'cols': 80, 'pid': 52664, 'process_created_at_filetime': '134380555323706552', 'detached': False, 'detached_at': None, 'scope': {'workspace_id': None, 'session_id': None}, 'exit': {'code': None, 'reason': None}, 'lease_grace_seconds': 2.0, 'created_by': 'service', 'created_at': 1793581932.3370683, 'updated_at': 1793581932.6461887, 'attached': True, 'authorization': 'scope-is-metadata-not-permission', 'heartbeat': {'client_id': 'pan-owner-term_0d0841043bee4cd9', 'beats': 0, 'lost': False}}, 'handle': {'exited': True, 'source': 'runner-retained-handle', 'detail': 'same-handle-signaled'}, 'wrapper': {'present': True, 'exited': False, 'returncode': None, 'spawn_pid': 36860, 'source': 'self-spawn-handle'}, 'diagnostics': {'root_exists': True, 'capacity': 8, 'attached': ['term_0d0841043bee4cd9'], 'heartbeats': {'term_0d0841043bee4cd9': {'client_id': 'pan-owner-term_0d0841043bee4cd9', 'interval_seconds': 1.0, 'grace_seconds': 2.0, 'beats': 0, 'failures': 0, 'consecutive_failures': 0, 'last_error_type': None, 'lost': False, 'running': True}}, 'shutdown_done': False, 'events': [{'event': 'create-record-persisted', 'detail': 'term_0d0841043bee4cd9'}, {'event': 'terminal-running', 'detail': 'term_0d0841043bee4cd9'}, {'event': 'reconcile-spawn-wrapper-still-exiting', 'detail': 'term_0d0841043bee4cd9'}]}}

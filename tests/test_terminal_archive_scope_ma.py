@@ -103,6 +103,13 @@ def test_real_external_kill_is_exited_and_archivable(tmp_path, monkeypatch):
         while not service._spawn_handle_exit_evidence(state).get("exited"):
             assert time.monotonic() < deadline
             time.sleep(.05)
+        # Python's venv launcher may be a separate wrapper. Runner death does
+        # not prove that wrapper has exited; GET must retain the owner meanwhile.
+        while service._spawn_wrapper_exit_evidence(state).get("exited") is not True:
+            assert service._store().exists(tid)
+            assert state.runner_identity_handle is not None
+            assert time.monotonic() < deadline, service._spawn_wrapper_exit_evidence(state)
+            time.sleep(.05)
         dead = service.get(tid)
         assert dead["status"] == "exited" and dead["cleanup_pending"] is True
         assert service._store().exists(tid)
