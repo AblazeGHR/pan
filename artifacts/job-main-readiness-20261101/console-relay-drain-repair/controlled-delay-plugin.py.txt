@@ -1,0 +1,26 @@
+import subprocess
+import pytest
+@pytest.fixture(autouse=True)
+def delay_final_relay_append(monkeypatch,request):
+ if request.node.name!='test_relay_forwards_own_and_child_output_and_rotates':yield;return
+ original=subprocess.run
+ code="""import runpy,sys,time,os
+from pathlib import Path
+from packages.core import console_logs
+append=console_logs.RotatingByteLog._append
+def delayed(self,data):
+ if b'relay-status=' in data:
+  Path(os.environ['RELAY_APPEND_MARKER']).write_text('entered')
+  time.sleep(.6)
+  result=append(self,data)
+  Path(os.environ['RELAY_APPEND_MARKER']).write_text('completed')
+  return result
+ return append(self,data)
+console_logs.RotatingByteLog._append=delayed
+runpy.run_path(sys.argv[1],run_name='__main__')
+"""
+ def run(argv,*args,**kwargs):
+  if len(argv)==2 and str(argv[1]).endswith('console_log_host.py'):argv=[argv[0],'-c',code,str(argv[1])]
+  return original(argv,*args,**kwargs)
+ monkeypatch.setattr(subprocess,'run',run)
+ yield

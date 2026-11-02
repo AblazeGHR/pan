@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.645" timestamp="2026-11-03T04:38:48.447555+08:00" hostname="ablaze"><testcase classname="tests.test_console_log_rotation" name="test_relay_forwards_own_and_child_output_and_rotates" time="0.423"><failure message="AssertionError: no relay-status line in ['host-00088-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'host-00089-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'child-stdout-line']">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6864/test_relay_forwards_own_and_ch0')
+
+    def test_relay_forwards_own_and_child_output_and_rotates(tmp_path):
+        out_path = tmp_path / "data" / "logs" / "pan-console.out.log"
+        err_path = tmp_path / "data" / "logs" / "pan-console.err.log"
+        out_path.parent.mkdir(parents=True)
+        completed = subprocess.run(
+            [sys.executable, str(HOST)],
+            cwd=str(ROOT),
+            env=_env(PAN_CONSOLE_OUT_LOG=str(out_path),
+                     PAN_CONSOLE_ERR_LOG=str(err_path),
+                     PAN_TEST_CONSOLE_MAX_BYTES="2048",
+                     PAN_TEST_CONSOLE_BACKUPS="3",
+                     PAN_TEST_CONSOLE_LINES="90",
+                     PAN_TEST_CONSOLE_PAYLOAD="40"),
+            capture_output=True, text=True, timeout=180, **command_window_options())
+    
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        out_lines = _all_lines(out_path)
+&gt;       status = _relay_status(out_lines)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_console_log_rotation.py:178: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+lines = ['host-00000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'host-00001-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'host-0...xx', 'host-00004-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'host-00005-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', ...]
+
+    def _relay_status(lines: list[str]) -&gt; dict:
+        for line in reversed(lines):
+            if line.startswith("relay-status="):
+                return json.loads(line[len("relay-status="):])
+&gt;       raise AssertionError(f"no relay-status line in {lines[-3:]}")
+E       AssertionError: no relay-status line in ['host-00088-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'host-00089-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'child-stdout-line']
+
+tests\test_console_log_rotation.py:212: AssertionError</failure></testcase></testsuite></testsuites>

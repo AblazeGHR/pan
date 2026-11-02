@@ -100,6 +100,15 @@ class RotatingByteLog:
     def last_write_at(self) -> float:
         return self._last_write_at
 
+    def idle_for(self, now: float) -> float:
+        """A write holding the lock is still pending, regardless of its age."""
+        if not self._lock.acquire(blocking=False):
+            return 0.0
+        try:
+            return max(0.0, now - self._last_write_at)
+        finally:
+            self._lock.release()
+
     def write(self, data: bytes) -> None:
         """Append one chunk.  Never raises; failures are recorded in status.
 
@@ -113,7 +122,6 @@ class RotatingByteLog:
         if not data:
             return
         with self._lock:
-            self._last_write_at = time.monotonic()
             try:
                 with cross_process_file_lock(self._lock_path()):
                     self._rotate_locked()
@@ -128,6 +136,11 @@ class RotatingByteLog:
                 # handler cannot double-append.
                 self._fail(exc)
                 self._append(data)
+            finally:
+                # Quiet time begins after append/rotation completes. A slow
+                # file operation must not make shutdown declare its own
+                # in-flight chunk drained and kill the daemon relay thread.
+                self._last_write_at = time.monotonic()
 
     def _lock_path(self) -> Path:
         return self.path.with_name(self.path.name + ".lock")
@@ -379,7 +392,7 @@ def shutdown() -> None:
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
         now = time.monotonic()
-        idle = now - max(writer.last_write_at() for writer in state["writers"].values())
+        idle = min(writer.idle_for(now) for writer in state["writers"].values())
         if idle >= 0.25:
             return
         time.sleep(0.01)

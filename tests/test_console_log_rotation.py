@@ -197,6 +197,56 @@ def test_install_without_launcher_environment_is_a_noop():
     assert console_logs.status()["active"] is False
 
 
+@pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
+def test_shutdown_waits_for_inflight_tail_append(tmp_path, stream_name):
+    """A busy append is not an idle pipe, even after the quiet interval."""
+    out_path = tmp_path / "pan-console.out.log"
+    err_path = tmp_path / "pan-console.err.log"
+    phase = tmp_path / "append-phase.txt"
+    code = r"""
+import os, subprocess, sys, threading, time
+from pathlib import Path
+from packages.core import console_bootstrap, console_logs
+
+entered = threading.Event()
+append = console_logs.RotatingByteLog._append
+phase = Path(sys.argv[2])
+def delayed(self, data):
+    if b'shutdown-tail-marker' in data:
+        phase.write_text('entered', encoding='utf-8')
+        entered.set()
+        time.sleep(0.6)
+        result = append(self, data)
+        phase.write_text('completed' if result else 'append-failed', encoding='utf-8')
+        return result
+    return append(self, data)
+console_logs.RotatingByteLog._append = delayed
+console_bootstrap.open_console_logs()
+assert console_logs.install(config={'logging': {'console_max_bytes': 2048, 'console_backup_count': 3}})
+child = subprocess.run([sys.executable, '-c',
+    "import sys; print('child-stdout-line', flush=True); print('child-stderr-line', file=sys.stderr, flush=True)"],
+    stdin=subprocess.DEVNULL, timeout=30)
+assert child.returncode == 0
+stream = getattr(sys, sys.argv[1])
+print('shutdown-tail-marker', file=stream, flush=True)
+assert entered.wait(5), 'relay never began the final append'
+console_logs.shutdown()
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code, stream_name, str(phase)],
+        cwd=str(ROOT),
+        env=_env(PAN_CONSOLE_OUT_LOG=str(out_path),
+                 PAN_CONSOLE_ERR_LOG=str(err_path)),
+        capture_output=True, text=True, timeout=180, **command_window_options())
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert phase.read_text(encoding="utf-8") == "completed"
+    assert _all_lines(out_path).count("child-stdout-line") == 1
+    assert _all_lines(err_path).count("child-stderr-line") == 1
+    tail = out_path if stream_name == "stdout" else err_path
+    assert _all_lines(tail).count("shutdown-tail-marker") == 1
+    assert "shutdown-tail-marker" not in completed.stdout + completed.stderr
+
+
 def test_default_config_bounds_console_and_session_logs():
     logging_cfg = pan_config.DEFAULT_CONFIG["logging"]
     assert logging_cfg["console_max_bytes"] == 20 * 1024 * 1024

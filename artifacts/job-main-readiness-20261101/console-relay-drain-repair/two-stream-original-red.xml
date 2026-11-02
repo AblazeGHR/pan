@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.025" timestamp="2026-11-03T04:40:06.663069+08:00" hostname="ablaze"><testcase classname="tests.test_console_log_rotation" name="test_shutdown_waits_for_inflight_tail_append[stdout]" time="0.412"><failure message="AssertionError: assert 'entered' == 'completed'&#10;  &#10;  - completed&#10;  + entered">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6865/test_shutdown_waits_for_inflig0')
+stream_name = 'stdout'
+
+    @pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
+    def test_shutdown_waits_for_inflight_tail_append(tmp_path, stream_name):
+        """A busy append is not an idle pipe, even after the quiet interval."""
+        out_path = tmp_path / "pan-console.out.log"
+        err_path = tmp_path / "pan-console.err.log"
+        phase = tmp_path / "append-phase.txt"
+        code = r"""
+    import os, subprocess, sys, threading, time
+    from pathlib import Path
+    from packages.core import console_bootstrap, console_logs
+    
+    entered = threading.Event()
+    append = console_logs.RotatingByteLog._append
+    phase = Path(sys.argv[2])
+    def delayed(self, data):
+        if b'shutdown-tail-marker' in data:
+            phase.write_text('entered', encoding='utf-8')
+            entered.set()
+            time.sleep(0.6)
+            result = append(self, data)
+            phase.write_text('completed' if result else 'append-failed', encoding='utf-8')
+            return result
+        return append(self, data)
+    console_logs.RotatingByteLog._append = delayed
+    console_bootstrap.open_console_logs()
+    assert console_logs.install(config={'logging': {'console_max_bytes': 2048, 'console_backup_count': 3}})
+    child = subprocess.run([sys.executable, '-c',
+        "import sys; print('child-stdout-line', flush=True); print('child-stderr-line', file=sys.stderr, flush=True)"],
+        stdin=subprocess.DEVNULL, timeout=30)
+    assert child.returncode == 0
+    stream = getattr(sys, sys.argv[1])
+    print('shutdown-tail-marker', file=stream, flush=True)
+    assert entered.wait(5), 'relay never began the final append'
+    console_logs.shutdown()
+    """
+        completed = subprocess.run(
+            [sys.executable, "-c", code, stream_name, str(phase)],
+            cwd=str(ROOT),
+            env=_env(PAN_CONSOLE_OUT_LOG=str(out_path),
+                     PAN_CONSOLE_ERR_LOG=str(err_path)),
+            capture_output=True, text=True, timeout=180, **command_window_options())
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+&gt;       assert phase.read_text(encoding="utf-8") == "completed"
+E       AssertionError: assert 'entered' == 'completed'
+E         
+E         - completed
+E         + entered
+
+tests\test_console_log_rotation.py:242: AssertionError</failure></testcase><testcase classname="tests.test_console_log_rotation" name="test_shutdown_waits_for_inflight_tail_append[stderr]" time="0.401"><failure message="AssertionError: assert 'entered' == 'completed'&#10;  &#10;  - completed&#10;  + entered">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6865/test_shutdown_waits_for_inflig1')
+stream_name = 'stderr'
+
+    @pytest.mark.parametrize("stream_name", ["stdout", "stderr"])
+    def test_shutdown_waits_for_inflight_tail_append(tmp_path, stream_name):
+        """A busy append is not an idle pipe, even after the quiet interval."""
+        out_path = tmp_path / "pan-console.out.log"
+        err_path = tmp_path / "pan-console.err.log"
+        phase = tmp_path / "append-phase.txt"
+        code = r"""
+    import os, subprocess, sys, threading, time
+    from pathlib import Path
+    from packages.core import console_bootstrap, console_logs
+    
+    entered = threading.Event()
+    append = console_logs.RotatingByteLog._append
+    phase = Path(sys.argv[2])
+    def delayed(self, data):
+        if b'shutdown-tail-marker' in data:
+            phase.write_text('entered', encoding='utf-8')
+            entered.set()
+            time.sleep(0.6)
+            result = append(self, data)
+            phase.write_text('completed' if result else 'append-failed', encoding='utf-8')
+            return result
+        return append(self, data)
+    console_logs.RotatingByteLog._append = delayed
+    console_bootstrap.open_console_logs()
+    assert console_logs.install(config={'logging': {'console_max_bytes': 2048, 'console_backup_count': 3}})
+    child = subprocess.run([sys.executable, '-c',
+        "import sys; print('child-stdout-line', flush=True); print('child-stderr-line', file=sys.stderr, flush=True)"],
+        stdin=subprocess.DEVNULL, timeout=30)
+    assert child.returncode == 0
+    stream = getattr(sys, sys.argv[1])
+    print('shutdown-tail-marker', file=stream, flush=True)
+    assert entered.wait(5), 'relay never began the final append'
+    console_logs.shutdown()
+    """
+        completed = subprocess.run(
+            [sys.executable, "-c", code, stream_name, str(phase)],
+            cwd=str(ROOT),
+            env=_env(PAN_CONSOLE_OUT_LOG=str(out_path),
+                     PAN_CONSOLE_ERR_LOG=str(err_path)),
+            capture_output=True, text=True, timeout=180, **command_window_options())
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+&gt;       assert phase.read_text(encoding="utf-8") == "completed"
+E       AssertionError: assert 'entered' == 'completed'
+E         
+E         - completed
+E         + entered
+
+tests\test_console_log_rotation.py:242: AssertionError</failure></testcase></testsuite></testsuites>
