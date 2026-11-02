@@ -1,6 +1,7 @@
 """Durable time-based Session messages through canonical Job/Creator/Trigger."""
 import asyncio
 import copy
+import time
 from datetime import datetime, timedelta, timezone
 import pytest
 from packages.core import background_jobs as jobs, session as sess, worker
@@ -51,11 +52,23 @@ def replace_clock(h, creator, rules):
     return response.json()['result']['object']
 
 
-def test_once_delay_persists_and_dispatches_via_send_semantics(h):
-    at=point(1);text='////by agent : ses_source | caller\nrun report'
+@pytest.mark.parametrize('setup_delay', [0, 1.2])
+def test_once_delay_persists_and_dispatches_via_send_semantics(h, monkeypatch, setup_delay):
+    # Creator initialization and the explicit tick must share one test clock.
+    # Real HTTP setup can outlast the one-second delay on a loaded CI host;
+    # a once rule already in the past correctly has no future occurrence.
+    base = datetime.now(timezone.utc)
+    monkeypatch.setattr(h.service.creators, 'clock', lambda: base)
+    at=timestamp(base + timedelta(seconds=1));text='////by agent : ses_source | caller\nrun report'
+    time.sleep(setup_delay)
     job,creator,_=scheduled(h,[{'ruleId':'once','type':'once','at':at}],text=text,description='T-043 once')
     assert h.client.get('/api/jobs/'+job['id']).json()['description']=='T-043 once'
     assert h.service.creators.get(creator['id'])['config']['rules'][0]['at']==at
+    assert h.service.creators.get(creator['id'])['cursor']['rules']['once']['nextFireAt']==at
+    fire(h.service, timestamp(base))
+    before=h.service.final.get(job['id'])
+    assert not before['runs'] and not before['attempts'] and not before['effects']
+    assert not sess.get('ses_a').queue_pending
     fire(h.service,at)
     state=h.service.final.get(job['id'])
     assert len(state['runs'])==len(state['attempts'])==len(state['effects'])==1

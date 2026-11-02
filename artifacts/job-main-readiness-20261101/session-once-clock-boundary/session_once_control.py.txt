@@ -1,0 +1,14 @@
+import time
+import pytest
+
+@pytest.fixture(autouse=True)
+def delayed_configuration(request, monkeypatch):
+    if request.node.name != 'test_once_delay_persists_and_dispatches_via_send_semantics':
+        return
+    target = request.module
+    original = target.scheduled
+    def scheduled(*args, **kwargs):
+        time.sleep(1.2)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(target, 'scheduled', scheduled)
+

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="3.474" timestamp="2026-11-03T07:31:46.604360+08:00" hostname="ablaze"><testcase classname="tests.test_session_message_jobs" name="test_once_delay_persists_and_dispatches_via_send_semantics" time="2.795"><failure message="assert 0 == 1&#10; +  where 0 = len([])">h = namespace(client=&lt;httpx.Client object at 0x0000021A44CC6270&gt;, service=&lt;packages.jobs.final_service.FinalService object...cation_settings={'browser': False, 'system': False})}, app=&lt;fastapi.applications.FastAPI object at 0x0000021A4495F620&gt;)
+
+    def test_once_delay_persists_and_dispatches_via_send_semantics(h):
+        at=point(1);text='////by agent : ses_source | caller\nrun report'
+        job,creator,_=scheduled(h,[{'ruleId':'once','type':'once','at':at}],text=text,description='T-043 once')
+        assert h.client.get('/api/jobs/'+job['id']).json()['description']=='T-043 once'
+        assert h.service.creators.get(creator['id'])['config']['rules'][0]['at']==at
+        fire(h.service,at)
+        state=h.service.final.get(job['id'])
+&gt;       assert len(state['runs'])==len(state['attempts'])==len(state['effects'])==1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests\test_session_message_jobs.py:61: AssertionError</failure></testcase></testsuite></testsuites>
