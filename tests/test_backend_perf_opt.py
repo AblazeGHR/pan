@@ -247,9 +247,12 @@ def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(mo
         raise RuntimeError("desktop sender failed")
 
     broadcasts = []
+    idle = asyncio.Event()
 
     async def fake_bcast(data):
         broadcasts.append(data)
+        if data.get("type") == "worker.status" and data.get("status") == "idle":
+            idle.set()
 
     saved = []
 
@@ -262,16 +265,35 @@ def test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification(mo
     monkeypatch.setattr(_sess, "_save_body", fake_save)
     notifications.set_system_sender(slow_sender)
     try:
-        w.process = MockProcess([_assistant_event(text="hi"), _result_event(result="hi")])
-
         async def scenario():
+            eof = asyncio.Event()
+
+            class ResidentProcess(MockProcess):
+                async def read(self, n=-1):
+                    if self._events:
+                        return self._events.pop(0)
+                    await eof.wait()
+                    self.returncode = 0
+                    return b""
+
+                readline = read
+
+            w.process = ResidentProcess([_assistant_event(text="hi"), _result_event(result="hi")])
             started = time.perf_counter()
-            await worker._read_stdout(w)
-            elapsed = time.perf_counter() - started
-            assert calls == [], "terminal completion must precede slow sender completion"
-            # Let the background sender finish so failure handling is observed.
-            await asyncio.sleep(0.25)
-            return elapsed
+            reader = asyncio.create_task(worker._read_stdout(w))
+            try:
+                await asyncio.wait_for(idle.wait(), timeout=1)
+                elapsed = time.perf_counter() - started
+                assert w.status == "idle" and w._terminal_handled
+                assert not reader.done() and w.process.returncode is None
+                assert calls == [], "terminal completion must precede slow sender completion"
+                # Observe result/idle while the provider pipe remains resident;
+                # EOF/process retirement is a separate lifecycle boundary.
+                await asyncio.sleep(0.25)
+                return elapsed
+            finally:
+                eof.set()
+                await reader
 
         elapsed = asyncio.run(scenario())
         assert elapsed < 0.12, f"terminal path waited for notification: {elapsed:.3f}s"

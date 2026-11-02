@@ -1,0 +1,24 @@
+import asyncio,json,os,time
+from pathlib import Path
+import pytest
+@pytest.fixture(autouse=True)
+def inject_boundary(monkeypatch,request):
+ if request.node.name!='test_terminal_result_and_idle_do_not_wait_for_slow_or_failed_notification':yield;return
+ from packages.core import worker,notifications
+ calls=[]
+ if os.environ['BOUNDARY_CONTROL']=='eof':
+  async def slow_cleanup(w):
+   assert w.worker_id=='worker-t' and w.process.pid==1000
+   calls.append('eof-only-cleanup')
+   await asyncio.sleep(.15)
+   w.process.returncode=0
+  monkeypatch.setattr(worker,'_kill_process_tree',slow_cleanup)
+ else:
+  original=notifications.dispatch_completion_nonblocking
+  def blocked(*a,**k):
+   calls.append('blocking-notification')
+   time.sleep(.15)
+   return original(*a,**k)
+  monkeypatch.setattr(notifications,'dispatch_completion_nonblocking',blocked)
+ try:yield
+ finally:Path(os.environ['BOUNDARY_CALLS']).write_text(json.dumps(calls),encoding='utf8')
