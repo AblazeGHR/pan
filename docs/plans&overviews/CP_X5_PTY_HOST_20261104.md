@@ -11,3 +11,5 @@ Windows原回归217 passed/11 skipped，后续聚焦62/5，JUnit artifacts/cp-x5
 UI门禁：TerminalPanel/NativeTerminal使用terminalWs.ts，hello即请求snapshot，须有效cursor+cursors_valid后resume。local_host明确fidelity unavailable，不自建ANSI parser；因此terminal.native当前仍false，主入口也仍平台禁用，不能宣称交互UI完成。后续最小emulator抽取应让原HeadlessEmulator通过ProcessOwner持有Node sidecar，保持原ordered bridge/applied cursor/resize与snapshot协议，不重写parser。durable detach、Rewind及secretStore后续。无React改动或浏览器验收。
 
 路径：本TA持有local_host.py、service.py薄装配分支、contracts.py local字段、专用测试/workflow；下一步emulator.py平台spawn/guard与local_host现有bridge接线，cap注册表/terminal_api gate仅在目标证据后串行开放。主服务已签收引用、main/practical均不动。
+
+R1 exact f60903afa9e1370f0a2308e884f146580a22162a / CI41677939734 三平台success：Win222/29、Linux201/50、macOS200/51（passed/skipped）。POSIX所有新增host及真实HTTPWS/宿主进程丢失测试实际执行通过。原工件见artifacts/cp-x5-pty-host/r1/ci。cap仍false，候选入口并非现有UI完整完成；下一片继续原emulator平台抽取。

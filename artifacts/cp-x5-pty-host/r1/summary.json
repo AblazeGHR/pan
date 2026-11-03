@@ -1,0 +1,14 @@
+{
+  "x5-pty-host-macos-latest": {
+    "passed": 200,
+    "skipped": 51
+  },
+  "x5-pty-host-ubuntu-latest": {
+    "passed": 201,
+    "skipped": 50
+  },
+  "x5-pty-host-windows-latest": {
+    "passed": 222,
+    "skipped": 29
+  }
+}
