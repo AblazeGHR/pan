@@ -1,0 +1,7 @@
+COMMAND start --timeout 25
+COMMAND status
+COMMAND restart --running preserve --timeout 110
+COMMAND exit --running offline --timeout 110
+COMMAND status
+COMMAND start --timeout 25
+COMMAND start

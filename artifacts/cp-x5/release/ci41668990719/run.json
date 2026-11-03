@@ -1,0 +1,305 @@
+{
+  "conclusion": "success",
+  "headSha": "dc87428e66043b22a00ab72a9de3ae03d0ef73ed",
+  "jobs": [
+    {
+      "completedAt": "2026-11-03T15:58:13Z",
+      "conclusion": "success",
+      "databaseId": 126031934116,
+      "name": "service (windows-latest)",
+      "startedAt": "2026-11-03T15:56:19Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T15:56:23Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T15:56:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:36Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T15:56:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:36Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T15:56:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:06Z",
+          "conclusion": "success",
+          "name": "Install service trial dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T15:56:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:12Z",
+          "conclusion": "success",
+          "name": "Import and collect shared contract suite",
+          "number": 5,
+          "startedAt": "2026-11-03T15:57:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:40Z",
+          "conclusion": "success",
+          "name": "Platform backend, cancellation, receipt and failure contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T15:57:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:58:06Z",
+          "conclusion": "success",
+          "name": "Native owned main, independent CLI exit, HTTP restart and lock competition",
+          "number": 7,
+          "startedAt": "2026-11-03T15:57:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:58:08Z",
+          "conclusion": "success",
+          "name": "Upload original failures and target evidence",
+          "number": 8,
+          "startedAt": "2026-11-03T15:58:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:58:08Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 15,
+          "startedAt": "2026-11-03T15:58:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:58:10Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 16,
+          "startedAt": "2026-11-03T15:58:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:58:10Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-11-03T15:58:10Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41668990719/job/126031934116"
+    },
+    {
+      "completedAt": "2026-11-03T15:57:27Z",
+      "conclusion": "success",
+      "databaseId": 126031934419,
+      "name": "service (ubuntu-latest)",
+      "startedAt": "2026-11-03T15:56:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T15:56:20Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T15:56:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:27Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T15:56:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:27Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T15:56:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:38Z",
+          "conclusion": "success",
+          "name": "Install service trial dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T15:56:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:42Z",
+          "conclusion": "success",
+          "name": "Import and collect shared contract suite",
+          "number": 5,
+          "startedAt": "2026-11-03T15:56:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:07Z",
+          "conclusion": "success",
+          "name": "Platform backend, cancellation, receipt and failure contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T15:56:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:23Z",
+          "conclusion": "success",
+          "name": "Native owned main, independent CLI exit, HTTP restart and lock competition",
+          "number": 7,
+          "startedAt": "2026-11-03T15:57:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:24Z",
+          "conclusion": "success",
+          "name": "Upload original failures and target evidence",
+          "number": 8,
+          "startedAt": "2026-11-03T15:57:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 15,
+          "startedAt": "2026-11-03T15:57:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:25Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 16,
+          "startedAt": "2026-11-03T15:57:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-11-03T15:57:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41668990719/job/126031934419"
+    },
+    {
+      "completedAt": "2026-11-03T15:57:39Z",
+      "conclusion": "success",
+      "databaseId": 126031934534,
+      "name": "service (macos-latest)",
+      "startedAt": "2026-11-03T15:56:19Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T15:56:22Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T15:56:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:35Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T15:56:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:36Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T15:56:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:47Z",
+          "conclusion": "success",
+          "name": "Install service trial dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T15:56:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:56:51Z",
+          "conclusion": "success",
+          "name": "Import and collect shared contract suite",
+          "number": 5,
+          "startedAt": "2026-11-03T15:56:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:16Z",
+          "conclusion": "success",
+          "name": "Platform backend, cancellation, receipt and failure contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T15:56:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:33Z",
+          "conclusion": "success",
+          "name": "Native owned main, independent CLI exit, HTTP restart and lock competition",
+          "number": 7,
+          "startedAt": "2026-11-03T15:57:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:34Z",
+          "conclusion": "success",
+          "name": "Upload original failures and target evidence",
+          "number": 8,
+          "startedAt": "2026-11-03T15:57:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:35Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 15,
+          "startedAt": "2026-11-03T15:57:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:35Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 16,
+          "startedAt": "2026-11-03T15:57:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T15:57:37Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 17,
+          "startedAt": "2026-11-03T15:57:35Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41668990719/job/126031934534"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/AblazeGHR/pan/actions/runs/41668990719"
+}

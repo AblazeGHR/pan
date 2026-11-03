@@ -1,0 +1,15 @@
+{
+  "sourceSha": "dc87428e66043b22a00ab72a9de3ae03d0ef73ed",
+  "trialCapabilityInjection": false,
+  "protectedPortAvoided": true,
+  "platform": "win32",
+  "declaredCapabilityUnchanged": true,
+  "httpPlatformLifecycleSupported": true,
+  "httpLifecycleStatusAvailable": true,
+  "startupCallerExitedServiceAlive": true,
+  "startupWorkerSurrogateExitedServiceAlive": true,
+  "originalRequestLookupNoReplay": true,
+  "cliRestartExitStatus": true,
+  "realCliCanonicalLockConflictUnknownNoReplay": true,
+  "portReleased": true
+}
