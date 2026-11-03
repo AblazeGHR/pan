@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity, markSessionRemovedDuringCreation } from '@/stores/sessionCreation';
 import { useEffect } from 'react';
 import { lockerRequest } from '@/views/lockerModel';
 import { wsClient } from '@/services/ws';
@@ -188,7 +189,7 @@ export function useWebSocket() {
       const sessionIds = [...new Set([
         ...(state.currentSessionId ? [state.currentSessionId] : []),
         ...Object.keys(state.liveStreamBuffers),
-      ])];
+      ])].filter(id => !isLocalSessionIdentity(id));
       const cursor = typeof wsClient.getEventCursor === 'function'
         ? wsClient.getEventCursor()
         : { eventEpoch: null, eventSeq: 0 };
@@ -875,10 +876,12 @@ export function useWebSocket() {
     unsubscribers.push(wsClient.on('session.rewind.progress', (e: StreamEvent) => {
       useSessionStore.getState().applyRewindProgress(e);
     }));
-    unsubscribers.push(wsClient.on('session.deleted', () => {
+    unsubscribers.push(wsClient.on('session.deleted', (e: StreamEvent) => {
+      if (e.sessionId) markSessionRemovedDuringCreation(e.sessionId);
       scheduleRefreshSessions();
     }));
-    unsubscribers.push(wsClient.on('sessions.deleted', () => {
+    unsubscribers.push(wsClient.on('sessions.deleted', (e: StreamEvent) => {
+      e.sessionIds?.forEach(markSessionRemovedDuringCreation);
       scheduleRefreshSessions();
     }));
     // Cold-start projection repair is an eventual metadata-only operation.

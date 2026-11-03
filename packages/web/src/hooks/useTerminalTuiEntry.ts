@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from '@/stores/sessionCreation';
 import { useEffect } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useNativeControlStore } from '@/stores/nativeControlStore';
@@ -100,7 +101,7 @@ export function useTerminalTuiEntry(
   const terminalSupported = useCapability('terminal.native');
 
   useEffect(() => {
-    if (!poll || !id || !supportsNativeTui || !terminalSupported) return;
+    if (!poll || !id || isLocalSessionIdentity(id) || !supportsNativeTui || !terminalSupported) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {

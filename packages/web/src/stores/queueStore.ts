@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from './sessionCreation';
 import { create } from 'zustand';
 import type { AgentQueueItem, MessagePart, QueueDispatchState, QueuedEdit, QueuedEditAttachment } from '@/types';
 import {
@@ -387,6 +388,7 @@ export const useQueueStore = create<QueueStore>((set, get) => {
   },
 
   loadAgentQueue: async (sessionId) => {
+    if (isLocalSessionIdentity(sessionId)) return;
     const requestSeq = (get().agentQueueLoadSeq[sessionId] ?? 0) + 1;
     set((state) => ({
       agentQueueLoadSeq: { ...state.agentQueueLoadSeq, [sessionId]: requestSeq },

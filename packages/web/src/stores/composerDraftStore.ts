@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from './sessionCreation';
 /**
  * Durable persistence for the normal chat composer's unsent draft.
  *
@@ -354,6 +355,7 @@ export function flushAllDrafts() {
 }
 
 async function flush(sessionId: string): Promise<void> {
+  if (isLocalSessionIdentity(sessionId)) return;
   const current = states.get(sessionId);
   if (!current) return;
   // One write per Session at a time.  A burst of edits during a slow request is
@@ -500,6 +502,7 @@ function adoptRevision(current: SessionDraftState, revision: number): boolean {
  * already is.  A failed read is not cached, so a later visit can retry.
  */
 export async function loadDraft(sessionId: string): Promise<ApiSessionDraft | null> {
+    if (isLocalSessionIdentity(sessionId)) return null;
   const current = state(sessionId);
   if (current.loadPromise) return current.loadPromise;
   if (current.loaded) return current.loadedDraft;

@@ -1,3 +1,7 @@
+import {
+  beginSessionCreation, isLocalSessionIdentity, isSessionCreating, settleSessionCreation,
+  markSessionRemovedDuringCreation, wasSessionRemovedDuringCreation,
+} from './sessionCreation';
 import { takeHistoryPrefetch, peekHistoryPrefetch, type HistoryPrefetchContext } from '@/services/historyPagePrefetch';
 import { create } from 'zustand';
 import type {
@@ -2341,7 +2345,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         });
         const consumedEventIds = new Set(sessions.map((sess) => sess.id));
         return {
-          sessions: merged,
+          sessions: [...merged, ...s.sessions.filter(session => isSessionCreating(session.id))],
           _sessionEventPatches: Object.fromEntries(
             Object.entries(s._sessionEventPatches ?? {}).filter(([sid]) => !consumedEventIds.has(sid)),
           ),
@@ -2391,6 +2395,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     const session = get().sessions.find((s) => s.id === id);
     if (!session) return;
+    if (isLocalSessionIdentity(id)) {
+      set({ currentSessionId: id, currentMessages: [], initialLoading: false });
+      return;
+    }
 
     const loaded = (session.history || []).length;
     const needsOlder = !!session.historyTruncated;
@@ -2482,7 +2490,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   refreshCurrentSessionHistory: async () => {
     const sid = get().currentSessionId;
-    if (!sid) return;
+    if (!sid || isLocalSessionIdentity(sid)) return;
     const requestSeq = (get()._historyRefreshSeq[sid] ?? 0) + 1;
     set((s) => ({
       _historyRefreshSeq: { ...s._historyRefreshSeq, [sid]: requestSeq },
@@ -2825,7 +2833,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const activeWorkspaceId = useUIStore.getState().activeWorkspaceId;
     const initialWorkspaceIds = settings?.workspaceIds ?? [];
     const placeholder: Session = {
-      id: `__pending_${name}`,
+      id: beginSessionCreation(name),
       name: '...',
       adapter: adapter || 'cbc',
       model: settings?.model ?? null,
@@ -2842,6 +2850,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // 不会被下方 set 自动重置，若不在此清空，左侧卡片已切到新 session 但
       // 聊天区仍渲染旧 session 内容，需反复切换才刷新（bug 1）。
       currentMessages: [],
+      hasMoreMessages: false,
+      historyLoading: false,
       // 新 session 没有 history 需要拉取——清掉可能残留的 initialLoading，
       // 否则空历史的新会话会一直显示转圈而非空态。
       initialLoading: false,
@@ -2872,6 +2882,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const withoutPlaceholder = s.sessions.filter(
           (se) => se.id !== placeholder.id,
         );
+        // A delete after session.created but before this response wins.
+        if (wasSessionRemovedDuringCreation(session.id)) {
+          return {
+            sessions: withoutPlaceholder.filter(se => se.id !== session.id),
+            ...(s.currentSessionId === placeholder.id
+              ? { currentSessionId: null, currentMessages: [], initialLoading: false }
+              : {}),
+          };
+        }
         // Only append the real session if a concurrent reload didn't already
         // bring it in (avoids a duplicate row).
         const alreadyLoaded = withoutPlaceholder.some((se) => se.id === session.id);
@@ -2885,12 +2904,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                 : se,
             )
           : [...withoutPlaceholder, session];
-        // A concurrent loadSessions() also resets currentSessionId to null
-        // when it can't find the client-only placeholder in the server list —
-        // treat that as "still the newly created session" so the selection
-        // lands on the real session.
+        // Only this selected creation owns the selection; null is user intent.
         const wasCurrent =
-          s.currentSessionId === placeholder.id || s.currentSessionId === null;
+          s.currentSessionId === placeholder.id;
         return {
           sessions,
           currentSessionId: wasCurrent ? session.id : s.currentSessionId,
@@ -2899,20 +2915,25 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           // 仅当创建流程仍是当前选中时才覆盖——若用户中途切走，保持其当前
           // session 的消息不变，避免把别的 session 的消息区清空。
           currentMessages: wasCurrent ? session.history || [] : s.currentMessages,
-          initialLoading: false,
+          ...(wasCurrent ? { initialLoading: false } : {}),
         };
       });
     } catch (e) {
       set((s) => ({
         sessions: s.sessions.filter((se) => se.id !== placeholder.id),
-        initialLoading: false,
+        ...(s.currentSessionId === placeholder.id
+          ? { currentSessionId: null, currentMessages: [], initialLoading: false }
+          : {}),
       }));
       throw e;
+    } finally {
+      settleSessionCreation(placeholder.id);
     }
   },
 
   removeSession: async (id: string) => {
     if (id.startsWith('__pending_')) return;
+    markSessionRemovedDuringCreation(id);
     // Optimistic removal
     set((s) => ({
       sessions: s.sessions.filter((session) => session.id !== id),
@@ -2950,6 +2971,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   removeSessions: async (ids: string[], cascadeIds: string[] = []) => {
     const selected = new Set(ids.filter((id) => !id.startsWith('__pending_')));
+    selected.forEach(markSessionRemovedDuringCreation);
     if (selected.size === 0) return;
     set((s) => ({
       sessions: s.sessions.filter((session) => !selected.has(session.id)),
@@ -2987,6 +3009,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const { selectedIds } = get();
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    ids.forEach(markSessionRemovedDuringCreation);
 
     set((s) => ({
       sessions: s.sessions.filter(
@@ -3841,6 +3864,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   /** Recover the canonical tail after a terminal event's coverage boundary. */
   recoverSessionHistory: async (sessionId) => {
+    if (isLocalSessionIdentity(sessionId)) return;
     const requestSeq = (get()._historyRefreshSeq[sessionId] ?? 0) + 1;
     set((s) => ({
       _historyRefreshSeq: { ...s._historyRefreshSeq, [sessionId]: requestSeq },

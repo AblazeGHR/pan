@@ -111,17 +111,18 @@ describe('sessionStore createNewSession race', () => {
     });
     // Placeholder present while create is pending.
     expect(
-      useSessionStore.getState().sessions.some((s) => s.id === '__pending_X'),
+      useSessionStore.getState().sessions.some((s) => s.id.startsWith('__pending_X')),
     ).toBe(true);
 
     // Concurrent loadSessions (server hasn't committed X yet) overwrites the
-    // list and wipes the client-only placeholder.
+    // list must retain the known client-only creation identity.
     await act(async () => {
       await useSessionStore.getState().loadSessions();
     });
     expect(
-      useSessionStore.getState().sessions.some((s) => s.id === '__pending_X'),
-    ).toBe(false);
+      useSessionStore.getState().sessions.some((s) => s.id.startsWith('__pending_X')),
+    ).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toMatch(/^__pending_X/);
 
     // Create finally resolves — the real session must still be inserted.
     await act(async () => {
@@ -174,7 +175,7 @@ describe('sessionStore createNewSession race', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(useSessionStore.getState().sessions.find((s) => s.id === '__pending_X')?.workspaceIds)
+    expect(useSessionStore.getState().sessions.find((s) => s.id.startsWith('__pending_X'))?.workspaceIds)
       .toEqual(['ws-current']);
     await act(async () => {
       resolveCreate?.();
