@@ -839,6 +839,13 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
     record = _record(process.pid, root, "main", argv, created, marker)
     if os.name != "nt":
         record["processIdentity"] = process.pan_process_identity
+        # The original owner observed this leader at spawn. Graceful shutdown
+        # extends this snapshot with current members, never reconstructs it
+        # from an already-dead numeric PGID.
+        record["processTreeSnapshot"] = {
+            "leader": dict(process.pan_process_identity),
+            "members": [dict(process.pan_process_identity)],
+        }
     identity = process_identity(process.pid, root, created, process_type="main", marker=marker)
     if not identity.get("ok"):
         if os.name != "nt":
@@ -986,6 +993,10 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
         process_type="main", marker=main.get("marker"), entry_marker=main.get("entry"),
     ).get("ok"):
         raise DuplicateStart(f"Pan Core is already running for this checkout, PID={main.get('pid')}")
+    if os.name != "nt" and main and main.get("processIdentity"):
+        proof = service_process.offline(main)
+        if not proof["confirmed"]:
+            raise LauncherError(f"previous service tree remains unknown; query/reconcile original operation before start: {proof}")
     _cleanup_stale_children(root_path, state, log_path)
     owner = listener_owner(port)
     from packages.core.platform import service_network

@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="26.166" timestamp="2026-11-03T11:36:25.835271+08:00" hostname="ablaze"><testcase classname="tests.test_x5_service_native" name="test_owned_cli_http_service_and_lock_competition" time="26.039" /></testsuite></testsuites>

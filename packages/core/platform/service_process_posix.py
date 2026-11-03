@@ -28,7 +28,7 @@ def _original(record):
 
 
 def capture(record):
-    from packages.core.platform.process_posix import _tree_members
+    from packages.core.platform.process_posix import _tree_members, _strong_identity
     owner, identity = _original(record)
     before = owner.check(identity)
     if not before.verified_alive:
@@ -38,7 +38,17 @@ def capture(record):
     if (not after.verified_alive or after.observed.pgid != identity.pgid
             or not any(member.matches(identity) for member in members)):
         raise OwnershipUnknownError("service leader changed during tree snapshot")
-    return {"leader": identity.as_dict(), "members": [m.as_dict() for m in members]}
+    prior = record.get("processTreeSnapshot")
+    if prior:
+        if not ProcessIdentity.from_dict(prior["leader"]).matches(identity):
+            raise OwnershipUnknownError("prior service tree snapshot identity mismatch")
+        previous = tuple(ProcessIdentity.from_dict(m) for m in prior["members"])
+        if any(not _strong_identity(m) or m.boot_id != identity.boot_id or m.platform != identity.platform
+               or m.pgid != identity.pgid for m in previous):
+            raise OwnershipUnknownError("prior service tree member identity mismatch")
+        members = (*previous, *members)
+    unique = {(m.pid, m.kind, m.birth, m.boot_id): m for m in members}
+    return {"leader": identity.as_dict(), "members": [m.as_dict() for m in unique.values()]}
 
 
 def offline(record):

@@ -166,6 +166,24 @@ def test_posix_listener_handoff_never_discards_original_owner(tmp_path, monkeypa
         assert json.loads(path.read_text())["main"]["processIdentity"] == owner["processIdentity"]
 
 
+def test_new_start_cannot_overwrite_original_unknown_tree(tmp_path, monkeypatch):
+    from packages.core import launcher
+    _, record = fixture_record()
+    state = {"main": record}
+    monkeypatch.setattr(launcher, "os", SimpleNamespace(name="posix"))
+    monkeypatch.setattr(launcher, "checkout_root", lambda root: tmp_path)
+    monkeypatch.setattr(launcher, "configured_port", lambda root: 43129)
+    monkeypatch.setattr(launcher, "load_state", lambda root: state)
+    monkeypatch.setattr(launcher, "refresh_qq_state", lambda *a: None)
+    monkeypatch.setattr(launcher, "process_identity", lambda *a, **kw: {"ok": False})
+    monkeypatch.setattr(service_process, "offline", lambda record: {"confirmed": False, "reason": "remaining child"})
+    monkeypatch.setattr(launcher, "_cleanup_stale_children", lambda *a: pytest.fail("must not discard original evidence"))
+    monkeypatch.setattr(launcher, "_start_main", lambda *a: pytest.fail("must not spawn over original unknown"))
+    with pytest.raises(launcher.LauncherError, match="previous service tree remains unknown"):
+        launcher.start_service(tmp_path)
+    assert state["main"] is record
+
+
 @pytest.mark.skipif(os.name != "posix", reason="actual POSIX spawn-abort group proof requires target OS")
 def test_native_strong_identity_failure_aborts_own_group(monkeypatch, tmp_path):
     from packages.core.platform import process_posix as backend
