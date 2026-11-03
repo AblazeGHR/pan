@@ -595,6 +595,7 @@ class _TerminalState:
     attached: bool = False
     #: Authenticated, completed natural drain facts; retained across close retries.
     natural_exit: dict[str, Any] | None = None
+    local_resource: Any | None = None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -653,6 +654,9 @@ class TerminalService:
         self._spawn_launcher_impl = spawn_launcher
         self._client_factory_impl = client_factory
         self._identity_probe = identity_probe
+        # Windows and injected legacy test primitives keep the existing runner.
+        self._local_posix = (sys.platform in {"linux", "darwin"}
+            and spawn_launcher is None and client_factory is None and secret_store is None)
 
         self._states: dict[str, _TerminalState] = {}
         self._global_lock = threading.RLock()
@@ -776,6 +780,8 @@ class TerminalService:
             state = self._states.get(terminal_id)
         if state is None or (state.record.status in _TERMINAL_STATUSES and not state.record.cleanup_pending):
             return
+        if state.record.host_mode == "local-posix":
+            return  # No Windows runner status/secret is involved in local ownership.
         if not state.lock.acquire(blocking=False):
             return
         try:
@@ -958,6 +964,10 @@ class TerminalService:
                 lease_grace_seconds=self.lease_grace,
                 created_by=str(created_by)[:32],
             )
+            if self._local_posix:
+                record.host_mode="local-posix"
+                if terminal_id is not None and any(r.terminal_id==terminal_id for r in self._safe_records()):
+                    raise StartupFailed("existing-local-terminal-no-replay")
             try:
                 return self._registry.create(record)
             except TerminalExistsError:
@@ -991,6 +1001,8 @@ class TerminalService:
         shell_argv: Sequence[str] | None,
         budget: float,
     ) -> None:
+        if self._local_posix:
+            return self._start_local_terminal(state,cwd=cwd,shell_argv=shell_argv)
         terminal_id = state.terminal_id
         store = self._store()
         store.ensure_secrets_dir()
@@ -1083,6 +1095,75 @@ class TerminalService:
         state.channel = _ChannelProxy(self, terminal_id)
         heartbeat.start()
         self._note("terminal-running", terminal_id)
+
+    def _start_local_terminal(self,state,*,cwd,shell_argv):
+        from .local_host import LocalTerminalHost
+        argv=shell_argv or ("/bin/sh","-i")
+        try:
+            host=LocalTerminalHost(state.terminal_id,argv,cwd=cwd,
+                rows=state.record.rows,cols=state.record.cols)
+        except BaseException as error:
+            retained=getattr(error,"terminal_host",None)
+            if retained is not None:
+                state.client=retained
+            pending_backend=getattr(error,"pty_backend",None)
+            if retained is not None or pending_backend is not None:
+                backend=retained.backend if retained is not None else pending_backend
+                state.local_resource=backend
+                state.process=backend.owned.popen
+                def pending(record):
+                    record.pid=backend.pid
+                    record.process_identity=backend.owner.recoverable_identity(backend.owned)
+                    return record
+                state.record=self._registry.update(state.terminal_id,pending)
+            self._mark_unproven(state,"local-host-start-failed",type(error).__name__)
+            raise StartupFailed("local-host-start-failed",error_type=type(error).__name__) from error
+        state.client=host
+        # Persist strong ownership in the same record before exposing RUNNING.
+        try:
+            def running(record):
+                record.status=RuntimeState.RUNNING
+                record.pid=host.backend.pid
+                record.process_identity=host.backend.owner.recoverable_identity(host.backend.owned)
+                return record
+            state.record=self._registry.update(state.terminal_id,running)
+        except BaseException:
+            # Keep the runtime reachable if persistence or cleanup is uncertain.
+            host.close(reason="startup-record-failed")
+            raise
+        state.attached=True
+        state.channel=_ChannelProxy(self,state.terminal_id)
+
+    def _close_local_terminal(self,state,*,reason,budget):
+        deadline=time.monotonic()+max(0.,budget)
+        if not state.lock.acquire(timeout=max(0.,budget)):
+            return {"status":"cleanup-failed","missing":"close-lock-wait-timeout","proven":False}
+        try:
+            if state.record.status is RuntimeState.EXITED and not state.record.cleanup_pending:
+                return {"status":"exited","proven":True}
+            self._registry.update(state.terminal_id,lambda r:self._apply_closing(r,reason))
+            self._sync_state_record(state)
+            if state.client is None:
+                return {"status":"cleanup-failed","missing":"local-owner-missing","proven":False}
+            if state.close_call is None or (state.close_call.finished and not state.close_call.succeeded):
+                state.close_call=_BoundedCall(lambda:state.client.close(reason=reason),
+                    name="local-close-"+state.terminal_id[-8:])
+            finished,report,error=state.close_call.run(max(0.,deadline-time.monotonic()))
+            if not finished or error is not None or report is None or not report.ok:
+                self._mark_unproven(state,"local-cleanup-unconfirmed",error)
+                # A completed uncertain cleanup may be explicitly retried; an
+                # in-flight worker stays single-flight and is never replaced.
+                if finished and report is not None and not report.ok:
+                    state.close_call=None
+                return {"status":"cleanup-failed","missing":"local-cleanup-unconfirmed","proven":False}
+            code=state.client.backend.exit_code()
+            state.record=self._registry.update(state.terminal_id,
+                lambda r:self._apply_exited(r,reason=reason,exit_code=code))
+            state.attached=False
+            self._attachments().forget(state.terminal_id)
+            return {"status":"exited","proven":True}
+        finally:
+            state.lock.release()
 
     def _apply_running(self, record: TerminalRecord, state: _TerminalState) -> TerminalRecord:
         record.status = RuntimeState.RUNNING
@@ -1510,7 +1591,8 @@ class TerminalService:
             not result.get("data") and not gap and not result.get("truncated")
             and isinstance(facts, Mapping) and facts.get("seen") is True
             and facts.get("reader_done") is True and type(code) is int
-            and 0 <= code <= 0xFFFFFFFF
+            and ((state.record.host_mode == "local-posix" and -255 <= code <= 255)
+                 or 0 <= code <= 0xFFFFFFFF)
             and int(cursor) >= int(result.get("total_bytes") or 0)
         ):
             state.natural_exit = {
@@ -1750,6 +1832,8 @@ class TerminalService:
         每轮**重新评估**外部证据（launcher 引擎收尾、经身份核验的进程退出）。
         ``budget`` 是**总预算**（含取锁等待），用单调 deadline 贯穿。
         """
+        if state.record.host_mode == "local-posix":
+            return self._close_local_terminal(state,reason=reason,budget=budget)
         terminal_id = state.terminal_id
         deadline = time.monotonic() + max(0.0, float(budget))
 
@@ -2316,6 +2400,8 @@ class TerminalService:
         **零状态变化** —— 不改记录、不停心跳、不删秘密、不做 breakaway/环境逃脱。
         """
         state = self._require_state(terminal_id)
+        if state.record.host_mode == "local-posix":
+            raise DetachRefused("local-host-non-durable")
         client = self._require_client(state)
         try:
             result = client.detach()
@@ -2402,6 +2488,26 @@ class TerminalService:
     def _reconcile_one(self, record: TerminalRecord) -> str:
         if record.status in _TERMINAL_STATUSES and not record.cleanup_pending:
             return "already-terminal"
+        if record.host_mode == "local-posix":
+            with self._global_lock:
+                local_state = self._states.get(record.terminal_id)
+            if local_state is not None and local_state.client is not None:
+                try:
+                    if local_state.client.backend.alive():
+                        return "alive"
+                    result=self._close_local_terminal(local_state,reason="reconcile",budget=self.stop_confirm)
+                    return "dead-confirmed" if result.get("proven") else "cleanup-unconfirmed"
+                except Exception:
+                    return "cleanup-unconfirmed"
+            # Non-durable: persisted identity is useful for diagnostics but is
+            # never a replacement for the lost runtime/master/output owner.
+            def lost(item):
+                item.status=RuntimeState.CLEANUP_FAILED
+                item.cleanup_pending=True
+                item.exit_reason="local-host-lost-owner-unknown"
+                return item
+            self._registry.update(record.terminal_id,lost)
+            return "unattributable"
         terminal_id = record.terminal_id
         with self._global_lock:
             state = self._states.get(terminal_id)

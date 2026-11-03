@@ -1,0 +1,46 @@
+name: X5 non-durable POSIX terminal host
+on:
+  push:
+    branches: ["validation/x5-pty-host-20261104"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host:
+    name: host (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout websockets
+      - name: Shared import and collection
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py
+          tests/test_terminal_service.py tests/test_terminal_service_rework.py tests/test_terminal_service_ma.py
+          tests/test_terminal_runtime.py tests/test_terminal_ownership.py tests/test_terminal_api.py tests/test_terminal_ws.py
+          --collect-only -q -o addopts=
+      - name: Native owned host HTTP WS and Windows original regressions
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py
+          tests/test_terminal_service.py tests/test_terminal_service_rework.py tests/test_terminal_service_ma.py
+          tests/test_terminal_runtime.py tests/test_terminal_ownership.py tests/test_terminal_api.py tests/test_terminal_ws.py
+          -q -ra -o addopts= --timeout=120 --junitxml=artifacts/x5-pty-host/contracts.xml
+      - name: Provenance
+        if: always()
+        run: python -c "import json,sys,pathlib,subprocess; p=pathlib.Path('artifacts/x5-pty-host'); p.mkdir(parents=True,exist_ok=True); (p/'target.json').write_text(json.dumps(dict(sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),platform=sys.platform,capabilityInjection=False)),encoding='utf-8')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: x5-pty-host-${{ matrix.os }}
+          path: artifacts/x5-pty-host/
+          if-no-files-found: error

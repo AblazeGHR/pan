@@ -488,6 +488,8 @@ class TerminalRecord:
 
     archived: bool = False
     cleanup_pending: bool = False
+    host_mode: str | None = None
+    process_identity: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -510,6 +512,8 @@ class TerminalRecord:
             "created_by": self.created_by,
             "archived": self.archived,
             "cleanup_pending": self.cleanup_pending,
+            **({"host_mode": self.host_mode, "process_identity": self.process_identity}
+               if self.host_mode is not None else {}),
         }
 
     @classmethod
@@ -539,6 +543,8 @@ class TerminalRecord:
             created_by=data.get("created_by"),
             archived=data.get("archived") is True,
             cleanup_pending=data.get("cleanup_pending") is True,
+            host_mode=data.get("host_mode"),
+            process_identity=data.get("process_identity"),
         )
 
 

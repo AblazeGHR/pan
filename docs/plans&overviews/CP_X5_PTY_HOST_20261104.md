@@ -1,0 +1,13 @@
+# X5 non-durable本机Terminal host候选
+
+基线ee91fcb58a67654f1b225cb2df8ce38efddd6847；独立feat/cp-x5-pty-host-20261104。原PTY底层分支保留。Windows默认RunnerClient、DPAPI、管道与心跳装配不变；POSIX真实backend经薄local_host适配同一PtyRuntime/OutputLog，TerminalService持有，原registry/attachments/lease/REST/WS复用，不另建ledger。
+
+TerminalRecord仅local-posix新增host_mode/process_identity（原ProcessOwner持久强身份）；旧记录不新增JSON字段。先持久starting，后spawn，再存强身份并发布running；失败保原runtime/backend资源属主。显式close通过原runtime证明、单飞有界worker，unknown保owner；重复明确close允许重试。detach明确拒绝，无秘密与持久IPC。
+
+宿主丢失后同记录reconcile为cleanup-failed/local-host-lost-owner-unknown，不能重新attach或同terminal ID spawn；即使PID已消失也不假报原树收尾成功。新服务不把持久identity当作原master/output的恢复证明。原registry记录继续占用容量。跨进程重复创建仍需后续专门竞争契约；本片不声称distributed host ownership。
+
+Windows原回归217 passed/11 skipped，后续聚焦62/5，JUnit artifacts/cp-x5-pty-host/r1。目标测试尚待专用三平台CI。scope真实HTTP/WS使用动态loopback监听+自有Python shell，显式构造候选TerminalRuntime并复用原认证gate/router（不改cap源码）。包含Origin/unknownSession/observer/跨terminal包络拒绝、控制input/resize、output seq/tail、断开重连同pid、close、unknown保owner与真实宿主进程退出后的unknown/no replay。listener受保护规则保留。此不是产品capability开放。
+
+UI门禁：TerminalPanel/NativeTerminal使用terminalWs.ts，hello即请求snapshot，须有效cursor+cursors_valid后resume。local_host明确fidelity unavailable，不自建ANSI parser；因此terminal.native当前仍false，主入口也仍平台禁用，不能宣称交互UI完成。后续最小emulator抽取应让原HeadlessEmulator通过ProcessOwner持有Node sidecar，保持原ordered bridge/applied cursor/resize与snapshot协议，不重写parser。durable detach、Rewind及secretStore后续。无React改动或浏览器验收。
+
+路径：本TA持有local_host.py、service.py薄装配分支、contracts.py local字段、专用测试/workflow；下一步emulator.py平台spawn/guard与local_host现有bridge接线，cap注册表/terminal_api gate仅在目标证据后串行开放。主服务已签收引用、main/practical均不动。
