@@ -73,7 +73,11 @@ def test_claim_or_launch_marker_forbids_prelaunch_rejection(tmp_path, state):
 
 
 @pytest.mark.parametrize("state", ["plain-admitted", "marked-preparation", "marked-launch"])
-def test_existing_intent_is_query_only_without_preparation_or_relaunch(tmp_path, state):
+@pytest.mark.parametrize("supported", [False, True])
+def test_existing_intent_is_query_only_without_preparation_or_relaunch(tmp_path, state, supported, monkeypatch):
+    from packages.core import platform
+    actual = platform.supports
+    monkeypatch.setattr(platform, "supports", lambda name: supported if name == "service.lifecycle" else actual(name))
     store, doc, identity, plan = admitted(tmp_path)
     if state == "marked-preparation":
         install_token(store, doc, token="crashed-original-execute")
@@ -90,12 +94,36 @@ def test_existing_intent_is_query_only_without_preparation_or_relaunch(tmp_path,
     async def prepare(_):
         calls.append("prepare")
     executor.prepare = prepare
+    before = store.get(doc["effectId"])
     result = asyncio.run(executor.execute(attempt=identity["attempt"], effect_key=identity["effectKey"], frozen_plan=plan))
     assert result["outcome"] == "unknown" and result["receipt"]["code"] == "execution_pending"
     assert calls == [] and store.get(doc["effectId"])["result"] is None
+    assert store.get(doc["effectId"]) == before
 
 
-def test_claim_during_preparation_is_not_overwritten_or_relaunched(tmp_path):
+@pytest.mark.parametrize("change", ["plan", "attempt", "job"])
+def test_unsupported_original_lookup_retains_identity_fences(tmp_path, monkeypatch, change):
+    from packages.core import platform
+    store, doc, identity, plan = admitted(tmp_path)
+    monkeypatch.setattr(platform, "supports", lambda name: False)
+    if change == "plan":
+        plan = copy.deepcopy(plan)
+        plan["arguments"]["options"] = {"changed": True}
+    if change == "attempt":
+        identity["attempt"]["generation"] += 1
+    executor = ProtectedLifecycleExecutor(job_id=doc["jobId"] + ("other" if change == "job" else ""),
+        store=store, authorize=lambda scope: scope, launch=lambda *a: pytest.fail("query must never relaunch"))
+    with pytest.raises(ExecutionConflict):
+        asyncio.run(executor.execute(attempt=identity["attempt"], effect_key=identity["effectKey"], frozen_plan=plan))
+    assert store.get(doc["effectId"])["result"] is None
+
+
+def test_claim_during_preparation_is_not_overwritten_or_relaunched(tmp_path, monkeypatch):
+    # This tests a NEW preparation/claim race; inject only its capability
+    # prerequisite. Existing-intent queries above run with the real host gate.
+    from packages.core import platform
+    actual = platform.supports
+    monkeypatch.setattr(platform, "supports", lambda name: True if name == "service.lifecycle" else actual(name))
     from packages.jobs.independent_executor import effect_id
     job, identity, plan = lifecycle_action.protected_plan(root=tmp_path, port=48321,
         old_pid=os.getpid(), old_pid_created_at=psutil.Process().create_time(), operation="exit",

@@ -58,7 +58,22 @@ class ProtectedLifecycleExecutor:
                 or not isinstance(grant, dict) or grant != expected):
             return EffectReceipt(dict(effect_key), "rejected", {"code": "authorization_denied"}).as_dict()
         if not supports("service.lifecycle"):
-            return EffectReceipt(dict(effect_key), "rejected", {"code": "capability_unsupported"}).as_dict()
+            # Capability gates NEW effects, never masks an original unknown
+            # transaction after an owner/platform restart. Query only, with
+            # the same Job, plan and Attempt fence; no admit/prepare/launch.
+            from packages.jobs.independent_executor import ExecutionConflict
+            from packages.jobs import final_contracts
+            try:
+                original = await asyncio.to_thread(self.store.get, effect_id(effect_key))
+            except KeyError:
+                return EffectReceipt(dict(effect_key), "rejected", {"code": "capability_unsupported"}).as_dict()
+            self.store._check(original, attempt)
+            if (original["jobId"] != self.job_id
+                    or original["planDigest"] != final_contracts.digest(dict(frozen_plan))):
+                raise ExecutionConflict("original lifecycle Job/frozen plan mismatch")
+            result = await self.lookup_receipt(attempt=attempt, effect_key=effect_key)
+            return result or EffectReceipt(dict(effect_key), "unknown", {
+                "code": "execution_pending", "effectId": original["effectId"], "phase": original["phase"]}).as_dict()
         if (not isinstance(args.get("root"), str) or not Path(args["root"]).is_absolute()
                 or not Path(args["root"]).is_dir() or type(args.get("port")) is not int
                 or not 1 <= args["port"] <= 65535

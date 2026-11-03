@@ -330,6 +330,9 @@ def process_alive(pid: int | None, created_at: float | None = None) -> bool:
 
 def listener_owner(port: int) -> int | None:
     """Return only the current local TCP listener owner for ``port``."""
+    from packages.core.platform import service_network
+    if service_network.needs_local_probe():
+        return service_network.loopback_listener(port)["owner"]
     try:
         import psutil
         for connection in psutil.net_connections(kind="tcp"):
@@ -985,6 +988,11 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
         raise DuplicateStart(f"Pan Core is already running for this checkout, PID={main.get('pid')}")
     _cleanup_stale_children(root_path, state, log_path)
     owner = listener_owner(port)
+    from packages.core.platform import service_network
+    if service_network.needs_local_probe() and owner is None:
+        probe = service_network.loopback_listener(port)
+        if probe["status"] != "offline":
+            raise PortConflict(f"Pan loopback port state unverified; refusing to start: {probe}")
     if owner is not None:
         owner_created = process_create_time(owner)
         owner_identity = process_identity(owner, root_path, owner_created, process_type="main")
@@ -1095,7 +1103,7 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     if not identity.get("ok") and os.name != "nt":
         proof = service_process.offline(record)
         if not proof["confirmed"]:
-            raise LauncherError(f"service tree exit unconfirmed: {proof}")
+            raise LauncherError(f"unverified service tree exit unconfirmed: {proof}")
         already_offline = True
     elif not identity.get("ok"):
         if not _same_record_alive(record):
@@ -1108,6 +1116,11 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     owner = listener_owner(port)
     if owner is not None and owner != pid:
         raise LauncherError(f"Pan port {port} is owned by PID={owner}, not verified Pan PID={pid}")
+    from packages.core.platform import service_network
+    if service_network.needs_local_probe() and owner is None:
+        probe = service_network.loopback_listener(port)
+        if probe["status"] != "offline":
+            raise LauncherError(f"Pan listener ownership unknown; refusing shutdown: {probe}")
     _write_log(log_path, f"stopping Pan pid={pid} port={port}")
     if os.name != "nt" and not already_offline:
         record["processTreeSnapshot"] = service_process.capture(record)

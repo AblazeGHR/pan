@@ -1,0 +1,9 @@
+{
+  "failure-identities.json": "4e0dc927fc4038b13764b9421e8e72a68cec1d81d3f253320eda7ed9b9464274",
+  "x5-service-macos-latest\\contracts.xml": "c8d39cb3eac6b3177f5c04fe3dc055e172de9a7ba0aa9eec2b3107a1d916f724",
+  "x5-service-ubuntu-latest\\contracts.xml": "4ab53d188ce95cd8fbd8af0e2be199f989f32551615c3f75a6016e3e4fcb6331",
+  "x5-service-windows-latest\\contracts.xml": "2965427e4acbb8b510433dfe295fe430e33a986cfb0a666d83555e6c422ee411",
+  "x5-service-windows-latest\\native.xml": "66b9339a2eaa322ff54f237006c8f0cfb5003893990e2bac5a7ec91bbd42befd",
+  "x5-service-windows-latest\\native\\cli-commands.txt": "910daf9c089f6ddd843b66e1167a92b40353a9fd40efe72dab3b27d9e3e6051d",
+  "x5-service-windows-latest\\native\\native-service.json": "261cb178f7e29fc1249c15cf1ce3eaa52a9917d6cacaf95414e6ec7f7bfe863b"
+}

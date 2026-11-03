@@ -14,7 +14,10 @@ from packages.core.platform.process import ProcessIdentity, OwnershipUnknownErro
 def _original(record):
     from packages.core.platform.process import default_process_owner
     from packages.core.platform.process_posix import _strong_identity
-    identity = ProcessIdentity.from_dict(record["processIdentity"])
+    try:
+        identity = ProcessIdentity.from_dict(record["processIdentity"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise OwnershipUnknownError("service strong processIdentity unavailable") from exc
     owner = default_process_owner()
     current = owner.identity(os.getpid())
     if (not _strong_identity(identity) or identity.pid != record.get("pid")

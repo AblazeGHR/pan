@@ -15,6 +15,19 @@ import pytest
 from packages.core import launcher
 
 
+@pytest.fixture
+def verified_service_tree(monkeypatch):
+    """These policy units already mock PID/HTTP: also supply explicit tree proof.
+
+    Actual strong identity/missing snapshot/permission/residue evidence is covered
+    by test_x5_service_evidence and target-native trials, without this fixture.
+    """
+    monkeypatch.setattr(launcher.service_process, "capture", lambda record: {
+        "fixture": "verified original service tree", "pid": record["pid"]})
+    monkeypatch.setattr(launcher.service_process, "offline", lambda record: {
+        "confirmed": True, "reason": "fixture verified tree exit"})
+
+
 def _info(root: Path, *, created: float = 10.0, name: str = "python.exe",
           command: list[str] | None = None, cwd: Path | None = None) -> dict:
     return {
@@ -169,7 +182,7 @@ def test_start_records_verified_listener_child_for_later_stop(tmp_path, monkeypa
     assert json.loads((root / "data" / "process.json").read_text(encoding="utf-8"))["main"]["pid"] == 52
 
 
-def test_graceful_exit_success_does_not_use_fallback(tmp_path, monkeypatch):
+def test_graceful_exit_success_does_not_use_fallback(tmp_path, monkeypatch, verified_service_tree):
     root = tmp_path.resolve()
     main = {"pid": 41, "createdAt": 10.0, "root": str(root), "processType": "main",
             "entry": "main.py", "marker": f"--pan-root-marker={root}", "argv": []}
@@ -188,7 +201,7 @@ def test_graceful_exit_success_does_not_use_fallback(tmp_path, monkeypatch):
     assert not (root / "data" / "process.json").exists()
 
 
-def test_failed_coordination_falls_back_only_for_verified_target(tmp_path, monkeypatch):
+def test_failed_coordination_falls_back_only_for_verified_target(tmp_path, monkeypatch, verified_service_tree):
     root = tmp_path.resolve()
     main = {"pid": 41, "createdAt": 10.0, "root": str(root), "processType": "main",
             "entry": "main.py", "marker": f"--pan-root-marker={root}", "argv": []}
@@ -231,7 +244,7 @@ def test_restart_never_terminates_a_live_unverified_pid(tmp_path, monkeypatch):
         launcher.stop_service(root, 8767, require_identity=False)
 
 
-def test_exit_cleans_verified_qq_and_cloudflared_records(tmp_path, monkeypatch):
+def test_exit_cleans_verified_qq_and_cloudflared_records(tmp_path, monkeypatch, verified_service_tree):
     root = tmp_path.resolve()
     records = {
         "main": {"pid": 41, "createdAt": 10.0, "root": str(root), "processType": "main", "entry": "main.py", "marker": "m"},

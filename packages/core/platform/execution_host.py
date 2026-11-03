@@ -118,6 +118,11 @@ def service_offline_evidence(*, root, port, old_pid, old_pid_created_at):
                 break
     except (psutil.Error, OSError):
         listener_status = "unknown"
+    from packages.core.platform import service_network
+    listener_proof = None
+    if service_network.needs_local_probe():
+        listener_proof = service_network.loopback_listener(port)
+        owner, listener_status = listener_proof["owner"], listener_proof["status"]
     old_gone = False
     try:
         process = psutil.Process(old_pid)
@@ -130,7 +135,8 @@ def service_offline_evidence(*, root, port, old_pid, old_pid_created_at):
         old_status = "unknown"
     return {"ok": listener_status == "offline" and old_gone, "root": root, "port": port,
             "listenerOwner": owner, "listenerStatus": listener_status, "oldPid": old_pid,
-            "oldPidCreatedAt": old_pid_created_at, "oldProcessStatus": old_status}
+            "oldPidCreatedAt": old_pid_created_at, "oldProcessStatus": old_status,
+            "listenerProof": listener_proof}
 
 
 def main():

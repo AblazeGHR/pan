@@ -100,7 +100,7 @@ def test_native_launcher_http_identity_and_offline(tmp_path):
     try:
         ready = launcher.wait_ready(root=tmp_path, port=port, expected_pid=record["pid"],
             expected_created_at=record["createdAt"], timeout=10)
-        assert ready["ok"] is True and ready["http"] is True
+        assert ready["ok"] is True and ready["http"] is True, ready
         assert ready["identity"]["ok"] is True
         stopped = launcher._terminate_record(record, tmp_path, log_path=None)
         assert stopped["stopped"] is True

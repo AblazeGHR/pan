@@ -24,7 +24,7 @@ jobs:
       - name: Import and collect shared contract suite
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
-          tests/test_service_process_backend.py tests/test_x5_service_evidence.py
+          tests/test_service_process_backend.py tests/test_x5_service_evidence.py tests/test_x5_service_network.py
           tests/test_x5_service_native.py tests/test_launcher.py
           tests/test_lifecycle_fast_contract.py tests/test_lifecycle_prelaunch_fence.py
           tests/test_lifecycle_strict_successors.py tests/test_p5b_lifecycle_action.py
@@ -32,7 +32,7 @@ jobs:
       - name: Platform backend, cancellation, receipt and failure contracts
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
-          tests/test_service_process_backend.py tests/test_x5_service_evidence.py
+          tests/test_service_process_backend.py tests/test_x5_service_evidence.py tests/test_x5_service_network.py
           tests/test_launcher.py tests/test_lifecycle_fast_contract.py
           tests/test_lifecycle_prelaunch_fence.py tests/test_lifecycle_strict_successors.py
           tests/test_p5b_lifecycle_action.py
