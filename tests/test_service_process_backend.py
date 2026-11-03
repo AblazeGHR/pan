@@ -91,11 +91,17 @@ def test_native_launcher_http_identity_and_offline(tmp_path):
         port = reservation.getsockname()[1]
     assert port not in {8767, 8768}
     (tmp_path / "main.py").write_text(
-        "import os\nfrom http.server import HTTPServer, BaseHTTPRequestHandler\n"
+        # HTTPServer.server_bind performs getfqdn between bind and listen.
+        # The owned loopback fixture must not depend on host DNS availability.
+        "import os,socket\nfrom http.server import BaseHTTPRequestHandler\n"
+        "from socketserver import TCPServer\n"
+        "def no_dns(*args): raise RuntimeError('owned fixture must not use DNS')\n"
+        "socket.getfqdn=no_dns\n"
+        "class Server(TCPServer): allow_reuse_address=True\n"
         "class Handler(BaseHTTPRequestHandler):\n"
         " def do_GET(self):\n"
         "  self.send_response(200); self.end_headers(); self.wfile.write(b'{}')\n"
-        "HTTPServer(('127.0.0.1', int(os.environ['PAN_PORT'])), Handler).serve_forever()\n",
+        "Server(('127.0.0.1', int(os.environ['PAN_PORT'])), Handler).serve_forever()\n",
         encoding="utf-8")
     record = launcher._start_main(tmp_path, port, [sys.executable], True,
                                    tmp_path / "data/logs/launcher.log")

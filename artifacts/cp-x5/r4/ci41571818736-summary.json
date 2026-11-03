@@ -1,0 +1,104 @@
+{
+  "run": 41571818736,
+  "sourceSha": "d23193f551f09fb2caa574c3cbd16e812b7a7e7a",
+  "suites": {
+    "artifacts\\x5-service-macos-latest\\contracts.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "2",
+      "tests": "91",
+      "time": "33.280",
+      "timestamp": "2026-11-03T03:23:09.057338+00:00",
+      "hostname": "sjc22-bm212-7ce0a57d-eab4-4f93-b2c2-129145fba052-22669A52F9B2.local"
+    },
+    "artifacts\\x5-service-macos-latest\\native.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "17.190",
+      "timestamp": "2026-11-03T03:23:43.758095+00:00",
+      "hostname": "sjc22-bm212-7ce0a57d-eab4-4f93-b2c2-129145fba052-22669A52F9B2.local"
+    },
+    "artifacts\\x5-service-ubuntu-latest\\contracts.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "2",
+      "tests": "91",
+      "time": "22.971",
+      "timestamp": "2026-11-03T03:23:01.414862+00:00",
+      "hostname": "runnervm48cm3"
+    },
+    "artifacts\\x5-service-ubuntu-latest\\native.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "15.407",
+      "timestamp": "2026-11-03T03:23:25.015128+00:00",
+      "hostname": "runnervm48cm3"
+    },
+    "artifacts\\x5-service-windows-latest\\contracts.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "5",
+      "tests": "91",
+      "time": "27.066",
+      "timestamp": "2026-11-03T03:23:31.960438+00:00",
+      "hostname": "runnervmhao91"
+    },
+    "artifacts\\x5-service-windows-latest\\native.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "25.039",
+      "timestamp": "2026-11-03T03:24:00.380079+00:00",
+      "hostname": "runnervmhao91"
+    }
+  },
+  "native": {
+    "artifacts\\x5-service-windows-latest\\native\\native-service.json": {
+      "sourceSha": "d23193f551f09fb2caa574c3cbd16e812b7a7e7a",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "win32",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    },
+    "artifacts\\x5-service-ubuntu-latest\\native\\native-service.json": {
+      "sourceSha": "d23193f551f09fb2caa574c3cbd16e812b7a7e7a",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "linux",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    },
+    "artifacts\\x5-service-macos-latest\\native\\native-service.json": {
+      "sourceSha": "d23193f551f09fb2caa574c3cbd16e812b7a7e7a",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "darwin",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    }
+  }
+}
