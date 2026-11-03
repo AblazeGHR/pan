@@ -19,3 +19,5 @@ R1 exact f60903afa9e1370f0a2308e884f146580a22162a / CI41677939734 三平台succe
 新增platform/emulator_process_posix.py薄ProcessOwner资源适配；emulator.py Windows挂起创建/Job原装配抽为独立方法，公共Node握手/有序feed/resize/snapshot/applied cursor未重写，POSIX强identity原组/已观察成员proof决定回收，unknown保owner，guard.close不产生信号权限。local_host经原RunnerEmulatorBridge供料，snapshot使用原引擎applied cursor及valid/reset/baseline约束；resize分别PTY和engine ack。没有自建ANSI parser。启动失败时保留原StartupCleanupOwner，可显式有界close重试。
 
 Windows安装原sidecar依赖后完整组合278 passed/23 skipped，含原emulator48项实际执行；追加启动owner负控3/7（passed/skipped）。代码未开放cap，目标真实host/HTTPWS含snapshot与原生引擎测试待CI。R1原始raw-host候选继续作为独立已验输入，不把其证据混入R2。
+
+R2 CI41680919347 exactc4e21864原红保留r2/ci及zip/hash：Windows success；macOS两个旧FILETIME/DPAPI测试被安装sidecar后误启用；Linux另有自然EOF超时。新增host/emulator/真实HTTPWS snapshot均通过。R3给这两个明确Winpipe/FILETIME恢复和删除秘密断言的测试补Windows平台门禁，不改其断言，POSIX重启lost-owner/unknown回收有独立真目标测试；非将未知回收改成功。POSIX backend read由周期空字节改为原PtyBackend约定的阻塞直到data/EOF/error/cancel，避免quiet-window抢先于真实HUP结束，新增受控terminal事件read不能提前空返回契约，原EOF/tail断言保留。

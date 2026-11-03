@@ -987,6 +987,7 @@ def _terminate_owned(pid: int, filetime: int) -> None:
         win_pipe.terminate_verified_process(int(pid), int(filetime))
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows FILETIME/DPAPI/pipe restart recovery contract")
 @requires_sidecar
 def test_real_restart_recovery_converges_via_reconcile(tmp_path):
     """真实：服务宿主"重启"（丢弃内存态）后，新实例 reconcile 把遗留记录收敛。
@@ -1028,6 +1029,7 @@ def test_real_restart_recovery_converges_via_reconcile(tmp_path):
         _terminate_owned(pid, filetime)
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows FILETIME/DPAPI/pipe close retry contract")
 @requires_sidecar
 def test_real_close_failure_then_retry_converges(tmp_path):
     """真实：关闭先失败（预算内未收敛）→ 证据补齐后**重试**收敛为 exited。

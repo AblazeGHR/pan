@@ -1,0 +1,21 @@
+{
+  "x5-pty-host-macos-latest": {
+    "failed": [
+      "test_real_restart_recovery_converges_via_reconcile",
+      "test_real_close_failure_then_retry_converges"
+    ],
+    "skipped": 97
+  },
+  "x5-pty-host-ubuntu-latest": {
+    "failed": [
+      "test_runtime_eof_tail_cleanup_and_detach_is_not_connection_attach",
+      "test_real_restart_recovery_converges_via_reconcile",
+      "test_real_close_failure_then_retry_converges"
+    ],
+    "skipped": 96
+  },
+  "x5-pty-host-windows-latest": {
+    "failed": [],
+    "skipped": 23
+  }
+}

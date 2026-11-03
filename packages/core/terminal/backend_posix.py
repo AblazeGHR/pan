@@ -210,7 +210,10 @@ class PosixPtyBackend:
         if size <= 0:
             raise ValueError("PTY read size must be positive")
         with self._cv:
-            if not self._buffer and not self._pump_eof and self._pump_error is None and not self._closed:
+            # PtyBackend.read blocks until bytes/peer EOF/error/cancellation.
+            # A polling empty read would let PtyRuntime's Windows quiet-window
+            # fallback preempt a delayed, real POSIX slave hangup.
+            while not self._buffer and not self._pump_eof and self._pump_error is None and not self._closed:
                 self._cv.wait(.05)
             if self._closed:
                 raise PosixPtyClosed("PTY handles closed; cancellation is not peer EOF")

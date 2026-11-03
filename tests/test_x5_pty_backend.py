@@ -388,3 +388,23 @@ def test_backend_pump_drains_echo_before_runtime_or_caller_read():
         assert b.describe()['pump_alive']
     finally:dispose(b)
     assert not b.describe()['pump_alive']
+
+
+@NATIVE
+def test_read_waits_for_terminal_event_instead_of_polling_empty(tmp_path):
+    release=tmp_path/'release-output'
+    code=("import pathlib,time;print('READ-GATE',flush=True); "
+        +"exec(\"while not pathlib.Path("+repr(str(release))+").exists():time.sleep(.01)\"); "
+        +"print('AFTER-GATE',flush=True)")
+    b=spawn(code);collect(b,b'READ-GATE')
+    returned=threading.Event();result=[]
+    def read():
+        try:result.append(b.read(4096))
+        finally:returned.set()
+    thread=threading.Thread(target=read,daemon=True);thread.start()
+    try:
+        assert not returned.wait(.2),'read returned a polling empty result without tty event'
+        release.touch()
+        assert returned.wait(4) and b'AFTER-GATE' in result[0]
+    finally:
+        release.touch();thread.join(4);dispose(b)
