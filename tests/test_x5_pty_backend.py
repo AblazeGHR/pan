@@ -137,7 +137,21 @@ def test_close_live_process_refuses_fd_release():
     try:
         with pytest.raises(OwnershipUnknownError):b.close()
         assert b.alive() and b.write(b'x') == 1
-    finally:dispose(b)
+    finally:
+        try:dispose(b)
+        except BaseException as exc:
+            if sys.platform == 'darwin':
+                # Diagnostics only: no enumeration result grants kill/close rights.
+                import ctypes
+                lib=ctypes.CDLL('/usr/lib/libproc.dylib',use_errno=True)
+                lib.proc_listpgrppids.argtypes=[ctypes.c_int,ctypes.c_void_p,ctypes.c_int]
+                lib.proc_listpgrppids.restype=ctypes.c_int
+                buf=(ctypes.c_int*4096)()
+                ctypes.set_errno(0)
+                count=lib.proc_listpgrppids(b.owned.pgid,buf,ctypes.sizeof(buf))
+                exc.add_note(str({'diagnostic_group_members':list(buf[:max(0,count)]),
+                    'native_list_count':count,'native_list_errno':ctypes.get_errno()}))
+            raise
 
 
 def test_native_identity_never_matches_weak_time_or_other_birth():

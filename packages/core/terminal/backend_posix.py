@@ -251,6 +251,11 @@ class PosixPtyBackend:
             return self.owned.popen.poll()
 
     def terminate(self, force):
+        # A completed close already proved original root/group/member absence.
+        # Match the retained-dead idempotence of the Windows backend.
+        with self._process_lock:
+            if self._closed:
+                return
         if not force:
             self.write(b"\x03")
             return
@@ -265,6 +270,14 @@ class PosixPtyBackend:
                 self.owner.wait(self.owned, timeout=.25)
                 settled = self.owner._exited_tree(self.owned)
                 if settled is None or not settled.confirmed:
+                    from packages.core.platform.process_posix import read_posix_identity
+                    root, state = read_posix_identity(self.pid)
+                    exc.add_note(str({"pty_root_code": self.owned.popen.returncode,
+                        "root_observed": root is not None, "root_state": state,
+                        "original_pgid": self.owned.pgid,
+                        "known_members": sorted(self.owned.members),
+                        "remaining": None if settled is None else settled.remaining,
+                        "membership_unknown": self.owned.membership_unknown}))
                     exc.add_note("PTY signal failed; original read-only clearance unconfirmed; owner retained")
                     raise
                 return
