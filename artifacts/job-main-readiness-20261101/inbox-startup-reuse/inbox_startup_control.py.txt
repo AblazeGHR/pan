@@ -1,0 +1,12 @@
+import inspect
+from pathlib import Path
+import pytest
+
+@pytest.fixture(autouse=True)
+def controlled_startup(request, monkeypatch):
+    if request.node.name != 'test_plugin_configuration_and_delayed_restart_share_lifecycle[idle]':
+        return
+    runtime = request.module._PanRuntime
+    module = inspect.getmodule(runtime)
+    monkeypatch.setattr(module, 'SERVER_LAUNCHER',
+                        Path.cwd()/'.validation/readiness/inbox_startup_control_host.py')

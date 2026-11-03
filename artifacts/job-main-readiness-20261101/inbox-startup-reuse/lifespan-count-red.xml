@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.690" timestamp="2026-11-03T08:55:00.056034+08:00" hostname="ablaze"><testcase classname="tests.test_inbox_startup" name="test_startup_initializes_inbox_once_per_owned_profile" time="2.457"><failure message="AssertionError: assert 5 == 1&#10; +  where 5 = len([{'path': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6879\\test_startup_initializes_inbox0\\fir...mp\\pytest-of-ablaze\\pytest-6879\\test_startup_initializes_inbox0\\first\\user_inbox\\cards.sqlite', 'startup': True}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6879/test_startup_initializes_inbox0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001CE7CBD9E20&gt;
+
+    def test_startup_initializes_inbox_once_per_owned_profile(tmp_path, monkeypatch):
+        module = inspect.getmodule(_PanRuntime)
+        monkeypatch.setattr(module, 'SERVER_LAUNCHER',
+                            Path(__file__).parent / 'support/inbox_startup_probe.py')
+        # Separate profiles must not share a cache or skip each other's schema.
+        for name in ('first', 'second'):
+            runtime = _PanRuntime(tmp_path / name)
+            try:
+                runtime.start()
+                rows = [json.loads(line) for line in
+                        (runtime.data_root / 'inbox-initializations.jsonl').read_text(
+                            encoding='utf-8').splitlines()]
+                startup = [row for row in rows if row['startup']]
+&gt;               assert len(startup) == 1
+E               AssertionError: assert 5 == 1
+E                +  where 5 = len([{'path': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6879\\test_startup_initializes_inbox0\\fir...mp\\pytest-of-ablaze\\pytest-6879\\test_startup_initializes_inbox0\\first\\user_inbox\\cards.sqlite', 'startup': True}])
+
+tests\test_inbox_startup.py:22: AssertionError</failure></testcase></testsuite></testsuites>

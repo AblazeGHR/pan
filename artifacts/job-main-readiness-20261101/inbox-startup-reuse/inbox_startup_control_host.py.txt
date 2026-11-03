@@ -1,0 +1,18 @@
+import json, os, runpy, time, traceback
+from pathlib import Path
+from packages.interactions.store import InteractionStore
+
+root = Path(os.environ['PAN_E2E_DATA_ROOT']).resolve()
+root.mkdir(parents=True, exist_ok=True)
+original = InteractionStore.__init__
+def initialize(self, *args, **kwargs):
+    start = time.monotonic()
+    original(self, *args, **kwargs)
+    # Model bounded initialization I/O latency, leaving all real FULL SQLite
+    # commits, migrations, recovery methods and readiness checks untouched.
+    time.sleep(4.1)
+    with (root/'inbox-init-phases.jsonl').open('a', encoding='utf8') as f:
+        f.write(json.dumps({'path':str(self.path), 'seconds':time.monotonic()-start,
+                           'caller':traceback.format_stack(limit=5)})+'\n')
+InteractionStore.__init__ = initialize
+runpy.run_path(str(Path(__file__).resolve().parents[2]/'tests/support/isolated_http_server.py'), run_name='__main__')

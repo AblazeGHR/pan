@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.875" timestamp="2026-11-03T08:54:25.658325+08:00" hostname="ablaze"><testcase classname="tests.test_inbox_startup" name="test_startup_initializes_inbox_once_per_owned_profile" time="2.507"><failure message="AssertionError: assert 6 == 1&#10; +  where 6 = len([{'path': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6878\\test_startup_initializes_inbox0\\fir...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6878\\test_startup_initializes_inbox0\\first\\user_inbox\\cards.sqlite'}])">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6878/test_startup_initializes_inbox0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000021751DEDC40&gt;
+
+    def test_startup_initializes_inbox_once_per_owned_profile(tmp_path, monkeypatch):
+        module = inspect.getmodule(_PanRuntime)
+        monkeypatch.setattr(module, 'SERVER_LAUNCHER',
+                            Path(__file__).parent / 'support/inbox_startup_probe.py')
+        # Separate profiles must not share a cache or skip each other's schema.
+        for name in ('first', 'second'):
+            runtime = _PanRuntime(tmp_path / name)
+            try:
+                runtime.start()
+                rows = [json.loads(line) for line in
+                        (runtime.data_root / 'inbox-initializations.jsonl').read_text(
+                            encoding='utf-8').splitlines()]
+&gt;               assert len(rows) == 1
+E               AssertionError: assert 6 == 1
+E                +  where 6 = len([{'path': 'C:\\Users\\14709\\AppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6878\\test_startup_initializes_inbox0\\fir...ppData\\Local\\Temp\\pytest-of-ablaze\\pytest-6878\\test_startup_initializes_inbox0\\first\\user_inbox\\cards.sqlite'}])
+
+tests\test_inbox_startup.py:21: AssertionError</failure></testcase></testsuite></testsuites>

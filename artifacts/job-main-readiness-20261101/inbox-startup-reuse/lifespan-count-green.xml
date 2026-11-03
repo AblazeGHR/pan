@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="4.958" timestamp="2026-11-03T08:55:13.783511+08:00" hostname="ablaze"><testcase classname="tests.test_inbox_startup" name="test_startup_initializes_inbox_once_per_owned_profile" time="4.835" /></testsuite></testsuites>

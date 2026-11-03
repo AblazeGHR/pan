@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="21.145" timestamp="2026-11-03T08:53:37.780088+08:00" hostname="ablaze"><testcase classname="tests.test_delayed_restart_locked_queue_http" name="test_plugin_configuration_and_delayed_restart_share_lifecycle[idle]" time="20.675"><failure message="AssertionError: isolated server failed to start:&#10;61101\packages\web\server.py&quot;, line 239 in lifespan&#10;  File &quot;C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py&quot;, line 210 in __aenter__&#10;  File &quot;D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py&quot;, line 248 in merged_lifespan&#10;[+58 more lines; full report in element text]">self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001CE143C6900&gt;
+
+    def start(self):
+        assert _port_is_free(PORT), f"isolated port {PORT} is not free"
+        self.data_root.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
+        env.update({
+            "PAN_E2E_DATA_ROOT": str(self.data_root),
+            "PAN_E2E_FAKE_CLI": str(FAKE_CLI),
+            "PAN_E2E_FAKE_LOG": str(self.log_path),
+            "PAN_E2E_GATE_MAP": json.dumps({k: str(v) for k, v in self.gates.items()}),
+            "PAN_E2E_CAPTURE_MARKER": str(self.capture_marker),
+            # Avoid accidental provider/MCP work in this test process.
+            "PAN_AGENT_SESSION_ID": "",
+        })
+        log = open(self.data_root / "pan.log", "a", encoding="utf-8")
+        self.process = subprocess.Popen(
+            [sys.executable, str(SERVER_LAUNCHER), "--port", str(PORT),
+             "--data-root", str(self.data_root)],
+            cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT,
+            **command_window_options(),
+        )
+        self.pan_pids.append(self.process.pid)
+        try:
+            self._capture_owned_processes()
+&gt;           _wait_for(
+                lambda: self.process.poll() is None and self._health_ok(),
+                timeout=20,
+                label="isolated FastAPI readiness",
+            )
+
+tests\test_real_queue_http_e2e.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+predicate = &lt;function _PanRuntime.start.&lt;locals&gt;.&lt;lambda&gt; at 0x000001CE144068E0&gt;
+timeout = 20, label = 'isolated FastAPI readiness'
+
+    def _wait_for(predicate, *, timeout: float = 15.0, label: str = "condition"):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() &lt; deadline:
+            try:
+                value = predicate()
+                if value:
+                    return value
+                last = value
+            except Exception as exc:  # startup/race polling only
+                last = exc
+            time.sleep(0.025)
+&gt;       raise AssertionError(f"timed out waiting for {label}: {last!r}")
+E       AssertionError: timed out waiting for isolated FastAPI readiness: False
+
+tests\test_real_queue_http_e2e.py:55: AssertionError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = WindowsPath('D:/project/pan-worktrees/job-main-readiness-20261101/.validation/readiness/inbox-startup-415464/original-private/test_plugin_configuration_and_0')
+order = 'idle'
+
+    @pytest.mark.parametrize("order", ["plugin-first", "manual-first", "idle", "offline"])
+    def test_plugin_configuration_and_delayed_restart_share_lifecycle(tmp_path, order):
+        runtime = _PanRuntime(tmp_path / "runtime")
+&gt;       runtime.start()
+
+tests\test_delayed_restart_locked_queue_http.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;test_real_queue_http_e2e._PanRuntime object at 0x000001CE143C6900&gt;
+
+    def start(self):
+        assert _port_is_free(PORT), f"isolated port {PORT} is not free"
+        self.data_root.mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ)
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(ROOT) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
+        env.update({
+            "PAN_E2E_DATA_ROOT": str(self.data_root),
+            "PAN_E2E_FAKE_CLI": str(FAKE_CLI),
+            "PAN_E2E_FAKE_LOG": str(self.log_path),
+            "PAN_E2E_GATE_MAP": json.dumps({k: str(v) for k, v in self.gates.items()}),
+            "PAN_E2E_CAPTURE_MARKER": str(self.capture_marker),
+            # Avoid accidental provider/MCP work in this test process.
+            "PAN_AGENT_SESSION_ID": "",
+        })
+        log = open(self.data_root / "pan.log", "a", encoding="utf-8")
+        self.process = subprocess.Popen(
+            [sys.executable, str(SERVER_LAUNCHER), "--port", str(PORT),
+             "--data-root", str(self.data_root)],
+            cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT,
+            **command_window_options(),
+        )
+        self.pan_pids.append(self.process.pid)
+        try:
+            self._capture_owned_processes()
+            _wait_for(
+                lambda: self.process.poll() is None and self._health_ok(),
+                timeout=20,
+                label="isolated FastAPI readiness",
+            )
+        except Exception as exc:
+            details = (self.data_root / "pan.log").read_text(encoding="utf-8", errors="replace")
+            trace = self.data_root / 'startup-stacks.txt'
+            if trace.exists():
+                details += '\nStartup stacks:\n' + trace.read_text(encoding='utf-8', errors='replace')
+            self._capture_owned_processes()
+            try:
+                self.stop()
+            except Exception as cleanup:
+                raise ExceptionGroup('Isolated startup and owned cleanup failed', [exc, cleanup]) from exc
+&gt;           raise AssertionError(f"isolated server failed to start:\n{details[-8000:]}") from exc
+E           AssertionError: isolated server failed to start:
+E           61101\packages\web\server.py", line 239 in lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 248 in merged_lifespan
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\contextlib.py", line 210 in __aenter__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\starlette\routing.py", line 661 in lifespan
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\routing.py", line 2798 in app
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\starlette\routing.py", line 683 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\starlette\middleware\exceptions.py", line 49 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\jobs\maintenance.py", line 88 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\web\server.py", line 476 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\web\server.py", line 2302 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\web\server.py", line 4273 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\packages\automation\api.py", line 47 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\isolated_http_server.py", line 30 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\startup_trace.py", line 40 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\telemetry\_asgi.py", line 151 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\starlette\middleware\errors.py", line 151 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\starlette\applications.py", line 96 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\telemetry\_runtime.py", line 238 in lifespan
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\fastapi\applications.py", line 1181 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 30 in __call__
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\uvicorn\lifespan\on.py", line 86 in main
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\events.py", line 88 in _run
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\base_events.py", line 1999 in _run_once
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\base_events.py", line 645 in run_forever
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\windows_events.py", line 322 in run_forever
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\base_events.py", line 678 in run_until_complete
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\runners.py", line 118 in run
+E             File "C:\Users\14709\AppData\Roaming\uv\python\cpython-3.12.12-windows-x86_64-none\Lib\asyncio\runners.py", line 195 in run
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\ci312-venv\Lib\site-packages\uvicorn\server.py", line 86 in run
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\isolated_http_server.py", line 196 in main
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\tests\support\isolated_http_server.py", line 201 in &lt;module&gt;
+E             File "&lt;frozen runpy&gt;", line 88 in _run_code
+E             File "&lt;frozen runpy&gt;", line 98 in _run_module_code
+E             File "&lt;frozen runpy&gt;", line 287 in run_path
+E             File "D:\project\pan-worktrees\job-main-readiness-20261101\.validation\readiness\inbox_startup_control_host.py", line 18 in &lt;module&gt;
+
+tests\test_real_queue_http_e2e.py:189: AssertionError</failure></testcase></testsuite></testsuites>

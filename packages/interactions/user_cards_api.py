@@ -1,12 +1,13 @@
 """Authenticated user APIs and the existing loopback stdio owner boundary."""
 from fastapi import HTTPException, Request
 from .contracts import InteractionError
-from .user_cards import get_store, ReminderScheduler
+from .user_cards import get_store, ReminderScheduler, UserCardStore
 
 
-def scheduler(app):
+def scheduler(app, *, interaction_store=None):
     if getattr(app.state,'user_card_scheduler',None) is None:
-        app.state.user_card_scheduler=ReminderScheduler(get_store())
+        store = UserCardStore(interaction_store) if interaction_store is not None else get_store()
+        app.state.user_card_scheduler=ReminderScheduler(store)
     return app.state.user_card_scheduler
 
 

@@ -311,9 +311,13 @@ async def _owned_lifespan(app: FastAPI, owner):
     await recover_inbox(_plugin_manifest())
     from packages.interactions.api import get_store as interaction_store
     from packages.core.inbox_service import SessionQueue
-    await interaction_store().deliver_rejections(SessionQueue())
-    await interaction_store().deliver_responses(SessionQueue())
-    await interaction_store().recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
+    # One facade for this lifespan, not five repetitions of its FULL schema
+    # initialization/backfill transaction. Methods still open their own fenced
+    # transactions; no SQLite connection or profile-global cache is retained.
+    startup_inbox = interaction_store()
+    await startup_inbox.deliver_rejections(SessionQueue())
+    await startup_inbox.deliver_responses(SessionQueue())
+    await startup_inbox.recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
 
     qq_config = load_config().get("qq") or {}
     await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
@@ -358,12 +362,12 @@ async def _owned_lifespan(app: FastAPI, owner):
                         if getattr(app.state, 'interaction_trigger_adapter', None) is None:
                             app.state.interaction_trigger_adapter = bind_interactions(automation)
                         from packages.interactions.runtime import recover as recover_interactions
-                        await recover_interactions(interaction_store(), app.state.interaction_trigger_adapter)
+                        await recover_interactions(startup_inbox, app.state.interaction_trigger_adapter)
                         await automation.engine.kick()
                         await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
                         app.state.plugin_events = plugin_runtime.events
                         from packages.interactions.user_cards_api import scheduler as user_card_scheduler
-                        user_card_task = asyncio.create_task(user_card_scheduler(app).run())
+                        user_card_task = asyncio.create_task(user_card_scheduler(app, interaction_store=startup_inbox).run())
                         try:
                             yield
                         finally:

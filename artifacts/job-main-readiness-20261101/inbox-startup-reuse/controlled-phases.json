@@ -1,0 +1,21 @@
+{
+  "original-private": {
+    "completedConstructors": 5,
+    "seconds": [
+      4.10899999999674,
+      4.110000000000582,
+      4.0939999999973224,
+      4.10899999999674,
+      4.10899999999674
+    ],
+    "samePath": true
+  },
+  "fixed-private": {
+    "completedConstructors": 2,
+    "seconds": [
+      4.109000000004016,
+      4.109000000004016
+    ],
+    "samePath": true
+  }
+}

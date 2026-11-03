@@ -1,0 +1,68 @@
+[
+  {
+    "path": "platform-fast-macos-latest-py312\\collect.xml",
+    "tests": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  {
+    "path": "platform-fast-macos-latest-py312\\fast.xml",
+    "tests": 456,
+    "skipped": 21,
+    "failures": []
+  },
+  {
+    "path": "platform-fast-ubuntu-latest-py312\\collect.xml",
+    "tests": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  {
+    "path": "platform-fast-ubuntu-latest-py312\\fast.xml",
+    "tests": 456,
+    "skipped": 23,
+    "failures": []
+  },
+  {
+    "path": "platform-fast-windows-latest-py312\\collect.xml",
+    "tests": 0,
+    "skipped": 0,
+    "failures": []
+  },
+  {
+    "path": "platform-fast-windows-latest-py312\\fast.xml",
+    "tests": 456,
+    "skipped": 32,
+    "failures": []
+  },
+  {
+    "path": "pytest-results-3.12\\pytest-results.xml",
+    "tests": 8597,
+    "skipped": 102,
+    "failures": [
+      {
+        "classname": "tests.test_delayed_restart_locked_queue_http",
+        "name": "test_plugin_configuration_and_delayed_restart_share_lifecycle[idle]",
+        "time": "20.420"
+      }
+    ]
+  },
+  {
+    "path": "windows-owned-combination-3.12\\owned-combination.xml",
+    "tests": 25,
+    "skipped": 0,
+    "failures": []
+  },
+  {
+    "path": "windows-owned-combination-3.14\\owned-combination.xml",
+    "tests": 25,
+    "skipped": 0,
+    "failures": []
+  },
+  {
+    "path": "ubuntu-browser-py312\\evidence\\cp-x1-ubuntu-browser\\pytest.xml",
+    "tests": 23,
+    "skipped": 0,
+    "failures": []
+  }
+]

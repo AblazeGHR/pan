@@ -1,0 +1,15545 @@
+"""Pan Web Channel — FastAPI routes + WebSocket + Dashboard."""
+
+from __future__ import annotations
+
+from packages.core import runtime_diagnostics as _runtime_diag
+from packages.core.markdown_links import MarkdownLinks
+
+import asyncio
+import base64
+import copy
+from weakref import WeakValueDictionary
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+import ctypes
+import errno
+import functools
+import hashlib
+import hmac
+import inspect
+import json
+import logging
+import math
+import mimetypes
+import os
+import re
+import shutil
+import stat
+import subprocess
+from packages.jobs.window import command_window_options
+from packages.plugins.lifecycle import session_claim as _plugin_session_claim, coordinator as _plugin_coordinator, io as _plugin_io, action_groups as _action_groups
+from packages.plugins.lifecycle import startup as _plugin_copy_admission
+import sys
+import threading
+import time
+import uuid
+from contextlib import AsyncExitStack, asynccontextmanager, contextmanager
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Annotated, Any, Callable
+from urllib.parse import parse_qs, quote, unquote, urlsplit
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Body
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
+
+from packages.web.static_assets import ReactStaticFiles
+from packages.web.network_json import NetworkJSONResponse
+from packages.remote.tailscale_runtime import Controller as TailscaleController
+
+import httpx
+import psutil
+
+from packages.core import worker
+from packages.core.takeover import readiness as _takeover_readiness
+from packages.core import legal_offline, queue_locks
+from packages.core import session as sess
+from packages.core import session_bookmarks
+from packages.core import session_drafts
+from packages.core import history_search_index
+from packages.core import history_search_scan
+from packages.core import workspace as workspaces
+from packages.core.workdir_retention import WorkdirRetention
+from packages.core.data_retention import (
+    DataRetentionService,
+    _history_activity as _retention_history_activity,
+    _timestamp as _retention_timestamp,
+    normalize_policies as normalize_data_retention_policies,
+    validate_policy_update as validate_data_retention_update,
+)
+from packages.core.adapters import (
+    get_adapter,
+    list_adapters,
+    get_sessions_provider,
+    provider_kwargs,
+    adapter_supports_native_control,
+)
+from packages.core.adapters.validation import (
+    AdapterCapabilityError,
+    is_valid_model,
+    resolve_adapter,
+    validate_effort,
+    validate_model,
+    validate_permission_mode,
+    validate_output_mode,
+    validate_session_settings,
+    sanitize_adapter_config,
+    supported_settings as _adapter_supported_settings,
+    VALID_MCP_TRANSPORTS,
+)
+from packages.core.adapters.cbc import sessions as cbc_sessions
+from packages.core.adapters.cbc.sessions import sanitize_project_dir_name
+from packages.core.adapters.kimi import sessions as kimi_sessions
+from packages.core.adapters.opencode import sessions as opencode_sessions
+from packages.core.config import (
+    DEFAULT_PLUGIN_MANIFESTS,
+    load_config,
+    read_config_file,
+    resolve_pan_python_info,
+    save_config,
+)
+from packages.core.cli_diagnostics import get_cli_diagnostics
+from packages.core.character import CharacterManager
+from packages.core.manifest_loader import SessionTemplate
+from packages.core import background_jobs
+from packages.core.rewind import (
+    AnchorSpec,
+    REWIND_SCOPE_LABELS,
+    RewindRecordStore,
+    coerce_rewind_scope,
+    run_hybrid_rewind,
+)
+from packages.core.rewind.driver import compute_match_ordinal
+from packages.core.rewind.filetools import extract_mutated_files
+from packages.core.data_catalog import get_data_catalog
+from packages.core.codex_quota import (
+    format_codex_quota_record,
+    validate_quota_window,
+)
+from packages.core.codex_quota_provider import CodexWhamProvider
+from packages.core.codex_quota_store import (
+    CodexProfile,
+    CodexQuotaStore,
+    is_stale,
+    resolve_profile_identity,
+)
+from packages.core import main_lifecycle
+from packages.core import launcher
+from packages.qq import gateway_plugins
+from packages.core import notifications, reminders
+from packages.core import platform as platform_layer
+from packages.core import unread_policy
+from packages.scheduler import api as scheduler_api
+
+# ── logging ──
+
+def _log(msg: str):
+    """Print with HH:MM:SS prefix without failing on narrow consoles."""
+    stream = sys.stdout
+    line = f"[{datetime.now().strftime('%H:%M:%S')}] {msg}"
+    encoding = getattr(stream, "encoding", None)
+    if encoding:
+        line = line.encode(encoding, errors="backslashreplace").decode(encoding)
+    print(line, file=stream)
+
+
+# Comma-separated path prefixes to skip in request logging.
+# e.g. PAN_LOG_SKIP=/api/sessions,/ws
+_LOG_SKIP = [
+    p.strip()
+    for p in os.environ.get("PAN_LOG_SKIP", "").split(",")
+    if p.strip()
+]
+
+
+# ── lifespan ──
+
+_SUMMARY_BACKFILL_SHUTDOWN_TIMEOUT_SEC = 5.0
+_DETACHED_SUMMARY_BACKFILL_TASKS: set[asyncio.Task] = set()
+
+
+def _consume_detached_summary_backfill(task: asyncio.Task) -> None:
+    """Keep a timed-out cooperative worker observable until it retires."""
+    try:
+        result = task.result()
+        _log(
+            "[Pan] Summary projection backfill retired after shutdown wait: "
+            f"{result.get('state') if isinstance(result, dict) else 'unknown'}"
+        )
+    except asyncio.CancelledError:
+        _log("[Pan] Summary projection backfill task was cancelled")
+    except Exception as exc:
+        _log(f"[Pan] Summary projection backfill task failed after shutdown: {exc}")
+    finally:
+        _DETACHED_SUMMARY_BACKFILL_TASKS.discard(task)
+
+
+async def _shutdown_summary_projection_backfill(
+    task: asyncio.Task,
+    cancel_event: threading.Event,
+    *,
+    timeout: float | None = None,
+) -> bool:
+    """Request cooperative cancellation and wait a bounded amount of time.
+
+    The task is shielded deliberately: cancelling an ``asyncio.to_thread``
+    wrapper cannot stop an in-flight filesystem replace and would leave an
+    unobserved thread mutating Session files after shutdown.  The scanner
+    checks ``cancel_event`` at Session boundaries; a timeout only detaches the
+    supervised task and its completion callback, leaving its state truthful.
+    """
+    cancel_event.set()
+    wait_seconds = (
+        _SUMMARY_BACKFILL_SHUTDOWN_TIMEOUT_SEC if timeout is None else timeout
+    )
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=wait_seconds)
+    except asyncio.TimeoutError:
+        _DETACHED_SUMMARY_BACKFILL_TASKS.add(task)
+        task.add_done_callback(_consume_detached_summary_backfill)
+        _log(
+            "[Pan] Summary projection backfill did not retire within shutdown "
+            f"deadline ({wait_seconds:.2f}s); cancellation remains supervised"
+        )
+        return False
+    except asyncio.CancelledError:
+        if task.cancelled():
+            _log("[Pan] Summary projection backfill task was cancelled")
+        else:
+            # Preserve cancellation of the lifespan caller; shield only
+            # protects the worker task from an accidental wrapper cancel.
+            raise
+    except Exception as exc:
+        _log(f"[Pan] Summary projection backfill stopped with error: {exc}")
+    return True
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fence before watchdogs, retention, plugins or legacy recovery can start.
+    # A failed startup keeps the durable cutover; it never reopens old writers.
+    from packages.jobs.runtime_owner import OwnerFence, OwnershipConflict
+    owner = OwnerFence(sess.SESSION_DIR.parent)
+    status = owner.status()
+    app.state.job_maintenance = None
+    try:
+        owner.claim(status["epoch"] if status else 0)
+    except OwnershipConflict as exc:
+        from packages.jobs.maintenance import state_for
+        app.state.job_maintenance = state_for(sess.SESSION_DIR.parent, exc)
+        try:
+            yield
+        finally:
+            app.state.job_maintenance = None
+        return
+    try:
+        async with _owned_lifespan(app, owner):
+            yield
+    finally:
+        owner.release()
+
+
+@asynccontextmanager
+async def _owned_lifespan(app: FastAPI, owner):
+    """Startup: load all saved sessions (don't auto-spawn Workers).
+    Shutdown: kill all child processes."""
+    sessions = sess.list_all(load_history=False)
+    interrupted_restarts = 0  # R4: legacy lifecycle records remain read-only.
+    if interrupted_restarts:
+        _log(
+            "[main-restart] marked "
+            f"{interrupted_restarts} interrupted pre-supervisor Job(s) failed"
+        )
+    if sessions:
+        _log(f"[Pan] Loaded {len(sessions)} sessions from disk")
+    await worker.initialize_legal_offline(sessions)
+    try:
+        await _initialize_startup_recovery(sessions)
+    except Exception as exc:
+        _log(f"[Pan] Startup legal-state recovery initialization failed: {exc}")
+
+    # Unread recording policy: publish the persisted scope set and align
+    # Sessions excluded under it (old data / crash leftovers) before any
+    # summary read can serve them. Best-effort: a failure never blocks startup
+    # and the read projection stays authoritative either way.
+    try:
+        aligned = await _coordinate_unread_recording_on_startup(sessions)
+        if aligned:
+            _log(f"[Pan] Unread-recording policy aligned {aligned} Session(s) at startup")
+    except Exception as exc:
+        _log(f"[Pan] Unread-recording policy startup alignment failed: {exc}")
+
+    # Upgrade-shaped/incomplete summary projections are repaired in one
+    # bounded worker-thread scan.  The summary HTTP path remains projection
+    # only, while this task gives the frontend a deterministic convergence
+    # event once the durable metadata is authoritative.
+    summary_backfill_cancel = threading.Event()
+    summary_backfill_task = asyncio.create_task(
+        _run_summary_projection_backfill(summary_backfill_cancel),
+        name="pan-summary-projection-backfill",
+    )
+
+    # 服务级 watchdog（立项 4.4）：生命周期=Pan 服务，周期扫描落盘队列
+    # queue_pending 非空但没有活 worker 的 session，自动 spawn 恢复。
+    from packages.core import qq_reports
+    qq_reports.start(_send_scheduled_qq, sessions)
+    from packages.core import source_notifications
+    source_notifications.start(_send_scheduled_qq, broadcast)
+    worker.start_global_watchdog()
+    global _DATA_RETENTION_LOOP
+    _DATA_RETENTION_LOOP = asyncio.get_running_loop()
+    _get_data_retention_service().start()
+    reminder_task = asyncio.create_task(_reminder_loop())
+    # R4: the canonical Creator runtime is the sole time producer.
+    
+    # Init CharacterManager with manifest
+    global _character_manager
+    config = load_config()
+    plugin_paths = config.get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS)
+    _character_manager = CharacterManager(str(DATA_DIR))
+    try:
+        _character_manager.load_manifest(plugin_paths)
+        templates = _character_manager.list_session_templates()
+        _log(f"[Pan] Loaded {len(templates)} session templates from manifest")
+    except Exception as e:
+        _log(f"[Pan] Character manifest not loaded: {e}")
+
+    from packages.core.inbox_service import recover as recover_inbox
+    await recover_inbox(_plugin_manifest())
+    from packages.interactions.api import get_store as interaction_store
+    from packages.core.inbox_service import SessionQueue
+    await interaction_store().deliver_rejections(SessionQueue())
+    await interaction_store().deliver_responses(SessionQueue())
+    await interaction_store().recover_detached(getattr(app.state,'interaction_trigger_adapter',None))
+
+    qq_config = load_config().get("qq") or {}
+    await asyncio.to_thread(gateway_plugins.auto_start, qq_config.get("plugin_id") or qq_config.get("channel") or "napcat")
+
+    # ── 终端 REST 运行期（P2 第一批：薄接入；只构造 service + 安排一次 reconcile） ──
+    # ``terminal_lifespan`` 内部对 yield 与 stop_runtime 用 **try/finally**：lifespan
+    # 体异常/取消也一定会请求收尾（先关 REST 准入，再按总预算收敛同一 service）。
+    # 其它插件的起停顺序与语义保持不变。
+    # WS 桥是**内层**：退出时先停 WS 准入并关闭全部连接（共享 2s 预算），
+    # 再由外层 REST 走既有 20s 预算 —— 两个预算**单列**。
+    from packages.plugins.ipc import plugin_lifespan
+    from packages.plugins.panels import panel_lifespan
+    async with plugin_lifespan(_plugin_manifest, sess.get, DATA_DIR, _plugin_native_changed) as plugin_runtime, panel_lifespan(app, _plugin_manifest, DATA_DIR), terminal_api.terminal_lifespan(app):
+        async with terminal_tools_api.terminal_tools_lifespan(app):
+            async with terminal_ws.websocket_lifespan(app):
+                tailscale = _tailscale_controller()
+                app.state.tailscale_controller = tailscale
+                try:
+                    await tailscale.operation(tailscale.startup)
+                    lan = _lan_controller()
+                    await lan.operation("startup")
+                    from packages.automation.service import Service as AutomationService
+                    automation = AutomationService(sess.SESSION_DIR.parent / 'automation', worker, api_session_queue_paused)
+                    from packages.jobs.final_api import CanonicalUserAuth
+                    automation.auth = CanonicalUserAuth(automation.auth.path.parent)
+                    automation.engine.authorization = automation.auth.permission_allowed
+                    app.state.automation = automation
+                    from packages.jobs.final_service import bind as bind_final_jobs
+                    final_jobs = None
+                    from packages.automation.authorization import bind_objects
+                    bind_objects(plugin_runtime, app)
+                    try:
+                        final_jobs = bind_final_jobs(app, automation, sess.SESSION_DIR.parent / 'job-final', owner=owner)
+                        _bind_qq_channel_provider(final_jobs)
+                        async def send_final_notice(row):
+                            return await _send_final_notice(row)
+                        final_jobs.outbox_sender = send_final_notice
+                        _bind_final_change_notifications(final_jobs)
+                        await final_jobs.start(activation=load_config().get('job_runtime_activation'))
+                        await automation.start()
+                        from packages.interactions.runtime import bind as bind_interactions
+                        if getattr(app.state, 'interaction_trigger_adapter', None) is None:
+                            app.state.interaction_trigger_adapter = bind_interactions(automation)
+                        from packages.interactions.runtime import recover as recover_interactions
+                        await recover_interactions(interaction_store(), app.state.interaction_trigger_adapter)
+                        await automation.engine.kick()
+                        await plugin_runtime.bind_events(automation, lambda: sess.list_all(load_history=False))
+                        app.state.plugin_events = plugin_runtime.events
+                        from packages.interactions.user_cards_api import scheduler as user_card_scheduler
+                        user_card_task = asyncio.create_task(user_card_scheduler(app).run())
+                        try:
+                            yield
+                        finally:
+                            user_card_task.cancel()
+                            try:
+                                await user_card_task
+                            except asyncio.CancelledError:
+                                pass
+                            app.state.user_card_scheduler = None
+                    finally:
+                        try:
+                            app.state.plugin_events = None
+                            app.state.interaction_trigger_adapter = None
+                            try:
+                                await plugin_runtime.unbind_events()
+                            finally:
+                                try:
+                                    await automation.close()
+                                finally:
+                                    try:
+                                        if final_jobs is not None:
+                                            await final_jobs.close()
+                                    finally:
+                                        app.state.job_final_service = None
+                                        automation.final_jobs = None
+                        finally:
+                            app.state.automation = None
+                            from packages.web.native_file_picker import native_file_picker
+                            native_file_picker.close()
+                            await lan.shutdown()
+                finally:
+                    result = await tailscale.operation(tailscale.shutdown)
+                    if not result["ok"]:
+                        _log(f"[Tailscale] cleanup failed: {result['error']}")
+
+    await asyncio.to_thread(gateway_plugins.stop_all)
+    # Request cancellation at a Session boundary.  The bounded wait protects
+    # shutdown from a stuck/slow disk while the shield and done callback keep
+    # any late worker observable instead of leaving an untracked mutator.
+    await _shutdown_summary_projection_backfill(
+        summary_backfill_task, summary_backfill_cancel,
+    )
+    reminder_task.cancel()
+    try:
+        await reminder_task
+    except asyncio.CancelledError:
+        pass
+    await asyncio.to_thread(_get_data_retention_service().stop)
+    _DATA_RETENTION_LOOP = None
+    worker.stop_global_watchdog()
+    await background_jobs.stop_recovery_loop()
+    # 方案 C（关闭收尾加固）：先有界 drain fire-and-forget 的 recovery 任务
+    # （关闭开始即禁止新调度），再关 worker——避免取消打在真实 subprocess
+    # spawn 中途导致 Windows Proactor 循环无法退出。
+    await worker.drain_recoveries()
+    await qq_reports.stop()
+    await source_notifications.stop()
+    await worker.shutdown_all()
+    # Release cached MemoryManagers + loaded embedding models (#20).
+    try:
+        from packages.core.memory_context import clear_memory_manager_cache
+        clear_memory_manager_cache()
+    except Exception:
+        pass
+    _log("[Pan] All workers shut down")
+
+
+async def _run_summary_projection_backfill(
+    cancel_event: threading.Event | None = None,
+) -> dict:
+    result = await sess.backfill_summary_projections(cancel_event=cancel_event)
+    # ``repaired`` is incremented only after the per-Session atomic replace
+    # succeeds.  A partial failed pass may still have durable repairs that
+    # the client must refresh; a cancelled shutdown pass must not broadcast.
+    if result.get("state") != "cancelled" and result.get("repaired", 0):
+        await broadcast({
+            "type": "session.summaryBackfillCompleted",
+            "repaired": result["repaired"],
+            "discovered": result["discovered"],
+        })
+    return result
+
+
+_character_manager: CharacterManager | None = None
+
+
+app = FastAPI(title="Pan", lifespan=lifespan)
+from packages.jobs.maintenance import install as install_job_maintenance
+install_job_maintenance(app)
+
+
+class PluginEventBindingsMiddleware:
+    """Reconcile Session mutations without relaying response bodies or tasks."""
+
+    def __init__(self, application):
+        self.app = application
+
+    async def __call__(self, scope, receive, send):
+        async def response(message):
+            events = getattr(app.state, 'plugin_events', None)
+            if (message['type'] == 'http.response.start' and events
+                    and scope['method'] in {'POST', 'PUT', 'PATCH', 'DELETE'}
+                    and scope['path'].startswith('/api/sessions')):
+                try:
+                    await events.reconcile()
+                except Exception as exc:
+                    events.diagnostic('runtime', 'binding reconciliation: ' + str(exc))
+            await send(message)
+
+        await self.app(scope, receive, response if scope['type'] == 'http' else send)
+
+
+app.add_middleware(PluginEventBindingsMiddleware)
+
+
+async def _reminder_loop():
+    """Recover persisted reminders after restart; claim-before-send is once-only."""
+    while True:
+        await _deliver_due_reminders()
+        await asyncio.sleep(1)
+
+
+async def _deliver_due_reminders() -> int:
+    """Claim due records before sending, returning the number of broadcasts."""
+    delivered = 0
+    for item in reminders.claim_due():
+        s = sess.get(item.get("sessionId", ""))
+        if not s:
+            continue
+        payload = notifications.dispatch_reminder(item.get("title", "Reminder"), item.get("body", ""))
+        await broadcast({"type": "notification.reminder", "sessionId": s.id,
+                         "reminderId": item["id"], "notification": payload})
+        delivered += 1
+    return delivered
+
+ws_clients: set[WebSocket] = set()
+
+
+def _bind_final_change_notifications(service):
+    """Coalesce committed observations into content-free dashboard refreshes."""
+    loop = asyncio.get_running_loop()
+    pending = False
+
+    async def publish():
+        nonlocal pending
+        try:
+            if not service.closed:
+                await broadcast({'type': 'canonical.changed'})
+        except Exception as exc:
+            service.diagnostics.append({'at': datetime.now(timezone.utc).isoformat(),
+                'code': 'change_publication_failed', 'message': str(exc)})
+        finally:
+            pending = False
+
+    def schedule():
+        nonlocal pending
+        if not pending and not service.closed:
+            pending = True
+            loop.create_task(publish(), name='canonical-change-notification')
+
+    def committed(_snapshot):
+        if not loop.is_closed() and not service.closed:
+            loop.call_soon_threadsafe(schedule)
+
+    service.on_committed_change = committed
+
+
+class _WsBroadcastPreparationFailed(RuntimeError):
+    """Native event projection failed before touching any outbound queue."""
+
+
+async def _send_final_notice(row):
+    """Existing canonical outbox -> original browser/Session delivery adapter."""
+    if row['channel'] == 'ws':
+        try:
+            await broadcast({'type': 'job.updated', 'jobId': row['jobId'],
+                             'outboxId': row['outboxId'], **row['summary']})
+        except _WsBroadcastPreparationFailed as exc:
+            from packages.jobs.notification_delivery import websocket_preparation_not_attempted
+            return websocket_preparation_not_attempted(row, exc)
+        return {'outcome': 'succeeded'}
+    if row['channel'] == 'session':
+        from packages.jobs.notification_delivery import enqueue_session_notice
+        return await enqueue_session_notice(row)
+    return {'outcome': 'unknown', 'code': 'unsupported_notification_channel'}
+agent_clients: set[WebSocket] = set()
+
+# agent 视角的默认订阅：只推结果摘要，不推原始 stream（防 context 爆炸）
+_AGENT_DEFAULT_SUBSCRIPTION = frozenset({"worker.result"})
+_AGENT_TERMINAL_RESULT_STATUSES = frozenset({"done", "error", "cancelled"})
+_RESYNC_HISTORY_LIMIT = 50
+_RESYNC_MAX_SESSIONS = 512
+
+# This is a live transport cursor, not durable business state.  A restart
+# changes the epoch and therefore makes an old cursor ineligible for delta
+# replay; the client must accept the authoritative snapshot boundary instead.
+_EVENT_EPOCH = uuid.uuid4().hex
+_EVENT_SEQ = 0
+
+
+@dataclass
+class AgentSubscription:
+    """单个 /ws/agent 连接的订阅状态。
+
+    - event_types：订阅的事件类型（默认只 worker.result）
+    - session_ids：关心的 session 集合；非空时 worker.result 只推给匹配
+      workerId→sessionId 的连接的 session；空集 = 订阅所有 session
+    - consumed_seq：每 session 已消费的 result 序号（taskSeq），重连补发用
+    """
+    event_types: set[str] = field(default_factory=lambda: set(_AGENT_DEFAULT_SUBSCRIPTION))
+    session_ids: set[str] = field(default_factory=set)
+    consumed_seq: dict[str, int] = field(default_factory=dict)
+    # Durable result cursor acknowledged by the external agent.  ``consumed_seq``
+    # remains as the taskSeq compatibility view used by older clients.
+    consumed_cursor: dict[str, int] = field(default_factory=dict)
+
+
+# 每个 /ws/agent 连接的订阅状态；未订阅默认只推 worker.result
+agent_subscriptions: dict[WebSocket, AgentSubscription] = {}
+
+# ── file paths (relative to packages/web/) ──
+_WEB_DIR = Path(__file__).resolve().parent
+_PROJECT_DIR = _WEB_DIR.parent.parent  # packages/web/ → packages/ → project root
+DATA_DIR = _PROJECT_DIR / "data"
+WORKDIRS_DIR = DATA_DIR / "workdirs"
+ATTACHMENTS_DIR = DATA_DIR / "attachments"
+_ATTACHMENT_REGISTRY_LOCK = threading.RLock()
+_DATA_RETENTION_SERVICE: DataRetentionService | None = None
+_DATA_RETENTION_LOOP: asyncio.AbstractEventLoop | None = None
+REACT_DIST_DIR = _WEB_DIR / "dist"
+
+# A new id is generated by each Pan process. The durable record is keyed by
+# this generation so a later start can never mistake an earlier prompt for its
+# own decision.
+_STARTUP_RECOVERY_GENERATION = uuid.uuid4().hex
+_STARTUP_RECOVERY_LOCK = threading.RLock()
+_STARTUP_RECOVERY_INFLIGHT: set[str] = set()
+_STARTUP_RECOVERY_CLAIM_SECONDS = 20
+REACT_DIST_EXISTS = REACT_DIST_DIR.is_dir()
+
+_SESSION_LIFECYCLE_DEFAULTS = {
+    "exitStrategy": "ask",
+    "startupPreference": "ask",
+    "wakeMessage": "继续",
+}
+_SESSION_LIFECYCLE_EXIT_STRATEGIES = frozenset({
+    "ask", "offline", "preserve-running",
+})
+_SESSION_LIFECYCLE_STARTUP_PREFERENCES = frozenset({
+    "ask", "wake-running", "clear-illegal", "preserve-running",
+})
+
+
+def _session_lifecycle_preferences(config: dict | None = None) -> dict[str, str]:
+    """Return valid persisted lifecycle preferences, defaulting old configs to ask."""
+    if config is None:
+        config = load_config()
+    raw = config.get("session_lifecycle", {}) if isinstance(config, dict) else {}
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "wakeMessage": (raw.get("wakeMessage") if isinstance(raw.get("wakeMessage"), str)
+                        and raw["wakeMessage"].strip() and len(raw["wakeMessage"]) <= 32000
+                        else _SESSION_LIFECYCLE_DEFAULTS["wakeMessage"]),
+        "exitStrategy": (
+            raw.get("exitStrategy")
+            if isinstance(raw.get("exitStrategy"), str)
+            and raw.get("exitStrategy") in _SESSION_LIFECYCLE_EXIT_STRATEGIES
+            else _SESSION_LIFECYCLE_DEFAULTS["exitStrategy"]
+        ),
+        "startupPreference": (
+            raw.get("startupPreference")
+            if isinstance(raw.get("startupPreference"), str)
+            and raw.get("startupPreference") in _SESSION_LIFECYCLE_STARTUP_PREFERENCES
+            else _SESSION_LIFECYCLE_DEFAULTS["startupPreference"]
+        ),
+    }
+
+
+def _get_data_retention_service() -> DataRetentionService:
+    global _DATA_RETENTION_SERVICE
+    if _DATA_RETENTION_SERVICE is None:
+        _DATA_RETENTION_SERVICE = DataRetentionService(
+            sessions_root=sess.SESSION_DIR,
+            attachments_root=ATTACHMENTS_DIR,
+            qq_history_root=DATA_DIR / "qq_history",
+            qq_media_root=DATA_DIR / "qq_media",
+            pan_logs_root=DATA_DIR / "logs",
+            active_log_path=_effective_pan_log_path,
+            active_log_paths=_effective_pan_log_paths,
+            status_path=DATA_DIR / "retention" / "status.json",
+            policy_loader=lambda: load_config().get("data_retention", {}),
+            session_delete=_retention_delete_session_from_thread,
+            attachment_registry_lock=_ATTACHMENT_REGISTRY_LOCK,
+            workdir_scan=lambda days: _workdir_collector().run(days, delete=True),
+        )
+    return _DATA_RETENTION_SERVICE
+
+
+def _effective_pan_log_path() -> Path:
+    for handler in logging.getLogger().handlers:
+        filename = getattr(handler, "baseFilename", None)
+        if filename:
+            return Path(filename)
+    return _PROJECT_DIR / "data" / "logs" / "pan.log"
+
+
+def _effective_pan_log_paths() -> list[Path]:
+    """Every process-owned log family the ``pan_logs`` policy may clean.
+
+    The console logs and the session error samples always live in
+    ``data/logs`` (launcher-owned / beside the configured Pan log); a custom
+    ``logging.file`` outside that root is refused by ``scan_pan_logs`` on its
+    own, without hiding the other three families.
+    """
+    logs_root = DATA_DIR / "logs"
+    return [
+        _effective_pan_log_path(),
+        logs_root / "pan-console.out.log",
+        logs_root / "pan-console.err.log",
+        logs_root / "session-errors.jsonl",
+    ]
+
+
+def _retention_delete_session_from_thread(session_id: str, expected: dict) -> dict:
+    loop = _DATA_RETENTION_LOOP
+    if loop is None or loop.is_closed():
+        return {"reason": "service_loop_unavailable"}
+    try:
+        future = asyncio.run_coroutine_threadsafe(
+            _retention_delete_session(session_id, expected), loop,
+        )
+        return future.result(timeout=60)
+    except Exception as exc:
+        return {"reason": f"session_delete_failed:{type(exc).__name__}"}
+
+# Main-service restart compatibility aliases.  Durable Registry records are
+# authoritative; these names remain for older in-process callers/tests only.
+_main_restart_lock = threading.Lock()
+_main_restart_pending = False
+_main_restart_request_id: str | None = None
+_main_restart_worker_shutdown_lock = asyncio.Lock()
+
+# Main-service exit has a separate state machine.  It never shares the
+# restart supervisor: once the workers are stopped the detached supervisor
+# only stops this checkout's main service and never starts it again.
+_main_exit_lock = threading.Lock()
+_main_exit_pending = False
+_main_exit_request_id: str | None = None
+_main_exit_stage = "idle"
+_main_exit_error: str | None = None
+_lifecycle_operation_lock = asyncio.Lock()
+_canonical_lifecycle_pending: dict[str, dict[str, Any]] = {}
+
+_MAIN_LIFECYCLE_REQUEST_FIELDS = frozenset({"options"})
+_MAIN_LIFECYCLE_SUPPORTED_OPTIONS = frozenset({"markRunningSessionsOffline", "preserveRunningIllegal"})
+
+
+def _parse_main_lifecycle_options(payload: dict | None, operation: str) -> dict:
+    """Validate and freeze lifecycle request options once.
+
+    The returned mapping is JSON-shaped and is persisted in the lifecycle Job
+    before any worker gate or detached supervisor is touched.  ``None`` and
+    ``{}`` preserve the historical no-body behavior; ``options`` is the only
+    request envelope accepted for forward compatibility.
+    """
+    if payload is None:
+        return {}
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_request",
+                "operation": operation,
+                "message": "request body must be an object",
+            },
+        )
+
+    unknown_request_fields = sorted(set(payload) - _MAIN_LIFECYCLE_REQUEST_FIELDS)
+    if unknown_request_fields:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_request_fields",
+                "operation": operation,
+                "fields": unknown_request_fields,
+                "message": "unsupported lifecycle request field(s)",
+            },
+        )
+
+    options = payload.get("options", {})
+    if not isinstance(options, dict):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_options",
+                "operation": operation,
+                "message": "options must be an object",
+            },
+        )
+    supported_options = _MAIN_LIFECYCLE_SUPPORTED_OPTIONS
+    unknown_options = sorted(set(options) - supported_options)
+    if unknown_options:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_lifecycle_options",
+                "operation": operation,
+                "fields": unknown_options,
+                "message": "unsupported lifecycle option(s)",
+            },
+        )
+
+    if "markRunningSessionsOffline" in options \
+            and not isinstance(options["markRunningSessionsOffline"], bool):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_lifecycle_options",
+                "operation": operation,
+                "fields": ["markRunningSessionsOffline"],
+                "message": "markRunningSessionsOffline must be a boolean",
+            },
+        )
+
+    if "preserveRunningIllegal" in options and type(options["preserveRunningIllegal"]) is not bool:
+        raise HTTPException(status_code=400, detail="preserveRunningIllegal must be boolean")
+    # JSON request data is already detached from the caller.  Rebuild the
+    # mapping so later phases receive a canonical snapshot, not a live input
+    # object; the Job write is the cross-process source of truth.
+    return json.loads(json.dumps(options, ensure_ascii=False, sort_keys=True))
+
+
+def _resolve_main_lifecycle_policy(options: dict, operation: str) -> tuple[str, bool]:
+    """Resolve one shared Restart/Exit choice from the saved Session policy."""
+    if options.get("preserveRunningIllegal") is True:
+        return "preserve-running", False
+    strategy = _session_lifecycle_preferences()["exitStrategy"]
+    if strategy == "offline":
+        return strategy, True
+    if strategy == "preserve-running":
+        return strategy, False
+    if "markRunningSessionsOffline" not in options:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "lifecycle_choice_required",
+                "operation": operation,
+                "field": "markRunningSessionsOffline",
+                "message": (
+                    "choose whether legal-running Sessions should be marked offline "
+                    "before this service operation"
+                ),
+            },
+        )
+    return "ask", options["markRunningSessionsOffline"]
+
+
+async def _snapshot_main_lifecycle_options(options: dict, operation: str) -> dict:
+    """Freeze policy and the legal-running Session set before closing Worker gates."""
+    strategy, mark_running_offline = _resolve_main_lifecycle_policy(options, operation)
+    sessions = await _store_read(sess.list_all, load_history=False)
+    running_session_ids = sorted(
+        session.id for session in sessions
+        if legal_offline.is_illegal(session) or legal_offline.outstanding(session)
+    )
+    return {
+        **options,
+        "exitStrategy": strategy,
+        "markRunningSessionsOffline": mark_running_offline,
+        "runningSessionIds": running_session_ids,
+    }
+
+
+def _resolve_main_lifecycle_job_choice(options: dict, operation: str) -> bool:
+    """Read a durable lifecycle choice without inventing an ask-mode default."""
+    saved_strategy = options.get("exitStrategy")
+    if saved_strategy is None:
+        strategy = _session_lifecycle_preferences()["exitStrategy"]
+    elif saved_strategy in _SESSION_LIFECYCLE_EXIT_STRATEGIES:
+        strategy = saved_strategy
+    else:
+        raise ValueError(f"{operation} Job has an invalid saved exitStrategy")
+
+    if strategy == "offline":
+        return True
+    if strategy == "preserve-running":
+        return False
+
+    choice = options.get("markRunningSessionsOffline")
+    if type(choice) is not bool:
+        raise ValueError(
+            f"{operation} Job is missing an explicit markRunningSessionsOffline choice "
+            "for exitStrategy=ask; Worker shutdown was refused",
+        )
+    return choice
+
+
+def _main_restart_paths() -> dict[str, Path]:
+    return {"supervisor": _PROJECT_DIR / "packages" / "core" / "main_lifecycle.py"}
+
+
+def _main_restart_registry_root() -> Path:
+    return _PROJECT_DIR / "data" / "background_jobs"
+
+
+def _main_restart_port() -> int:
+    value = os.environ.get("PAN_PORT")
+    if value:
+        try:
+            return int(value)
+        except ValueError:
+            pass
+    try:
+        config = json.loads((_PROJECT_DIR / "config.json").read_text(encoding="utf-8"))
+        return int(config.get("port") or 8768)
+    except (OSError, ValueError, TypeError):
+        return 8768
+
+
+def _main_restart_job_view(job: dict | None) -> dict:
+    if not job:
+        return {}
+    return {
+        "jobId": job.get("jobId"), "requestId": job.get("requestId"),
+        "operation": job.get("operation"), "options": dict(job.get("options") or {}),
+        "phase": job.get("phase"), "jobStatus": job.get("status"),
+        "root": job.get("root"), "port": job.get("port"),
+        "oldPid": job.get("oldPid"), "oldPidCreatedAt": job.get("oldPidCreatedAt"),
+        "newPid": job.get("newPid"), "newPidCreatedAt": job.get("newPidCreatedAt"),
+        "error": job.get("error"), "errors": list(job.get("errors") or []),
+        "createdAt": job.get("createdAt"),
+        "updatedAt": job.get("updatedAt"),
+    }
+
+
+def _canonical_lifecycle_status(operation: str) -> dict:
+    """Project the in-process Action receipt for legacy status readers."""
+    from packages.core import lifecycle_action
+    from packages.jobs.independent_executor import ExecutionStore
+    for item in _canonical_lifecycle_pending.values():
+        if item.get("operation") != operation:
+            continue
+        try:
+            doc = ExecutionStore(lifecycle_action.receipt_root(_PROJECT_DIR)).get(item["effectId"])
+        except (KeyError, OSError, ValueError):
+            doc = None
+        result = (doc or {}).get("result") if doc else None
+        receipt = (result or {}).get("receipt") or {}
+        return {**item, "pending": result is None, "phase": (doc or {}).get("phase") or receipt.get("phase"),
+                "jobStatus": "running" if result is None else ("completed" if result.get("outcome") == "succeeded" else "uncertain"),
+                "newPid": receipt.get("readyProof", {}).get("newPid"),
+                "newPidCreatedAt": receipt.get("readyProof", {}).get("newPidCreatedAt"),
+                "oldPid": receipt.get("oldPid"), "oldPidCreatedAt": receipt.get("oldPidCreatedAt")}
+    return {}
+
+
+def _main_restart_status() -> dict:
+    paths = _main_restart_paths()
+    launcher_module = Path(launcher.__file__).resolve()
+    available = platform_layer.is_windows() and launcher_module.is_file()
+    missing = [str(path) for path in paths.values() if not path.is_file()]
+    registry_root = _main_restart_registry_root()
+    port = _main_restart_port()
+    active_job = background_jobs.get_active_service_job(
+        str(_PROJECT_DIR), port, registry_root
+    )
+    latest_job = next(
+        (job for job in background_jobs.list_jobs(registry_root)
+         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
+         and str(Path(str(job.get("root", ""))).expanduser().resolve())
+         == str(_PROJECT_DIR.expanduser().resolve())
+         and int(job.get("port", -1)) == port),
+        None,
+    )
+    with _main_restart_lock:
+        # The in-memory values remain only as a compatibility fallback for
+        # older callers/tests.  A persisted terminal Job always wins, so a
+        # failed supervisor cannot leave a stale process-local guard behind.
+        pending = bool(active_job) or (_main_restart_pending and latest_job is None)
+        request_id = _main_restart_request_id
+    result = {
+        "available": available,
+        "pending": pending,
+        "platform": os.name,
+        "port": port,
+    }
+    canonical = _canonical_lifecycle_status("restart")
+    if canonical:
+        result.update(canonical)
+    job = active_job or latest_job
+    if job:
+        result.update(_main_restart_job_view(job))
+    elif request_id:
+        result["requestId"] = request_id
+    if not available:
+        result["reason"] = (
+            "main service restart is available only on Windows"
+            if not platform_layer.is_windows()
+            else "Pan lifecycle supervisor is missing: " + str(launcher_module)
+        )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
+    return result
+
+
+def _clear_main_restart_state(request_id: str) -> None:
+    global _main_restart_pending, _main_restart_request_id
+    with _main_restart_lock:
+        if _main_restart_request_id == request_id:
+            _main_restart_pending = False
+            _main_restart_request_id = None
+
+
+def _recover_interrupted_main_restart_jobs() -> int:
+    """Release Jobs whose service stop was not confirmed before new startup.
+
+    Application startup in these phases means the prior process/task ended
+    before the detached supervisor confirmed its service stop. Mark the Job
+    failed instead of launching another supervisor from startup; a detached
+    supervisor may still own the request during this short handoff window.
+    """
+    registry_root = _main_restart_registry_root()
+    root = str(_PROJECT_DIR.expanduser().resolve())
+    port = _main_restart_port()
+    recovered = 0
+    for job in background_jobs.list_jobs(registry_root):
+        if (
+            job.get("kind") != background_jobs.SERVICE_LIFECYCLE_KIND
+            or job.get("operation") != "restart"
+            or str(Path(str(job.get("root", ""))).expanduser().resolve()) != root
+            or int(job.get("port", -1)) != port
+            or job.get("phase") not in {"requested", "stopping_workers", "stopping"}
+        ):
+            continue
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root,
+                error=(
+                    "Pan stopped before Worker shutdown and restart-supervisor handoff "
+                    "completed; startup Session recovery follows startupPreference."
+                ),
+            )
+            recovered += 1
+        except (OSError, ValueError) as exc:
+            _log(f"[main-restart] could not reconcile interrupted Job {job.get('jobId')}: {exc}")
+    return recovered
+
+
+def _watch_main_restart(process: subprocess.Popen, request_id: str) -> None:
+    """Legacy hook retained for callers that used to patch the old watcher.
+
+    New restart requests do not start this thread or use a timed in-memory
+    guard; the detached lifecycle Job owns all progress and failure state.
+    """
+    _clear_main_restart_state(request_id)
+
+
+def _launch_main_restart_supervisor(request_id: str) -> subprocess.Popen:
+    """Launch the Python durable supervisor outside the current process tree."""
+    registry_root = _main_restart_registry_root()
+    job = background_jobs.find_service_job(request_id, registry_root)
+    if not job:
+        raise ValueError("durable restart Job not found")
+    python_argv, _source = launcher.resolve_python_argv(_PROJECT_DIR, probe=False)
+    supervisor_args = [
+        *python_argv, "-m", "packages.core.main_lifecycle", "--supervise",
+        "--job-id", job["jobId"], "--root", str(_PROJECT_DIR),
+        "--registry-root", str(registry_root), "--port", str(job["port"]),
+    ]
+    if job.get("oldPid"):
+        supervisor_args += ["--old-pid", str(job["oldPid"])]
+    if job.get("oldPidCreatedAt") is not None:
+        supervisor_args += ["--old-pid-created-at", str(job["oldPidCreatedAt"])]
+    # The short-lived cmd start shell breaks the parent relationship before
+    # the Python supervisor asks the current service to shut itself down.
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + supervisor_args
+    launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-restart-launcher.log"
+    launcher_log.parent.mkdir(parents=True, exist_ok=True)
+    # Windows DETACHED_PROCESS can report a successful Popen while the
+    # powershell.exe child never executes its -File script.  CREATE_NO_WINDOW
+    # provides the required non-console launch while CREATE_NEW_PROCESS_GROUP
+    # keeps this supervisor outside the old Pan process-group cleanup.
+    flags = (
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    )
+    # Keep the handle open only across Popen.  subprocess duplicates the
+    # redirected standard handle for the detached child before this closes it.
+    with launcher_log.open("ab") as log:
+        return subprocess.Popen(
+            command,
+            cwd=str(_PROJECT_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
+
+
+def _main_exit_paths() -> dict[str, Path]:
+    return {"supervisor": _PROJECT_DIR / "packages" / "core" / "main_lifecycle.py"}
+
+
+def _main_exit_status() -> dict:
+    paths = _main_exit_paths()
+    launcher_module = Path(launcher.__file__).resolve()
+    available = platform_layer.is_windows() and launcher_module.is_file()
+    missing = [str(path) for path in paths.values() if not path.is_file()]
+    registry_root = _main_restart_registry_root()
+    port = _main_restart_port()
+    active_job = next(
+        (job for job in background_jobs.list_jobs(registry_root)
+         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
+         and job.get("operation") == "exit"
+         and str(Path(str(job.get("root", ""))).expanduser().resolve())
+         == str(_PROJECT_DIR.expanduser().resolve())
+         and int(job.get("port", -1)) == port
+         and (job.get("phase") in background_jobs.SERVICE_ACTIVE_PHASES
+              or job.get("status") in {"pending", "running"})),
+        None,
+    )
+    latest_job = next(
+        (job for job in background_jobs.list_jobs(registry_root)
+         if job.get("kind") == background_jobs.SERVICE_LIFECYCLE_KIND
+         and job.get("operation") == "exit"
+         and str(Path(str(job.get("root", ""))).expanduser().resolve())
+         == str(_PROJECT_DIR.expanduser().resolve())
+         and int(job.get("port", -1)) == port),
+        None,
+    )
+    with _main_exit_lock:
+        pending = bool(active_job) or (_main_exit_pending and latest_job is None)
+        request_id = _main_exit_request_id
+        stage = _main_exit_stage
+        error = _main_exit_error
+    result = {
+        "available": available,
+        "pending": pending,
+        "stage": stage,
+        "platform": os.name,
+        "port": port,
+    }
+    canonical = _canonical_lifecycle_status("exit")
+    if canonical:
+        result.update(canonical)
+    job = active_job or latest_job
+    if job:
+        result.update(_main_restart_job_view(job))
+        result["stage"] = job.get("phase")
+    elif request_id:
+        result["requestId"] = request_id
+    if error:
+        result["error"] = error
+    if not available:
+        result["reason"] = (
+            "main service exit is available only on Windows"
+            if not platform_layer.is_windows()
+            else "Pan lifecycle supervisor is missing: " + str(launcher_module)
+        )
+        if not platform_layer.is_windows():
+            result["code"] = "unsupported_platform"
+    return result
+
+
+def _launch_main_exit_supervisor(request_id: str) -> subprocess.Popen:
+    """Launch the stop-only Python supervisor outside the old Pan process tree."""
+    registry_root = _main_restart_registry_root()
+    job = background_jobs.find_service_job(request_id, registry_root)
+    if not job or job.get("operation") != "exit":
+        raise ValueError("durable exit Job not found")
+    python_argv, _source = launcher.resolve_python_argv(_PROJECT_DIR, probe=False)
+    supervisor_args = [
+        *python_argv, "-m", "packages.core.main_lifecycle", "--supervise",
+        "--job-id", job["jobId"], "--root", str(_PROJECT_DIR),
+        "--registry-root", str(registry_root), "--port", str(job["port"]),
+    ]
+    if job.get("oldPid"):
+        supervisor_args += ["--old-pid", str(job["oldPid"])]
+    if job.get("oldPidCreatedAt") is not None:
+        supervisor_args += ["--old-pid-created-at", str(job["oldPidCreatedAt"])]
+    command = ["cmd.exe", "/d", "/c", "start", "", "/b"] + supervisor_args
+    launcher_log = _PROJECT_DIR / "data" / "logs" / "pan-exit-launcher.log"
+    launcher_log.parent.mkdir(parents=True, exist_ok=True)
+    flags = (
+        getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    )
+    with launcher_log.open("ab") as log:
+        return subprocess.Popen(
+            command,
+            cwd=str(_PROJECT_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            creationflags=flags,
+        )
+
+_WS_OUTBOUND_QUEUE_MAX = 64
+_WS_SEND_TIMEOUT_SEC = 2.0
+_WS_RESYNC_CLOSE_CODE = 1013
+
+# A Worker stdout producer must never wait for a browser/agent socket.  The
+# queue is deliberately process-local: queue_pending/history remain the
+# durable truth for business/report delivery, while this is only a bounded
+# live-view transport buffer.
+_WS_DIAGNOSTICS = {
+    "enqueued": 0,
+    "coalescedDeltas": 0,
+    "droppedDeltas": 0,
+    "droppedControlEvents": 0,
+    "slowClients": 0,
+    "resyncRequired": 0,
+    "resyncFrames": 0,
+    "sendFailures": 0,
+    "maxQueueDepth": 0,
+}
+
+
+@dataclass
+class _OutboundMessage:
+    data: dict
+    control: bool
+    coalesce_key: tuple | None = None
+    on_delivered: Callable[[], None] | None = None
+
+
+# This map is intentionally bounded by live connections.  It is separate from
+# ws_clients/agent_clients because tests and legacy embedders may populate
+# those sets directly before the first broadcast.
+_ws_outbound: dict[WebSocket, "_OutboundClient"] = {}
+
+
+_NON_COALESCIBLE_STREAM_TYPES = frozenset({
+    # Native requests/responses are control traffic.  Losing one without an
+    # explicit resync/close would strand a provider waiting for a decision.
+    "approval.request",
+    "codex.user_input",
+    "codex.elicitation",
+    "codex.terminal_interaction",
+    "claude.permission_resolved",
+    "codex.request_resolved",
+})
+
+
+def _stream_delta_key(data: dict) -> tuple | None:
+    """Return the identity of a safe, coalescible intermediate stream delta.
+
+    The key includes the durable Session address, the temporary Worker
+    identity, its generation, the current task, and the native item/turn.  A
+    delta without an explicit native item falls back to its event kind; the
+    Worker serializes tasks, and the stream broadcast now carries taskSeq so
+    this remains isolated across tasks as well.
+    """
+    if not isinstance(data, dict) or data.get("type") != "worker.stream":
+        return None
+    event = data.get("event")
+    if not isinstance(event, dict) or event.get("delta") is not True:
+        return None
+    if event.get("type") in _NON_COALESCIBLE_STREAM_TYPES:
+        return None
+    session_id = data.get("sessionId")
+    worker_id = data.get("workerId")
+    if not session_id or not worker_id:
+        return None
+    task_key = (("execution", data["executionSeq"])
+                if isinstance(data.get("executionSeq"), int)
+                else data.get("taskId"))
+    if task_key is None:
+        task_key = data.get("taskSeq", "implicit-task")
+    item_key = None
+    for candidate in (
+        event.get("item_id"),
+        event.get("itemId"),
+        event.get("turn_id"),
+        event.get("turnId"),
+    ):
+        if candidate is not None:
+            item_key = candidate
+            break
+    if item_key is None:
+        part = event.get("part")
+        part_type = part.get("type") if isinstance(part, dict) else None
+        item_key = (event.get("type"), event.get("role"), part_type)
+    return (
+        str(session_id),
+        str(worker_id),
+        data.get("generation"),
+        str(task_key),
+        str(item_key),
+    )
+
+
+def _append_delta_content(previous, current):
+    """Append compatible delta content without retaining the prior payload."""
+    if isinstance(previous, str) and isinstance(current, str):
+        return previous + current
+    if not isinstance(previous, list) or not isinstance(current, list):
+        return None
+    result = [dict(item) if isinstance(item, dict) else item for item in previous]
+    for item in current:
+        if not isinstance(item, dict):
+            result.append(item)
+            continue
+        if result and isinstance(result[-1], dict):
+            prior = result[-1]
+            if prior.get("type") == item.get("type"):
+                text_key = "text" if isinstance(item.get("text"), str) else None
+                if text_key is None and isinstance(item.get("thinking"), str):
+                    text_key = "thinking"
+                if text_key is None and isinstance(item.get("think"), str):
+                    text_key = "think"
+                if text_key is not None and isinstance(prior.get(text_key), str):
+                    result[-1] = {**prior, text_key: prior[text_key] + item[text_key]}
+                    continue
+        result.append(dict(item))
+    return result
+
+
+def _merge_stream_deltas(previous: dict, current: dict) -> dict | None:
+    """Merge two adjacent deltas while preserving the UI's final text.
+
+    Codex content.part carries a cumulative ``stream_text`` but a delta-sized
+    ``part.text``; in that case the merged event is marked ``replace`` and
+    carries the cumulative text so a client that receives only this event
+    still renders the complete prefix.  Claude/Kimi-style delta blocks are
+    appended instead.  Replace snapshots such as plan/diff simply keep the
+    newest snapshot.
+    """
+    previous_event = previous.get("event")
+    current_event = current.get("event")
+    if not isinstance(previous_event, dict) or not isinstance(current_event, dict):
+        return None
+    merged = dict(current)
+    event = dict(current_event)
+
+    cumulative = current_event.get("stream_text")
+    previous_cumulative = previous_event.get("stream_text")
+    if isinstance(cumulative, str):
+        # The bridge contract defines stream_text as the current cumulative
+        # text.  A non-prefix reset can only be safe when the provider marked
+        # the item as a replacement; otherwise keep the events separate.
+        if (isinstance(previous_cumulative, str)
+                and not (cumulative.startswith(previous_cumulative)
+                         or previous_cumulative.startswith(cumulative))
+                and not current_event.get("replace")):
+            return None
+        part = event.get("part")
+        if isinstance(part, dict):
+            part = dict(part)
+            part_type = part.get("type")
+            part_key = part_type if isinstance(part_type, str) else None
+            if part_key and isinstance(part.get(part_key), str):
+                part[part_key] = cumulative
+                event["part"] = part
+                event["replace"] = True
+        content = event.get("content")
+        if isinstance(content, str):
+            event["content"] = cumulative
+            event["replace"] = True
+        elif isinstance(content, list):
+            replaced = False
+            blocks = []
+            for block in content:
+                if not isinstance(block, dict):
+                    blocks.append(block)
+                    continue
+                block = dict(block)
+                for content_key in ("text", "thinking", "think"):
+                    if isinstance(block.get(content_key), str):
+                        block[content_key] = cumulative
+                        replaced = True
+                        break
+                blocks.append(block)
+            if replaced:
+                event["content"] = blocks
+                event["replace"] = True
+        message = event.get("message")
+        if isinstance(message, dict) and isinstance(message.get("content"), list):
+            blocks = []
+            replaced = False
+            for block in message["content"]:
+                if not isinstance(block, dict):
+                    blocks.append(block)
+                    continue
+                block = dict(block)
+                for content_key in ("text", "thinking", "think"):
+                    if isinstance(block.get(content_key), str):
+                        block[content_key] = cumulative
+                        replaced = True
+                        break
+                blocks.append(block)
+            if replaced:
+                event["message"] = {**message, "content": blocks}
+                event["replace"] = True
+        event["stream_text"] = cumulative
+    elif current_event.get("replace"):
+        # The latest event is already an authoritative item snapshot.
+        merged["event"] = event
+        return merged
+    else:
+        for key in ("content", "text", "thinking", "think", "diff"):
+            old_value = previous_event.get(key)
+            new_value = current_event.get(key)
+            if isinstance(old_value, str) and isinstance(new_value, str):
+                event[key] = old_value + new_value
+
+        for container_key in ("message",):
+            old_container = previous_event.get(container_key)
+            new_container = current_event.get(container_key)
+            if not isinstance(old_container, dict) or not isinstance(new_container, dict):
+                continue
+            old_content = old_container.get("content")
+            new_content = new_container.get("content")
+            appended = _append_delta_content(old_content, new_content)
+            if appended is not None:
+                event[container_key] = {**new_container, "content": appended}
+
+        old_content = previous_event.get("content")
+        new_content = current_event.get("content")
+        appended = _append_delta_content(old_content, new_content)
+        if appended is not None:
+            event["content"] = appended
+
+        old_part = previous_event.get("part")
+        new_part = current_event.get("part")
+        if isinstance(old_part, dict) and isinstance(new_part, dict):
+            part = dict(new_part)
+            part_type = part.get("type")
+            part_key = part_type if isinstance(part_type, str) else None
+            if part_key and isinstance(old_part.get(part_key), str) and isinstance(part.get(part_key), str):
+                part[part_key] = old_part[part_key] + part[part_key]
+                event["part"] = part
+
+    merged["event"] = event
+    return merged
+
+
+def _is_control_event(data: dict) -> bool:
+    """Classify an outbound event for overflow policy, without inspecting body."""
+    return _stream_delta_key(data) is None
+
+
+class _OutboundClient:
+    """One bounded FIFO and sender task for one WebSocket connection."""
+
+    def __init__(self, ws: WebSocket, kind: str):
+        self.ws = ws
+        self.kind = kind
+        self.loop = asyncio.get_running_loop()
+        self._queue: deque[_OutboundMessage] = deque()
+        self._wake = asyncio.Event()
+        self._sender_task: asyncio.Task | None = None
+        self._accepting = True
+        self._closing = False
+        self.closed = False
+        self.resync_required = False
+        self.resync_frame_enqueued = False
+        self.coalesced_deltas = 0
+        self.dropped_deltas = 0
+        self.dropped_control_events = 0
+        self.send_failures = 0
+        # deliverySeq is per connection. It is deliberately separate from
+        # eventSeq: adjacent source deltas may be coalesced into one frame.
+        self._delivery_seq = 0
+
+    @property
+    def queue_depth(self) -> int:
+        return len(self._queue)
+
+    def _ensure_sender(self) -> None:
+        if self.closed or self._sender_task is not None and not self._sender_task.done():
+            return
+        self._sender_task = asyncio.create_task(
+            self._sender_loop(),
+            name=f"pan-ws-sender:{self.kind}",
+        )
+
+    def enqueue(
+        self,
+        data: dict,
+        *,
+        on_delivered: Callable[[], None] | None = None,
+    ) -> bool:
+        """Enqueue without awaiting socket I/O; return False only on eviction."""
+        if self.closed or not self._accepting:
+            self._record_drop(data)
+            return False
+        coalesce_key = _stream_delta_key(data)
+        if coalesce_key is not None and self._queue:
+            tail = self._queue[-1]
+            if tail.coalesce_key == coalesce_key:
+                merged = _merge_stream_deltas(tail.data, data)
+                if merged is not None:
+                    source_start = tail.data.get(
+                        "sourceCursorStart", tail.data.get("eventSeq"),
+                    )
+                    source_end = data.get(
+                        "sourceCursorEnd", data.get("eventSeq"),
+                    )
+                    if isinstance(source_start, int) and isinstance(source_end, int):
+                        merged["sourceCursorStart"] = source_start
+                        merged["sourceCursorEnd"] = max(source_start, source_end)
+                    merged["deliveryEpoch"] = tail.data.get("deliveryEpoch", _EVENT_EPOCH)
+                    merged["deliverySeq"] = tail.data.get("deliverySeq", 0)
+                    tail.data = merged
+                    tail.on_delivered = on_delivered
+                    self.coalesced_deltas += 1
+                    _WS_DIAGNOSTICS["coalescedDeltas"] += 1
+                    self._ensure_sender()
+                    self._wake.set()
+                    return True
+
+        if len(self._queue) >= _WS_OUTBOUND_QUEUE_MAX:
+            if coalesce_key is not None:
+                self._record_drop(data)
+                pending_control = None
+            else:
+                # A control event arriving behind deltas gets priority.  The
+                # overflow handler removes queued deltas first and retains
+                # this event whenever a bounded slot is available.
+                pending_control = data
+            self._require_resync("outbound queue full", pending_control=pending_control)
+            return False
+
+        if isinstance(data.get("eventSeq"), int):
+            self._delivery_seq += 1
+            delivery_data = {
+                **data,
+                "deliveryEpoch": _EVENT_EPOCH,
+                "deliverySeq": self._delivery_seq,
+                "sourceCursorStart": data.get("eventSeq"),
+                "sourceCursorEnd": data.get("eventSeq"),
+            }
+        else:
+            # Legacy direct replay/control frames have no source cursor. Keep
+            # their wire shape compatible with old clients and fixtures.
+            delivery_data = data
+        self._queue.append(_OutboundMessage(
+            data=delivery_data,
+            control=_is_control_event(data),
+            coalesce_key=coalesce_key,
+            on_delivered=on_delivered,
+        ))
+        _WS_DIAGNOSTICS["enqueued"] += 1
+        _WS_DIAGNOSTICS["maxQueueDepth"] = max(
+            _WS_DIAGNOSTICS["maxQueueDepth"], len(self._queue),
+        )
+        self._ensure_sender()
+        self._wake.set()
+        return True
+
+    def _record_drop(self, data_or_item: dict | _OutboundMessage) -> None:
+        data = data_or_item.data if isinstance(data_or_item, _OutboundMessage) else data_or_item
+        if _stream_delta_key(data) is not None:
+            self.dropped_deltas += 1
+            _WS_DIAGNOSTICS["droppedDeltas"] += 1
+        else:
+            self.dropped_control_events += 1
+            _WS_DIAGNOSTICS["droppedControlEvents"] += 1
+
+    def _require_resync(
+        self, reason: str, *, pending_control: dict | None = None,
+    ) -> None:
+        if self.resync_required:
+            self._wake.set()
+            return
+        self.resync_required = True
+        self._accepting = False
+        self._closing = True
+        _WS_DIAGNOSTICS["slowClients"] += 1
+        _WS_DIAGNOSTICS["resyncRequired"] += 1
+        # Preserve queued control events.  Intermediate deltas are explicitly
+        # discarded because the close/resync marker tells the consumer that a
+        # fresh authoritative snapshot is required.
+        retained: deque[_OutboundMessage] = deque()
+        for item in self._queue:
+            if item.coalesce_key is not None:
+                self._record_drop(item)
+            else:
+                retained.append(item)
+        self._queue = retained
+        if pending_control is not None:
+            if len(self._queue) < _WS_OUTBOUND_QUEUE_MAX:
+                self._queue.append(_OutboundMessage(
+                    data=pending_control, control=True,
+                ))
+            else:
+                self._record_drop(pending_control)
+        marker = {
+            "type": "resync_required",
+            "scope": self.kind,
+            "reason": "slow_client_queue_full",
+            "eventEpoch": _EVENT_EPOCH,
+            "eventSeq": _EVENT_SEQ,
+            "queueDepth": len(self._queue),
+            "droppedDeltas": self.dropped_deltas,
+            "coalescedDeltas": self.coalesced_deltas,
+        }
+        if len(self._queue) < _WS_OUTBOUND_QUEUE_MAX:
+            self._queue.append(_OutboundMessage(data=marker, control=True))
+            self.resync_frame_enqueued = True
+            _WS_DIAGNOSTICS["resyncFrames"] += 1
+        _detach_client(self)
+        _log(
+            f"[ws] slow {self.kind} client evicted: depth={len(self._queue)} "
+            f"droppedDeltas={self.dropped_deltas} "
+            f"droppedControlEvents={self.dropped_control_events} reason={reason}"
+        )
+        self._ensure_sender()
+        self._wake.set()
+
+    async def _sender_loop(self) -> None:
+        while True:
+            while not self._queue:
+                if self._closing:
+                    await self._finish_close()
+                    return
+                self._wake.clear()
+                if self._queue:
+                    break
+                await self._wake.wait()
+            item = self._queue.popleft()
+            try:
+                await asyncio.wait_for(
+                    self.ws.send_json(item.data), timeout=_WS_SEND_TIMEOUT_SEC,
+                )
+            except asyncio.CancelledError:
+                raise
+            except asyncio.TimeoutError:
+                self.send_failures += 1
+                self.resync_required = True
+                self._accepting = False
+                self._closing = True
+                _WS_DIAGNOSTICS["sendFailures"] += 1
+                _WS_DIAGNOSTICS["slowClients"] += 1
+                _WS_DIAGNOSTICS["resyncRequired"] += 1
+                self._record_drop(item)
+                for queued in self._queue:
+                    self._record_drop(queued)
+                self._queue.clear()
+                _detach_client(self)
+                _log(
+                    f"[ws] slow {self.kind} client send timeout: "
+                    f"droppedDeltas={self.dropped_deltas}"
+                )
+                await self._finish_close(
+                    code=_WS_RESYNC_CLOSE_CODE, reason="resync_required",
+                )
+                return
+            except Exception:
+                self.send_failures += 1
+                _WS_DIAGNOSTICS["sendFailures"] += 1
+                self._accepting = False
+                self._closing = True
+                self._record_drop(item)
+                for queued in self._queue:
+                    self._record_drop(queued)
+                self._queue.clear()
+                _detach_client(self)
+                await self._finish_close(code=1011, reason="websocket send failed")
+                return
+            if item.on_delivered is not None:
+                try:
+                    item.on_delivered()
+                except Exception:
+                    _log("[ws] delivery callback failed")
+
+    async def _finish_close(
+        self, *, code: int = _WS_RESYNC_CLOSE_CODE,
+        reason: str = "resync_required",
+    ) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        _detach_client(self)
+        if _ws_outbound.get(self.ws) is self:
+            _ws_outbound.pop(self.ws, None)
+        close = getattr(self.ws, "close", None)
+        if close is not None:
+            try:
+                await close(code=code, reason=reason)
+            except Exception:
+                pass
+
+    async def close_now(self) -> None:
+        """Stop a connection from its receive loop without draining it."""
+        self._accepting = False
+        self._closing = True
+        self._queue.clear()
+        _detach_client(self)
+        task = self._sender_task
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        await self._finish_close(code=1000, reason="connection closed")
+
+
+def _detach_client(client: _OutboundClient) -> None:
+    ws = client.ws
+    ws_clients.discard(ws)
+    agent_clients.discard(ws)
+    agent_subscriptions.pop(ws, None)
+
+
+def _client_channel(ws: WebSocket, kind: str) -> _OutboundClient:
+    loop = asyncio.get_running_loop()
+    client = _ws_outbound.get(ws)
+    if client is None or client.loop is not loop or client.closed:
+        if client is not None and client._sender_task is not None:
+            client._sender_task.cancel()
+        client = _OutboundClient(ws, kind)
+        _ws_outbound[ws] = client
+    return client
+
+
+async def _send_ws(
+    ws: WebSocket, data: dict, *,
+    on_delivered: Callable[[], None] | None = None,
+    kind: str | None = None,
+) -> bool:
+    """Queue one outbound frame; never await socket I/O in the caller."""
+    if kind is None:
+        kind = "agent" if ws in agent_clients else "dashboard"
+    accepted = _client_channel(ws, kind).enqueue(
+        data, on_delivered=on_delivered,
+    )
+    # Give the sender one scheduling turn.  This keeps fast in-process test
+    # doubles deterministic while a real slow ``send_json`` remains entirely
+    # inside its own sender task.
+    await asyncio.sleep(0)
+    return accepted
+
+
+async def _close_slow_dashboard(ws: WebSocket) -> None:
+    """Compatibility helper: evict a dashboard with an explicit resync mark."""
+    client = _client_channel(ws, "dashboard")
+    client._require_resync("send timeout")
+    await asyncio.sleep(0)
+
+
+_SUMMARY_WORKER_EVENT_TYPES = frozenset({
+    "worker.spawned", "worker.restarted", "worker.reconfigured",
+    "worker.status", "worker.result", "worker.destroyed", "worker.crashed",
+})
+_SUMMARY_SESSION_EVENT_TYPES = frozenset({
+    "session.created", "session.updated", "session.renamed",
+    "session.workspaceUpdated",
+})
+# Queue mutations attach the same Session summary so card badges (pending count
+# / all-locked) and queueRevision converge with the existing queue events
+# instead of forcing a per-Session queue subscription in the list.
+_SUMMARY_QUEUE_EVENT_TYPES = frozenset({
+    "queue.item_added", "queue.item_updated", "queue.item_removed",
+    "queue.item_delivered", "queue.snapshot",
+})
+
+
+def _summary_session_get(session_id: str):
+    """Read Session metadata shallowly, tolerating legacy test embedders."""
+    try:
+        return sess.get(session_id, load_history=False)
+    except TypeError:
+        # Compatibility with callers that replace sess.get with the old
+        # one-argument function; production Session.get supports the keyword.
+        return sess.get(session_id)
+
+
+def _attach_session_summary_patch(data: dict) -> dict:
+    """Attach one revisioned Session summary to low-frequency WS patches."""
+    if not isinstance(data, dict):
+        return data
+    session_id = data.get("sessionId")
+    event_type = data.get("type")
+    if not isinstance(session_id, str) or not session_id:
+        return data
+    if event_type in _SUMMARY_WORKER_EVENT_TYPES:
+        status = data.get("status")
+        worker_id = data.get("workerId")
+        generation = data.get("generation")
+        task_id = data.get("taskId")
+        task_seq = data.get("taskSeq")
+        if event_type in {"worker.destroyed", "worker.crashed"}:
+            status, worker_id, task_id, task_seq = None, None, None, None
+        current = _summary_session_get(session_id)
+        if isinstance(current, sess.Session):
+            sess.update_worker_summary(
+                current,
+                status=status,
+                worker_id=worker_id,
+                generation=generation,
+                task_id=task_id,
+                task_seq=task_seq,
+            )
+    # Completed provider blocks have already advanced append_history's
+    # projection. Deltas stay lightweight and use the client's live suffix.
+    completed_stream = (event_type == "worker.stream"
+                        and isinstance(data.get("event"), dict)
+                        and not data["event"].get("delta"))
+    if not completed_stream and event_type not in (_SUMMARY_WORKER_EVENT_TYPES
+                          | _SUMMARY_SESSION_EVENT_TYPES
+                          | _SUMMARY_QUEUE_EVENT_TYPES):
+        return data
+    current = _summary_session_get(session_id)
+    if not isinstance(current, sess.Session):
+        return data
+    # A server-side event is emitted from the current Session object, so its
+    # nested patch is newer than any caller-provided legacy summary payload.
+    return {**data, "session": _session_summary(current)}
+
+
+def _stamp_live_event(data: dict) -> dict:
+    """Attach a process-epoch cursor to one logical broadcast event.
+
+    The cursor is intentionally assigned before fan-out, so every client sees
+    the same boundary for the same event.  It is only a gap detector; durable
+    Session/queue/history projections remain the recovery authority.
+    """
+    global _EVENT_SEQ
+    _EVENT_SEQ += 1
+    return {
+        **data,
+        "eventEpoch": _EVENT_EPOCH,
+        "eventSeq": _EVENT_SEQ,
+        "serverEpoch": _EVENT_EPOCH,
+        "sourceCursorStart": _EVENT_SEQ,
+        "sourceCursorEnd": _EVENT_SEQ,
+    }
+
+
+_LINK_PROJECTION_EXECUTOR = ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="pan-link-projection")
+_HTTP_LOG_EXECUTOR = _runtime_diag.AccessLogExecutor()
+_HTTP_LOG_SLOT = threading.BoundedSemaphore(1)
+_DIAGNOSTIC_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pan-diagnostic-read")
+
+
+async def _write_access_log(message):
+    # stdout is diagnostic output, never response backpressure. Keep at most
+    # one outstanding write, and expose drops rather than queueing indefinitely.
+    if not _HTTP_LOG_SLOT.acquire(blocking=False):
+        _runtime_diag.runtime.record("http.log_dropped")
+        return
+    try:
+        future = _HTTP_LOG_EXECUTOR.submit(_log, message)
+    except BaseException:
+        _HTTP_LOG_SLOT.release()
+        _runtime_diag.runtime.record("http.log_submission_failed")
+        return
+    future.add_done_callback(lambda _: _HTTP_LOG_SLOT.release())
+    wrapped = asyncio.wrap_future(future)
+    wrapped.add_done_callback(lambda f: None if f.cancelled() else f.exception())
+    try:
+        await asyncio.wait_for(asyncio.shield(wrapped), timeout=0.05)
+    except asyncio.TimeoutError:
+        _runtime_diag.runtime.record("http.log_slow")
+    except Exception:
+        _runtime_diag.runtime.record("http.log_failed")
+
+
+def _project_worker_event(data: dict) -> dict:
+    """Project local Markdown links before exposing a Worker event to UI.
+
+    Persisted Session history is projected by ``_api_history`` when it is
+    fetched.  Live stream/result events and result replay have a separate
+    outbound path, however, so leaving them raw makes a link clickable but not
+    draggable until the next history refresh.  Keep the stored provider text
+    unchanged and project only the copies sent to browser/agent clients.
+    """
+    if not isinstance(data, dict):
+        return data
+    session_id = data.get("sessionId")
+    if not isinstance(session_id, str) or not session_id:
+        return data
+
+    event_type = data.get("type")
+    if event_type == "worker.result" and isinstance(data.get("result"), str):
+        projected = _project_editor_links(session_id, data["result"])
+        return {**data, "result": projected} if projected != data["result"] else data
+
+    if event_type != "worker.stream" or not isinstance(data.get("event"), dict):
+        return data
+
+    event = dict(data["event"])
+    changed = False
+    for key in ("content", "stream_text"):
+        value = event.get(key)
+        if isinstance(value, str):
+            projected = _project_editor_links(session_id, value)
+            if projected != value:
+                event[key] = projected
+                changed = True
+    message = event.get("message")
+    if isinstance(message, dict):
+        projected_message = dict(message)
+        message_content = message.get("content")
+        if isinstance(message_content, str):
+            projected = _project_editor_links(session_id, message_content)
+            if projected != message_content:
+                projected_message["content"] = projected
+                changed = True
+        elif isinstance(message_content, list):
+            projected_blocks = list(message_content)
+            blocks_changed = False
+            for index, block in enumerate(projected_blocks):
+                if not isinstance(block, dict) or not isinstance(block.get("text"), str):
+                    continue
+                projected = _project_editor_links(session_id, block["text"])
+                if projected != block["text"]:
+                    projected_blocks[index] = {**block, "text": projected}
+                    blocks_changed = True
+            if blocks_changed:
+                projected_message["content"] = projected_blocks
+                changed = True
+        if changed:
+            event["message"] = projected_message
+    return {**data, "event": event} if changed else data
+
+
+def _stamp_ws_event_ts(data: dict):
+    """实时消息事件补 ts（本地 ISO-8601），供前端即时显示时间。
+
+    只在最终消息上打一次点：queue.item_delivered 的 user 消息（此时历史已
+    落盘），以及 worker.stream 的完整 assistant 事件（非 delta chunk）。
+    流式增量（delta）不带 ts；历史条目自身的 ts 由 history 追加边界打点
+    （packages/core/session.py ``append_history``），导入/替换进来的行不打。
+    """
+    etype = data.get("type")
+    now: str | None = None
+    if etype == "queue.item_delivered":
+        msgs = data.get("messages")
+        if isinstance(msgs, list):
+            now = datetime.now().isoformat()
+            for m in msgs:
+                if isinstance(m, dict) and not m.get("ts"):
+                    m["ts"] = now
+        return
+    if etype == "worker.stream":
+        ev = data.get("event")
+        if not isinstance(ev, dict) or ev.get("delta"):
+            return
+        # kimi 增量块（content.part）不是完整消息；role/type 为 assistant
+        # 的完整事件（cbc/kimi 单块完成、codex final）才是最终消息。
+        if ev.get("type") == "content.part":
+            return
+        role = ev.get("role") or ev.get("type")
+        if role == "assistant" and not ev.get("ts"):
+            ev["ts"] = datetime.now().isoformat()
+
+
+async def broadcast(data: dict):
+    """Enqueue one event for each eligible client and return immediately.
+
+    Socket writes happen in one sender task per connection.  A producer may
+    yield once to let a fast in-process socket make progress, but it never
+    awaits that socket's send or a slow client's timeout.
+    """
+    # Keep the persisted provider/history representation untouched.  This is
+    # the common outbound boundary for live browser events and is intentionally
+    # before both dashboard and agent-client fan-out.
+    # Resolving local links can stat files and read/write the attachment
+    # registry. Never do that on the event loop driving HTTP and Worker IO.
+    # The producer awaits its own projection, preserving its event order.
+    if data.get("type") in {"worker.stream", "worker.result"}:
+        data = await _runtime_diag.run_in_executor(
+            "link-projection", _LINK_PROJECTION_EXECUTOR, _project_worker_event, data)
+    # Capture live summary authority after the await, not before another
+    # producer may have advanced this Session while filesystem work ran.
+    is_job_notice = data.get("type") == "job.updated"
+    try:
+        data = _attach_session_summary_patch(data)
+        data = _stamp_live_event(data)
+        _stamp_ws_event_ts(data)
+    except Exception as exc:
+        if is_job_notice:
+            # No outbound enqueue has been invoked. Exceptions from enqueue
+            # or a later socket/consumer boundary deliberately remain unknown.
+            raise _WsBroadcastPreparationFailed(str(exc)) from exc
+        raise
+    for ws in list(ws_clients):
+        _client_channel(ws, "dashboard").enqueue(data)
+
+    etype = data.get("type", "")
+    data_session_id = data.get("sessionId")
+    targets: list[WebSocket] = []
+    for ws in list(agent_clients):
+        sub = agent_subscriptions.setdefault(ws, AgentSubscription())
+        # 事件类型过滤
+        if etype not in sub.event_types and "*" not in sub.event_types:
+            continue
+        # worker.result 按 sessionId 过滤（若订阅了特定 session 列表）
+        if etype == "worker.result" and sub.session_ids and data_session_id not in sub.session_ids:
+            continue
+        targets.append(ws)
+    for ws in targets:
+        callback = None
+        # 记录已消费的 result 序号（实际 sender 成功后才推进）。
+        if etype == "worker.result" and data_session_id:
+            seq = data.get("taskSeq")
+            result_cursor = data.get("resultCursor")
+            if isinstance(seq, int) or isinstance(result_cursor, int):
+                callback = lambda ws=ws, sid=data_session_id, seq=seq, rc=result_cursor: _mark_agent_result_delivered(
+                    ws,
+                    sid,
+                    seq if isinstance(seq, int) else 0,
+                    result_cursor if isinstance(result_cursor, int) else None,
+                )
+        _client_channel(ws, "agent").enqueue(data, on_delivered=callback)
+
+    # Do not wait for any send_json.  This turn only makes fast test doubles
+    # deterministic and starts sender tasks; a real socket is still isolated.
+    await asyncio.sleep(0)
+
+
+def _mark_agent_result_delivered(
+    ws: WebSocket, session_id: str, seq: int, result_cursor: int | None = None,
+) -> None:
+    sub = agent_subscriptions.get(ws)
+    if sub is not None:
+        sub.consumed_seq[session_id] = max(
+            sub.consumed_seq.get(session_id, 0), seq,
+        )
+        if isinstance(result_cursor, int):
+            sub.consumed_cursor[session_id] = max(
+                sub.consumed_cursor.get(session_id, 0), result_cursor,
+            )
+
+
+def websocket_diagnostics() -> dict:
+    """Return bounded live transport counters without retaining message bodies."""
+    return {
+        "totals": dict(_WS_DIAGNOSTICS),
+        "clients": [
+            {
+                "kind": client.kind,
+                "queueDepth": client.queue_depth,
+                "coalescedDeltas": client.coalesced_deltas,
+                "droppedDeltas": client.dropped_deltas,
+                "droppedControlEvents": client.dropped_control_events,
+                "resyncRequired": client.resync_required,
+                "sendFailures": client.send_failures,
+            }
+            for client in tuple(_ws_outbound.values())
+            if not client.closed
+        ],
+    }
+
+
+worker.set_broadcaster(broadcast)
+worker.load_worker_config()
+worker.load_memory_config()
+
+
+def _terminal_result_rows(s) -> list[dict]:
+    """Return a bounded, ordered terminal-result view for replay.
+
+    Old Sessions have only ``last_result``.  They remain replayable as one
+    compatibility row, while new Sessions use the durable result cursor.
+    """
+    rows = [
+        dict(item) for item in (getattr(s, "terminal_results", None) or [])
+        if isinstance(item, dict)
+        and item.get("status") in _AGENT_TERMINAL_RESULT_STATUSES
+    ]
+    rows.sort(key=lambda item: (_result_cursor(item), str(item.get("terminalKey") or "")))
+    if rows:
+        return rows[-sess.RESULT_REPLAY_MAX_ENTRIES:]
+    last = getattr(s, "last_result", None)
+    if isinstance(last, dict) and last.get("status") in _AGENT_TERMINAL_RESULT_STATUSES:
+        return [dict(last)]
+    return []
+
+
+def _result_cursor(row: dict) -> int:
+    value = row.get("resultCursor")
+    if isinstance(value, bool):
+        return 0
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        # Legacy rows only had taskSeq.  This is a compatibility cursor, not
+        # a durable claim that older rows formed a complete result log.
+        try:
+            return max(0, int(row.get("taskSeq", 0) or 0))
+        except (TypeError, ValueError):
+            return 0
+
+
+def _resync_snapshot(
+    session_ids: list[str] | None = None, *, include_all_sessions: bool = False,
+    include_identity: bool = False,
+) -> dict:
+    """Build a bounded authoritative boundary without copying whole Sessions.
+
+    All visible rows are shallow summary projections.  History and the
+    durable queue are included only for explicitly selected Sessions and use
+    the existing bounded page/queue serializers.  This is deliberately a
+    snapshot fallback, not an in-memory replay cache.
+    """
+    requested = {
+        str(value) for value in (session_ids or [])
+        if isinstance(value, str) and value
+    }
+    all_sessions = sess.list_all(load_history=False)
+    if include_all_sessions or not requested:
+        visible = all_sessions[:_RESYNC_MAX_SESSIONS]
+    else:
+        visible = [s for s in all_sessions if s.id in requested]
+
+    details: dict[str, dict] = {}
+    result_cursors: dict[str, int] = {}
+    results_available_from: dict[str, int] = {}
+    for sid in sorted(requested):
+        current = _summary_session_get(sid)
+        if not isinstance(current, sess.Session):
+            continue
+        page = sess.history_page(sid, limit=_RESYNC_HISTORY_LIMIT) or {
+            "history": [], "total": 0, "hasMore": False, "start": 0,
+        }
+        detail = _session_to_api(
+            current,
+            include_history=False,
+            include_raw_usage=False,
+        )
+        detail["history"] = _api_history(
+            sid,
+            page.get("history") or [],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+            include_identity=include_identity,
+        )
+        detail["historyTotal"] = page.get("total", len(detail["history"]))
+        detail["historyTruncated"] = bool(page.get("hasMore"))
+        detail["historyStart"] = page.get("start", 0)
+        detail["historyEpoch"] = page.get("historyEpoch")
+        detail["historyRevision"] = page.get("historyRevision", 0)
+        detail["queue"] = {
+            "items": _session_queue_items(current),
+            "queueRevision": getattr(current, "queue_revision", 0),
+        }
+        rows = _terminal_result_rows(current)
+        result_cursor = max(
+            [int(getattr(current, "result_cursor", 0) or 0)]
+            + [_result_cursor(row) for row in rows]
+        )
+        result_cursors[sid] = result_cursor
+        if rows:
+            available = _result_cursor(rows[0])
+            if available:
+                results_available_from[sid] = available
+        detail["resultCursor"] = result_cursor
+        details[sid] = detail
+
+    workers = []
+    active_workers = worker.find_alive_workers_by_session()
+    for runtime in worker.list_workers():
+        if (active_workers.get(runtime.session_id) is not runtime
+                and worker._find_control_worker(runtime.session_id) is not runtime):
+            continue
+        if requested and runtime.session_id not in requested:
+            continue
+        workers.append({
+            "workerId": runtime.worker_id,
+            "sessionId": runtime.session_id,
+            "generation": getattr(runtime, "generation", 0),
+            "status": runtime.status,
+            "taskId": getattr(runtime, "_current_task_id", None),
+            "taskSeq": getattr(runtime, "_current_seq", None),
+            "executionSeq": getattr(runtime, "_execution_seq", 0) or None,
+        })
+
+    return {
+        "type": "resync.snapshot",
+        "snapshotId": f"{_EVENT_EPOCH}:{_EVENT_SEQ}",
+        "eventEpoch": _EVENT_EPOCH,
+        "eventSeq": _EVENT_SEQ,
+        "serverEpoch": _EVENT_EPOCH,
+        "sourceCursorStart": _EVENT_SEQ,
+        "sourceCursorEnd": _EVENT_SEQ,
+        "boundaryRevision": max(
+            [
+                int(getattr(item, "history_revision", 0) or 0)
+                for item in details.values()
+                if isinstance(item, dict)
+            ] or [0]
+        ),
+        "boundary": "authoritative",
+        "sessions": [_session_summary(s, active_workers) for s in visible],
+        "sessionsTruncated": len(all_sessions) > len(visible) and not requested,
+        "workers": workers,
+        "details": details,
+        "resultCursors": result_cursors,
+        "resultsAvailableFrom": results_available_from,
+    }
+
+
+async def _send_resync_snapshot(
+    ws: WebSocket, session_ids: list[str] | None = None, *,
+    include_all_sessions: bool = False, include_identity: bool = False,
+) -> bool:
+    # Warm existing bounded tail caches off the event loop. Build the final
+    # snapshot synchronously as before: history_page rechecks file signatures
+    # and revisions, and event/worker/queue boundaries retain their semantics.
+    # A concurrent change deliberately invalidates the warmed cache.
+    requested = sorted({sid for sid in (session_ids or [])
+                        if isinstance(sid, str) and sid})
+    # Hot worker Sessions already have in-memory history. Avoid inserting a
+    # new await into their existing stream/replay ordering for no I/O benefit.
+    if any(sid not in sess._cache or not getattr(sess._cache[sid], "_history_loaded", True)
+           for sid in requested):
+        await _store_read(_warm_resync_history, requested)
+    return await _send_ws(
+        ws,
+        _resync_snapshot(
+            session_ids,
+            include_all_sessions=include_all_sessions,
+            include_identity=include_identity,
+        ),
+        kind="agent" if ws in agent_clients else "dashboard",
+    )
+
+
+def _warm_resync_history(session_ids: list[str]) -> None:
+    # The first list_all initializes the shallow registry; doing it after
+    # warming an individual Session would replace that Session's page cache.
+    sess.list_all(load_history=False)
+    for sid in session_ids:
+        current = _summary_session_get(sid)
+        if (isinstance(current, sess.Session)
+                and not getattr(current, "_history_loaded", True)
+                and sess.is_complete_summary_projection(current.summary_projection)):
+            sess.history_page(sid, limit=_RESYNC_HISTORY_LIMIT)
+
+
+async def _replay_agent_results(
+    ws: WebSocket, session_ids: list[str],
+    result_cursors: dict[str, int] | None = None,
+) -> None:
+    """Replay a bounded cursor window; fall back to a snapshot on expiry."""
+    sub = agent_subscriptions.get(ws)
+    if sub is None:
+        sub = AgentSubscription()
+        agent_subscriptions[ws] = sub
+    explicit_cursors = isinstance(result_cursors, dict)
+    for sid in session_ids:
+        s = _summary_session_get(sid)
+        if not s:
+            continue
+        rows = _terminal_result_rows(s)
+        if not rows:
+            continue
+        if explicit_cursors:
+            raw_cursor = result_cursors.get(sid, 0)
+            try:
+                cursor = max(0, int(raw_cursor or 0))
+            except (TypeError, ValueError):
+                cursor = 0
+        else:
+            cursor = max(
+                sub.consumed_cursor.get(sid, 0),
+                sub.consumed_seq.get(sid, 0),
+            )
+
+        cursored_rows = [row for row in rows if _result_cursor(row) > 0]
+        oldest = _result_cursor(cursored_rows[0]) if cursored_rows else 0
+        if explicit_cursors and oldest and cursor < oldest - 1:
+            await _send_ws(ws, {
+                "type": "resync_required",
+                "scope": "agent",
+                "reason": "result_cursor_expired",
+                "sessionId": sid,
+                "eventEpoch": _EVENT_EPOCH,
+                "eventSeq": _EVENT_SEQ,
+                "resultCursor": max(_result_cursor(row) for row in rows),
+            }, kind="agent")
+            await _send_resync_snapshot(ws, [sid])
+            return
+
+        # Legacy reconnect callers receive the latest compatibility result;
+        # clients that send an explicit cursor receive every retained row.
+        pending_rows = (
+            [row for row in rows if _result_cursor(row) > cursor]
+            if explicit_cursors else rows[-1:]
+        )
+        for row in pending_rows:
+            result_cursor = _result_cursor(row)
+            task_seq = row.get("taskSeq")
+            if not explicit_cursors and result_cursor <= cursor:
+                continue
+            payload = {
+                "type": "worker.result",
+                "workerId": row.get("workerId", ""),
+                "sessionId": sid,
+                "status": row.get("status"),
+                "result": _project_editor_links(
+                    sid, str(row.get("result") or "")),
+                "taskSeq": task_seq,
+                "executionSeq": row.get("executionSeq"),
+                "generation": row.get("generation"),
+                "resultCursor": result_cursor or None,
+                "terminalKey": row.get("terminalKey"),
+                "replayed": True,
+            }
+            accepted = await _send_ws(
+                ws,
+                payload,
+                on_delivered=lambda ws=ws, sid=sid, seq=(
+                    int(task_seq) if isinstance(task_seq, int) else 0
+                ), rc=result_cursor: _mark_agent_result_delivered(
+                    ws, sid, seq, rc or None,
+                ),
+                kind="agent",
+            )
+            if not accepted:
+                return
+
+
+class HTTPPolicyMiddleware:
+    """Apply header/log policies without per-request task or body relays.
+
+    Two BaseHTTPMiddleware layers built AnyIO task/stream graphs for every
+    cold read. Their allocation churn triggers whole-interpreter GC pauses,
+    including when the allocating store read runs off the event loop. Only
+    response-start needs inspection; body chunks can pass straight through.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        rid = uuid.uuid4().hex[:16]
+        context = _runtime_diag.request_id.set(rid)
+        token = _runtime_diag.runtime.begin("http", requestId=rid,
+                                            method=method, path=path[:240], stage="routing")
+        _runtime_diag.runtime.record("http.start", requestId=rid, method=method, path=path[:240])
+        status = None
+        body_bytes = 0
+        complete = False
+        outcome = "incomplete"
+
+        async def send_with_policy(message):
+            nonlocal status, body_bytes, complete
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                status = message["status"]
+                headers["X-Pan-Request-Id"] = rid
+                if path.startswith("/static/"):
+                    headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+                if path.startswith("/api/"):
+                    conditional_list = (
+                        path == "/api/sessions" and method == "GET"
+                        and status in (200, 304) and "etag" in headers
+                        and headers.get("cache-control") == "private, no-cache")
+                    if not conditional_list:
+                        headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                _runtime_diag.runtime.stage(token, "sending_headers", status=status)
+                _runtime_diag.runtime.record("http.headers", requestId=rid, status=status)
+            if message["type"] == "http.response.body":
+                body_bytes += len(message.get("body", b""))
+                _runtime_diag.runtime.stage(token, "sending_body", bodyBytes=body_bytes)
+            await send(message)
+            if message["type"] == "http.response.body" and not message.get("more_body", False):
+                complete = True
+                _runtime_diag.runtime.stage(token, "body_complete")
+
+        try:
+            await self.app(scope, receive, send_with_policy)
+            outcome = "completed" if complete else "incomplete"
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
+        except BaseException:
+            outcome = "error"
+            raise
+        finally:
+            _runtime_diag.runtime.end(token, outcome=outcome, complete=complete)
+            _runtime_diag.request_id.reset(context)
+        if not any(path.startswith(p) for p in _LOG_SKIP):
+            await _write_access_log(f"{method}  {path}  → {status}")
+
+
+app.add_middleware(HTTPPolicyMiddleware)
+
+
+# ── helpers ──
+
+def _reports_to_manager(s: sess.Session, manager_by_id: dict | None = None) -> bool | None:
+    """Current direct parent's report subscription; None means unavailable."""
+    if not s.managed_by:
+        return None
+    manager = (manager_by_id.get(s.managed_by) if manager_by_id is not None
+               else sess.get(s.managed_by, load_history=False))
+    if manager is None or s.id not in manager.managed:
+        return None
+    return s.id in manager.report_subscriptions
+
+
+def _msg_bridge_enabled(s: sess.Session) -> bool:
+    # Single truth shared with the unread-recording policy (bell scopes).
+    return unread_policy.msg_bridge_enabled(s)
+
+def _session_to_api(
+    s: sess.Session,
+    *,
+    include_history: bool = True,
+    include_raw_usage: bool = True,
+    include_last_result: bool = True,
+    app_config: dict | None = None,
+    pin_projection: dict | None = None,
+    project_links: bool = True,
+):
+    """Convert Session to API response dict."""
+    w = worker._find_control_worker(s.id)
+    a = get_adapter(s.adapter)
+    config = (load_config() if app_config is None else app_config).get(s.adapter, {})
+    ac = s.adapter_config
+    last_result = s.last_result if include_last_result else None
+    if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
+        last_result = {
+            **last_result,
+            "result": _project_editor_links(s.id, last_result["result"]),
+        }
+    mcp_lock_reason = _get_mcp_locked_state(s)
+    projection = sess.summary_projection(s)
+    if pin_projection is None:
+        pin_projection = sess.session_pin_projection(s.id)
+    queue_pending_count, queue_all_locked = _queue_pending_summary(s)
+    # Unread recording policy: one projection for every read surface. Excluded
+    # Sessions report count 0 with the read cursor clamped to the generation;
+    # unreadTracking is the same single predicate the Session menu acts on.
+    (unread_done_count, unread_done_generation, unread_done_read_generation,
+     unread_tracking) = unread_policy.unread_cursor_projection(
+        s, pinned=bool(pin_projection.get("pinned")))
+    return {
+        "id": s.id,
+        "name": s.name,
+        "adapter": s.adapter,
+        "cliSessionId": s.cli_session_id,
+        "nativeControl": ac.get("native_control") is True,
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
+        "model": s.model or a.default_model,
+        "permissionMode": s.permission_mode or config.get("permission_mode") or None,
+        # Canonical nested capability object; the flat keys below are kept as
+        # deprecated aliases so old HTTP consumers keep working.
+        "panAccess": {
+            "restrictToManaged": s.restrict_to_managed,
+            "canClaimUnmanaged": s.can_claim_unmanaged,
+            "autoClaimCreated": s.auto_claim_created,
+        },
+        "restrictToManaged": s.restrict_to_managed,
+        "canClaimUnmanaged": s.can_claim_unmanaged,
+        "autoClaimCreated": s.auto_claim_created,
+        "sessionTemplate": s.session_template,
+        "originalPrompt": s.original_prompt,
+        "handoffPrompt": s.handoff_prompt,
+        "handoffReceipt": s.handoff_receipt,
+        "systemPrompt": s.system_prompt,  # derived, read-only compatibility view
+        "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
+        "effort": ac.get("effort") or config.get("effort", ""),
+        "maxThinkingTokens": ac.get("max_thinking_tokens"),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
+        "workdir": s.workdir,
+        "queuePendingCount": queue_pending_count,
+        "queueAllLocked": queue_all_locked,
+        "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
+        **({"history": _api_history(
+            s.id, s.history, start=0, history_epoch=getattr(s, "history_epoch", None),
+        )} if include_history else {}),
+        **({"lastResult": last_result} if include_last_result else {}),
+        "activeTaskId": s.active_task_id,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
+        **({"rawUsage": s.raw_usage} if include_raw_usage else {}),
+        "totalUsage": s.total_usage,
+        "usageEnrichmentPending": s.usage_enrichment_pending,
+        "unreadDoneCount": unread_done_count,
+        "unreadDoneGeneration": unread_done_generation,
+        "unreadDoneReadGeneration": unread_done_read_generation,
+        "unreadTracking": unread_tracking,
+        "unreadRecordingOverride": unread_policy.session_unread_recording_override(s) or None,
+        "createdAt": s.created_at,
+        "updatedAt": s.updated_at,
+        "order": s.order,
+        **pin_projection,
+        "workspaceIds": sess.effective_workspace_ids(s),
+        "managed": s.managed,
+        "managedBy": s.managed_by,
+        "readonlySession": s.readonly_session,
+        "reportsToManager": _reports_to_manager(s),
+        "agentLevel": sess.agent_level(s.id, load_history=False),
+        "reportSubscriptions": sorted(s.report_subscriptions),
+        "qqSubscriptions": sorted(s.qq_subscriptions),
+        "qqReportTargets": sorted(s.qq_report_targets),
+        "wechatSubscriptions": sorted(s.wechat_subscriptions),
+        "notificationSettings": notifications.normalize_notification_settings(s.notification_settings),
+        "msgBridgeEnabled": _msg_bridge_enabled(s),
+        "workerStatus": w.status if w else None,
+        "workerId": w.worker_id if w else None,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
+        "mcpEnabled": bool(ac.get("mcp_servers")),
+        "mcpLocked": mcp_lock_reason is not None,
+        "mcpLockReason": mcp_lock_reason,
+        # Currently-enabled MCP server names (extracted from the adapter_config
+        # mcp_servers list of config dicts, each carrying a "name" key).
+        **_session_plugin_fields(s),
+        "outputMode": "stream" if ac.get("output_mode") == "oneshot" else ac.get("output_mode"),
+        "executionModes": [mode for mode in a.execution_modes if mode != "oneshot"],
+        "gameId": s.game_id,
+        # Bounded, raw summary projection.  The full view keeps its existing
+        # history/attachment behavior; these fields let metadata/detail
+        # consumers share the same revisioned summary contract.
+        "summaryRevision": projection["revision"],
+        "lastUserPreview": projection["last_user_preview"],
+        "lastAssistantPreview": projection["last_assistant_preview"],
+        "lastDisplayPreview": projection["last_display_preview"],
+        "historyTotal": projection["history_total"],
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
+    }
+
+
+# ── BE-3: Session-store reads scheduled off the event loop ──
+#
+# ``/api/sessions`` and ``/api/sessions/{id}/history`` are the dashboard's cold
+# load.  A cold tail-page read may need to inspect its companion
+# ``.history.jsonl``; unchanged default-tail pages reuse a bounded,
+# file-signature-checked snapshot. Non-tail and unknown-total reads retain the
+# compatibility scan. Keep this store work and the bounded nested-row copies
+# off the FastAPI event loop so history traffic cannot starve dashboard
+# WebSocket messages and worker streaming.
+#
+# The helpers below are the blocking halves of those endpoints.  They are
+# deliberately restricted to what is already thread-safe in the Session store:
+#
+#   * ``list_all`` is serialized by the existing ``_STORE_LOCK`` (it is
+#     ``@_store_serialized``), so concurrent loads cannot build two objects for
+#     one Session id;
+#   * ``history_page`` only reads the store (it never writes ``_cache``) and its
+#     in-memory branch now copies the rows it returns, so it never publishes or
+#     rewrites live Session history from a worker thread;
+#   * ``_summary_session_get`` uses ``load_history=False``, which never
+#     hydrates the cache or adopts a shallow entry.
+#
+# Response shaping (``_api_history``, ``_session_to_api``, ``_session_summary``)
+# stays on the event loop: it mutates the bounded summary projection and the
+# session attachment registry (``_editor_reference_id`` can register a new
+# reference), and those read-modify-write paths remain single-threaded.
+_PAGE_UNSET = object()
+_NOT_FOUND = object()
+
+# One dedicated thread serves every offloaded store read.  The reads are
+# store reads include Python JSON parsing and nested page copies, so a pool
+# cannot make one read faster. An unbounded pool (the default executor's
+# min(32, cpu+4)) also lets a cold-read storm create many competing Python
+# threads. A single worker preserves the previous store serialization while
+# the bounded tail-page cache avoids repeating full-file work for unchanged
+# default-tail requests.
+_STORE_READ_EXECUTOR = ThreadPoolExecutor(
+    max_workers=1, thread_name_prefix="pan-store-read")
+
+
+async def _store_read(func, /, *args, **kwargs):
+    """Run one blocking Session-store read on the dedicated store-read thread."""
+    return await _runtime_diag.run_in_executor(
+        "store-read", _STORE_READ_EXECUTOR, func, *args, **kwargs)
+
+
+class _HistoryJSONResponse(NetworkJSONResponse):
+    def render(self, content) -> bytes:
+        # Projections already own their JSON-shaped dicts/lists. Let the C
+        # encoder walk those directly; recursively cloning them with FastAPI's
+        # encoder doubles container churn under concurrent cold list reads and
+        # can trigger a stop-the-world collection even on the store thread.
+        # Preserve FastAPI conversion for non-JSON leaves (datetime, Path, etc.).
+        return json.dumps(content, ensure_ascii=False, allow_nan=False,
+                          separators=(",", ":"), default=jsonable_encoder).encode("utf-8")
+
+
+async def _history_network_response(payload: dict, request: Request | None):
+    # Direct internal callers retain the dict contract. Returning a Response
+    # for HTTP skips FastAPI's synchronous recursive encoder and JSON render.
+    # Reuse the single worker so a burst cannot fan out GIL-bound encoders.
+    if request is None:
+        return payload
+    return await _store_read(lambda: _HistoryJSONResponse(payload))
+
+
+def _history_pages_for(session_ids: list[str], limit: int) -> dict:
+    """Read one bounded history page per Session in a single blocking call."""
+    pages = {}
+    for sid in session_ids:
+        page = sess.history_page(sid, limit=limit)
+        if page is not None:
+            page['_bookmarkedMessageIds'] = session_bookmarks.bookmarked_message_ids(sid)
+        pages[sid] = page
+    return pages
+
+
+def _history_page_lookup(session_id: str, before: int, limit: int,
+                         search_jump: bool = False):
+    """Shallow membership check plus one bounded page, in one blocking call.
+
+    ``_NOT_FOUND`` covers both "no such Session" and "unreadable main file",
+    which the HTTP layer reports as the historical
+    ``{"error": "Session not found"}`` payload.
+    """
+    if not _summary_session_get(session_id):
+        return _NOT_FOUND
+    page = sess.history_page(
+        session_id, before=before, limit=limit, search_jump=search_jump)
+    if page is not None:
+        page['_bookmarkedMessageIds'] = session_bookmarks.bookmarked_message_ids(session_id)
+    return _NOT_FOUND if page is None else page
+
+
+def _history_page_wire_payload(session_id: str, before: int, limit: int,
+                               search_jump: bool = False):
+    """Read and project one private history page entirely off the event loop.
+
+    Link compatibility projection can resolve local paths and perform file
+    I/O. Offloading only the store read and final JSON encoding leaves that
+    middle stage blocking dashboard heartbeats.
+    """
+    page = _history_page_lookup(session_id, before, limit, search_jump)
+    if page is _NOT_FOUND:
+        return {"error": "Session not found"}
+    return {
+        "history": _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+            bookmarked_ids=page.get('_bookmarkedMessageIds'),
+        ),
+        "total": page["total"],
+        "hasMore": page["hasMore"],
+        "start": page["start"],
+        "historyEpoch": page.get("historyEpoch"),
+        "historyRevision": page.get("historyRevision", 0),
+    }
+
+
+def _session_list_api(
+    s: sess.Session,
+    *,
+    history_limit: int = 50,
+    page=_PAGE_UNSET,
+    app_config: dict | None = None,
+    pin_projection: dict | None = None,
+) -> dict:
+    """Serialize the list view without hydrating a Session's full history.
+
+    ``page`` is the BE-3 seam: an async caller may pass a history page that was
+    already read on a worker thread, so the cold dashboard load never parses
+    the companion JSONL on the event loop.  Omitting it keeps the historical
+    inline read for the remaining synchronous callers.
+    """
+    api = copy.deepcopy(_session_to_api(
+        s, include_history=False, app_config=app_config,
+        pin_projection=pin_projection, project_links=False,
+    ))
+    # Freeze live usage/result/config metadata before yielding to HTTP encoding.
+    # History pages below are already owned, nested-isolated store snapshots.
+    if page is _PAGE_UNSET:
+        page = sess.history_page(s.id, limit=history_limit)
+    return _project_session_list_row(s.id, api, page, getattr(s, "history_epoch", None))
+
+
+def _project_session_list_row(session_id, api, page, history_epoch):
+    """Only private snapshots cross to the projection thread, never live Sessions."""
+    result = api.get("lastResult")
+    if isinstance(result, dict) and isinstance(result.get("result"), str):
+        result["result"] = _project_editor_links(session_id, result["result"])
+    if page is None:
+        history = []
+        total = 0
+        has_more = False
+    else:
+        history = page.get("history") or []
+        total = page.get("total", len(history))
+        has_more = bool(page.get("hasMore"))
+    api["history"] = _api_history(
+        session_id,
+        history,
+        start=page.get("start", 0) if page else 0,
+        history_epoch=page.get("historyEpoch") if page else history_epoch,
+        bookmarked_ids=page.get('_bookmarkedMessageIds') if page else frozenset(),
+    )
+    api["historyTruncated"] = has_more
+    api["historyTotal"] = total
+    if page:
+        api["historyStart"] = page.get("start", 0)
+        api["historyEpoch"] = page.get("historyEpoch")
+        api["historyRevision"] = page.get("historyRevision", 0)
+    return api
+
+
+def _session_import_api(s: sess.Session) -> dict:
+    """Compatibility view for native import endpoints.
+
+    Import responses historically exposed provider-shaped history rows. The
+    normal history/page APIs carry the newer stable message identity fields;
+    keeping this one response shape avoids breaking older import clients.
+    """
+    response = _session_to_api(s)
+    response["history"] = [
+        {key: value for key, value in row.items() if key != "messageId"}
+        for row in response.get("history", [])
+    ]
+    return response
+
+
+# How many durable terminal identities a list/summary read exposes.  Identity
+# only (never a result body), so a caller can bind an action to a specific
+# completed task of this Session without a per-Session detail read.
+_TERMINAL_IDENTITY_LIMIT = 16
+
+
+def _terminal_identity_rows(s: sess.Session,
+                            *, limit: int = _TERMINAL_IDENTITY_LIMIT) -> list[dict]:
+    """Bounded identity view of the durable per-task terminal index.
+
+    Reuses the exact rows the result-replay contract reads
+    (``_terminal_result_rows``: the bounded ``terminal_results`` window with the
+    legacy ``last_result`` fallback) and strips every result body.  Identity is
+    what an explicit "report this task" action has to prove; the content itself
+    is resolved server-side from the same durable row, never from the client.
+    """
+    rows = _terminal_result_rows(s)[-limit:]
+    return [
+        {
+            "taskId": row.get("taskId"),
+            "taskSeq": row.get("taskSeq"),
+            "resultCursor": _result_cursor(row),
+            "terminalKey": row.get("terminalKey"),
+            "status": row.get("status"),
+            # The history boundary this run committed at.  A caller needs it to
+            # know whether the run's final text block can be proven at all
+            # (legacy rows and rewritten epochs cannot), and it is the same
+            # epoch/revision arithmetic the server validates against.
+            "historyEpoch": row.get("historyEpoch"),
+            "historyRevision": row.get("historyRevision"),
+        }
+        for row in rows
+    ]
+
+
+def _session_summary(
+    s: sess.Session, active_workers: dict | None = None,
+    pin_projection: dict | None = None,
+    manager_by_id: dict | None = None,
+) -> dict:
+    """Lean session dict for list summaries (A1: no history / usage).
+
+    Fields: id/name/adapter/cliSessionId/workerStatus/updatedAt/managedBy/
+    agentLevel —
+    used by GET /api/sessions?summary=1 for agent context budgeting.
+    cliSessionId lets MCP session_import locate the session that a reimport
+    would overwrite (§8.2).
+
+    The preview fields are a bounded in-memory/persisted projection.  This
+    function must not load config.json, parse attachment links, touch the
+    attachment registry, stat a local path, register an editor reference, or
+    traverse the full history. ``lastMessage`` remains the old API alias for
+    the raw ``lastDisplayPreview`` value.
+
+    The unread-recording policy participates through its process-wide hot
+    snapshot (refreshed at startup and on the settings PUT that can change it),
+    never through per-Session config reads; the pin fact comes from the
+    already-computed ``pin_projection`` above.
+
+    Since 2026-09-01: also exposes managed / mcpServers / mcpLockReason so the
+    sidebar can run the "has subagent" and "is MetaAgent" special filters
+    without per-session detail calls (mirrors _session_to_api).
+    """
+    w = (active_workers.get(s.id) if active_workers is not None
+         else worker.find_alive_worker_by_session(s.id))
+    if w is None and (s.offline_owner or {}).get("externalTakeover"):
+        w = worker._find_control_worker(s.id)
+    projection = sess.summary_projection(s)
+    worker_state = getattr(s, "_summary_worker_state", None) or {}
+    worker_status = w.status if w else worker_state.get("status")
+    worker_id = w.worker_id if w else worker_state.get("worker_id")
+    worker_generation = (
+        getattr(w, "generation", None) if w else worker_state.get("generation")
+    )
+    worker_task_id = (
+        worker_state.get("task_id") if worker_state else
+        (getattr(w, "_current_task_id", None) if w else None)
+    )
+    worker_task_seq = (
+        worker_state.get("task_seq") if worker_state else
+        (getattr(w, "_current_seq", None) if w else None)
+    )
+    updated_at = projection["updated_at"] or s.updated_at
+    ac = s.adapter_config
+    if pin_projection is None:
+        pin_projection = sess.session_pin_projection(s.id)
+    queue_pending_count, queue_all_locked = _queue_pending_summary(s)
+    # Unread recording policy: one projection for every read surface (see
+    # _session_to_api). The policy snapshot itself is process memory; the only
+    # per-Session lookup is the already-computed pin projection.
+    (unread_done_count, unread_done_generation, unread_done_read_generation,
+     unread_tracking) = unread_policy.unread_cursor_projection(
+        s, pinned=bool(pin_projection.get("pinned")))
+    return {
+        "id": s.id,
+        "name": s.name,
+        "adapter": s.adapter,
+        "cliSessionId": s.cli_session_id,
+        "nativeControl": ac.get("native_control") is True,
+        "nativeControlCapable": adapter_supports_native_control(s.adapter) and platform_layer.supports("terminal.native"),
+        "workerStatus": worker_status,
+        "workerId": worker_id,
+        "workerGeneration": worker_generation,
+        "workerTaskId": worker_task_id,
+        "workerTaskSeq": worker_task_seq,
+        "workerExecutionSeq": getattr(w, "_execution_seq", 0) or None,
+        "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        "legalOffline": s.legal_offline,
+        "illegalOffline": legal_offline.is_illegal(s),
+        "legalityDiagnostics": legal_offline.diagnostics(s),
+        "unreadDoneCount": unread_done_count,
+        "unreadDoneGeneration": unread_done_generation,
+        "unreadDoneReadGeneration": unread_done_read_generation,
+        "unreadTracking": unread_tracking,
+        "unreadRecordingOverride": unread_policy.session_unread_recording_override(s) or None,
+        "updatedAt": updated_at,
+        "summaryRevision": projection["revision"],
+        "order": s.order,
+        **pin_projection,
+        "workspaceIds": sess.effective_workspace_ids(s),
+        "managedBy": s.managed_by,
+        "readonlySession": s.readonly_session,
+        "reportsToManager": _reports_to_manager(s, manager_by_id),
+        "msgBridgeEnabled": _msg_bridge_enabled(s),
+        "agentLevel": sess.agent_level(s.id, load_history=False),
+        # Terminal identities only (no result bodies): lets a list caller bind an
+        # action to any completed task of this Session without a detail read.
+        "terminalResults": _terminal_identity_rows(s),
+        "lastUserPreview": projection["last_user_preview"],
+        "lastAssistantPreview": projection["last_assistant_preview"],
+        "lastDisplayPreview": projection["last_display_preview"],
+        "lastMessage": projection["last_display_preview"],
+        "historyTotal": projection["history_total"],
+        "historyEpoch": getattr(s, "history_epoch", None),
+        "historyRevision": getattr(s, "history_revision", 0),
+        "totalUsage": s.total_usage,
+        "managed": s.managed,
+        **_session_plugin_fields(s),
+        "mcpLockReason": _get_mcp_locked_state(s),
+        # 设置字段（供前端列表/InputRow 显示真实值，避免未打开设置弹窗时回退默认）
+        # Do not resolve defaults here.  A list summary is a projection of
+        # persisted Session state; configuration/default resolution belongs to
+        # the detail/settings path.
+        "model": s.model,
+        "permissionMode": s.permission_mode,
+        "alwaysThinkingEnabled": ac.get("always_thinking_enabled", False),
+        "effort": ac.get("effort", ""),
+        "modelContextWindow": ac.get("model_context_window"),
+        "modelAutoCompactTokenLimit": ac.get("model_auto_compact_token_limit"),
+        "workdir": s.workdir,
+        "queuePendingCount": queue_pending_count,
+        "queueAllLocked": queue_all_locked,
+        "queueRevision": int(getattr(s, "queue_revision", 0) or 0),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
+    }
+
+
+def _get_mcp_locked_state(s) -> str | None:
+    """Return the MCP lock reason for this session's session_template.
+
+    Returns "always" / "never" when the template locks the MCP toggle,
+    None when unlocked (no template, optional mode, or lookup failure).
+    """
+    if _character_manager is None or not s.session_template:
+        return None
+    try:
+        template = _character_manager.get_session_template(s.session_template)
+        if template and template.mcp_mode in ("always", "never"):
+            return template.mcp_mode
+    except Exception:
+        pass
+    return None
+
+
+_NAME_RE = re.compile(r"^\S+$")  # session name: any non-whitespace chars
+_MAX_NAME_LEN = 64
+_MAX_TEXT_LEN = 10000
+
+
+def _check_session_name(name: str) -> str | None:
+    """Return error if name is empty, has invalid chars, too long, or taken."""
+    if not name or not name.strip():
+        return "Session name is required"
+    if len(name) > _MAX_NAME_LEN:
+        return f"Session name too long (max {_MAX_NAME_LEN})"
+    if not _NAME_RE.match(name):
+        return "Session name cannot contain spaces"
+    for s in sess.list_all(load_history=False):
+        if s.name == name:
+            return f"Session name '{name}' already exists"
+    return None
+
+
+_WORKDIR_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+# ── file-system api constants ──
+_HIDDEN_ENTRIES = {".git", ".venv", "node_modules", "__pycache__", ".codebuddy"}
+_MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MiB
+
+# Reserved for future path restriction
+_ALLOWED_WORKDIR_ROOTS: list[Path] | None = None
+
+
+def _resolve_workdir(workdir_name: str, *, strict_workdir: bool = False) -> Path:
+    """Resolve a workdir name to a Path.
+
+    Relative session names retain their historical private workdir behavior.
+    Absolute paths must already exist; a caller that wants a new absolute
+    directory must use the explicit directory-creation endpoint after user
+    confirmation. This prevents session creation from silently creating an
+    arbitrary path supplied by a client.
+    """
+    p = Path(workdir_name)
+    if p.is_absolute():
+        if _ALLOWED_WORKDIR_ROOTS is not None:
+            for root in _ALLOWED_WORKDIR_ROOTS:
+                try:
+                    p.resolve().relative_to(root.resolve())
+                    break
+                except ValueError:
+                    pass
+            else:
+                raise ValueError(
+                    f"Workdir {workdir_name!r} is outside allowed roots: "
+                    f"{[str(r) for r in _ALLOWED_WORKDIR_ROOTS]}"
+                )
+        try:
+            resolved = p.resolve(strict=True)
+        except FileNotFoundError as exc:
+            raise ValueError(
+                f"Workdir {workdir_name!r} does not exist; confirm directory creation first"
+            ) from exc
+        if not resolved.is_dir():
+            raise ValueError(f"Workdir {workdir_name!r} is not a directory")
+        return resolved
+
+    if strict_workdir:
+        if workdir_name in {".", ".."} or not re.fullmatch(r"[A-Za-z0-9_.-]+", workdir_name):
+            raise ValueError(f"Invalid relative workdir path: {workdir_name!r}")
+        workdir = WORKDIRS_DIR / workdir_name
+        workdir.mkdir(parents=True, exist_ok=True)
+        return workdir.resolve()
+
+    # Slug name — resolve under WORKDIRS_DIR
+    # 非法字符不抛错：清理成安全 slug（替换为 -），避免合法 session 名
+    # （如 "fanout.config"、"v1.2"）触发 500。
+    if not _WORKDIR_NAME_RE.match(workdir_name):
+        cleaned = re.sub(r"[^A-Za-z0-9_\-]+", "-", workdir_name).strip("-")
+        if not cleaned:
+            cleaned = "session"
+        workdir_name = cleaned
+    workdir = WORKDIRS_DIR / workdir_name
+    workdir.mkdir(parents=True, exist_ok=True)
+    return workdir
+
+
+def _path_is_allowed(path: Path, roots: list[Path]) -> bool:
+    resolved = path.resolve(strict=False)
+    return any(
+        resolved == root.resolve(strict=False)
+        or root.resolve(strict=False) in resolved.parents
+        for root in roots
+    )
+
+
+def _create_directory(path: str) -> Path:
+    """Create one explicitly confirmed directory without expanding trust.
+
+    Existing external workspaces remain valid workdirs. New absolute trees are
+    only creatable below the configured allowlist; when no allowlist is
+    configured, only Pan's own workdir root is creatable. The parent must
+    already exist, so a typo cannot cause an arbitrary directory tree to be
+    manufactured.
+    """
+    raw = path.strip()
+    if not raw or "\x00" in raw or any(ord(char) < 32 for char in raw):
+        raise ValueError("Invalid directory path")
+    if sys.platform == "win32":
+        invalid = set('<>"|?*')
+        if any(char in invalid for char in raw):
+            raise ValueError("Invalid directory path")
+        for index, char in enumerate(raw):
+            if char == ":" and not (index == 1 and raw[0].isalpha()):
+                raise ValueError("Invalid directory path")
+    target = Path(raw)
+    if not target.is_absolute():
+        return _resolve_workdir(raw, strict_workdir=True)
+
+    if _ALLOWED_WORKDIR_ROOTS is not None:
+        roots = _ALLOWED_WORKDIR_ROOTS
+    else:
+        roots = [WORKDIRS_DIR]
+    if not _path_is_allowed(target, roots):
+        raise ValueError(f"Workdir {raw!r} is outside allowed roots: {[str(root) for root in roots]}")
+
+    try:
+        if target.exists():
+            if not target.is_dir():
+                raise ValueError(f"Workdir {raw!r} is not a directory")
+            return target.resolve(strict=True)
+        parent = target.parent.resolve(strict=True)
+        if not parent.is_dir() or not _path_is_allowed(parent, roots):
+            raise ValueError("Parent directory is outside allowed roots or does not exist")
+        target.mkdir(exist_ok=False)
+        return target.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise ValueError("Parent directory is outside allowed roots or does not exist") from exc
+    except PermissionError as exc:
+        raise PermissionError("Directory creation permission denied") from exc
+
+
+def _resolve_fs_path(session_id: str, rel_path: str) -> Path:
+    """Resolve a session-relative or absolute path on the Pan server.
+
+    Absolute paths are honored as-is so the editor can browse any server
+    directory a root points at (CWD, Workspace, or Temp roots may all live
+    outside the Session workdir). Relative paths stay confined to the Session
+    workdir, preserving the existing Markdown-link safety boundary. A Session
+    with no workdir can still address absolute paths.
+    """
+    target = Path(rel_path)
+    if target.is_absolute():
+        return target.resolve()
+    s = _summary_session_get(session_id)
+    if not s or not s.workdir:
+        raise ValueError("session has no workdir")
+    return (Path(s.workdir) / target).resolve()
+
+
+def _resolve_attachment_source_path(session_id: str, raw_path: str) -> Path:
+    """Resolve an attachment source and reject relative workdir escape."""
+    target = _resolve_fs_path(session_id, raw_path)
+    if not Path(raw_path).is_absolute():
+        session = _summary_session_get(session_id)
+        if not session or not session.workdir:
+            raise ValueError("session has no workdir")
+        try:
+            target.relative_to(Path(session.workdir).resolve())
+        except ValueError as exc:
+            raise ValueError("Attachment path escapes the Session workdir") from exc
+    return target
+
+
+def _rename_no_overwrite(src: Path, dst: Path) -> None:
+    """Rename without replacing a target which appears concurrently.
+
+    ``os.replace`` is intentionally not used here: it unconditionally
+    replaces on POSIX and could destroy a draft created after the UI's
+    advisory target-state check. Windows MoveFileEx without
+    MOVEFILE_REPLACE_EXISTING and Linux renameat2(RENAME_NOREPLACE) provide
+    atomic no-overwrite behavior. Platforms without a proven atomic
+    no-overwrite primitive fail closed.
+    """
+    if src == dst:
+        if not src.exists():
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), str(src))
+        return
+
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        move_file_ex = kernel32.MoveFileExW
+        move_file_ex.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        move_file_ex.restype = ctypes.c_int
+        # MOVEFILE_WRITE_THROUGH; omitting MOVEFILE_REPLACE_EXISTING is the
+        # no-overwrite guarantee and works for local and UNC paths.
+        if not move_file_ex(str(src), str(dst), 0x8):
+            error = ctypes.get_last_error()
+            raise OSError(error, os.strerror(error), str(dst))
+        return
+
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        renameat2 = getattr(libc, "renameat2", None)
+        if renameat2 is not None:
+            renameat2.argtypes = [
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_int,
+                ctypes.c_char_p,
+                ctypes.c_uint,
+            ]
+            renameat2.restype = ctypes.c_int
+            result = renameat2(
+                -100,
+                os.fsencode(src),
+                -100,
+                os.fsencode(dst),
+                1,  # AT_FDCWD, RENAME_NOREPLACE
+            )
+            if result == 0:
+                return
+            error = ctypes.get_errno()
+            # Some Linux architectures expose renameat2 but return ENOSYS at
+            # runtime (for example under an older kernel/container). A
+            # link+unlink fallback is not safe: another actor can remove the
+            # source inode between those operations, and it cannot provide
+            # the same no-overwrite guarantee for directories. Fail closed.
+            if error != errno.ENOSYS:
+                raise OSError(error, os.strerror(error), str(dst))
+            raise OSError(
+                errno.ENOTSUP,
+                "atomic no-overwrite rename is unavailable on this Linux system",
+                str(dst),
+            )
+
+    raise OSError(
+        errno.ENOTSUP,
+        "atomic no-overwrite rename is unavailable on this platform",
+        str(dst),
+    )
+
+
+def _guarded_model(a, value) -> str | None:
+    """模板 / config.json 回退 model 的宽容守卫。
+
+    与显式请求的硬校验（validate_model → 拒绝）不同：回退值不在 adapter
+    可选列表内时丢弃（交还 adapter 默认），记日志但不阻止 session 创建。
+    这是既有 stale-model guard 语义（原 kimi-code/kimi-for-coding 场景）。
+    """
+    if not value:
+        return None
+    if is_valid_model(a, value):
+        return value
+    _log(f"[session-config] dropping invalid model {value!r} "
+         f"for adapter '{a.name}' (not in supported_models)")
+    return None
+
+
+def _guarded_permission_mode(a, value) -> str | None:
+    """模板 / config.json 回退 permissionMode 的宽容守卫（同 _guarded_model）。"""
+    if not value:
+        return None
+    try:
+        validate_permission_mode(a, value)
+        return value
+    except AdapterCapabilityError as exc:
+        _log(f"[session-config] dropping invalid permission_mode for adapter "
+             f"'{a.name}': {exc}")
+        return None
+
+
+def _build_session_params(
+    data: dict,
+    *,
+    resolve_workdir: bool = True,
+    strict_mcp: bool = True,
+) -> dict:
+    """Extract session creation parameters from request data, with defaults.
+
+    Session config (system_prompt / adapter / model / permission_mode /
+    mcp_mode / mcp_servers / pan_access capability flags) comes from a
+    session_template —
+    either the explicit ``sessionTemplate`` name or the built-in ``default``
+    template (config.json session config). ``characterId`` only binds memory/assets.
+
+    ``resolve_workdir=False`` skips creating a workdir under data/workdirs/ —
+    used by the import endpoints whose sessions keep the external project /
+    workspace path as workdir instead.
+
+    ``strict_mcp=False`` is reserved for importing an existing external CLI
+    session. A stale import template may omit MCP rather than preventing the
+    external session from being recorded; normal session creation remains
+    strict so a configured MCP server can never disappear silently.
+    """
+    _normalize_context_setting_keys(data)
+    for key in ("originalPrompt", "handoffPrompt", "systemPrompt"):
+        if key in data and data[key] is not None and not isinstance(data[key], str):
+            raise ValueError(f"{key} must be a string or null")
+    name = data.get("name", "default")
+    explicit_workdir = data.get("workdir")
+    workdir_name = explicit_workdir or name
+
+    # Resolve session_template first: the template's adapter participates in
+    # the final adapter resolution (explicit request > template > "cbc"), so
+    # capability validation must run against the adapter the session will
+    # actually use (previously a no-adapter-request + kimi-template request
+    # validated against cbc but created a kimi session).
+    template_name = data.get("sessionTemplate") or data.get("session_template") or None
+    template = None
+    if template_name:
+        if _character_manager is None:
+            raise AdapterCapabilityError(
+                f"Unknown session template {template_name!r}: "
+                "manifest catalog not loaded"
+            )
+        template = _character_manager.get_session_template(template_name)
+        if template is None:
+            available: list[str] = []
+            if _character_manager._manifest_config is not None:
+                available = [
+                    t.name for t in _character_manager._manifest_config.session_templates
+                ]
+            raise AdapterCapabilityError(
+                f"Unknown session template {template_name!r}. "
+                f"Available templates: {', '.join(available) or '(none)'}"
+            )
+
+    adapter_name = data.get("adapter") or (template.adapter if template else "") or "cbc"
+    a = resolve_adapter(adapter_name)
+    config = load_config().get(adapter_name, {})
+
+    if template is None:
+        # Built-in default session_template = config.json session config.
+        # 默认 stream + MCP：注入 `pan` MCP server（输出模式自动走 stream+MCP）。
+        template = SessionTemplate(
+            name="default",
+            adapter=adapter_name,
+            # Same stale-model guard as the params below: only adopt the config
+            # model when it's in the adapter's selectable list.
+            model=(config.get("model")
+                   if config.get("model") in a.supported_models else None)
+            or a.default_model,
+            permission_mode=config.get("permission_mode"),
+            system_prompt="",
+            mcp_mode="always",
+            mcp_servers=["pan"],
+        )
+        template_name = None  # don't record an explicit name for the default
+
+    # Capability flags: template values are the baseline; an explicit request
+    # ``panAccess`` (or legacy flat body fields) overrides them.
+    # Priority: explicit field > sessionTemplate template value > default.
+    pan_access = {
+        "restrict_to_managed": template.restrict_to_managed,
+        "can_claim_unmanaged": template.can_claim_unmanaged,
+        "auto_claim_created": template.auto_claim_created,
+    }
+    req_pa = data.get("panAccess")
+    pan_access_keys = {
+        "restrictToManaged": "restrict_to_managed",
+        "canClaimUnmanaged": "can_claim_unmanaged",
+        "autoClaimCreated": "auto_claim_created",
+    }
+    if "panAccess" in data:
+        if not isinstance(req_pa, dict):
+            raise ValueError("panAccess must be an object of boolean capability flags")
+        unknown_pan_access = set(req_pa) - set(pan_access_keys)
+        if unknown_pan_access:
+            raise ValueError(
+                "Unknown panAccess field(s): " + ", ".join(sorted(map(str, unknown_pan_access)))
+            )
+        for req_key, pa_key in pan_access_keys.items():
+            if req_key in req_pa:
+                if not isinstance(req_pa[req_key], bool):
+                    raise ValueError(f"panAccess.{req_key} must be a boolean")
+                pan_access[pa_key] = req_pa[req_key]
+    for req_key, pa_key in pan_access_keys.items():
+        if req_key in data:  # legacy flat body fields (backward compat)
+            if not isinstance(data[req_key], bool):
+                raise ValueError(f"{req_key} must be a boolean")
+            pan_access[pa_key] = data[req_key]
+
+    # 显式请求的能力校验：非法值直接拒绝（结构化错误，不静默回退）。
+    # 校验在所有回退值解析完成后进行，per-model effort 收窄以最终 model 为准。
+    # A named manifest template is an explicit, contractual configuration: if
+    # it carries a model, an adapter override that cannot run that model must
+    # fail rather than silently replacing the template's requested model.
+    # The synthesized default template / config.json fallback keeps the legacy
+    # stale-model guard semantics (宽容守卫，不误杀 —— 例如 claude 的 config
+    # model 可能不在其 best-effort builtin 列表内)。
+    if data.get("model"):
+        _final_model = data["model"]
+    elif template_name and template is not None and template.model:
+        validate_model(a, str(template.model))
+        _final_model = template.model
+    elif template is not None and template.model:
+        # 内置 default 模板：model 已在构造时按 supported_models 守卫过
+        # （config guard + adapter 自带 default 守卫），此处信任旧语义。
+        _final_model = template.model
+    else:
+        _final_model = _guarded_model(a, config.get("model")) or a.default_model
+    explicit_settings: dict = {}
+    if data.get("model"):
+        explicit_settings["model"] = data["model"]
+    if data.get("permissionMode"):
+        explicit_settings["permissionMode"] = data["permissionMode"]
+    if data.get("effort"):
+        explicit_settings["effort"] = data["effort"]
+    if data.get("maxThinkingTokens"):
+        explicit_settings["maxThinkingTokens"] = data["maxThinkingTokens"]
+    if data.get("alwaysThinkingEnabled"):
+        explicit_settings["alwaysThinkingEnabled"] = data["alwaysThinkingEnabled"]
+    for api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            explicit_settings[api_key] = data[api_key]
+    if explicit_settings:
+        validate_session_settings(adapter_name, explicit_settings, current_model=_final_model)
+
+    # thinking / effort 的 config 回退值做宽容守卫：adapter 不支持或值非法时
+    # 丢弃回退默认（与 stale-model guard 同语义），只有显式请求才硬拒绝。
+    _declared = _adapter_supported_settings(a)
+    _explicit_thinking = data.get("alwaysThinkingEnabled")
+    if _explicit_thinking is not None:
+        _thinking = bool(_explicit_thinking)
+    else:
+        _config_thinking = bool(config.get("always_thinking_enabled", False))
+        _thinking = _config_thinking if (_declared is None or "thinking" in _declared) else False
+
+    _effort = data.get("effort") or ""
+    if not _effort:
+        _effort = config.get("effort", "") or ""
+        if _effort:
+            try:
+                validate_effort(a, _effort, model=_final_model)
+            except AdapterCapabilityError as _exc:
+                _log(f"[session-config] dropping config effort for adapter "
+                     f"'{a.name}': {_exc}")
+                _effort = ""
+
+    if "nativeControl" in data:
+        if (type(data["nativeControl"]) is not bool
+                or not adapter_supports_native_control(adapter_name)):
+            raise ValueError("nativeControl requires a Terminal TUI capable Session and a boolean")
+        if data["nativeControl"] and not platform_layer.supports("terminal.native"):
+            raise ValueError("unsupported_platform: Native Terminal TUI requires terminal.native")
+
+    params = {
+        "name": name,
+        # User's explicit adapter wins, then the template's (a no-adapter
+        # template parses to ""), else default "cbc". Fix: previously the user
+        # selection was ignored — `template.adapter or "cbc"` overwrote a
+        # chosen adapter (e.g. kimi) with "cbc" when the template had none.
+        "adapter": adapter_name,
+        # Priority: explicit request > template > config.json > adapter
+        # default. Explicit values are hard-validated above; template/config
+        # fallbacks are guard-dropped (stale/invalid → adapter default).
+        "model": _final_model,
+        "permission_mode": data.get("permissionMode")
+        or _guarded_permission_mode(a, template.permission_mode)
+        or _guarded_permission_mode(a, config.get("permission_mode"))
+        or None,
+        "workdir": str(_resolve_workdir(workdir_name, strict_workdir=bool(explicit_workdir))) if resolve_workdir else "",
+        "adapter_config": {
+            "always_thinking_enabled": _thinking,
+            "effort": _effort,
+            # maxThinkingTokens 不再从请求写入：没有任何 adapter 消费该字段，
+            # 显式传入会在上面的能力校验中被拒绝；字段保留为 None 以兼容
+            # 既有落盘结构读取。
+            "max_thinking_tokens": None,
+        },
+        "session_template": template_name,
+        "pan_access": pan_access,
+        "original_prompt": data.get("originalPrompt", data.get("systemPrompt", template.system_prompt)),
+        "handoff_prompt": data.get("handoffPrompt"),
+        "game_id": data.get("gameId") or None,
+    }
+    requested_workspace_ids = data.get("workspaceIds", data.get("workspace_ids"))
+    if requested_workspace_ids is not None:
+        if (not isinstance(requested_workspace_ids, list)
+                or not all(isinstance(wid, str) and wid for wid in requested_workspace_ids)
+                or len(set(requested_workspace_ids)) != len(requested_workspace_ids)
+                or not all(isinstance(wid, str) and workspaces.get(wid)
+                           for wid in requested_workspace_ids)):
+            raise ValueError("workspaceIds must contain existing unique workspace ids")
+        if len(requested_workspace_ids) > 1:
+            raise ValueError("A Session can belong to at most one Workspace")
+        params["workspace_ids"] = list(requested_workspace_ids)
+    if "nativeControl" in data:
+        if data["nativeControl"]:
+            params["adapter_config"]["native_control"] = True
+    # These are deliberately added only when explicitly supplied.  In
+    # particular, do not synthesize a model/default value into Session JSON.
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data and data[api_key] is not None:
+            params["adapter_config"][native_key] = data[api_key]
+    # Optional worker execution mode ("stream" | "oneshot"); validated against
+    # the adapter's execution_modes. Unset/"auto" = automatic (existing behaviour).
+    raw_mode = data.get("outputMode")
+    if raw_mode not in (None, "", "auto"):
+        allowed = [mode for mode in a.execution_modes if mode != "oneshot"]
+        if raw_mode not in allowed:
+            raise ValueError(
+                f"outputMode must be one of {allowed} for adapter '{a.name}', got {raw_mode!r}"
+            )
+        params["adapter_config"]["output_mode"] = raw_mode
+
+    # An explicit mcpServers array is a one-time override for this creation:
+    # [] deliberately disables MCP, while omission keeps the current template
+    # and default behavior. A named always/never template locks that choice.
+    if "pluginBindings" in data and "mcpServers" in data:
+        raise ValueError("Specify pluginBindings or mcpServers, not both")
+    if "pluginBindings" in data:
+        catalog = _plugin_catalog()
+        bindings = catalog.bindings(data["pluginBindings"])
+        if template_name and template.mcp_locked:
+            locked = (catalog.bindings(template.plugin_bindings) if template.plugin_bindings is not None
+                      else catalog.legacy_bindings(template.mcp_servers)) if template.mcp_mode == "always" else []
+            selected = sorted((b["plugin_id"], b["mode"]) for b in bindings if b["enabled"])
+            required = sorted((b["plugin_id"], b["mode"]) for b in locked if b["enabled"])
+            if selected != required:
+                raise ValueError(f"Session template {template.name!r} locks plugin selection")
+        _set_plugin_config(params["adapter_config"], bindings)
+    elif "mcpServers" in data:
+        requested_servers = data["mcpServers"]
+        try:
+            resolved_servers = _resolve_mcp_server_configs(requested_servers)
+        except ValueError as exc:
+            if not strict_mcp:
+                _log(
+                    f"Imported MCP server(s) {requested_servers!r} unavailable; "
+                    f"continuing without MCP: {exc}"
+                )
+                params["adapter_config"]["mcp_servers"] = []
+                return params
+            raise ValueError(
+                f"Unable to configure requested MCP server(s) "
+                f"{requested_servers!r}: {exc}"
+            ) from exc
+        if template_name and template.mcp_locked:
+            catalog = _plugin_catalog()
+            locked_bindings = (catalog.bindings(template.plugin_bindings) if template.plugin_bindings is not None
+                               else catalog.legacy_bindings(template.mcp_servers)) if template.mcp_mode == "always" else []
+            requested_bindings = catalog.legacy_bindings(requested_servers)
+            locked_servers = [b["plugin_id"] for b in locked_bindings if b["enabled"]]
+            if sorted((b["plugin_id"], b["mode"]) for b in requested_bindings) != sorted((b["plugin_id"], b["mode"]) for b in locked_bindings if b["enabled"]):
+                locked_label = ", ".join(locked_servers) if locked_servers else "none"
+                raise ValueError(
+                    f"Session template {template.name!r} locks MCP servers to {locked_label}"
+                )
+        # An explicit empty list deliberately disables MCP.  It is a complete
+        # selection and must remain usable before the optional plugin manifest
+        # has been loaded (for example, during isolated session construction).
+        if not requested_servers:
+            _set_plugin_config(params["adapter_config"], [])
+        else:
+            _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(requested_servers))
+    elif template.mcp_mode == "always" and template.plugin_bindings is not None:
+        _set_plugin_config(params["adapter_config"], _plugin_catalog().bindings(template.plugin_bindings))
+    elif template.mcp_mode == "always" and template.mcp_servers:
+        try:
+            _set_plugin_config(params["adapter_config"], _plugin_catalog().legacy_bindings(template.mcp_servers))
+        except ValueError as exc:
+            if not strict_mcp:
+                _log(
+                    f"Imported MCP server(s) {template.mcp_servers!r} unavailable; "
+                    f"continuing without MCP: {exc}"
+                )
+                params["adapter_config"]["mcp_servers"] = []
+                return params
+            raise ValueError(
+                f"Unable to configure default MCP server(s) "
+                f"{template.mcp_servers!r}: {exc}"
+            ) from exc
+
+    # Character binding: memory/assets only (no session config from character).
+    character_id = data.get("characterId")
+    if character_id and _character_manager is not None:
+        char = _character_manager.get_character(character_id)
+        if char is None:
+            # characterId may be a character_template name (e.g. "coc-keeper")
+            # rather than a persisted character id — instantiate on first use.
+            try:
+                char = _character_manager.create_character(character_id)
+            except ValueError:
+                char = None
+        if char:
+            params["character_id"] = char.id
+
+    return params
+
+
+def _resolve_mcp_server_configs(server_names) -> list[dict]:
+    """Resolve MCP server names to full configs from the manifest table.
+
+    Session 的 MCP 配置只接受 manifest 中声明的 server 名称（单一事实源）：
+    名称必须是字符串、不允许重复，transport/type 必须在白名单内
+    （stdio/http/sse），不接受任意 command/url/env 内联描述符。
+    """
+    if not isinstance(server_names, list):
+        raise ValueError("MCP server names must be a list")
+    if not server_names:
+        return []
+    _ensure_manifest_fresh()
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("MCP manifest not loaded")
+    catalog = _plugin_catalog()
+    resolved_names = []
+    for name in server_names:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Invalid MCP server name: {name!r}")
+        try:
+            resolved_names.append(catalog.get(name).source.get("server_ref", name))
+        except ValueError as exc:
+            raise ValueError(f"Unknown MCP server: {name!r}") from exc
+    server_names = resolved_names
+    seen: set[str] = set()
+    configs: list[dict] = []
+    for name in server_names:
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Invalid MCP server name: {name!r}")
+        if name in seen:
+            raise ValueError(f"Duplicate MCP server: {name!r}")
+        seen.add(name)
+        for srv in _character_manager._manifest_config.mcp_servers:
+            if srv.name == name:
+                for _key in ("transport", "type"):
+                    _val = getattr(srv, _key, None)
+                    if _val and str(_val) not in VALID_MCP_TRANSPORTS:
+                        raise ValueError(
+                            f"MCP server {name!r} has invalid {_key}: "
+                            f"{_val!r}. Allowed: {', '.join(VALID_MCP_TRANSPORTS)}"
+                        )
+                cfg: dict = {"name": srv.name}
+                if srv.command:
+                    command = str(srv.command)
+                    if not _mcp_command_available(command):
+                        raise ValueError(
+                            f"MCP server {srv.name!r} command is unavailable: {command}"
+                        )
+                    cfg["command"] = srv.command
+                if srv.args:
+                    cfg["args"] = srv.args
+                if srv.env:
+                    cfg["env"] = srv.env
+                if srv.cwd:
+                    if not Path(srv.cwd).is_dir():
+                        raise ValueError(
+                            f"MCP server {srv.name!r} cwd is unavailable: {srv.cwd}"
+                        )
+                    cfg["cwd"] = srv.cwd
+                if srv.url:
+                    cfg["url"] = srv.url
+                if srv.transport:
+                    cfg["transport"] = srv.transport
+                if srv.headers:
+                    cfg["headers"] = srv.headers
+                if srv.type:
+                    cfg["type"] = srv.type
+                if not srv.command and not srv.url:
+                    raise ValueError(
+                        f"MCP server {srv.name!r} has no command or URL configured"
+                    )
+                configs.append(cfg)
+                break
+        else:
+            raise ValueError(f"Unknown MCP server: {name!r}")
+    return configs
+
+
+def _plugin_manifest():
+    _ensure_manifest_fresh()
+    if _character_manager is None or _character_manager._manifest_config is None:
+        raise ValueError("Plugin manifest not loaded")
+    return _character_manager._manifest_config
+
+
+@app.get("/api/plugins/message-sources")
+async def api_plugin_message_sources():
+    from packages.core import auto_report
+    settings, sources, summary = await auto_report.context()
+    overrides = settings["plugins"]
+    summary_overrides = summary["plugins"]
+    return {"sources": [{
+        **p,
+        "effectiveEnabled": overrides.get(p["id"], p["defaultEnabled"]),
+        # Prompt summaries never inherit auto_report_default; the switch is
+        # off unless the user explicitly enabled this plugin's summary.
+        "effectiveSummaryEnabled": summary_overrides.get(p["id"], False),
+    } for p in sources]}
+
+
+@app.post("/api/plugins/{plugin_id}/messages")
+async def api_plugin_message(plugin_id: str, data: dict):
+    # This local plugin ingress has the same access boundary as /api/send.
+    # It cannot impersonate agent/user/system origins; registration alone is insufficient.
+    return await worker.enqueue_plugin_message(plugin_id, data.get("sessionId"),
+        data.get("text"), client_message_id=data.get("clientMessageId"))
+
+
+@app.get("/api/plugins/panels")
+async def api_plugin_panels():
+    from packages.plugins.panels import PanelHost
+    host = getattr(app.state, "plugin_panels", None)
+    return {"panels": (host or PanelHost(_plugin_manifest, DATA_DIR)).panels()}
+
+
+def _panel_host(required=True):
+    host = getattr(app.state, "plugin_panels", None)
+    if host is None and required:
+        raise HTTPException(503, "Plugin panel host is not running")
+    return host or PanelHost(_plugin_manifest, DATA_DIR)
+
+
+@app.get("/api/plugin-panels")
+async def api_local_plugin_panels():
+    """Local web-app panels with their persisted build/enable state."""
+    return {"panels": _panel_host(required=False).web_panels()}
+
+
+@app.get("/api/plugin-panels/{plugin_id}/{panel_id}")
+async def api_local_plugin_panel(plugin_id: str, panel_id: str):
+    try:
+        state = _panel_host(required=False).panel_status(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return state
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/build")
+async def api_local_plugin_panel_build(plugin_id: str, panel_id: str):
+    # The command comes from the plugin manifest, never from this request.
+    try:
+        return await _panel_host().start_build(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/enable")
+async def api_local_plugin_panel_enable(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().set_panel_enabled(plugin_id, panel_id, True)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/disable")
+async def api_local_plugin_panel_disable(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().set_panel_enabled(plugin_id, panel_id, False)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/plugin-panels/{plugin_id}/{panel_id}/unbuild")
+async def api_local_plugin_panel_unbuild(plugin_id: str, panel_id: str):
+    try:
+        return _panel_host().unbuild_panel(plugin_id, panel_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/panel-assets/{plugin_id}/{panel_id}/{build_id}/{asset_path:path}")
+async def api_local_plugin_panel_asset(plugin_id: str, panel_id: str, build_id: str, asset_path: str = ""):
+    from packages.plugins.panel_builds import PanelNotReady
+    try:
+        asset = _panel_host(required=False).panel_asset(plugin_id, panel_id, build_id, asset_path)
+    except PanelNotReady as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if asset is None:
+        raise HTTPException(404, "Panel asset not found")
+    return FileResponse(str(asset.path), media_type=asset.media_type,
+                        headers={"Cache-Control": asset.cache})
+
+
+@app.post("/api/plugins/{plugin_id}/panels/{panel_id}/actions/{action}")
+async def api_plugin_panel_action(plugin_id: str, panel_id: str, action: str, data: dict):
+    host = getattr(app.state, "plugin_panels", None)
+    if host is None:
+        raise HTTPException(503, "Plugin panel host is not running")
+    if set(data) - {"arguments", "requestId"}:
+        raise HTTPException(400, "Unknown panel request fields")
+    try:
+        return await host.invoke(plugin_id, panel_id, action, data.get("arguments", {}), data.get("requestId"))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+def _plugin_catalog():
+    from packages.plugins.catalog import Catalog
+    return Catalog(_plugin_manifest())
+
+
+def _session_plugin_fields(s):
+    """Persisted logical selection; never replace it with generated connections."""
+    ac = s.adapter_config
+    bindings = ac.get("plugin_bindings")
+    if bindings is None:
+        aliases = {"pan-qq": "qq"}
+        manifest = getattr(_character_manager, "_manifest_config", None)
+        for plugin in getattr(manifest, "plugins", []):
+            aliases.update({alias: plugin["id"] for alias in plugin.get("aliases", [])})
+        bindings = [{"plugin_id": aliases.get(c["name"], c["name"]), "enabled": True, "mode": "standalone"}
+                    for c in ac.get("mcp_servers", []) if isinstance(c, dict) and c.get("name")]
+    return {"mcpServers": [b["plugin_id"] for b in bindings if b["enabled"]],
+            "pluginBindings": bindings, "pluginSelectionRevision": ac.get("plugin_selection_revision", 0),
+            "pluginRestart": worker.delayed_restart_state(s.id),
+            "pluginConfigVersion": 2}
+
+
+def _set_plugin_config(ac, bindings):
+    if not bindings:
+        ac.update(plugin_config_version=2, plugin_bindings=[], mcp_servers=[],
+                  plugin_selection_revision=ac.get("plugin_selection_revision", 0) + 1)
+        return
+    catalog = _plugin_catalog()
+    from packages.plugins.runtime import read_api_document
+    bindings = catalog.bindings(bindings)
+    for binding in bindings:
+        if not binding["enabled"]:
+            continue
+        plugin = catalog.get(binding["plugin_id"])
+        if plugin.source["kind"] == "pan_api":
+            read_api_document(plugin)
+        else:
+            _resolve_mcp_server_configs([plugin.id])
+    physical = catalog.compile(bindings)
+    ac.update(plugin_config_version=2, plugin_bindings=bindings, mcp_servers=physical,
+              plugin_selection_revision=ac.get("plugin_selection_revision", 0) + 1)
+
+
+def _validate_plugin_update(s, data):
+    if "pluginBindings" in data and "mcpServers" in data:
+        raise ValueError("Specify pluginBindings or mcpServers, not both")
+    if "pluginBindings" not in data:
+        return None
+    expected = data.get("expectedPluginRevision")
+    if expected is not None and (type(expected) is not int or expected != s.adapter_config.get("plugin_selection_revision", 0)):
+        raise ValueError("Plugin selection changed; reload before saving")
+    bindings = _plugin_catalog().bindings(data["pluginBindings"])
+    if not data.get("forceMcp") and s.session_template and _character_manager:
+        template = _character_manager.get_session_template(s.session_template)
+        enabling = any(b["enabled"] for b in bindings)
+        if template and ((template.mcp_mode == "always" and not enabling)
+                         or (template.mcp_mode == "never" and enabling)):
+            raise ValueError(f"MCP is locked to {template.mcp_mode!r} for session template {template.name!r}")
+    ac = copy.deepcopy(s.adapter_config)
+    _set_plugin_config(ac, bindings)
+    return ac
+
+
+async def _plugin_native_changed(session_id):
+    if worker.find_alive_worker_by_session(session_id):
+        worker.request_delayed_restart(session_id)
+
+
+def _mcp_command_available(command: str) -> bool:
+    """Return whether a manifest stdio command can be launched.
+
+    Absolute and path-like commands are checked directly. Bare executable
+    names are resolved through PATH, allowing portable declarations such as
+    ``python`` while still reporting a useful error before a Claude worker is
+    spawned. This is a preflight check, not a probe that starts the MCP server.
+    """
+    candidate = Path(command)
+    if candidate.is_absolute() or candidate.parent != Path("."):
+        return candidate.is_file()
+    return shutil.which(command) is not None
+
+
+def _safe_adapter(adapter_name: str):
+    """Return adapter by name, falling back to cbc on unknown names."""
+    try:
+        return get_adapter(adapter_name)
+    except KeyError:
+        return get_adapter("cbc")
+
+
+# 进程相关字段：修改后影响 worker 进程（cbc 启动参数/执行模式），需要 respawn 才生效。
+# 不含 name 等纯元数据字段。
+_PROCESS_AFFECTING_FIELDS = {
+    "model", "permissionMode", "alwaysThinkingEnabled", "effort",
+    "maxThinkingTokens", "mcpServers", "outputMode",
+    "modelContextWindow", "modelAutoCompactTokenLimit",
+}
+
+_CODEX_CONTEXT_SETTING_ALIASES = {
+    # HTTP/MCP use camelCase like the rest of the session settings; accepting
+    # the native names as a compatibility bridge keeps hand-authored API
+    # requests and persisted migration tooling unambiguous.
+    "model_context_window": "modelContextWindow",
+    "model_auto_compact_token_limit": "modelAutoCompactTokenLimit",
+}
+_CODEX_CONTEXT_SETTING_KEYS = (
+    ("modelContextWindow", "model_context_window"),
+    ("modelAutoCompactTokenLimit", "model_auto_compact_token_limit"),
+)
+
+
+def _normalize_context_setting_keys(data: dict) -> None:
+    """Normalize native snake_case aliases into the public API spelling."""
+    for native_key, api_key in _CODEX_CONTEXT_SETTING_ALIASES.items():
+        if native_key in data:
+            data.setdefault(api_key, data[native_key])
+            data.pop(native_key, None)
+
+
+_PLUGIN_CONFIG_UNSET = object()
+
+
+def _apply_session_updates(s: sess.Session, data: dict, *, plugin_config=_PLUGIN_CONFIG_UNSET):
+    """Apply model/mode/thinking/effort fields from data to a Session (in-place).
+
+    Validate-first：所有显式设置先整体通过 adapter 能力校验，任一非法即抛
+    AdapterCapabilityError 且 **不修改** session（避免半套写入的脏配置）。
+    """
+    _normalize_context_setting_keys(data)
+    prepared_plugins = plugin_config is not _PLUGIN_CONFIG_UNSET
+    if not prepared_plugins:
+        plugin_config = _validate_plugin_update(s, data)
+    # systemPrompt was not a supported settings field. Reject effective-prompt
+    # writes explicitly so a detail response cannot become a recursive baseline.
+    if "systemPrompt" in data:
+        raise ValueError("systemPrompt is read-only; update originalPrompt or handoffPrompt")
+    for key in ("originalPrompt", "handoffPrompt"):
+        if key in data and data[key] is not None and not isinstance(data[key], str):
+            raise ValueError(f"{key} must be a string or null")
+    _explicit = {
+        key: data[key]
+        for key in ("model", "permissionMode", "alwaysThinkingEnabled",
+                    "effort", "maxThinkingTokens", "outputMode",
+                    "modelContextWindow", "modelAutoCompactTokenLimit")
+        if key in data
+    }
+    if _explicit:
+        validate_session_settings(s.adapter, _explicit, current_model=s.model)
+    if "model" in data:
+        s.model = data["model"]
+        # Some adapters (currently Codex) expose model-specific effort levels.
+        # Switching models must not leave an incompatible effort on the session;
+        # an empty value delegates to the native model default.
+        if "effort" not in data:
+            model_efforts = getattr(get_adapter(s.adapter), "model_efforts", {}).get(str(s.model))
+            current_effort = s.adapter_config.get("effort", "")
+            if model_efforts and current_effort and current_effort not in model_efforts:
+                s.set_adapter_field("effort", "")
+    if "permissionMode" in data:
+        s.permission_mode = data["permissionMode"] or None
+    if "alwaysThinkingEnabled" in data:
+        s.set_adapter_field("always_thinking_enabled", data["alwaysThinkingEnabled"])
+    if "effort" in data:
+        s.set_adapter_field("effort", data["effort"])
+    if "maxThinkingTokens" in data:
+        s.set_adapter_field("max_thinking_tokens", data["maxThinkingTokens"])
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if api_key in data:
+            s.set_adapter_field(native_key, data[api_key])
+    if "mcpServers" in data and not prepared_plugins:
+        # forceMcp:true（UI 强制解除模板锁确认后携带）跳过 always/never 校验。
+        _apply_mcp_servers(s, data["mcpServers"], force=bool(data.get("forceMcp")))
+    if plugin_config is not None:
+        for key in ("plugin_config_version", "plugin_bindings", "mcp_servers", "plugin_selection_revision"):
+            s.set_adapter_field(key, plugin_config[key])
+    if "panAccess" in data:
+        _apply_pan_access(s, data["panAccess"])
+    if "outputMode" in data:
+        _apply_output_mode(s, data["outputMode"])
+    if "gameId" in data:
+        # Allow None / empty to clear; store string otherwise. Used by QQ
+        # plugin to bind a RuleWhisper game_id to a group-scoped session so
+        # LLM-driven MCP tool calls can pass it through.
+        s.game_id = data["gameId"] or None
+    if "notificationSettings" in data:
+        if not isinstance(data["notificationSettings"], dict):
+            raise ValueError("notificationSettings must be an object")
+        current = notifications.normalize_notification_settings(s.notification_settings)
+        current.update({k: bool(data["notificationSettings"][k])
+                        for k in ("browser", "system") if k in data["notificationSettings"]})
+        s.notification_settings = current
+    # Apply prompts after the other settings have accepted the request. These
+    # affect future fresh workers/handoffs; resumed CLI context already contains
+    # its prompt. Do not imply that respawning rewrites that context.
+    if "originalPrompt" in data:
+        s.original_prompt = data["originalPrompt"]
+    if "handoffPrompt" in data:
+        s.handoff_prompt = data["handoffPrompt"]
+
+
+_PAN_ACCESS_FIELDS = (
+    ("restrictToManaged", "restrict_to_managed"),
+    ("canClaimUnmanaged", "can_claim_unmanaged"),
+    ("autoClaimCreated", "auto_claim_created"),
+)
+
+
+def _apply_pan_access(s: sess.Session, body) -> None:
+    """Patch the session's capability flags from a camelCase ``panAccess`` dict.
+
+    Only keys present in ``body`` are touched — a partial dict leaves the other
+    flags alone (no whole-object overwrite, no back-filling of missing keys).
+    """
+    if not isinstance(body, dict):
+        raise ValueError("panAccess must be an object of capability flags")
+    for req_key, pa_key in _PAN_ACCESS_FIELDS:
+        if req_key in body:
+            s.pan_access[pa_key] = bool(body[req_key])
+
+
+def _apply_mcp_servers(s: sess.Session, server_names, force: bool = False) -> None:
+    """Set session mcp_servers by manifest server names (e.g. ["pan"]).
+
+    Resolves names to full configs via the character manager's manifest table.
+    Accepts a list of names, or None/[] to clear. mcp_servers 非空即启用
+    （单一事实源），mcp_mode 的 always/never 锁在此处强制执行。
+    force=True 跳过该锁（PATCH body 的 forceMcp:true 传入，UI 在用户
+    明确确认后用于强制解除 never 锁）。
+    """
+    enabling = server_names not in (None, [], "")
+    if not force and s.session_template and _character_manager is not None:
+        template = _character_manager.get_session_template(s.session_template)
+        if template:
+            if template.mcp_mode == "always" and not enabling:
+                raise ValueError(f"MCP is locked to 'always' for session template '{template.name}'. Cannot disable.")
+            if template.mcp_mode == "never" and enabling:
+                raise ValueError(f"MCP is locked to 'never' for session template '{template.name}'. Cannot enable.")
+
+    if not enabling:
+        s.set_adapter_field("mcp_servers", [])
+        s.set_adapter_field("plugin_bindings", [])
+        s.set_adapter_field("plugin_config_version", 2)
+        s.set_adapter_field("plugin_selection_revision", s.adapter_config.get("plugin_selection_revision", 0) + 1)
+        return
+    if not isinstance(server_names, list):
+        raise ValueError("mcpServers must be a list of server names")
+    _resolve_mcp_server_configs(server_names)
+    catalog = _plugin_catalog()
+    # Keep duplicate legacy names an error; an explicit old/new alias pair is
+    # normalized by the v2 binding reader without starting two providers.
+    if len(set(server_names)) != len(server_names):
+        raise ValueError("Duplicate MCP server")
+    ac = copy.deepcopy(s.adapter_config)
+    _set_plugin_config(ac, catalog.legacy_bindings(server_names))
+    for key in ("mcp_servers", "plugin_bindings", "plugin_config_version", "plugin_selection_revision"):
+        s.set_adapter_field(key, ac[key])
+
+
+_VALID_OUTPUT_MODES = ("stream",)
+
+
+def _apply_output_mode(s: sess.Session, mode):
+    """Apply outputMode: worker execution channel ("stream" | "oneshot").
+
+    - "stream": long-running stream-json process; if MCP is also enabled,
+      the process is spawned with --mcp-config (stream + MCP, cbc >= 2.137.0).
+    - "oneshot": per-task one-shot cbc process (legacy MCP path).
+    - None/""/"auto" clears the field -> automatic (按 adapter 默认解析，
+      见 packages/core/adapters/resolution.py:resolve_execution_mode)。
+
+    校验：mode 必须 ∈ 该 adapter 的 execution_modes，否则拒绝（避免"不可能"的
+    配置，如给 one-shot-only adapter 设 stream）。adapter-architecture P1 建议 4。
+    """
+    if mode in (None, "", "auto"):
+        s.adapter_config.pop("output_mode", None)
+        return
+    a = get_adapter(s.adapter)
+    allowed = [value for value in getattr(a, "execution_modes", _VALID_OUTPUT_MODES) if value != "oneshot"]
+    if mode not in allowed:
+        raise ValueError(
+            f"outputMode must be one of {allowed} for adapter '{a.name}', got {mode!r}"
+        )
+    s.set_adapter_field("output_mode", mode)
+
+
+async def _open_takeover_terminal(w, cmd, cwd, generation):
+    # Opening the TUI belongs to the same lifecycle lock as Restart/Kill.
+    lock = await worker._session_spawn_lock(w.session_id)
+    async with lock:
+        if worker.get_worker(w.worker_id) is not w or w.status != "held" or w.generation != generation:
+            raise OSError("Takeover superseded by another lifecycle operation")
+        if sys.platform == "win32":
+            from packages.core.takeover_job import TakeoverJob
+            job = TakeoverJob()
+            try:
+                await worker.reserve_takeover_owner(w)
+            except BaseException:
+                # No launch occurred. Release only this newly allocated empty
+                # Job; a failed reservation leaves existing metadata intact.
+                await asyncio.to_thread(job.stop)
+                raise
+            w.takeover_job = job
+            try:
+                w.takeover_pid = _open_terminal(cmd, cwd, takeover_job=job)
+            except BaseException:
+                await worker._kill_takeover_terminal(w)
+                raise
+        else:
+            await worker.reserve_takeover_owner(w)
+            w.takeover_pid = _open_terminal(cmd, cwd)
+
+
+def _open_terminal(cmd: str, cwd: str | Path, *, takeover_job=None) -> int:
+    """Open a new terminal window running `cmd` in `cwd` (cross-platform)."""
+    cwd = str(cwd) if cwd else str(Path.cwd())
+    if sys.platform == "win32":
+        # Strip terminal-capability vars inherited from a POSIX parent (e.g.
+        # Git Bash sets TERM=xterm-256color). Left in place, cbc's ink TUI
+        # mis-detects the console as a Unix terminal and renders black & white.
+        env = dict(os.environ)
+        env.pop("TERM", None)
+        env.pop("NO_COLOR", None)
+        env.pop("COLORTERM", None)
+        if takeover_job is not None:
+            return takeover_job.launch(
+                ["powershell.exe", "-NoExit", "-Command", cmd], cwd=cwd, env=env,
+            )
+        proc = subprocess.Popen(
+            ["powershell.exe", "-NoExit", "-Command", cmd],
+            cwd=cwd,
+            env=env,
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        )
+        return proc.pid
+    elif sys.platform == "darwin":
+        script = f'tell app "Terminal" to do script "{cmd}"'
+        proc = subprocess.Popen(["osascript", "-e", script], cwd=cwd)
+        return proc.pid
+    else:
+        try:
+            proc = subprocess.Popen(
+                ["gnome-terminal", "--", "bash", "-c", cmd],
+                cwd=cwd,
+            )
+            return proc.pid
+        except FileNotFoundError:
+            proc = subprocess.Popen(["xterm", "-e", cmd], cwd=cwd)
+            return proc.pid
+
+
+# ── Dashboard & favicon ──
+
+from packages.core import __version__
+
+@app.get("/api/health")
+async def health():
+    """Health check: process liveness + Pan version."""
+    return {"status": "ok", "version": __version__}
+
+
+def _unsupported_platform(feature: str) -> JSONResponse:
+    """Stable "unsupported on this platform" contract: 501 + static code.
+
+    Carries no path, account, host or exception text: clients decide from the
+    capability matrix (``GET /api/platform``), this is the server-side fence.
+    """
+    return JSONResponse(
+        status_code=501,
+        content={
+            "ok": False,
+            "error": {
+                "code": "unsupported_platform",
+                "message": f"{feature} is available on Windows only",
+            },
+        },
+    )
+
+
+@app.get("/api/platform")
+async def api_platform():
+    """Read-only platform + capability probe.
+
+    No user key, instance identity or config file is consulted, exactly like the
+    other read-only summaries; only the platform name and capability booleans
+    are returned (never paths, accounts, host names or versions).
+    """
+    return {
+        "platform": platform_layer.platform_name(),
+        "capabilities": platform_layer.capabilities(),
+    }
+
+
+@app.post("/api/internal/main/shutdown")
+async def api_internal_main_shutdown():
+    """Ask the owning Uvicorn server to perform its normal lifespan shutdown.
+
+    This loopback-only coordination point is used by ``launcher.exit`` and
+    ``launcher.restart`` after the durable supervisor has verified the target
+    PID.  It does not terminate a process and therefore cannot replace the
+    identity checks in the launcher.
+    """
+    server = getattr(app.state, "pan_uvicorn_server", None)
+    if server is None:
+        return {"ok": False, "error": "Pan Uvicorn server is not registered"}
+    server.should_exit = True
+    return {"ok": True, "status": "stopping"}
+
+
+@app.get("/api/main/identity")
+async def api_main_identity():
+    from packages.core.host_console import console
+    return {"pid": os.getpid(), "createdAt": launcher.process_create_time(os.getpid()),
+            "root": str(_PROJECT_DIR), "version": __version__, "console": console.snapshot()}
+
+
+async def _canonical_lifecycle_handoff(operation: str, options: dict,
+                                       request_id: str, old_pid: int,
+                                       old_created_at: float) -> dict:
+    """Submit exactly one protected fixed system Action for this instance."""
+    from packages.core import lifecycle_action
+    from packages.actions.typed_executor import TypedExecutor
+    from packages.core.main_lifecycle import ProtectedLifecycleExecutor
+    from packages.jobs.independent_executor import ExecutionStore, effect_id
+
+    root = str(_PROJECT_DIR.expanduser().resolve())
+    port = _main_restart_port()
+    job_id, identity, plan = lifecycle_action.protected_plan(
+        root=root, port=port, old_pid=old_pid, old_pid_created_at=old_created_at,
+        operation=operation, options=options, request_id=request_id,
+    )
+    expected = {"jobId": job_id, "runId": identity["effectKey"]["runId"],
+                "stepId": identity["effectKey"]["stepId"],
+                "operation": plan["operation"], "root": root,
+                "port": port, "stepCount": 1}
+    grant = lambda scope: dict(expected) if scope == expected else {"denied": True}
+    protected = ProtectedLifecycleExecutor(
+        job_id=job_id, store=ExecutionStore(lifecycle_action.receipt_root(root)),
+        authorize=grant,
+    )
+    async def prepare_original_lifecycle(document):
+        """The sealed original plan precedes the Worker gate and shutdown."""
+        frozen = document["frozenPlan"]["arguments"]["options"]
+        mark_offline = _resolve_main_lifecycle_job_choice(frozen, operation)
+        running_ids = list(frozen["runningSessionIds"])
+        await worker.shutdown_all(
+            mark_legal_offline=True,
+            mark_legal_offline_session_ids=running_ids if mark_offline else (),
+            preserve_legal_running_session_ids=() if mark_offline else running_ids,
+            legal_state_source="pan/main-" + operation,
+        )
+    def schedule_original_lifecycle(coro, eid, attempt, token):
+        tasks = getattr(app.state, "canonical_lifecycle_tasks", None)
+        if tasks is None:
+            tasks = app.state.canonical_lifecycle_tasks = set()
+        task = asyncio.create_task(coro, name="pan-main-" + operation)
+        tasks.add(task)
+        def observe(done):
+            tasks.discard(done)
+            if done.cancelled():
+                # A task cancelled before its first instruction cannot run its
+                # own failure handler. Token/fence rules prevent overwriting a
+                # launched or claimed execution.
+                try:
+                    protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                        error={"type": "CancelledError", "message": ""})
+                except Exception as exc:
+                    # The running coroutine may already have settled, claimed,
+                    # or started launch; never overwrite those original facts.
+                    try:
+                        doc = protected.store.get(eid)
+                        if doc.get("launchAttempted") and doc.get("result") is None:
+                            protected.store.launch_failed(eid, attempt)
+                    except Exception as inspect_exc:
+                        _log(f"[main-lifecycle] cancelled task receipt unavailable: {inspect_exc}")
+                    _log(f"[main-lifecycle] cancelled task prelaunch settlement: {type(exc).__name__}")
+                return
+            error = done.exception()
+            if error is not None:
+                _log(f"[main-lifecycle] preparation task failed: {type(error).__name__}: {error}")
+                try:
+                    doc = protected.store.get(eid)
+                    if doc.get("result") is None and doc.get("claim") is None:
+                        if doc.get("launchAttempted"):
+                            protected.store.launch_failed(eid, attempt)
+                        else:
+                            protected.store.reject_prelaunch(eid, attempt, preparation_token=token,
+                                error={"type": type(error).__name__, "message": str(error)})
+                except Exception as inspect_exc:
+                    _log(f"[main-lifecycle] task failure settlement unavailable: {inspect_exc}")
+        task.add_done_callback(observe)
+    protected.prepare_start = lambda _document: worker.begin_shutdown()
+    protected.prepare = prepare_original_lifecycle
+    protected.schedule_preparation = schedule_original_lifecycle
+    result = await TypedExecutor(lifecycle_executor=protected).execute(
+        attempt=identity["attempt"], effect_key=identity["effectKey"],
+        frozen_plan=plan,
+    )
+    return {"ok": result.get("outcome") in {"succeeded", "unknown"},
+            "accepted": True, "actionId": lifecycle_action.ACTION_ID,
+            "jobId": job_id, "requestId": request_id,
+            "effectId": effect_id(identity["effectKey"]),
+            "operation": operation, "receipt": result}
+
+
+@app.post("/api/system-actions/main-lifecycle")
+async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = None):
+    """Fixed product-owned lifecycle Action entrypoint.
+
+    Only the immutable ``system_main_lifecycle`` definition can reach this
+    route; arbitrary high-risk Actions remain rejected by FinalService.
+    """
+    from packages.core import lifecycle_action
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail={"code": "invalid_lifecycle_request"})
+    unknown = sorted(set(payload) - {"operation", "options", "pid", "createdAt"})
+    if unknown:
+        raise HTTPException(status_code=400, detail={"code": "unsupported_lifecycle_request_fields",
+                                                      "fields": unknown})
+    operation = lifecycle_action.validate_operation(payload.get("operation"))
+    if operation == "start":
+        raise HTTPException(status_code=409, detail={"code": "service_online", "message": "start is a host-local Action"})
+    options = _parse_main_lifecycle_options({"options": payload.get("options", {})}, operation)
+    if operation in lifecycle_action.PROTECTED_OPERATIONS and not platform_layer.supports("service.lifecycle"):
+        return _unsupported_platform("Main service " + operation)
+    current_pid = os.getpid()
+    current_birth = launcher.process_create_time(current_pid)
+    if current_birth is None:
+        raise HTTPException(status_code=409, detail={"code": "identity_unavailable"})
+    if payload.get("pid") is not None and payload.get("pid") != current_pid:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if payload.get("createdAt") is not None and payload.get("createdAt") != current_birth:
+        raise HTTPException(status_code=409, detail={"code": "identity_mismatch"})
+    if operation in {"show", "hide"}:
+        from packages.core.host_console import console, ConsoleError
+        try:
+            return {"ok": True, "actionId": lifecycle_action.ACTION_ID,
+                    "operation": operation, "console": console.change(operation)}
+        except (ConsoleError, OSError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    async with _lifecycle_operation_lock:
+        for pending in _canonical_lifecycle_pending.values():
+            # Both operations share one service and Worker gate. Even a
+            # different choice or operation must query the original effect.
+            return {**pending, "ok": False, "accepted": False, "status": "busy", "pending": True}
+        # In-memory state can be lost independently of the durable intent.
+        # Derive both operations' original identities for this same host and
+        # consult the existing store before admitting or preparing anything.
+        # Never create a store solely to perform this duplicate lookup.
+        from packages.jobs.independent_executor import ExecutionStore, effect_id
+        root = _PROJECT_DIR.expanduser().resolve()
+        port = _main_restart_port()
+        receipt_root = lifecycle_action.receipt_root(root)
+        if (receipt_root / "executions.sqlite3").is_file():
+            store = ExecutionStore(receipt_root)
+            for existing_operation in ("exit", "restart"):
+                existing_request = "request_" + hashlib.sha256(
+                    f"main-lifecycle:{root}:{port}:{existing_operation}:{current_pid}:{current_birth}".encode("utf-8")
+                ).hexdigest()[:24]
+                _, existing_identity, _ = lifecycle_action.protected_plan(
+                    root=root, port=port, old_pid=current_pid, old_pid_created_at=current_birth,
+                    operation=existing_operation, options={}, request_id=existing_request)
+                try:
+                    existing = store.get(effect_id(existing_identity["effectKey"]))
+                except KeyError:
+                    continue
+                pending = {"ok": False, "accepted": False, "status": "busy", "pending": True,
+                           "actionId": lifecycle_action.ACTION_ID, "operation": existing_operation,
+                           "requestId": existing_request, "jobId": existing["jobId"],
+                           "effectId": existing["effectId"]}
+                _canonical_lifecycle_pending[existing["effectId"]] = pending
+                return pending
+        options = await _snapshot_main_lifecycle_options(options, operation)
+        # Stable across a lost HTTP response/reloaded host; the canonical
+        # effect fence then returns the original receipt instead of relaunching.
+        request_id = "request_" + hashlib.sha256(
+            f"main-lifecycle:{root}:{port}:{operation}:{current_pid}:{current_birth}".encode("utf-8")
+        ).hexdigest()[:24]
+        result = await _canonical_lifecycle_handoff(
+            operation, options, request_id, current_pid, float(current_birth),
+        )
+        receipt = result.get("receipt") or {}
+        if (receipt.get("outcome") == "rejected"
+                or (receipt.get("outcome") == "unknown"
+                    and (receipt.get("receipt") or {}).get("code") != "execution_pending")):
+            pending = {"ok": False, "accepted": False, "actionId": lifecycle_action.ACTION_ID,
+                       "operation": operation, "requestId": request_id, "jobId": result["jobId"],
+                       "effectId": result["effectId"], "error": receipt.get("receipt", {})}
+            _canonical_lifecycle_pending[result["effectId"]] = pending
+            return pending
+        pending = {"ok": True, "accepted": True,
+                   "actionId": lifecycle_action.ACTION_ID, "operation": operation, "status": "scheduled",
+                   "requestId": request_id, "jobId": result["jobId"],
+                   "effectId": result["effectId"]}
+        _canonical_lifecycle_pending[result["effectId"]] = pending
+        return pending
+
+
+class CLIInstanceGuardMiddleware:
+    """Fence lifecycle writes without task/stream relays on ordinary requests."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (scope["type"] == "http" and scope["method"] == "POST"
+                and scope["path"] == "/api/system-actions/main-lifecycle"):
+            headers = dict(scope.get("headers", []))
+            pid = headers.get(b"x-pan-expected-pid")
+            created = headers.get(b"x-pan-expected-created-at")
+            if pid is not None or created is not None:
+                if (pid != str(os.getpid()).encode("ascii")
+                        or created != str(launcher.process_create_time(os.getpid())).encode("ascii")):
+                    response = Response(content='{"error":"CLI instance identity mismatch"}',
+                                        status_code=409, media_type="application/json")
+                    await response(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(CLIInstanceGuardMiddleware)
+
+@app.post("/api/main/console")
+async def api_main_console(payload: Annotated[dict, Body()]):
+    from packages.core.host_console import console, ConsoleError
+    if (payload.get("pid") != os.getpid() or
+            payload.get("createdAt") != launcher.process_create_time(os.getpid())):
+        raise HTTPException(status_code=409, detail="Console instance identity mismatch")
+    if payload.get("action") not in {"show", "hide"}:
+        raise HTTPException(status_code=400, detail="Expected show or hide")
+    try:
+        return {"ok": True, "console": console.change(payload["action"])}
+    except (ConsoleError, OSError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/diagnostics/persistence")
+async def api_persistence_diagnostics(session_id: str | None = None,
+                                      limit: int = 32):
+    """Return bounded per-Session save contention counters.
+
+    The response contains queue depth and timings only; it deliberately never
+    exposes history/queue message bodies or durable Session state.
+    """
+    return await _runtime_diag.run_in_executor(
+        "diagnostic-read", _DIAGNOSTIC_EXECUTOR, sess.save_diagnostics, session_id, limit=limit)
+
+
+@app.get("/api/diagnostics/runtime")
+async def api_runtime_diagnostics():
+    """Locations and bounded timings only; independent of Session read queues."""
+    return {**_runtime_diag.runtime.snapshot(),
+            "tasks": _runtime_diag.runtime.task_stacks(),
+            "threads": _runtime_diag.runtime.thread_stacks()}
+
+
+@app.get("/api/diagnostics/runtime-issues/schema")
+async def api_runtime_issue_schema():
+    """Stable RuntimeIssue/Event classification contract; read-only."""
+    from packages.core.runtime_issues import runtime_issue_schema
+    return runtime_issue_schema()
+
+
+@app.get("/api/main/restart/status")
+async def api_main_restart_status():
+    """Report whether the safe Windows main-service restart is available."""
+    return _main_restart_status()
+
+
+async def _schedule_main_restart(options: dict) -> dict:
+    """Serialize main-service restart against startup recovery and Exit."""
+    global _main_restart_pending, _main_restart_request_id
+
+    with _main_exit_lock:
+        if _main_exit_pending:
+            return {
+                "ok": False,
+                "status": "busy",
+                "pending": True,
+                "error": "Pan main-service exit is already scheduled",
+                "requestId": _main_exit_request_id,
+            }
+
+    status = _main_restart_status()
+    if not status["available"]:
+        return {
+            "ok": False,
+            "status": "disabled",
+            "error": status.get("reason", "main restart is unavailable"),
+        }
+    if status.get("pending"):
+        return {
+            "ok": False,
+            "status": "busy",
+            "pending": True,
+            "error": "Pan main-service restart is already scheduled",
+            "requestId": status.get("requestId"),
+            "jobId": status.get("jobId"),
+            "phase": status.get("phase"),
+        }
+
+    try:
+        options = await _snapshot_main_lifecycle_options(options, "restart")
+    except HTTPException:
+        raise
+    except (OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "status": "error",
+            "error": f"failed to snapshot Sessions before Pan restart: {exc}",
+        }
+
+    registry_root = _main_restart_registry_root()
+    port = status["port"]
+    old_pid = main_lifecycle.listener_owner(port)
+    old_pid_created_at = main_lifecycle.process_create_time(old_pid)
+    request_id = uuid.uuid4().hex
+    try:
+        job = background_jobs.create_service_job(
+            request_id=request_id, operation="restart", root=str(_PROJECT_DIR), port=port,
+            old_pid=old_pid, old_pid_created_at=old_pid_created_at,
+            registry_root=registry_root, options=options,
+        )
+    except background_jobs.ServiceJobBusy as exc:
+        existing = exc.job
+        return {
+            "ok": False, "status": "busy", "pending": True,
+            "error": "Pan main-service restart is already scheduled",
+            "requestId": existing.get("requestId"), "jobId": existing.get("jobId"),
+            "phase": existing.get("phase"),
+        }
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "status": "error", "error": f"failed to record Pan restart: {exc}"}
+
+    # Keep these names for older in-process integrations; durable registry
+    # state is authoritative for status and duplicate detection.
+    with _main_restart_lock:
+        _main_restart_pending = True
+        _main_restart_request_id = request_id
+
+    restart_task = _perform_main_restart(request_id)
+    try:
+        # Persisted policy and Session IDs are authoritative before this
+        # synchronous gate closes later Worker mutations.
+        worker.begin_shutdown()
+        asyncio.create_task(
+            restart_task,
+            name="pan-main-restart",
+        )
+    except Exception as exc:
+        restart_task.close()
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root,
+                error=f"failed to start Worker shutdown for Pan restart: {exc}",
+            )
+        except Exception as persist_exc:
+            _log(f"[main-restart] failed to persist scheduling failure: {persist_exc}")
+        finally:
+            _clear_main_restart_state(request_id)
+            worker.reopen_after_failed_shutdown()
+        return {
+            "ok": False,
+            "status": "error",
+            "error": f"failed to begin Pan restart: {exc}",
+            "jobId": job["jobId"],
+        }
+    return {
+        "ok": True,
+        "status": "scheduled",
+        "accepted": True,
+        "phase": "requested",
+        "jobId": job["jobId"],
+        "message": "Pan main-service restart scheduled",
+        "requestId": request_id,
+    }
+
+
+async def _perform_main_restart(request_id: str) -> None:
+    """Stop Workers and persist legal states before launching the restart supervisor."""
+    global _main_restart_pending, _main_restart_request_id
+    registry_root = _main_restart_registry_root()
+
+    # The route and startup recovery can both observe the same durable Job.
+    # Serialize their in-process work and re-read after acquiring the lock.
+    async with _main_restart_worker_shutdown_lock:
+        job = background_jobs.find_service_job(request_id, registry_root)
+        if not job or job.get("operation") != "restart":
+            return
+        if job.get("phase") not in {"requested", "stopping_workers"}:
+            return
+        with _main_restart_lock:
+            _main_restart_pending = True
+            _main_restart_request_id = request_id
+
+        options = job.get("options") or {}
+        try:
+            mark_running_offline = _resolve_main_lifecycle_job_choice(options, "Restart")
+        except ValueError as exc:
+            try:
+                background_jobs.transition_service_job(
+                    job["jobId"], "failed", registry_root=registry_root, error=str(exc),
+                )
+            except Exception as persist_exc:
+                _log(f"[main-restart] failed to persist invalid-choice failure: {persist_exc}")
+            _clear_main_restart_state(request_id)
+            worker.reopen_after_failed_shutdown()
+            _log(f"[main-restart] refusing Worker shutdown: {exc}")
+            return
+
+        if job.get("phase") == "requested":
+            try:
+                job = background_jobs.transition_service_job(
+                    job["jobId"], "stopping_workers", registry_root=registry_root,
+                    workerShutdownCompleted=False,
+                )
+            except (OSError, ValueError) as exc:
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"failed to record Worker shutdown phase: {exc}",
+                    )
+                except Exception:
+                    pass
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+                _log(f"[main-restart] failed to record Worker shutdown phase: {exc}")
+                return
+
+        if not job.get("workerShutdownCompleted"):
+            running_session_ids = list(options.get("runningSessionIds") or [])
+            try:
+                await worker.shutdown_all(
+                    mark_legal_offline=True,
+                    mark_legal_offline_session_ids=(
+                        running_session_ids if mark_running_offline else ()
+                    ),
+                    preserve_legal_running_session_ids=(
+                        () if mark_running_offline else running_session_ids
+                    ),
+                    legal_state_source="pan/main-restart",
+                )
+            except Exception as exc:
+                # Do not hand off to the service supervisor when a Worker or
+                # legal-state update failed. The service stays available and
+                # the queue watchdog resumes after the terminal Job write.
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"Worker shutdown failed: {exc}",
+                    )
+                except Exception as persist_exc:
+                    _log(f"[main-restart] failed to persist Worker shutdown failure: {persist_exc}")
+                finally:
+                    _clear_main_restart_state(request_id)
+                    worker.reopen_after_failed_shutdown()
+                _log(f"[main-restart] Worker shutdown failed: {exc}")
+                return
+
+            try:
+                job = background_jobs.transition_service_job(
+                    job["jobId"], "stopping_workers", registry_root=registry_root,
+                    workerShutdownCompleted=True,
+                )
+            except (OSError, ValueError) as exc:
+                _log(f"[main-restart] failed to persist Worker shutdown result: {exc}")
+                try:
+                    background_jobs.transition_service_job(
+                        job["jobId"], "failed", registry_root=registry_root,
+                        error=f"failed to persist Worker shutdown result: {exc}",
+                    )
+                except Exception as persist_exc:
+                    _log(f"[main-restart] failed to persist terminal Job failure: {persist_exc}")
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+                return
+
+        # Persist the handoff phase before spawning. If this task is entered
+        # again after the handoff, the phase guard above prevents a second
+        # detached supervisor for the same durable Job.
+        try:
+            job = background_jobs.transition_service_job(
+                job["jobId"], "stopping", registry_root=registry_root,
+                workerShutdownCompleted=True,
+            )
+            _launch_main_restart_supervisor(request_id)
+        except Exception as exc:
+            try:
+                background_jobs.transition_service_job(
+                    job["jobId"], "failed", registry_root=registry_root,
+                    error=f"failed to spawn restart supervisor: {exc}",
+                )
+            except Exception as persist_exc:
+                _log(f"[main-restart] failed to persist supervisor failure: {persist_exc}")
+            finally:
+                _clear_main_restart_state(request_id)
+                worker.reopen_after_failed_shutdown()
+            _log(f"[main-restart] supervisor launch failed: {exc}")
+
+
+async def _perform_main_exit(request_id: str) -> None:
+    """Stop Workers, persist confirmed legal offline states, then stop Pan."""
+    global _main_exit_pending, _main_exit_stage, _main_exit_error
+    registry_root = _main_restart_registry_root()
+    job = background_jobs.find_service_job(request_id, registry_root)
+    if not job or job.get("operation") != "exit":
+        return
+    options = job.get("options") or {}
+    try:
+        mark_running_offline = _resolve_main_lifecycle_job_choice(options, "Exit")
+    except ValueError as exc:
+        message = str(exc)
+        try:
+            background_jobs.transition_service_job(
+                job["jobId"], "failed", registry_root=registry_root, error=message,
+            )
+        except Exception as persist_exc:
+            _log(f"[main-exit] failed to persist invalid-choice failure: {persist_exc}")
+        with _main_exit_lock:
+            _main_exit_pending = False
+            _main_exit_stage = "error"
+            _main_exit_error = message
+        worker.reopen_after_failed_shutdown()
+        _log(f"[main-exit] refusing Worker shutdown: {message}")
+        return
+
+    with _main_exit_lock:
+        if _main_exit_request_id != request_id:
+            return
+        _main_exit_stage = "stopping_workers"
+    try:
+        background_jobs.transition_service_job(
+            job["jobId"], "stopping_workers", registry_root=registry_root,
+        )
+    except (OSError, ValueError) as exc:
+        _log(f"[main-exit] failed to record worker-stop phase: {exc}")
+        return
+    try:
+        running_session_ids = list(options.get("runningSessionIds") or [])
+        await worker.shutdown_all(
+            mark_legal_offline=True,
+            mark_legal_offline_session_ids=(
+                running_session_ids if mark_running_offline else ()
+            ),
+            preserve_legal_running_session_ids=(
+                () if mark_running_offline else running_session_ids
+            ),
+        )
+    except Exception as exc:  # still hand off to the stop-only supervisor
+        _log(f"[main-exit] worker shutdown failed: {exc}")
+        with _main_exit_lock:
+            _main_exit_error = str(exc)
+
+    with _main_exit_lock:
+        if _main_exit_request_id != request_id:
+            return
+        _main_exit_stage = "stopping_service"
+    try:
+        background_jobs.transition_service_job(
+            job["jobId"], "stopping_service", registry_root=registry_root,
+            **({"error": _main_exit_error} if _main_exit_error else {}),
+        )
+    except (OSError, ValueError) as exc:
+        _log(f"[main-exit] failed to record service-stop phase: {exc}")
+        return
+    try:
+        _launch_main_exit_supervisor(request_id)
+    except (OSError, ValueError) as exc:
+        background_jobs.transition_service_job(
+            job["jobId"], "failed", registry_root=registry_root, error=str(exc),
+        )
+        with _main_exit_lock:
+            _main_exit_pending = False
+            _main_exit_stage = "error"
+            _main_exit_error = f"failed to schedule Pan exit: {exc}"
+        _log(f"[main-exit] supervisor launch failed: {exc}")
+        return
+    with _main_exit_lock:
+        _main_exit_stage = "scheduled"
+
+
+@app.get("/api/main/exit/status")
+async def api_main_exit_status():
+    """Report stop-only Pan exit availability and pending stage."""
+    return _main_exit_status()
+
+
+async def _schedule_main_exit(options: dict) -> dict:
+    """Persist the pre-exit legal-running snapshot before closing Worker gates."""
+    global _main_exit_pending, _main_exit_request_id, _main_exit_stage, _main_exit_error
+
+    status = _main_exit_status()
+    if not status["available"]:
+        return {
+            "ok": False,
+            "status": "disabled",
+            "error": status.get("reason", "main service exit is unavailable"),
+        }
+    restart_status = _main_restart_status()
+    if restart_status.get("pending"):
+        return {
+            "ok": False,
+            "status": "busy",
+            "pending": True,
+            "error": "Pan main-service restart is already scheduled",
+            "requestId": restart_status.get("requestId"),
+            "jobId": restart_status.get("jobId"),
+        }
+    with _main_exit_lock:
+        if _main_exit_pending:
+            return {
+                "ok": False,
+                "status": "busy",
+                "pending": True,
+                "error": "Pan main-service exit is already scheduled",
+                "requestId": _main_exit_request_id,
+            }
+    # The lifecycle lock ensures startup recovery cannot race this snapshot.
+    # Restart and Exit freeze the same policy and legal-running Session set.
+    options = await _snapshot_main_lifecycle_options(options, "exit")
+
+    registry_root = _main_restart_registry_root()
+    port = status.get("port", _main_restart_port())
+    old_pid = main_lifecycle.listener_owner(port)
+    old_pid_created_at = main_lifecycle.process_create_time(old_pid)
+    request_id = uuid.uuid4().hex
+    try:
+        job = background_jobs.create_service_job(
+            request_id=request_id, operation="exit", root=str(_PROJECT_DIR), port=port,
+            old_pid=old_pid, old_pid_created_at=old_pid_created_at,
+            registry_root=registry_root, options=options,
+        )
+    except background_jobs.ServiceJobBusy as exc:
+        existing = exc.job
+        return {
+            "ok": False, "status": "busy", "pending": True,
+            "error": "Pan main-service exit is already scheduled",
+            "requestId": existing.get("requestId"), "jobId": existing.get("jobId"),
+            "phase": existing.get("phase"),
+        }
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "status": "error", "error": f"failed to record Pan exit: {exc}"}
+
+    with _main_exit_lock:
+        _main_exit_pending = True
+        _main_exit_request_id = request_id
+        _main_exit_stage = "scheduled"
+        _main_exit_error = None
+
+    # Close spawn/recovery/queue gates synchronously, before the background
+    # task gets its first scheduling opportunity.
+    worker.begin_shutdown()
+    asyncio.create_task(
+        _perform_main_exit(request_id),
+        name="pan-main-exit",
+    )
+    return {
+        "ok": True,
+        "status": "scheduled",
+        "accepted": True,
+        "phase": "requested",
+        "jobId": job["jobId"],
+        "message": "Pan main-service exit scheduled; this service will stop",
+        "requestId": request_id,
+    }
+
+
+def _directory_roots() -> list[Path]:
+    """Return navigable filesystem roots on the machine running Pan."""
+    if sys.platform == "win32":
+        # GetLogicalDrives avoids presenting disconnected or nonexistent drive
+        # letters.  Keep this behind a helper so the API remains testable on
+        # non-Windows hosts.
+        import ctypes
+
+        mask = ctypes.windll.kernel32.GetLogicalDrives()
+        return [Path(f"{chr(65 + i)}:\\") for i in range(26) if mask & (1 << i)]
+    return [Path("/")]
+
+
+def _resolve_directory(path: str | None) -> Path | None:
+    if not path or not path.strip():
+        return None
+    # strict=True ensures the response never claims a path exists when it does
+    # not. Path.resolve also normalizes separators and removes dot segments.
+    return Path(path.strip()).resolve(strict=True)
+
+
+def _attachment_session_dir(session_id: str) -> Path:
+    """Return a filesystem-safe, session-isolated attachment directory."""
+    session_hash = hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:12]
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", session_id).strip("._") or "session"
+    return ATTACHMENTS_DIR / f"{safe_id[:80]}-{session_hash}"
+
+
+def _attachment_filename(raw_name: str | None) -> str:
+    """Return the original basename for display, never as a storage path.
+
+    The browser may send a URL-encoded name and, on some browsers, a legacy
+    fakepath.  Keep the user's basename (including spaces, Unicode and
+    Markdown punctuation) for the link label, while removing only path/control
+    characters that cannot safely be displayed as one filename.
+    """
+    name = unquote(raw_name or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = "".join(c for c in name if ord(c) >= 32 and c not in "\x7f")
+    return name if name.strip(" .") else "attachment"
+
+
+def _attachment_storage_filename(display_name: str) -> str:
+    """Create an opaque storage filename, retaining only a safe extension."""
+    suffix = Path(display_name).suffix
+    suffix = re.sub(r"[^A-Za-z0-9._-]", "", suffix)[:32]
+    return f"upload_{uuid.uuid4().hex}{suffix}"
+
+
+_ATTACHMENT_ID_RE = re.compile(
+    r"(?:upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?|att_[A-Za-z0-9]{32})"
+)
+
+
+def _attachment_registry_path(session_id: str) -> Path:
+    """Return the durable, session-scoped attachment metadata sidecar."""
+    return _attachment_session_dir(session_id) / ".attachments.json"
+
+
+def _read_attachment_registry(session_id: str) -> dict[str, dict]:
+    try:
+        raw = json.loads(_attachment_registry_path(session_id).read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(key): value for key, value in raw.items()
+        if isinstance(key, str) and isinstance(value, dict)
+    }
+
+
+def _write_attachment_registry(session_id: str, registry: dict[str, dict]) -> None:
+    target = _attachment_registry_path(session_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    temporary.write_text(json.dumps(registry, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def _attachment_record(session_id: str, attachment_id: str) -> dict | None:
+    """Resolve an id without accepting client supplied href/path metadata.
+
+    Old uploads used their opaque storage filename as ``attachmentId`` and did
+    not have a sidecar.  They remain readable through the conservative
+    filename/path fallback; all new server-file references are sidecar-backed.
+    """
+    if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
+        return None
+    record = _read_attachment_registry(session_id).get(attachment_id)
+    if record is not None:
+        return dict(record)
+    if attachment_id.startswith("upload_"):
+        root = _attachment_session_dir(session_id).resolve()
+        target = (root / attachment_id).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return None
+        if target.is_file():
+            return {
+                "source": "upload",
+                "displayName": attachment_id,
+                "storageFilename": attachment_id,
+                "path": str(target),
+                "size": target.stat().st_size,
+                "mimeType": mimetypes.guess_type(attachment_id)[0] or "application/octet-stream",
+                "completed": True,
+            }
+    # A message may be dragged from another Session.  The opaque id is the
+    # bearer reference; the registry owner, never a browser-supplied path, is
+    # the authority for the source file.  The queue boundary imports this
+    # record into the target Session before persisting the message reference.
+    try:
+        candidates = list(ATTACHMENTS_DIR.iterdir())
+    except OSError:
+        candidates = []
+    for directory in candidates:
+        if not directory.is_dir():
+            continue
+        try:
+            registry = json.loads(
+                (directory / ".attachments.json").read_text(encoding="utf-8")
+            )
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            registry = {}
+        if isinstance(registry, dict):
+            record = registry.get(attachment_id)
+            if isinstance(record, dict):
+                return dict(record)
+    return None
+
+
+def _attachment_owner_dir(attachment_id: str) -> Path | None:
+    """Find an id in another session directory for a useful mismatch error."""
+    if not _ATTACHMENT_ID_RE.fullmatch(attachment_id or ""):
+        return None
+    try:
+        candidates = list(ATTACHMENTS_DIR.iterdir())
+    except OSError:
+        return None
+    for directory in candidates:
+        if not directory.is_dir():
+            continue
+        registry_path = directory / ".attachments.json"
+        try:
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            registry = {}
+        if isinstance(registry, dict) and attachment_id in registry:
+            return directory
+        if attachment_id.startswith("upload_") and (directory / attachment_id).is_file():
+            return directory
+    return None
+
+
+def _register_attachment(session_id: str, attachment_id: str, record: dict) -> None:
+    with _ATTACHMENT_REGISTRY_LOCK:
+        registry = _read_attachment_registry(session_id)
+        registry[attachment_id] = {
+            **record,
+            "completed": record.get("completed", True),
+            "sessionId": session_id,
+        }
+        _write_attachment_registry(session_id, registry)
+
+
+def _attachment_href(session_id: str, storage_filename: str) -> str:
+    """Build the only public href accepted for an uploaded attachment."""
+    return (
+        f"/api/attachments/{quote(storage_filename, safe='')}"
+        f"?session_id={quote(session_id, safe='')}"
+    )
+
+
+def _attachment_ref_href(session_id: str, attachment_id: str) -> str:
+    """Build an opaque download href that never embeds a filesystem path."""
+    return (
+        f"/api/attachments/ref/{quote(attachment_id, safe='')}"
+        f"?session_id={quote(session_id, safe='')}"
+    )
+
+
+def _editor_attachment_href(
+    session_id: str, attachment_id: str, line: int | None = None,
+    end_line: int | None = None,
+) -> str:
+    href = _attachment_ref_href(session_id, attachment_id).replace(
+        "/api/attachments/ref/", "/api/attachments/editor/", 1)
+    if line is not None:
+        suffix = f"#L{line}" if end_line is None else f"#L{line}-L{end_line}"
+        href += suffix
+    return href
+
+
+def _fs_download_href(session_id: str, path: str) -> str:
+    """Build a safe download href for an existing server-side file."""
+    return (
+        "/api/fs/read?"
+        f"session_id={quote(session_id, safe='')}&"
+        f"path={quote(path, safe='')}&download=1"
+    )
+
+
+def _markdown_label(display_name: str) -> str:
+    """Escape Markdown label punctuation without changing rendered text."""
+    return re.sub(r"([\\\[\]\(\)])", r"\\\1", display_name)
+
+
+def _attachment_markdown(display_name: str, href: str) -> str:
+    """Return a standard Markdown link for a trusted, server-built href."""
+    return f"[{_markdown_label(display_name)}]({href})"
+
+
+_LEGACY_ATTACHMENT_RE = re.compile(r'@"([^"\r\n]+)"')
+_MESSAGE_ATTACHMENT_HREF_RE = MarkdownLinks(attachments_only=True)
+
+
+def _legacy_attachment_href(session_id: str, raw_path: str) -> str:
+    """Map an old absolute attachment path to a validated download route."""
+    try:
+        target = Path(raw_path).resolve()
+        attachment_root = _attachment_session_dir(session_id).resolve()
+        relative = target.relative_to(attachment_root)
+        if len(relative.parts) == 1 and relative.name:
+            return _attachment_href(session_id, relative.name)
+    except (OSError, RuntimeError, ValueError):
+        pass
+    # This preserves the existing fs/read permission and path validation for
+    # older server-file attachments whose original name was not persisted.
+    return _fs_download_href(session_id, raw_path)
+
+
+def _normalize_legacy_attachment_links(session_id: str, content: str) -> str:
+    """Make pre-Metadata ``@\"path\"`` history entries renderable Markdown."""
+    def replace(match: re.Match[str]) -> str:
+        raw_path = match.group(1)
+        display_name = _attachment_filename(raw_path)
+        return _attachment_markdown(
+            display_name,
+            _legacy_attachment_href(session_id, raw_path),
+        )
+
+    return _LEGACY_ATTACHMENT_RE.sub(replace, content)
+
+
+_MARKDOWN_LINK_RE = MarkdownLinks()
+
+
+def _parse_editor_destination(raw_href: str) -> tuple[str, int | None, int | None] | None:
+    """Parse a local Markdown destination without accepting web URLs."""
+    hash_index = raw_href.find("#")
+    raw_path = unquote(raw_href if hash_index < 0 else raw_href[:hash_index])
+    fragment = "" if hash_index < 0 else unquote(raw_href[hash_index + 1:])
+    if not raw_path or raw_href.startswith("#"):
+        return None
+    lower = raw_path.lower()
+    if lower.startswith("file://"):
+        uri = urlsplit(raw_path)
+        if uri.netloc and uri.netloc.lower() != "localhost":
+            path = f"//{uri.netloc}{uri.path}"
+        else:
+            path = uri.path[1:] if re.match(r"^/[A-Za-z]:[\\/]", uri.path) else uri.path
+    else:
+        if re.match(r"^[A-Za-z][A-Za-z\d+.-]*:", raw_path) and not re.match(
+            r"^[A-Za-z]:[\\/]", raw_path
+        ):
+            return None
+        path = raw_path
+    path = path.replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", path):
+        path = path[1:]
+
+    line = end_line = None
+    colon_match = re.match(r"^(.*):(\d+)(?:-(\d+))?$", path)
+    if colon_match and not re.match(r"^[A-Za-z]$", colon_match.group(1)):
+        line = int(colon_match.group(2))
+        end_line = int(colon_match.group(3)) if colon_match.group(3) else None
+        if end_line is not None and end_line < line:
+            line = end_line = None
+        else:
+            path = colon_match.group(1)
+    fragment_match = re.fullmatch(r"L(\d+)(?:-L(\d+))?", fragment, re.IGNORECASE)
+    if fragment_match:
+        fragment_line = int(fragment_match.group(1))
+        fragment_end = int(fragment_match.group(2)) if fragment_match.group(2) else None
+        if fragment_line > 0 and (fragment_end is None or fragment_end >= fragment_line):
+            line, end_line = fragment_line, fragment_end
+    if line is not None and line < 1:
+        line = end_line = None
+    return path, line, end_line
+
+
+def _editor_reference_id(session_id: str, path: str, line: int | None, end_line: int | None) -> str:
+    canonical_path = str(Path(path).resolve())
+    # Concurrent history/live projections must reuse one durable reference.
+    with _ATTACHMENT_REGISTRY_LOCK:
+        return _editor_reference_id_locked(session_id, canonical_path, line, end_line)
+
+
+def _editor_reference_id_locked(session_id: str, canonical_path: str,
+                                line: int | None, end_line: int | None) -> str:
+    # Registry paths are resolved at registration. Comparing these stored
+    # canonical strings must not resolve every unrelated file again: stale
+    # network drives in the registry can otherwise block each live delta.
+    canonical_key = os.path.normcase(os.path.normpath(canonical_path))
+    registry = _read_attachment_registry(session_id)
+    for attachment_id, record in registry.items():
+        if (
+            isinstance(record, dict)
+            and record.get("source") == "server_file"
+            and os.path.normcase(os.path.normpath(str(record.get("path", "")))) == canonical_key
+            and record.get("line") == line
+            and record.get("endLine") == end_line
+            and record.get("completed", True) is True
+        ):
+            return attachment_id
+    attachment_id = "att_" + uuid.uuid4().hex
+    _register_attachment(session_id, attachment_id, {
+        "source": "server_file",
+        "displayName": _attachment_filename(Path(canonical_path).name),
+        "path": canonical_path,
+        "size": Path(canonical_path).stat().st_size,
+        "mimeType": mimetypes.guess_type(canonical_path)[0],
+        "line": line,
+        "endLine": end_line,
+    })
+    return attachment_id
+
+
+def _project_editor_links(session_id: str, content: str) -> str:
+    """Give existing local Markdown links opaque editor/download identities.
+
+    This is intentionally best-effort for old history: an existing file can
+    be upgraded to a draggable opaque reference; missing or ambiguous legacy
+    links remain ordinary editor links and retain click-only compatibility.
+    """
+    destinations: dict[str, str | None] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        href = match.group("href")
+        if href in destinations:
+            projected = destinations[href]
+            return f"{match.group('label')}({projected})" if projected else match.group(0)
+        destinations[href] = None
+        parsed = _parse_editor_destination(match.group("href"))
+        if parsed is None:
+            return match.group(0)
+        raw_path, line, end_line = parsed
+        if raw_path.startswith("/api/"):
+            return match.group(0)
+        try:
+            target = _resolve_attachment_source_path(session_id, raw_path)
+            if not target.is_file():
+                return match.group(0)
+            attachment_id = _editor_reference_id(session_id, str(target), line, end_line)
+            projected = _editor_attachment_href(session_id, attachment_id, line, end_line)
+            destinations[href] = projected
+            return f"{match.group('label')}({projected})"
+        except (OSError, RuntimeError, ValueError):
+            return match.group(0)
+
+    return _MARKDOWN_LINK_RE.sub(replace, content)
+
+
+def _attachment_reference_error(session_id: str, href: str) -> dict | None:
+    """Validate one server-generated attachment href for a target session.
+
+    The browser still submits the established Markdown text protocol.  This
+    check makes that protocol authoritative at the queue boundary: a client
+    cannot submit another session's upload or a file that disappeared after
+    the UI's pre-send check.  Ordinary external Markdown links and legacy
+    ``@"path"`` markers are intentionally outside this validator.
+    """
+    parsed = urlsplit(href)
+    if parsed.scheme or parsed.netloc:
+        return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+    if parsed.fragment and not parsed.path.startswith("/api/attachments/editor/"):
+        return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    if query.get("session_id", [None]) != [session_id]:
+        return {
+            "code": "attachment_session_mismatch",
+            "message": "Attachment belongs to another session",
+        }
+
+    if parsed.path.startswith("/api/attachments/"):
+        if parsed.path.startswith("/api/attachments/ref/"):
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+            return _attachment_id_error(
+                session_id, attachment_id, allow_cross_session=True,
+            )
+        if parsed.path.startswith("/api/attachments/editor/"):
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+            return _attachment_id_error(
+                session_id, attachment_id, allow_cross_session=True,
+            )
+        storage_filename = unquote(parsed.path.rsplit("/", 1)[-1])
+        if not re.fullmatch(
+            r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?",
+            storage_filename,
+        ):
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        root = _attachment_session_dir(session_id).resolve()
+        target = (root / storage_filename).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        if not target.is_file():
+            return {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        return None
+
+    if parsed.path == "/api/fs/read":
+        if query.get("download", [None]) != ["1"] or query.get("path", [None])[0] is None:
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        try:
+            target = _resolve_attachment_source_path(session_id, query["path"][0])
+        except (ValueError, OSError):
+            return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+        if not target.is_file():
+            return {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        return None
+
+    return {"code": "invalid_attachment_reference", "message": "Attachment link is invalid"}
+
+
+def _validate_message_attachment_references(session_id: str, text: str) -> dict | None:
+    """Return the first invalid internal attachment reference in message text."""
+    # Preserve the queue endpoint's established session-not-found response;
+    # worker.enqueue_user_message remains authoritative for that case.
+    if _summary_session_get(session_id) is None:
+        return None
+    for match in _MESSAGE_ATTACHMENT_HREF_RE.finditer(text):
+        error = _attachment_reference_error(session_id, match.group("href"))
+        if error is not None:
+            return error
+    return None
+
+
+# DEC-002 separates two cross-Session rules.  A pending chip or inline
+# composer node is Session-owned, so a queued structured part must not adopt an
+# opaque id that another Session registered.  A server-file reference (the
+# editor/正文 link projection of a real server file) may still be dragged into
+# another Session: the target imports a registry receipt and no bytes are
+# copied.  Client uploads own their bytes inside the registering Session, so
+# only ``server_file`` keeps the reuse path.
+_CROSS_SESSION_STRUCTURED_SOURCES = frozenset({"server_file"})
+
+
+def _attachment_id_error(
+    session_id: str,
+    attachment_id: str,
+    *,
+    allow_cross_session: bool = False,
+    cross_session_sources: frozenset[str] | None = None,
+) -> dict | None:
+    """Validate one opaque AttachmentRef at the session boundary.
+
+    ``cross_session_sources`` narrows a cross-Session allowance to the registry
+    ``source`` values that may be reused.  ``None`` keeps the historical
+    "any source" allowance used by the read-only download/editor endpoints.
+    """
+    if not isinstance(attachment_id, str) or not _ATTACHMENT_ID_RE.fullmatch(attachment_id):
+        return {"code": "invalid_attachment_id", "message": "Attachment id is invalid"}
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        owner = _attachment_owner_dir(attachment_id)
+        if owner is not None and owner != _attachment_session_dir(session_id).resolve():
+            return {
+                "code": "attachment_session_mismatch",
+                "message": "Attachment belongs to another session",
+            }
+        return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    owner_session_id = record.get("sessionId")
+    if owner_session_id not in (None, session_id):
+        reusable_source = (
+            cross_session_sources is None
+            or record.get("source") in cross_session_sources
+        )
+        if not allow_cross_session or not reusable_source:
+            return {
+                "code": "attachment_session_mismatch",
+                "message": "Attachment belongs to another session",
+            }
+    if record.get("completed") is not True:
+        return {"code": "attachment_incomplete", "message": "Attachment upload is not complete"}
+    try:
+        target = Path(str(record.get("path", ""))).resolve()
+        if not target.is_file():
+            return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    except (OSError, RuntimeError, ValueError):
+        return {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+    return None
+
+
+def _import_attachment_reference(session_id: str, attachment_id: str, record: dict) -> None:
+    """Persist a source-owned opaque reference in the target registry.
+
+    No bytes are copied.  Keeping a target-side receipt makes the target
+    message independently recoverable while retaining the source owner for
+    href generation and permission/stale checks.
+    """
+    owner = record.get("sessionId")
+    if owner in (None, session_id):
+        return
+    registry = _read_attachment_registry(session_id)
+    if attachment_id in registry:
+        return
+    registry[attachment_id] = {
+        **record,
+        "sessionId": session_id,
+        "sourceSessionId": owner,
+        "sourceAttachmentId": attachment_id,
+    }
+    _write_attachment_registry(session_id, registry)
+
+
+def _canonical_attachment_ref(session_id: str, attachment_id: str) -> dict | None:
+    """Return server-owned metadata used by structured parts and Markdown fallback."""
+    if _attachment_id_error(session_id, attachment_id) is not None:
+        return None
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        return None
+    source = record.get("source") if record.get("source") in {"upload", "server_file"} else "upload"
+    path = str(record.get("path", ""))
+    owner_session_id = str(record.get("sourceSessionId") or record.get("sessionId") or session_id)
+    href = (
+        _attachment_href(owner_session_id, str(record.get("storageFilename")))
+        if source == "upload" and record.get("storageFilename")
+        else _attachment_ref_href(owner_session_id, attachment_id)
+    )
+    display_name = _attachment_filename(record.get("displayName"))
+    return {
+        "type": "attachment",
+        "attachmentId": attachment_id,
+        "displayName": display_name,
+        "mimeType": record.get("mimeType") or mimetypes.guess_type(display_name)[0] or "application/octet-stream",
+        "size": int(record.get("size", 0) or 0),
+        "source": source,
+        "href": href,
+        **({"line": record["line"]} if isinstance(record.get("line"), int) else {}),
+        **({"endLine": record["endLine"]} if isinstance(record.get("endLine"), int) else {}),
+        # Internal-only field consumed by packages.core.worker.  API/history
+        # serializers remove it before returning data to the browser.
+        "__serverPath": str(Path(path).resolve()),
+    }
+
+
+def _normalize_message_parts(session_id: str, raw_parts) -> tuple[list[dict] | None, str | None, dict | None]:
+    """Validate parts and generate the adapter-compatible Markdown fallback.
+
+    Client supplied labels, hrefs and paths are deliberately ignored.  Only the
+    opaque id is authoritative; the registry supplies all attachment metadata.
+    A structured part never adopts another Session's upload: only a
+    server-file reference keeps the cross-Session reuse path.
+    """
+    if not isinstance(raw_parts, list) or not raw_parts or len(raw_parts) > 512:
+        return None, None, {"code": "invalid_parts", "message": "parts must be a non-empty array"}
+    normalized: list[dict] = []
+    fallback: list[str] = []
+    for part in raw_parts:
+        if not isinstance(part, dict) or not isinstance(part.get("type"), str):
+            return None, None, {"code": "invalid_parts", "message": "message part is invalid"}
+        kind = part["type"]
+        if kind == "text":
+            value = part.get("text", part.get("value"))
+            if not isinstance(value, str):
+                return None, None, {"code": "invalid_parts", "message": "text part must contain text"}
+            normalized.append({"type": "text", "text": value})
+            fallback.append(value)
+            continue
+        if kind != "attachment":
+            return None, None, {"code": "invalid_parts", "message": "unknown message part type"}
+        attachment_id = part.get("attachmentId")
+        error = _attachment_id_error(
+            session_id, attachment_id,
+            allow_cross_session=True,
+            cross_session_sources=_CROSS_SESSION_STRUCTURED_SOURCES,
+        )
+        if error is not None:
+            return None, None, error
+        record = _attachment_record(session_id, attachment_id)
+        if record is None:
+            return None, None, {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+        _import_attachment_reference(session_id, attachment_id, record)
+        canonical = _canonical_attachment_ref(session_id, attachment_id)
+        if canonical is None:
+            return None, None, {"code": "attachment_not_found", "message": "Attachment is no longer available"}
+        normalized.append({key: value for key, value in canonical.items() if key != "href"})
+        fallback.append(_attachment_markdown(canonical["displayName"], canonical["href"]))
+    return normalized, "".join(fallback), None
+
+
+def _normalize_text_attachment_parts(
+    session_id: str, content: str,
+) -> tuple[list[dict] | None, str | None, dict | None]:
+    """Upgrade legacy internal Markdown links to durable parts.
+
+    This keeps old text/Markdown callers compatible while ensuring a Worker
+    never receives an API href as the file target.  External links and all
+    ordinary prose remain text parts; each validated Pan attachment becomes a
+    registry-backed part with the same internal path projection as a new
+    structured request.
+    """
+    content = _normalize_legacy_attachment_links(session_id, content)
+    matches = list(_MESSAGE_ATTACHMENT_HREF_RE.finditer(content))
+    if not matches:
+        return None, content, None
+    normalized: list[dict] = []
+    fallback: list[str] = []
+    cursor = 0
+    for match in matches:
+        prefix = content[cursor:match.start()]
+        if prefix:
+            normalized.append({"type": "text", "text": prefix})
+            fallback.append(prefix)
+        href = match.group("href")
+        error = _attachment_reference_error(session_id, href)
+        if error is not None:
+            return None, None, error
+        parsed = urlsplit(href)
+        if parsed.path == "/api/fs/read":
+            raw_path = parse_qs(parsed.query, keep_blank_values=True).get("path", [""])[0]
+            try:
+                target = _resolve_attachment_source_path(session_id, raw_path)
+            except (OSError, RuntimeError, ValueError):
+                return None, None, {
+                    "code": "attachment_not_found",
+                    "message": "Attachment is no longer available",
+                }
+            attachment_id = _editor_reference_id(session_id, str(target), None, None)
+        else:
+            attachment_id = unquote(parsed.path.rsplit("/", 1)[-1])
+        canonical = _canonical_attachment_ref(session_id, attachment_id)
+        if canonical is None:
+            return None, None, {
+                "code": "attachment_not_found",
+                "message": "Attachment is no longer available",
+            }
+        normalized.append({key: value for key, value in canonical.items() if key != "href"})
+        fallback.append(_attachment_markdown(canonical["displayName"], canonical["href"]))
+        cursor = match.end()
+    suffix = content[cursor:]
+    if suffix:
+        normalized.append({"type": "text", "text": suffix})
+        fallback.append(suffix)
+    return normalized, "".join(fallback), None
+
+
+def _api_history(
+    session_id: str,
+    history: list[dict],
+    *,
+    start: int = 0,
+    history_epoch: str | None = None,
+    include_identity: bool = True,
+    bookmarked_ids: frozenset[str] | None = None,
+) -> list[dict]:
+    """Serialize history with a compatibility view for old attachment text."""
+    # One stamped sidecar read per projection (cached, lock-free fast path
+    # when the Session has no bookmark file).  Additive: only durable Pan
+    # identities can carry the flag, so legacy positional rows and old
+    # clients are unaffected.
+    bookmarks = (session_bookmarks.bookmarked_message_ids(session_id)
+                 if bookmarked_ids is None else bookmarked_ids)
+    normalized: list[dict] = []
+    for offset, message in enumerate(history):
+        absolute_index = max(0, int(start or 0)) + offset
+        delivery_keys = (
+            message.get("delivered_keys")
+            if isinstance(message, dict) and isinstance(message.get("delivered_keys"), list)
+            else None
+        )
+        public_message = (
+            {key: value for key, value in message.items() if key != "delivered_keys"}
+            if isinstance(message, dict) else message
+        )
+        if isinstance(public_message, dict) and delivery_keys:
+            public_message["deliveryKeys"] = [
+                key for key in delivery_keys if isinstance(key, str) and key
+            ]
+        wire_identity = None
+        if include_identity:
+            wire_identity = (
+                message.get("messageId") if isinstance(message, dict) else None
+            )
+            if not isinstance(wire_identity, str) or not wire_identity:
+                epoch = history_epoch or "legacy"
+                wire_identity = f"legacy:{session_id}:{epoch}:{absolute_index}"
+        if bookmarks and isinstance(wire_identity, str) and wire_identity in bookmarks:
+            # Project the bookmark flag only for identities the store can
+            # actually address; a dangling entry never matches a live row.
+            if isinstance(public_message, dict):
+                public_message["bookmarked"] = True
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            if isinstance(message, dict) and isinstance(message.get("parts"), list):
+                normalized.append({
+                    **public_message,
+                    **({"messageId": wire_identity} if wire_identity else {}),
+                    "parts": [
+                        {key: value for key, value in part.items() if key != "__serverPath"}
+                        for part in message["parts"] if isinstance(part, dict)
+                    ],
+                })
+            else:
+                normalized.append(
+                    {**public_message, **({"messageId": wire_identity} if wire_identity else {})}
+                    if isinstance(message, dict) else message
+                )
+            continue
+        content = _normalize_legacy_attachment_links(session_id, message["content"])
+        content = _project_editor_links(session_id, content)
+        safe_message = {
+            **public_message,
+            "content": content,
+            **({"messageId": wire_identity} if wire_identity else {}),
+        }
+        if isinstance(message.get("parts"), list):
+            safe_message["parts"] = [
+                {key: value for key, value in part.items() if key != "__serverPath"}
+                for part in message["parts"] if isinstance(part, dict)
+            ]
+        normalized.append(safe_message)
+    return normalized
+
+
+@app.post("/api/sessions/{session_id}/attachments")
+async def upload_session_attachment(session_id: str, request: Request, filename: str | None = None):
+    """Persist one browser-uploaded file under the target session directory.
+
+    The request body is the raw file bytes.  ``X-Filename`` is preferred so
+    names containing non-ASCII characters survive URL handling; the query
+    parameter remains a simple fallback for clients that cannot set headers.
+    """
+    if _summary_session_get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    raw_name = request.headers.get("x-filename") or filename
+    display_name = _attachment_filename(raw_name)
+    target_dir = _attachment_session_dir(session_id)
+    temp_path = target_dir / f".upload-{uuid.uuid4().hex}.tmp"
+    storage_filename = _attachment_storage_filename(display_name)
+    target_path = target_dir / storage_filename
+    total = 0
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        with temp_path.open("wb") as output:
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                output.write(chunk)
+                total += len(chunk)
+        os.replace(temp_path, target_path)
+        _register_attachment(session_id, storage_filename, {
+            "source": "upload",
+            "displayName": display_name,
+            "storageFilename": storage_filename,
+            "path": str(target_path.resolve()),
+            "size": total,
+            "mimeType": request.headers.get("content-type") or mimetypes.guess_type(display_name)[0],
+        })
+        return {
+            "ok": True,
+            # filename is retained as a compatibility alias for old clients;
+            # new clients must use displayName for the label and href for the
+            # download target.
+            "filename": display_name,
+            # The opaque storage filename is the stable server-side identity;
+            # keep it separate from the client-local composer node id.
+            "attachmentId": storage_filename,
+            "displayName": display_name,
+            "storageFilename": storage_filename,
+            "href": _attachment_href(session_id, storage_filename),
+            "path": str(target_path.resolve()),
+            "size": total,
+        }
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Attachment storage permission denied") from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail="Attachment upload failed") from exc
+    finally:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+@app.post("/api/sessions/{session_id}/attachments/native-picker")
+async def pick_native_server_files(session_id: str, data: dict):
+    """Return paths only; confirmation uses from-server-file validation."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    directory = data.get("directory", "")
+    if not isinstance(directory, str) or len(directory) > 32768 or '\x00' in directory:
+        raise HTTPException(status_code=400, detail="Invalid initial directory")
+    from packages.web.native_file_picker import native_file_picker
+    return await native_file_picker.pick(directory)
+
+
+@app.post("/api/sessions/{session_id}/attachments/from-server-file")
+async def register_server_file_attachment(session_id: str, data: dict):
+    """Register one existing server file as an opaque AttachmentRef.
+
+    The path is used only for this server-side lookup and is never accepted as
+    the message reference.  Directories are intentionally rejected in phase 1.
+    """
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    raw_path = data.get("path") if isinstance(data, dict) else None
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        target = _resolve_attachment_source_path(session_id, raw_path)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid server file path") from exc
+    if target.is_dir():
+        raise HTTPException(status_code=400, detail="Directories cannot be attached yet")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Server file not found")
+    attachment_id = "att_" + uuid.uuid4().hex
+    display_name = _attachment_filename(target.name)
+    _register_attachment(session_id, attachment_id, {
+        "source": "server_file",
+        "displayName": display_name,
+        "path": str(target.resolve()),
+        "size": target.stat().st_size,
+        "mimeType": mimetypes.guess_type(target.name)[0],
+    })
+    canonical = _canonical_attachment_ref(session_id, attachment_id)
+    return {
+        "ok": True,
+        "attachmentId": attachment_id,
+        "displayName": display_name,
+        "href": canonical["href"] if canonical else _fs_download_href(session_id, str(target)),
+        "path": str(target),
+        "size": target.stat().st_size,
+    }
+
+
+@app.get("/api/attachments/ref/{attachment_id}")
+async def download_attachment_reference(attachment_id: str, session_id: str):
+    """Download a server file through an opaque, session-checked reference."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
+    if error is not None:
+        status = 404 if error["code"] in {"attachment_not_found", "attachment_incomplete"} else 400
+        raise HTTPException(status_code=status, detail=error["message"])
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Attachment is no longer available")
+    target = Path(str(record.get("path", ""))).resolve()
+    safe_name = "".join(c for c in target.name if ord(c) >= 32 and c not in '"\\').strip() or "download"
+    return FileResponse(
+        target,
+        filename=safe_name,
+        media_type=record.get("mimeType") or mimetypes.guess_type(target.name)[0] or "application/octet-stream",
+    )
+
+
+@app.get("/api/attachments/editor/{attachment_id}")
+async def resolve_editor_attachment(attachment_id: str, session_id: str):
+    """Resolve an opaque editor reference for a click, never for drag data."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    error = _attachment_id_error(session_id, attachment_id, allow_cross_session=True)
+    if error is not None:
+        status = 404 if error["code"] in {"attachment_not_found", "attachment_incomplete"} else 400
+        raise HTTPException(status_code=status, detail=error["message"])
+    record = _attachment_record(session_id, attachment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Attachment is no longer available")
+    return {
+        "ok": True,
+        "attachmentId": attachment_id,
+        "displayName": _attachment_filename(record.get("displayName") or Path(str(record.get("path", ""))).name),
+        "mimeType": (
+            record.get("mimeType")
+            or mimetypes.guess_type(Path(str(record.get("path", ""))).name)[0]
+            or "application/octet-stream"
+        ),
+        "path": str(Path(str(record.get("path", ""))).resolve()),
+        "line": record.get("line"),
+        "endLine": record.get("endLine"),
+    }
+
+
+@app.get("/api/attachments/{storage_filename}")
+async def download_session_attachment(storage_filename: str, session_id: str):
+    """Download an uploaded attachment without exposing arbitrary filesystem paths."""
+    if sess.get(session_id) is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if (
+        storage_filename != Path(storage_filename).name
+        or "/" in storage_filename
+        or "\\" in storage_filename
+        or not re.fullmatch(r"upload_[A-Za-z0-9]{32}(?:\.[A-Za-z0-9._-]{1,32})?", storage_filename)
+    ):
+        raise HTTPException(status_code=400, detail="Invalid attachment name")
+    attachment_root = _attachment_session_dir(session_id).resolve()
+    target = (attachment_root / storage_filename).resolve()
+    try:
+        target.relative_to(attachment_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid attachment path") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    return FileResponse(target, filename=target.name, media_type=media_type)
+
+
+@app.post("/api/directories")
+async def create_directory(data: dict):
+    """Create a directory only after the UI has obtained explicit consent."""
+    try:
+        path = data.get("path") if isinstance(data, dict) else None
+        if not isinstance(path, str):
+            raise ValueError("path is required")
+        created = _create_directory(path)
+        return {"ok": True, "path": str(created)}
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/directories")
+async def list_directories(path: str | None = None, include_files: bool = False):
+    """List one directory level on the Pan server (never recursive).
+
+    ``path`` omitted/empty returns the server's filesystem roots.  The API is
+    intentionally ready for an allowed-roots check to be inserted after path
+    resolution when sandboxing is introduced.
+    """
+    try:
+        current = _resolve_directory(path)
+        if current is None:
+            roots = _directory_roots()
+            entries = [
+                {"name": root.name or str(root), "path": str(root), "isDirectory": True}
+                for root in roots
+            ]
+            return {"current": "", "parent": None, "entries": entries}
+
+        if not current.is_dir():
+            raise HTTPException(status_code=400, detail="Path is not a directory")
+        entries = []
+        with os.scandir(current) as scan:
+            for item in scan:
+                try:
+                    if item.is_dir(follow_symlinks=False):
+                        entries.append({
+                            "name": item.name,
+                            "path": str(Path(item.path)),
+                            "isDirectory": True,
+                        })
+                    elif include_files and item.is_file(follow_symlinks=False):
+                        entries.append({
+                            "name": item.name,
+                            "path": str(Path(item.path)),
+                            "isDirectory": False,
+                        })
+                except OSError:
+                    # A directory can disappear or become inaccessible during
+                    # enumeration; omit only that entry and keep the layer.
+                    continue
+        entries.sort(key=lambda entry: entry["name"].casefold())
+        parent = current.parent if current.parent != current else None
+        return {
+            "current": str(current),
+            "parent": str(parent) if parent else None,
+            "entries": entries,
+        }
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Directory does not exist") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="Permission denied") from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid directory path") from exc
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#58a6ff"/><text x="16" y="22" font-size="18" text-anchor="middle" fill="#fff" font-family="monospace" font-weight="bold">P</text></svg>'
+    return Response(content=svg, media_type="image/svg+xml")
+
+
+def _react_unavailable_response() -> HTMLResponse:
+    return HTMLResponse(
+        content=(
+            "React frontend is unavailable: packages/web/dist is missing. "
+            "Build it with `pnpm --dir packages/web build`."
+        ),
+        status_code=503,
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    """Redirect to the React SPA, or explain that its build is unavailable."""
+    if not REACT_DIST_EXISTS:
+        return _react_unavailable_response()
+    return RedirectResponse("/react/", status_code=307)
+
+
+# ── WebSocket: Dashboard ──
+
+async def _replay_pending_interactions(
+    ws: WebSocket, session_ids: list[str] | None = None,
+    *, replay_generation: int | None = None, replay_request_id: str | None = None,
+) -> None:
+    """Restore live native prompts to a dashboard that just reconnected.
+
+    Only live workers are considered: the snapshot is a UI replay cache, while
+    the open request still belongs to the native process/future.  A
+    dead/restarted worker cannot safely receive the old response.
+    """
+    selected = {str(sid) for sid in session_ids or []}
+    replay_identity = {}
+    if replay_generation is not None:
+        replay_identity["replayGeneration"] = replay_generation
+    if replay_request_id is not None:
+        replay_identity["replayRequestId"] = replay_request_id
+    for w in worker.list_workers():
+        if selected and w.session_id not in selected:
+            continue
+        if not worker._process_alive(w):
+            continue
+        status_event = worker.native_status_event(w)
+        if status_event is not None:
+            await _send_ws(ws, {
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
+                "event": status_event,
+                "replayed": True,
+                **replay_identity,
+            })
+        usage_event = worker.native_usage_event(w)
+        if usage_event is not None:
+            await _send_ws(ws, {
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
+                "event": usage_event,
+                "replayed": True,
+                **replay_identity,
+            })
+        rate_limits_event = worker.native_rate_limits_event(w)
+        if rate_limits_event is not None:
+            await _send_ws(ws, {
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
+                "event": rate_limits_event,
+                "replayed": True,
+                **replay_identity,
+            })
+        for native_event in (
+            worker.native_plan_event(w),
+            worker.native_diff_event(w),
+        ):
+            if native_event is not None:
+                await _send_ws(ws, {
+                    "type": "worker.stream",
+                    "workerId": w.worker_id,
+                    "sessionId": w.session_id,
+                    "generation": getattr(w, "generation", 0),
+                    "event": native_event,
+                    "replayed": True,
+                    **replay_identity,
+                })
+        for event in worker.pending_interaction_events(w):
+            await _send_ws(ws, {
+                "type": "worker.stream",
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "generation": getattr(w, "generation", 0),
+                "event": event,
+                "replayed": True,
+                **replay_identity,
+            })
+
+@app.websocket("/ws")
+async def ws_endpoint(ws: WebSocket):
+    await ws.accept()
+    ws_clients.add(ws)
+    last_replay_request_id: str | None = None
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = msg.get("type")
+            if msg_type == "ping":
+                # Browser heartbeats are application-level JSON frames. A
+                # pong updates the client's inbound activity timestamp and
+                # prevents an OPEN-but-silent connection from lingering.
+                await _send_ws(ws, {"type": "pong"})
+            elif msg_type == "user_inject":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                parts = msg.get("parts")
+                normalized_parts = None
+                if session_id and (text or parts is not None):
+                    if parts is not None:
+                        normalized_parts, generated_text, parts_error = _normalize_message_parts(
+                            session_id, parts)
+                        if parts_error is not None:
+                            await _send_ws(ws, {
+                                "type": "user_inject.rejected",
+                                "sessionId": session_id,
+                                "message": parts_error["message"],
+                                "error": parts_error,
+                            })
+                            continue
+                        text = generated_text
+                    elif isinstance(text, str):
+                        attachment_error = _validate_message_attachment_references(session_id, text)
+                        if attachment_error is not None:
+                            await _send_ws(ws, {
+                                "type": "user_inject.rejected",
+                                "sessionId": session_id,
+                                "message": attachment_error["message"],
+                                "error": attachment_error,
+                            })
+                            continue
+                    if not isinstance(text, str) or not text.strip():
+                        await _send_ws(ws, {
+                            "type": "user_inject.rejected",
+                            "sessionId": session_id,
+                            "message": "text is required",
+                            "error": {"code": "text_required", "message": "text is required"},
+                        })
+                        continue
+                    client_message_id = msg.get("clientMessageId")
+                    if client_message_id is not None and not isinstance(client_message_id, str):
+                        await _send_ws(ws, {"type": "user_inject.rejected",
+                                            "sessionId": session_id,
+                                            "message": "clientMessageId must be a string"})
+                        continue
+                    if isinstance(client_message_id, str) and len(client_message_id) > 512:
+                        await _send_ws(ws, {"type": "user_inject.rejected",
+                                            "sessionId": session_id,
+                                            "clientMessageId": client_message_id,
+                                            "message": "clientMessageId is too long"})
+                        continue
+                    # Session is the durable address.  All browser messages
+                    # enter the canonical server queue, independent of worker
+                    # liveness; the ack means durable enqueue, not Provider
+                    # completion.
+                    if normalized_parts is None:
+                        result = await worker.enqueue_user_message(
+                            session_id, text, client_message_id)
+                    else:
+                        result = await worker.enqueue_user_message(
+                            session_id, text, client_message_id, parts=normalized_parts)
+                    if result.get("status") == "error":
+                        await _send_ws(ws, {"type": "user_inject.rejected",
+                                            "sessionId": session_id,
+                                            "clientMessageId": client_message_id,
+                                            "queueItemId": result.get("queueItemId"),
+                                            "message": result.get("result", "send failed")})
+                    else:
+                        await _send_ws(ws, {"type": "user_inject.accepted",
+                                            "sessionId": session_id,
+                                            "workerId": result.get("workerId"),
+                                            "clientMessageId": client_message_id,
+                                            "queueItemId": result.get("queueItemId"),
+                                            "queueRevision": getattr(
+                                                _summary_session_get(session_id),
+                                                "queue_revision", 0)})
+            elif msg_type == "worker_control":
+                session_id = msg.get("sessionId")
+                worker_id = msg.get("workerId")
+                control = msg.get("control")
+                if session_id and isinstance(control, dict):
+                    result = await worker.send_session_control(session_id, control)
+                    if isinstance(result, str):
+                        await _send_ws(ws, {"type": "error", "message": result})
+                    elif result is None:
+                        await _send_ws(ws, {"type": "error", "message": "Worker not found"})
+                elif worker_id and isinstance(control, dict):
+                    err = await worker.send_control_message(worker_id, control)
+                    if err:
+                        await _send_ws(ws, {"type": "error", "message": err})
+            elif msg_type == "sync_interactive":
+                # Optional sessionIds narrows the replay; omitted means all
+                # live workers visible to this dashboard, matching /ws's
+                # existing broadcast scope.
+                raw_session_ids = msg.get("sessionIds")
+                if raw_session_ids is not None and not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "sessionIds must be a list",
+                    })
+                    continue
+                replay_request_id = msg.get("replayRequestId")
+                if replay_request_id is not None and (
+                    not isinstance(replay_request_id, str) or not replay_request_id
+                    or len(replay_request_id) > 512
+                ):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "replayRequestId must be a non-empty string of at most 512 characters",
+                    })
+                    continue
+                replay_generation = msg.get("replayGeneration")
+                if replay_generation is not None and (
+                    not isinstance(replay_generation, int)
+                    or isinstance(replay_generation, bool)
+                ):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "replayGeneration must be an integer",
+                    })
+                    continue
+                # A reconnecting client can reach this branch from both its
+                # open callback and its already-open mount path. A request ID
+                # makes that handshake idempotent at the server boundary too;
+                # no message/content dedupe is involved here.
+                if replay_request_id is not None and replay_request_id == last_replay_request_id:
+                    continue
+                if replay_request_id is not None:
+                    last_replay_request_id = replay_request_id
+                await _replay_pending_interactions(
+                    ws,
+                    raw_session_ids,
+                    replay_generation=replay_generation,
+                    replay_request_id=replay_request_id,
+                )
+            elif msg_type == "resync":
+                raw_session_ids = msg.get("sessionIds")
+                if raw_session_ids is not None and not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {
+                        "type": "error",
+                        "message": "sessionIds must be a list",
+                    })
+                    continue
+                await _send_resync_snapshot(
+                    ws,
+                    raw_session_ids,
+                    include_all_sessions=bool(msg.get("includeAllSessions", True)),
+                    include_identity=bool(msg.get("includeIdentity", False)),
+                )
+    except WebSocketDisconnect:
+        pass
+    finally:
+        client = _ws_outbound.get(ws)
+        if client is not None:
+            await client.close_now()
+        else:
+            ws_clients.discard(ws)
+
+
+# ── WebSocket: Main Agent ──
+
+@app.websocket("/ws/agent")
+async def ws_agent_endpoint(ws: WebSocket):
+    await ws.accept()
+    agent_clients.add(ws)
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type == "subscribe":
+                # 订阅：{"type":"subscribe","eventTypes":[...],"sessionIds":[...]}
+                # - eventTypes: "*" 订阅全部；[] 或省略 → 默认（仅 worker.result）
+                # - sessionIds: 关心的 session 列表；省略 → 订阅所有 session 的 result
+                sub = agent_subscriptions.get(ws)
+                if sub is None:
+                    sub = AgentSubscription()
+                    agent_subscriptions[ws] = sub
+                raw_types = msg.get("eventTypes")
+                if raw_types is not None:
+                    if not isinstance(raw_types, list):
+                        await _send_ws(ws, {"type": "error", "message": "eventTypes must be a list"})
+                        continue
+                    types = set(str(t) for t in raw_types)
+                    sub.event_types = types if types else set(_AGENT_DEFAULT_SUBSCRIPTION)
+                raw_sids = msg.get("sessionIds")
+                if raw_sids is not None:
+                    if not isinstance(raw_sids, list):
+                        await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"})
+                        continue
+                    sub.session_ids = set(str(s) for s in raw_sids)
+                await _send_ws(ws, {
+                    "type": "subscribed",
+                    "eventTypes": sorted(sub.event_types),
+                    "sessionIds": sorted(sub.session_ids),
+                })
+
+            elif msg_type == "reconnect":
+                # 断线重连补发：{"type":"reconnect","sessionIds":[...]}
+                # 补发各 session 未消费的终态 worker.result（成功/失败/取消）。
+                # resultCursors 是新的 durable cursor；缺失时保留旧版 latest
+                # compatibility 行为。
+                raw_session_ids = msg.get("sessionIds") or []
+                if not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"}, kind="agent")
+                    continue
+                cursors = msg.get("resultCursors")
+                if cursors is not None and not isinstance(cursors, dict):
+                    await _send_ws(ws, {"type": "error", "message": "resultCursors must be an object"}, kind="agent")
+                    continue
+                await _replay_agent_results(ws, raw_session_ids, cursors)
+
+            elif msg_type == "resync":
+                raw_session_ids = msg.get("sessionIds") or []
+                if not isinstance(raw_session_ids, list):
+                    await _send_ws(ws, {"type": "error", "message": "sessionIds must be a list"}, kind="agent")
+                    continue
+                cursors = msg.get("resultCursors")
+                if cursors is not None and not isinstance(cursors, dict):
+                    await _send_ws(ws, {"type": "error", "message": "resultCursors must be an object"}, kind="agent")
+                    continue
+                await _send_resync_snapshot(
+                    ws,
+                    raw_session_ids,
+                    include_all_sessions=bool(msg.get("includeAllSessions", False)),
+                    include_identity=bool(msg.get("includeIdentity", False)),
+                )
+                if cursors is not None:
+                    await _replay_agent_results(ws, raw_session_ids, cursors)
+
+            elif msg_type == "task":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if session_id and text:
+                    w = worker.find_alive_worker_by_session(session_id)
+                    if not w:
+                        result = await worker.create_worker(session_id)
+                        if isinstance(result, str):
+                            await _send_ws(ws, {"type": "error", "message": result})
+                            continue
+                        else:
+                            w = result
+                    err = await worker.send_task(w.worker_id, text, source="agent")
+                    if err:
+                        await _send_ws(ws, {"type": "error", "message": err})
+
+            elif msg_type == "spawn":
+                try:
+                    params = _build_session_params(msg)
+                except ValueError as exc:
+                    await _send_ws(ws, {"type": "error", "message": str(exc)})
+                    continue
+                # 名称校验与 HTTP spawn 对齐（缺名/重名此前会静默建出重复名 session）
+                err_name = _check_session_name(params.get("name", "default"))
+                if err_name:
+                    await _send_ws(ws, {"type": "error", "message": err_name})
+                    continue
+                s = sess.create(**params)
+                result = await worker.create_worker(s.id)
+                if isinstance(result, str):
+                    await _send_ws(ws, {"type": "error", "message": result})
+                else:
+                    await _send_ws(ws, {
+                        "type": "worker.spawned",
+                        "sessionId": s.id,
+                        "workerId": result.worker_id,
+                        "generation": result.generation,
+                        "name": s.name,
+                        "status": result.status,
+                        "model": s.model,
+                    })
+
+            elif msg_type == "assign":
+                session_id = msg.get("sessionId")
+                text = msg.get("text")
+                if not session_id or not text:
+                    await _send_ws(ws, {"type": "error", "message": "sessionId and text required"})
+                    continue
+                result = await worker.assign(session_id, text, source="agent")
+                await _send_ws(ws, {"type": "assign.result", **result})
+
+            elif msg_type == "send":
+                worker_id = msg.get("workerId")
+                text = msg.get("text")
+                if not worker_id or not text:
+                    await _send_ws(ws, {"type": "error", "message": "workerId and text required"})
+                    continue
+                result = await worker.send(worker_id, text, source="agent")
+                await _send_ws(ws, {"type": "send.result", **result})
+
+            elif msg_type == "kill":
+                session_id = msg.get("sessionId") or msg.get("workerId")
+                result = await worker.kill_session_worker(session_id)
+                if isinstance(result, str):
+                    await _send_ws(ws, {"type": "error", "message": result})
+
+            elif msg_type == "list":
+                sessions = await _store_read(sess.list_all, load_history=False)
+                pages = await _store_read(
+                    _history_pages_for, [s.id for s in sessions], 50)
+                app_config = load_config()
+                await _send_ws(ws, {
+                    "type": "session.list",
+                    "sessions": [_session_list_api(
+                        s, page=pages.get(s.id), app_config=app_config)
+                                 for s in sessions],
+                })
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        client = _ws_outbound.get(ws)
+        if client is not None:
+            await client.close_now()
+        else:
+            agent_clients.discard(ws)
+            agent_subscriptions.pop(ws, None)
+
+
+# ── Session API ──
+
+@app.post("/api/notifications/send")
+async def api_notification_send(data: dict):
+    """Send a best-effort Pan system notification for an accessible Session."""
+    session_id = data.get("sessionId")
+    s = sess.get(session_id) if isinstance(session_id, str) else None
+    if not s:
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    payload = notifications.dispatch_reminder(data.get("title", "Notification"), data.get("body", ""))
+    return {"ok": True, "notification": payload}
+
+
+@app.post("/api/sessions/{session_id}/reminders")
+async def api_register_reminder(session_id: str, data: dict):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    try:
+        item = reminders.register(session_id, data.get("dueAt"), data.get("title", "Reminder"), data.get("body", ""))
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_due_at", "message": str(exc)}}
+    return {"ok": True, "reminder": item}
+
+
+@app.get("/api/sessions/{session_id}/reminders")
+async def api_list_reminders(session_id: str):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    return {"ok": True, "reminders": reminders.list_for_session(session_id)}
+
+
+@app.delete("/api/sessions/{session_id}/reminders/{reminder_id}")
+async def api_cancel_reminder(session_id: str, reminder_id: str):
+    if not sess.get(session_id):
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    item = reminders.cancel(session_id, reminder_id)
+    if not item:
+        return {"ok": False, "error": {"code": "reminder_not_found", "message": "Reminder not found or already delivered"}}
+    return {"ok": True, "reminder": item}
+
+@app.get("/api/sessions", response_class=NetworkJSONResponse)
+async def api_list_sessions(summary: int = 0, workspaceId: str | None = None,
+                            request: Request = None):
+    """List all sessions (includes worker status if active).
+
+    summary=1 → lean payload [{id, name, adapter, workerStatus, updatedAt,
+    managedBy}] without history/usage (供 MCP session_list(summary=true) 等
+    轻量巡检，避免全量传输再过滤). Default stays the full payload for
+    backward compatibility.
+    """
+    # Both list variants use the shallow metadata loader.  The legacy full
+    # list shape still contains its bounded 50-message tail, but the tail is
+    # read through the paging boundary instead of hydrating the JSONL file.
+    # The store read and every per-Session page read are blocking filesystem
+    # work, so they run on a worker thread (BE-3); the response shaping below
+    # stays on the event loop.
+    if workspaceId is not None and workspaceId not in ("", "ungrouped"):
+        # The workspace store has no lock of its own; keep its (bounded,
+        # cached) lookup on the event loop rather than sharing it with a
+        # worker thread.
+        if workspaces.get(workspaceId) is None:
+            return await _history_network_response({"sessions": [], "workspaceId": workspaceId}, request)
+    sessions = await _store_read(sess.list_all, load_history=False)
+    manager_by_id = {s.id: s for s in sessions} if summary else None
+    if workspaceId == "ungrouped":
+        # ``ungrouped`` is a stable query alias; an empty workspaceId is kept
+        # equivalent to the historical all-sessions response.
+        sessions = [s for s in sessions if not sess.effective_workspace_ids(s)]
+    elif workspaceId:
+        sessions = [s for s in sessions if workspaceId in sess.effective_workspace_ids(s)]
+    # Resolve the shared pin snapshot once. Looking up every Session through
+    # session_pin_projection repeats a linear search of all pinned IDs and
+    # makes a cold list request quadratic when many Sessions are pinned.
+    pin_state = await _store_read(sess.session_pin_state)
+    pin_order_by_id = {
+        session_id: order
+        for order, session_id in enumerate(pin_state["sessionIds"])
+    }
+    def pin_projection_for(session_id: str) -> dict:
+        order = pin_order_by_id.get(session_id)
+        return {
+            "pinned": order is not None,
+            "pinOrder": order,
+            "pinRevision": pin_state["pinRevision"],
+        }
+    if summary:
+        active_workers = worker.find_alive_workers_by_session()
+        return await _history_network_response({"sessions": [
+            _session_summary(s, active_workers, pin_projection_for(s.id), manager_by_id)
+            for s in sessions
+        ]}, request)
+    pages = await _store_read(
+        _history_pages_for, [s.id for s in sessions], 50)
+    # Resolve dynamic configuration once per response. Reading and deep-merging
+    # config.json for each Session made list shaping perform one filesystem
+    # read per row while the event loop was also serving dashboard heartbeats.
+    app_config = await _store_read(load_config)
+    items = []
+    for s in sessions:
+        api = copy.deepcopy(_session_to_api(
+            s, include_history=False, app_config=app_config,
+            pin_projection=pin_projection_for(s.id), project_links=False))
+        items.append(await _runtime_diag.run_in_executor(
+            "link-projection", _LINK_PROJECTION_EXECUTOR,
+            _project_session_list_row, s.id, api, pages.get(s.id),
+            getattr(s, "history_epoch", None)))
+        # Shaping must stay on the event loop because it can register editor
+        # references. Bound each uninterrupted slice to one Session's tail:
+        # a list storm must not monopolize dashboard heartbeat/worker traffic
+        # while formatting every Session's history in one comprehension.
+        # A zero-delay yield keeps every concurrent list formatter in the
+        # ready queue. A timer yield also lets socket completions and due
+        # heartbeat timers progress before another formatting slice.
+        await asyncio.sleep(0.001)
+    return await _history_network_response({"sessions": items}, request)
+
+
+def _startup_recovery_candidates(sessions) -> list[dict]:
+    """Illegal is the sole pending-recovery state; exclude live Workers."""
+    candidates = []
+    for s in sessions:
+        if not legal_offline.is_illegal(s):
+            continue
+        if worker.find_alive_worker_by_session(s.id) is not None:
+            continue
+        candidates.append({
+            "id": s.id,
+            "name": s.name,
+            "adapter": s.adapter,
+            "workdir": s.workdir,
+            "updatedAt": s.updated_at,
+            "lastLegalWorkerState": s.last_legal_worker_state,  # read-only legacy
+
+        })
+    return candidates
+
+
+def _startup_recovery_record_path() -> Path:
+    return (_PROJECT_DIR / "data" / "startup_recovery"
+            / f"{_STARTUP_RECOVERY_GENERATION}.json")
+
+
+def _write_startup_recovery_record(record: dict) -> None:
+    path = _startup_recovery_record_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(".tmp")
+    temp_path.write_text(
+        json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8",
+    )
+    os.replace(temp_path, path)
+
+
+def _ensure_startup_recovery_record(candidates: list[dict]) -> dict:
+    """Create one durable candidate snapshot per Pan process generation."""
+    path = _startup_recovery_record_path()
+    with _STARTUP_RECOVERY_LOCK:
+        if path.exists():
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                record = None
+            if (isinstance(record, dict)
+                    and record.get("generation") == _STARTUP_RECOVERY_GENERATION):
+                return record
+        now = time.time()
+        record = {
+            "generation": _STARTUP_RECOVERY_GENERATION,
+            "state": "pending" if candidates else "no_candidates",
+            "candidateSnapshot": candidates,
+            "decision": None,
+            "decisionId": None,
+            "attempts": 0,
+            "results": [],
+            "error": None,
+            "claim": None,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        _write_startup_recovery_record(record)
+        return record
+
+
+async def _initialize_startup_recovery(sessions) -> dict:
+    """Snapshot startup candidates and apply any configured server-side policy."""
+    preference = _session_lifecycle_preferences()["startupPreference"]
+    candidates = _startup_recovery_candidates(sessions)
+    if preference == "clear-illegal":
+        candidates = [{"id": s.id, "name": s.name, "adapter": s.adapter}
+                      for s in sessions if legal_offline.is_illegal(s)]
+    record = _ensure_startup_recovery_record(candidates)
+    if preference in {"wake-running", "preserve-running", "clear-illegal"} and record.get("candidateSnapshot"):
+        return await _run_automatic_startup_recovery(record, preference)
+    return record
+
+
+def _read_startup_recovery_record() -> dict | None:
+    path = _startup_recovery_record_path()
+    if not path.exists():
+        return None
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return (record if isinstance(record, dict)
+            and record.get("generation") == _STARTUP_RECOVERY_GENERATION else None)
+
+
+def _startup_recovery_public_record() -> dict:
+    with _STARTUP_RECOVERY_LOCK:
+        record = _read_startup_recovery_record()
+        if record is None:
+            return {
+                "generation": _STARTUP_RECOVERY_GENERATION,
+                "state": "initializing",
+                "candidateSnapshot": [],
+                "decision": None,
+                "attempts": 0,
+                "results": [],
+                "error": None,
+            }
+        if (record.get("state") == "processing"
+                and _STARTUP_RECOVERY_GENERATION not in _STARTUP_RECOVERY_INFLIGHT):
+            # An interrupted request is recoverable only by retrying the same
+            # persisted choice. Broadcast retries use stable message ids.
+            record["state"] = "failed"
+            record["error"] = "The previous recovery attempt was interrupted; retry the same choice."
+            record["updatedAt"] = time.time()
+            _write_startup_recovery_record(record)
+        return json.loads(json.dumps(record, ensure_ascii=False))
+
+
+def _startup_recovery_failed_results(
+    candidates: list[dict], results: object, message: str,
+) -> list[dict]:
+    """Ensure recovery failures have rows the existing prompt can diagnose."""
+    rows = results if isinstance(results, list) else []
+    by_session = {
+        row.get("sessionId"): row for row in rows
+        if isinstance(row, dict) and isinstance(row.get("sessionId"), str)
+    }
+    for candidate in candidates:
+        session_id = candidate.get("id")
+        existing = by_session.get(session_id)
+        if existing is None:
+            row = {
+                "sessionId": session_id,
+                "status": "error",
+                "error": message,
+            }
+            rows.append(row)
+            by_session[session_id] = row
+    if not any(
+        isinstance(row, dict)
+        and row.get("status") not in {"queued", "preserved", "updated"}
+        for row in rows
+    ):
+        rows.append({
+            "sessionId": "startup-recovery",
+            "status": "error",
+            "error": message,
+        })
+    return rows
+
+
+async def _apply_startup_recovery_choice(record: dict, choice: str) -> dict:
+    """Apply one already-durable startup choice and persist its outcome."""
+    results: list[dict] = []
+    error = None
+    try:
+        candidates = record.get("candidateSnapshot", [])
+        if choice == "restart":
+            response = await api_sessions_wake({
+                "sessionIds": [candidate["id"] for candidate in candidates],
+                "source": "user",
+                "clientMessageId": f"startup-recovery:{record['generation']}",
+            })
+            results = response.get("results", [])
+            expected_ids = {candidate["id"] for candidate in candidates}
+            queued_ids = {
+                item.get("sessionId") for item in results
+                if item.get("status") == "queued"
+            }
+            if not response.get("ok") or queued_ids != expected_ids:
+                error = "One or more recovery messages could not be queued. Retry this same choice."
+        elif choice == "preserve-running":
+            results = [
+                {"sessionId": candidate["id"], "status": "preserved",
+                 "illegalOffline": True}
+                for candidate in candidates
+            ]
+        elif choice == "clear-illegal":
+            for candidate in candidates:
+                try:
+                    results.append(await worker.clear_session_illegal_for_startup(candidate["id"]))
+                except Exception as exc:
+                    results.append({"sessionId": candidate["id"], "status": "error", "error": str(exc)})
+            if any(item.get("status") != "updated" for item in results):
+                error = "Some Illegal incidents could not be cleared; inspect owner or persistence errors and retry."
+        else:
+            for candidate in candidates:
+                try:
+                    results.append(await worker.sync_legal_worker_state_to_runtime(
+                        candidate["id"], source="session-recovery/startup-sync-actual",
+                    ))
+                except Exception as exc:
+                    results.append({
+                        "sessionId": candidate["id"],
+                        "status": "error",
+                        "error": str(exc),
+                    })
+            if any(item.get("status") != "updated" for item in results):
+                error = "One or more Session legal states could not be synchronized. Retry this same choice."
+    except asyncio.CancelledError:
+        error = "Startup recovery request was interrupted; retry the same choice."
+        raise
+    except Exception as exc:
+        error = f"Startup recovery failed: {exc}"
+    finally:
+        if error and choice == "restart":
+            results = _startup_recovery_failed_results(
+                record.get("candidateSnapshot", []), results, error,
+            )
+        with _STARTUP_RECOVERY_LOCK:
+            current = _read_startup_recovery_record()
+            if (current is not None
+                    and current.get("decisionId") == record.get("decisionId")):
+                current["state"] = "failed" if error else "completed"
+                current["results"] = results
+                current["error"] = error
+                current["updatedAt"] = time.time()
+                try:
+                    _write_startup_recovery_record(current)
+                finally:
+                    _STARTUP_RECOVERY_INFLIGHT.discard(record["generation"])
+            else:
+                _STARTUP_RECOVERY_INFLIGHT.discard(record["generation"])
+    return _startup_recovery_public_record()
+
+
+async def _run_automatic_startup_recovery(
+    record: dict, preference: str,
+) -> dict:
+    """Persist and apply the configured startup policy before serving requests."""
+    choice = {
+        "wake-running": "restart",
+        "clear-illegal": "clear-illegal",
+        "preserve-running": "preserve-running",
+    }.get(preference)
+    if choice is None or not record.get("candidateSnapshot"):
+        return record
+
+    async with _lifecycle_operation_lock:
+        with _STARTUP_RECOVERY_LOCK:
+            current = _read_startup_recovery_record()
+            if (current is None
+                    or current.get("generation") != record.get("generation")
+                    or current.get("decision") is not None
+                    or current.get("state") != "pending"):
+                return _startup_recovery_public_record()
+            current["state"] = "processing"
+            current["decision"] = choice
+            current["decisionId"] = current.get("decisionId") or uuid.uuid4().hex
+            current["autoPreference"] = preference
+            current["attempts"] = int(current.get("attempts", 0)) + 1
+            current["error"] = None
+            current["updatedAt"] = time.time()
+            # The decision is durable before any broadcast or runtime sync.
+            _write_startup_recovery_record(current)
+            _STARTUP_RECOVERY_INFLIGHT.add(current["generation"])
+
+        result = await _apply_startup_recovery_choice(current, choice)
+        if result.get("state") == "failed":
+            _log(
+                "[startup-recovery] automatic "
+                f"{preference} failed: {result.get('error')}"
+            )
+        return result
+
+
+@app.get("/api/sessions/recovery-candidates")
+async def api_session_recovery_candidates():
+    """Read-only scan of persisted legal-running Sessions with no live Worker."""
+    sessions = await _store_read(sess.list_all, load_history=False)
+    return {"sessions": _startup_recovery_candidates(sessions)}
+
+
+@app.get("/api/main/startup-recovery")
+async def api_main_startup_recovery():
+    """Return this Pan process generation's durable recovery decision record."""
+    record = _read_startup_recovery_record()
+    if record is None:
+        sessions = await _store_read(sess.list_all, load_history=False)
+        record = await asyncio.to_thread(
+            _ensure_startup_recovery_record, _startup_recovery_candidates(sessions),
+        )
+    if record.get("state") == "processing":
+        record = _startup_recovery_public_record()
+    return record
+
+
+@app.post("/api/main/startup-recovery/claim")
+async def api_main_startup_recovery_claim(data: dict):
+    """Claim or renew the single browser tab allowed to show this prompt."""
+    generation = data.get("generation")
+    tab_id = data.get("tabId")
+    if generation != _STARTUP_RECOVERY_GENERATION:
+        raise HTTPException(status_code=409, detail="startup generation changed")
+    if not isinstance(tab_id, str) or not tab_id or len(tab_id) > 128:
+        raise HTTPException(status_code=400, detail="tabId must be a non-empty string")
+    record = _startup_recovery_public_record()
+    if record.get("state") == "initializing":
+        sessions = await _store_read(sess.list_all, load_history=False)
+        record = _ensure_startup_recovery_record(_startup_recovery_candidates(sessions))
+    if record.get("state") in {"no_candidates", "completed"}:
+        return {"ok": True, "claimed": False, "state": record["state"]}
+    now = time.time()
+    with _STARTUP_RECOVERY_LOCK:
+        record = _read_startup_recovery_record()
+        if record is None:
+            raise HTTPException(status_code=503, detail="startup recovery record is unavailable")
+        claim = record.get("claim") or {}
+        same_owner = claim.get("tabId") == tab_id
+        available = not claim.get("tabId") or float(claim.get("leaseUntil", 0)) <= now
+        claimed = same_owner or available
+        if claimed:
+            claim = {"tabId": tab_id, "leaseUntil": now + _STARTUP_RECOVERY_CLAIM_SECONDS}
+            record["claim"] = claim
+            record["updatedAt"] = now
+            _write_startup_recovery_record(record)
+        return {
+            "ok": True,
+            "claimed": claimed,
+            "state": record["state"],
+            "leaseUntil": (claim.get("leaseUntil") if claimed else None),
+            "decision": record.get("decision"),
+            "attempts": record.get("attempts", 0),
+            "error": record.get("error"),
+            "results": record.get("results", []),
+            "candidates": record.get("candidateSnapshot", []),
+        }
+
+
+@app.post("/api/main/startup-recovery/decision")
+async def api_main_startup_recovery_decision(data: dict):
+    """Persist one startup choice before applying its idempotent side effects."""
+    generation = data.get("generation")
+    tab_id = data.get("tabId")
+    choice = data.get("choice")
+    choices = {"restart", "preserve-running", "sync-actual", "clear-illegal"}
+    if generation != _STARTUP_RECOVERY_GENERATION:
+        raise HTTPException(status_code=409, detail="startup generation changed")
+    if not isinstance(tab_id, str) or not tab_id or len(tab_id) > 128:
+        raise HTTPException(status_code=400, detail="tabId must be a non-empty string")
+    if choice not in choices:
+        raise HTTPException(status_code=400, detail="unsupported startup recovery choice")
+
+    async with _lifecycle_operation_lock:
+        if _main_exit_pending or worker._shutdown_started:
+            raise HTTPException(status_code=409, detail="Pan is shutting down")
+        with _STARTUP_RECOVERY_LOCK:
+            record = _read_startup_recovery_record()
+            if record is None:
+                raise HTTPException(status_code=409, detail="startup recovery is not initialized")
+            if not record.get("candidateSnapshot"):
+                raise HTTPException(status_code=409, detail="there are no recovery candidates")
+            if record.get("state") == "completed":
+                if record.get("decision") != choice:
+                    raise HTTPException(status_code=409, detail="a different decision is already complete")
+                return json.loads(json.dumps(record, ensure_ascii=False))
+            if record.get("decision") not in {None, choice}:
+                raise HTTPException(status_code=409, detail="only the original decision may be retried")
+            claim = record.get("claim") or {}
+            if (claim.get("tabId") != tab_id
+                    or float(claim.get("leaseUntil", 0)) <= time.time()):
+                raise HTTPException(status_code=409, detail="startup recovery tab claim expired")
+            if (record.get("state") == "processing"
+                    and _STARTUP_RECOVERY_GENERATION in _STARTUP_RECOVERY_INFLIGHT):
+                return json.loads(json.dumps(record, ensure_ascii=False))
+            record["state"] = "processing"
+            record["decision"] = choice
+            record["decisionId"] = record.get("decisionId") or uuid.uuid4().hex
+            record["attempts"] = int(record.get("attempts", 0)) + 1
+            record["error"] = None
+            record["updatedAt"] = time.time()
+            _write_startup_recovery_record(record)
+            _STARTUP_RECOVERY_INFLIGHT.add(_STARTUP_RECOVERY_GENERATION)
+
+        return await _apply_startup_recovery_choice(record, choice)
+
+
+@app.get("/api/sessions/summary-repair")
+async def api_summary_projection_repair_status():
+    """Expose cold-start summary repair progress without touching history."""
+    return sess.summary_backfill_status()
+
+
+def _workspace_view(workspace: workspaces.Workspace) -> dict:
+    members = [s.id for s in sess.list_all(load_history=False)
+               if workspace.id in sess.effective_workspace_ids(s)]
+    return {
+        "id": workspace.id,
+        "name": workspace.name,
+        "order": workspace.order,
+        "dirs": list(workspace.dirs),
+        "createdAt": workspace.created_at,
+        "updatedAt": workspace.updated_at,
+        "sessionCount": len(members),
+        "sessionIds": members,
+    }
+
+
+def _workspace_name_error(name) -> str | None:
+    if not isinstance(name, str) or not name.strip():
+        return "Workspace name is required"
+    if len(name.strip()) > 128:
+        return "Workspace name too long (max 128)"
+    return None
+
+
+def _workspace_dirs_result(dirs) -> tuple[list[str] | None, str | None]:
+    """Validate a Workspace directory list.
+
+    Every entry must be an absolute path to an existing directory on the Pan
+    server. Paths are canonicalized and de-duplicated; nothing is created or
+    written. Returns ``(normalized, None)`` on success and ``(None, message)``
+    on the first invalid entry.
+    """
+    if not isinstance(dirs, list):
+        return None, "dirs must be an array of absolute paths"
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in dirs:
+        if not isinstance(raw, str) or not raw.strip():
+            return None, "dirs must contain non-empty string paths"
+        candidate = Path(raw.strip())
+        if not candidate.is_absolute():
+            return None, f"Workspace directory must be an absolute path: {raw!r}"
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None, f"Workspace directory does not exist: {raw!r}"
+        if not resolved.is_dir():
+            return None, f"Workspace directory is not a directory: {raw!r}"
+        text = str(resolved)
+        if text not in seen:
+            seen.add(text)
+            normalized.append(text)
+    return normalized, None
+
+
+def _workspace_write_allowed(actor_id: str | None, session: sess.Session) -> bool:
+    """Apply Session's existing managed-scope permission when an actor is given.
+
+    Browser/legacy callers omit actorSessionId and retain the historical
+    trusted local-web behavior.  MCP/future callers can provide it to get an
+    explicit permission check without coupling workspaces to managedBy.
+    """
+    if not actor_id or not session.restrict_to_managed:
+        return True
+    actor = sess.get(actor_id)
+    return bool(actor and (session.managed_by == actor_id or session.id == actor_id
+                           or session.id in actor.managed))
+
+
+@app.get("/api/workspaces")
+async def api_list_workspaces():
+    """List durable workspaces in their independent display order."""
+    return {"workspaces": [_workspace_view(w) for w in workspaces.list_all()]}
+
+
+@app.post("/api/workspaces")
+async def api_create_workspace(data: dict):
+    error = _workspace_name_error(data.get("name"))
+    if error:
+        return {"ok": False, "error": {"code": "invalid_name", "message": error}}
+    name = data["name"].strip()
+    if any(w.name == name for w in workspaces.list_all()):
+        return {"ok": False, "error": {"code": "name_taken", "message": "Workspace name already exists"}}
+    workspace = workspaces.create(name)
+    await broadcast({"type": "workspace.created", "workspaceId": workspace.id})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.get("/api/workspaces/{workspace_id}")
+async def api_get_workspace(workspace_id: str):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.patch("/api/workspaces/{workspace_id}")
+async def api_update_workspace(workspace_id: str, data: dict):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    changes: dict = {}
+    if "name" in data:
+        error = _workspace_name_error(data["name"])
+        if error:
+            return {"ok": False, "error": {"code": "invalid_name", "message": error}}
+        name = data["name"].strip()
+        if any(w.id != workspace_id and w.name == name for w in workspaces.list_all()):
+            return {"ok": False, "error": {"code": "name_taken", "message": "Workspace name already exists"}}
+        changes["name"] = name
+    if "dirs" in data:
+        dirs, dirs_error = _workspace_dirs_result(data["dirs"])
+        if dirs_error:
+            return {"ok": False, "error": {"code": "invalid_dirs", "message": dirs_error}}
+        changes["dirs"] = dirs
+    if changes:
+        workspaces.update(workspace, **changes)
+        await broadcast({"type": "workspace.updated", "workspaceId": workspace_id})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.post("/api/workspaces/order")
+async def api_workspaces_order(data: dict):
+    ids = data.get("workspaceIds")
+    if not isinstance(ids, list) or not all(isinstance(i, str) and i.strip() for i in ids):
+        return {"ok": False, "error": {"code": "invalid_params", "message": "workspaceIds is required"}}
+    error = workspaces.apply_order([i.strip() for i in ids])
+    if error:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": error}}
+    order = [w.id for w in workspaces.list_all()]
+    await broadcast({"type": "workspace.orderUpdated", "order": order})
+    return {"ok": True, "order": order}
+
+
+@app.delete("/api/workspaces/{workspace_id}")
+async def api_delete_workspace(workspace_id: str):
+    if workspaces.get(workspace_id) is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    for session in sess.list_all(load_history=False):
+        # Only roots persist membership. Children follow automatically.
+        if not session.managed_by and workspace_id in session.workspace_ids:
+            session.workspace_ids.remove(workspace_id)
+            await sess.save_async(session)
+    workspaces.delete(workspace_id)
+    await broadcast({"type": "workspace.deleted", "workspaceId": workspace_id})
+    return {"ok": True, "workspaceId": workspace_id}
+
+
+async def _set_workspace_membership(workspace_id: str, session_ids, actor_id=None):
+    workspace = workspaces.get(workspace_id)
+    if workspace is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    if (not isinstance(session_ids, list)
+            or not all(isinstance(sid, str) and sid for sid in session_ids)
+            or len(set(session_ids)) != len(session_ids)):
+        return {"ok": False, "error": {"code": "invalid_session_ids", "message": "sessionIds must be a unique array"}}
+    for session_id in session_ids:
+        session = sess.get(session_id) if isinstance(session_id, str) else None
+        if session is None:
+            return {"ok": False, "error": {"code": "session_not_found", "message": f"Session {session_id} not found"}}
+        if session.managed_by:
+            return {"ok": False, "error": {"code": "managed_session", "message": f"Detach Session {session_id} before changing its workspace"}}
+        if not _workspace_write_allowed(actor_id, session):
+            return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
+    wanted = set(session_ids)
+    for session in sess.list_all(load_history=False):
+        if not _workspace_write_allowed(actor_id, session):
+            continue
+        if session.managed_by:
+            continue
+        has = workspace_id in session.workspace_ids
+        should = session.id in wanted
+        if should and session.workspace_ids != [workspace_id]:
+            # A Workspace membership update is a move: replace any previous
+            # membership instead of accumulating another Workspace id.
+            session.workspace_ids = [workspace_id]
+            await sess.save_async(session)
+        elif has and not should:
+            session.workspace_ids = []
+            await sess.save_async(session)
+    await broadcast({"type": "workspace.membershipUpdated", "workspaceId": workspace_id,
+                     "sessionIds": [s.id for s in sess.list_all(load_history=False)
+                                     if workspace_id in sess.effective_workspace_ids(s)]})
+    return {"ok": True, "workspace": _workspace_view(workspace)}
+
+
+@app.put("/api/workspaces/{workspace_id}/sessions")
+async def api_set_workspace_sessions(workspace_id: str, data: dict):
+    return await _set_workspace_membership(workspace_id, data.get("sessionIds"), data.get("actorSessionId"))
+
+
+@app.get("/api/workspaces/{workspace_id}/sessions")
+async def api_get_workspace_sessions(workspace_id: str, summary: int = 0):
+    if workspaces.get(workspace_id) is None:
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    sessions = [s for s in await _store_read(sess.list_all, load_history=False)
+                if workspace_id in sess.effective_workspace_ids(s)]
+    if summary:
+        active_workers = worker.find_alive_workers_by_session()
+        return {"ok": True, "workspaceId": workspace_id,
+                "sessions": [_session_summary(s, active_workers) for s in sessions]}
+    pages = await _store_read(
+        _history_pages_for, [s.id for s in sessions], 50)
+    app_config = load_config()
+    return {"ok": True, "workspaceId": workspace_id,
+            "sessions": [_session_list_api(
+                s, page=pages.get(s.id), app_config=app_config)
+                         for s in sessions]}
+
+
+@app.put("/api/sessions/{session_id}/workspaces")
+async def api_set_session_workspaces(session_id: str, data: dict):
+    session = sess.get(session_id)
+    if session is None:
+        return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+    workspace_ids = data.get("workspaceIds")
+    if (not isinstance(workspace_ids, list)
+            or not all(isinstance(wid, str) and wid for wid in workspace_ids)
+            or len(set(workspace_ids)) != len(workspace_ids)):
+        return {"ok": False, "error": {"code": "invalid_workspace_ids", "message": "workspaceIds must be a unique array"}}
+    if len(workspace_ids) > 1:
+        return {"ok": False, "error": {"code": "invalid_workspace_ids", "message": "A Session can belong to at most one Workspace"}}
+    if not all(isinstance(wid, str) and workspaces.get(wid) for wid in workspace_ids):
+        return {"ok": False, "error": {"code": "workspace_not_found", "message": "Workspace not found"}}
+    if not _workspace_write_allowed(data.get("actorSessionId"), session):
+        return {"ok": False, "error": {"code": "forbidden", "message": "Workspace membership is restricted"}}
+    if session.managed_by:
+        return {"ok": False, "error": {"code": "managed_session", "message": "Detach a managed Session before changing its workspace"}}
+    session.workspace_ids = list(workspace_ids)
+    await sess.save_async(session)
+    await broadcast({"type": "session.workspaceUpdated", "sessionId": session_id,
+                     "workspaceIds": sess.effective_workspace_ids(session)})
+    return {"ok": True, "session": _session_to_api(session)}
+
+
+@app.post("/api/sessions")
+async def api_create_session(data: dict):
+    """Create a new Session (no worker spawned)."""
+    try:
+        params = await _plugin_io(_build_session_params, data)
+    except ValueError as e:
+        return {"error": str(e)}
+    name = params["name"]
+    err = _check_session_name(name)
+    if err:
+        return {"error": err}
+
+    while True:
+        groups = _action_groups(params.get('adapter_config', {}))
+        async with _plugin_coordinator().claim(shared=groups, exclusive={'session-name:' + name}):
+            # Recompile after waiting: unbuild may have retired the selection.
+            params = await _plugin_io(_build_session_params, data)
+            if not _action_groups(params.get('adapter_config', {})) <= groups:
+                continue
+            err = await _plugin_io(_check_session_name, name)
+            if err:
+                return {'error': err}
+            s = await _plugin_io(sess.create, **params)
+            break
+    await broadcast({
+        "type": "session.created",
+        "sessionId": s.id,
+        "name": s.name,
+    })
+    return _session_to_api(s)
+
+
+@app.post("/api/sessions/order")
+async def api_sessions_order(data: dict):
+    """Persist a custom display order for the session list (drag & drop).
+
+    Body: {"sessionIds": ["ses_a", "ses_b", ...]} — desired display order.
+    - sessionIds must be an array of unique, existing session id strings;
+    - sessions not listed keep their current relative order after the
+      listed ones (partial reorder is allowed);
+    - afterwards every session carries an explicit integer order value;
+      sessions created later (order=None) sort to the end until reordered.
+
+    Response: {"ok": true, "order": [full session id order]} or
+    {"ok": false, "error": {code, message}}. Broadcasts
+    {"type": "session.orderUpdated", "order": [...]}.
+
+    快捷管理（拖到另一张卡片正中间 = 由对方 manage）不需要新端点：直接复用
+    POST /api/claim（managerId=被拖入的卡片 B，sessionId=A）。
+    """
+    ids = data.get("sessionIds")
+    if not isinstance(ids, list) or \
+            not all(isinstance(i, str) and i.strip() for i in ids):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "sessionIds (array of session id strings) is required"}}
+    ids = [i.strip() for i in ids]
+    if len(set(ids)) != len(ids):
+        return {"ok": False, "error": {
+            "code": "duplicate_session_ids",
+            "message": "sessionIds contains duplicates"}}
+    err = sess.apply_order(ids)
+    if err:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": err}}
+    order = [s.id for s in sess.list_all(load_history=False)]
+    await broadcast({"type": "session.orderUpdated", "order": order})
+    return {"ok": True, "order": order}
+
+
+@app.post("/api/sessions/{session_id}/pin")
+async def api_set_session_pin(session_id: str, data: dict):
+    """Set one Session's shared pin state without changing custom order."""
+    pinned = data.get("pinned")
+    if not isinstance(pinned, bool):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "pinned (boolean) is required"}}
+    was_pinned = bool(sess.session_pin_projection(session_id).get("pinned"))
+    try:
+        state, error = sess.set_session_pinned(session_id, pinned)
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "pin_persist_failed", "message": str(exc) or "Could not persist pin state"}}
+    if error:
+        return {"ok": False, "error": {
+            "code": "session_not_found", "message": error}}
+    await broadcast({
+        "type": "session.pinsUpdated",
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    })
+    order = state["sessionIds"].index(session_id) if pinned else None
+    # Unread recording policy: a pin transition can exclude/include this
+    # Session for the {"pinned"} scope; align its unread immediately. The
+    # decision is re-derived under the Session lock with the pre-change pin
+    # fact, so a second pin edit or a concurrent apply cannot be answered from
+    # a stale snapshot.
+    target = sess.get_cached(session_id)
+    if target is None:
+        target = sess.get(session_id, load_history=False)
+    if isinstance(target, sess.Session):
+        await _align_session_activation_transition(
+            target, pinned_before=was_pinned)
+    return {
+        "ok": True,
+        "pinned": pinned,
+        "pinOrder": order,
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    }
+
+
+@app.get("/api/sessions/{session_id}/draft")
+async def api_get_session_draft(session_id: str):
+    """Read one Session's unsent composer draft for a cold composer load.
+
+    Deliberately separate from GET /api/sessions: drafts are loaded lazily for
+    the one selected Session, never scanned across Sessions, and never folded
+    into the session list or the WebSocket summary.
+
+    A damaged or unreadable sidecar is reported as ``draft_unreadable``, never
+    as an empty draft: telling the client "no draft" when a file exists would
+    make it overwrite real unsent text with whatever it types next.
+    """
+    try:
+        return await asyncio.to_thread(session_drafts.read_draft, session_id)
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_drafts.DraftUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "draft_read_failed", "message": str(exc) or "Could not read draft"}}
+
+
+@app.put("/api/sessions/{session_id}/draft")
+async def api_put_session_draft(session_id: str, data: dict | None = None):
+    """Compare-and-set one Session's unsent composer draft.
+
+    Body: ``{"baseRevision": <int|null>, "draft": {...}|null}``.  ``null``
+    baseRevision means "create only if absent" (a first save that refuses to
+    clobber an existing draft); an integer must equal the revision the caller
+    last read or the write is rejected with the current draft attached.  A
+    ``null`` draft is a versioned tombstone, not a delete, so a save that was
+    already in flight when the composer cleared cannot resurrect the text.
+
+    Failures are reported honestly (``persist_failed`` / ``too_large`` /
+    ``conflict``) and the client keeps its unsaved local copy either way.
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "draft body must be an object"}}
+    base_revision = data.get("baseRevision")
+    if base_revision is not None and (
+        isinstance(base_revision, bool)
+        or not isinstance(base_revision, int)
+        or base_revision < 0
+    ):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "baseRevision must be null or a non-negative integer"}}
+    try:
+        state = await asyncio.to_thread(
+            session_drafts.write_draft, session_id, base_revision, data.get("draft"),
+        )
+    except session_drafts.DraftSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_drafts.DraftConflict as exc:
+        # The caller is behind.  Hand back the authoritative draft so it can
+        # merge or surface the conflict instead of overwriting on a stale read.
+        return {"ok": False, "error": {
+            "code": "draft_conflict", "message": "Draft changed; reload before saving"},
+            **exc.current}
+    except session_drafts.DraftUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write: reporting
+        # this as "absent" is what would let a create-if-absent save destroy the
+        # text the file still holds.
+        return {"ok": False, "error": {
+            "code": "draft_unreadable", "message": str(exc)}}
+    except session_drafts.DraftTooLarge as exc:
+        return {"ok": False, "error": {
+            "code": "draft_too_large", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {
+            "code": "invalid_draft", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "draft_persist_failed",
+            "message": str(exc) or "Could not persist draft"}}
+    # No WS broadcast: a draft is one person's unsent text, not shared Session
+    # state.  Broadcasting it would push keystrokes to every open client, put
+    # draft bodies in the session summary, and overwrite other clients'
+    # composers with text they are not editing.
+    return {"ok": True, **state}
+
+
+@app.get("/api/sessions/{session_id}/bookmarks")
+async def api_get_session_bookmarks(session_id: str):
+    """Read one Session's message bookmarks for a cold client load.
+
+    Deliberately separate from GET /api/sessions: bookmarks are loaded
+    lazily for the one selected Session, never scanned across Sessions.
+
+    A damaged or unreadable sidecar is reported as ``bookmarks_unreadable``,
+    never as an empty set: telling the client "no bookmarks" when a file
+    exists would make the next write destroy the entries it still holds.
+    ``dangling`` lists bookmarks whose target row no longer exists (for
+    example after an ambiguous reimport re-id); they are kept on disk and
+    excluded from projection rather than silently dropped or re-matched.
+    """
+    try:
+        envelope, dangling = await asyncio.gather(
+            asyncio.to_thread(session_bookmarks.read_bookmarks, session_id),
+            asyncio.to_thread(session_bookmarks.dangling_bookmarks, session_id),
+        )
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        return {"ok": False, "error": {
+            "code": "bookmarks_read_failed", "message": str(exc) or "Could not read bookmarks"}}
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "revision": envelope["revision"],
+        "updatedAt": envelope["updatedAt"],
+        "bookmarks": envelope["bookmarks"],
+        "dangling": dangling,
+    }
+
+
+async def _mutate_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None, *, add: bool):
+    """Add or remove one bookmark; body is ``{"baseRevision": <int|null>}``.
+
+    Only durable Pan message identities (``pan:<uuid>``) are accepted.
+    Additions resolve the identity against this Session's own history first
+    (covering blocks pagination has not loaded), so a bookmark can never
+    address another Session's block, a positional ``legacy:``/``msg_`` id or
+    an invented uuid.  Removals operate on this Session's own store and stay
+    available for dangling entries.
+
+    ``baseRevision`` gives compare-and-set semantics for dual clients: it
+    must equal the revision the caller last read, or the write is rejected
+    with the current envelope attached.  Omitted/null applies
+    unconditionally; add and remove are idempotent, so a retry repeating the
+    desired state is a successful no-op that neither writes nor bumps the
+    revision.  The WS event is published only after the durable commit and
+    only when the state actually changed; a broadcast failure never fails
+    the already-committed write.
+    """
+    if data is not None and not isinstance(data, dict):
+        return {"ok": False, "error": {
+            "code": "invalid_params", "message": "bookmark body must be an object"}}
+    base_revision = (data or {}).get("baseRevision")
+    try:
+        if add:
+            result = await asyncio.to_thread(
+                session_bookmarks.add_bookmark, session_id, message_id, base_revision)
+        else:
+            result = await asyncio.to_thread(
+                session_bookmarks.remove_bookmark, session_id, message_id, base_revision)
+    except session_bookmarks.BookmarkSessionMissing as exc:
+        return {"ok": False, "error": {"code": "session_not_found", "message": str(exc)}}
+    except session_bookmarks.BookmarkTargetUnresolved as exc:
+        return {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
+    except session_bookmarks.BookmarkConflict as exc:
+        # The caller is behind.  Hand back the authoritative envelope so it
+        # can re-read instead of overwriting on a stale base.
+        return {"ok": False, "error": {
+            "code": "bookmark_conflict", "message": "Bookmarks changed; reload before saving"},
+            **exc.current}
+    except session_bookmarks.BookmarkUnreadable as exc:
+        # The sidecar exists but cannot be parsed.  Refuse the write:
+        # reporting this as "absent" is what would let a create-if-absent
+        # save destroy the bookmarks the file still holds.
+        return {"ok": False, "error": {
+            "code": "bookmarks_unreadable", "message": str(exc)}}
+    except session_bookmarks.BookmarkTooMany as exc:
+        return {"ok": False, "error": {
+            "code": "bookmarks_too_many", "message": str(exc)}}
+    except ValueError as exc:
+        return {"ok": False, "error": {"code": "invalid_params", "message": str(exc)}}
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "bookmark_persist_failed",
+            "message": str(exc) or "Could not persist bookmark"}}
+    if result["changed"]:
+        try:
+            await broadcast({
+                "type": "bookmarks.changed",
+                "sessionId": session_id,
+                "revision": result["revision"],
+                "action": "added" if add else "removed",
+                "messageIds": [message_id],
+            })
+        except Exception as exc:  # noqa: BLE001 - the durable write already committed
+            _log(f"[bookmarks] broadcast failed for {session_id}: {type(exc).__name__}")
+    return {
+        "ok": True,
+        "sessionId": session_id,
+        "messageId": message_id,
+        "bookmarked": add,
+        "changed": result["changed"],
+        "revision": result["revision"],
+        "updatedAt": result["updatedAt"],
+        "bookmarks": result["bookmarks"],
+        "target": result["target"],
+    }
+
+
+@app.put("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_add_session_bookmark(session_id: str, message_id: str,
+                                   data: dict | None = None):
+    """Bookmark one message; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=True)
+
+
+@app.delete("/api/sessions/{session_id}/bookmarks/{message_id}")
+async def api_remove_session_bookmark(session_id: str, message_id: str,
+                                      data: dict | None = None):
+    """Remove one bookmark; idempotent and compare-and-set capable."""
+    return await _mutate_session_bookmark(session_id, message_id, data, add=False)
+
+
+@app.post("/api/sessions/{session_id}/unread-done/ack")
+async def api_ack_session_unread_done(session_id: str, data: dict | None = None):
+    """Acknowledge unread done up to an observed done-generation cursor.
+
+    Body: {"observed": <non-negative int>} — REQUIRED.  It is the done
+    generation (``unreadDoneGeneration``) the caller has actually seen, never a
+    count.  The server advances its read cursor monotonically:
+
+        observed_clamped = min(observed, generation)
+        read = max(read, observed_clamped);  unread = generation - read
+
+    Consequences: an identical ack retried after a lost response is idempotent;
+    an old cursor arriving late can never clear generations produced after it
+    (a stale ``count - observed`` subtraction could); a done landing while the
+    ack is in flight stays unread.  There is deliberately no bare "clear
+    everything" mode — the observed cursor is the only race boundary.
+
+    The new cursor is published only after persistence succeeds.  A failure
+    returns no success or broadcast, so a later GET cannot mask an
+    unpersisted clear.  Permission boundary is the same as every other Session
+    route; history, terminal results and report routes are untouched.
+
+    Response: {"ok": true, "unreadDoneCount": <projected count>,
+    "unreadDoneGeneration": <gen>, "unreadDoneReadGeneration": <projected
+    read>} or {"ok": false, "error": {code, message}}. Count and read follow
+    the unread-recording policy projection, so an excluded Session always
+    reports 0 even while its durable cursors still differ.
+    """
+    observed_raw = data.get("observed") if isinstance(data, dict) else None
+    if (isinstance(observed_raw, bool) or not isinstance(observed_raw, int)
+            or observed_raw < 0):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "observed (non-negative done generation) is required"}}
+    # Finish the acknowledgement even if the client disconnects.  Cancelling
+    # after a successful disk write must not roll back its durable read cursor.
+    return await sess.await_persistence(asyncio.create_task(
+        _ack_session_unread_done(session_id, observed_raw)))
+
+
+async def _ack_session_unread_done(session_id: str, observed_raw: int):
+    async with worker.unread_done_lock(session_id):
+        # Selected/active Sessions normally already have a canonical cache
+        # object. Avoid queueing that memory lookup behind unrelated cold
+        # reads. Cache misses still use the dedicated read thread, and the
+        # commit rechecks file existence inside the Session write gate.
+        s = sess.get_cached(session_id)
+        if s is None:
+            s = await _store_read(sess.get, session_id, load_history=False)
+        if not s:
+            return {"ok": False, "error": {
+                "code": "session_not_found",
+                "message": f"Session {session_id} not found"}}
+        # This transaction and the terminal commit share unread_done_lock.  A new
+        # done cannot interleave with the awaited cursor commit.
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        prev_read = max(0, int(getattr(s, "unread_done_read_generation", 0) or 0))
+        observed = min(observed_raw, generation)
+        new_read = max(prev_read, observed)
+        if new_read != prev_read:
+            try:
+                await sess.ack_unread_done_async(s, new_read)
+            except FileNotFoundError:
+                return {"ok": False, "error": {
+                    "code": "session_not_found",
+                    "message": f"Session {session_id} not found"}}
+            except OSError as exc:
+                # The cursor was staged and never published on failure.
+                return {"ok": False, "error": {
+                    "code": "ack_persist_failed",
+                    "message": str(exc) or "Could not persist unread ack"}}
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": s.id,
+                "session": _session_summary(s),
+            })
+        (projected_count, projected_generation,
+         projected_read, _projected_tracking) = unread_policy.unread_cursor_projection(s)
+        return {
+            "ok": True,
+            "unreadDoneCount": projected_count,
+            "unreadDoneGeneration": projected_generation,
+            "unreadDoneReadGeneration": projected_read,
+        }
+
+
+# ── Unread recording policy coordination ──
+#
+# Transition points that can flip a Session's record decision (settings saves,
+# bell edits, pin edits, Session-menu actions, startup) align the durable
+# state and broadcast the result. Every decision is re-derived *under* the
+# Session's unread_done_lock from the freshest facts, and the commit reuses
+# the acknowledgement persistence primitive (staged cursors/override + atomic
+# replace, published only after success), so alignment never interleaves with
+# a terminal generation commit and never acts on a stale snapshot. A global
+# apply carries a generation: a newer apply supersedes an older one instead of
+# letting the older one commit after it. A failed alignment leaves the stored
+# value untouched and is reported to its caller — an override that could not
+# be removed keeps the Session recorded, and every projection shows that real
+# state (not a pretend zero); the next terminal commit, settings apply or
+# Reapply retries the durable alignment.
+
+_UNREAD_ACTION_VALUES = ("enable-tracking", "mark-unread", "clear-unread")
+
+
+def _pinned_flag_for_scopes(s: sess.Session, *scopes) -> bool | None:
+    """Resolve the shared pin fact once when any scope set depends on it."""
+    if any("pinned" in scope for scope in scopes):
+        return bool(sess.session_pin_projection(s.id).get("pinned"))
+    return None
+
+
+async def _apply_unread_alignment_locked(
+    s: sess.Session, *, zero_unread: bool, remove_override: bool,
+) -> str:
+    """Execute an alignment decision; reports committed/noop/failed.
+
+    The caller derived the decision and holds this Session's unread_done_lock,
+    so this cannot interleave with a terminal commit or another unread action.
+    The cursors/override are re-read inside the lock and the write is one
+    atomic ticket that publishes only after success (a failed write reports
+    "failed" and leaves the stored state untouched).
+    """
+    generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+    read_generation = max(0, int(
+        getattr(s, "unread_done_read_generation", 0) or 0))
+    target_read = (
+        generation if zero_unread and read_generation < generation else None)
+    remove = (
+        remove_override
+        and unread_policy.session_unread_recording_override(s) is not None)
+    if target_read is None and not remove:
+        return "noop"
+    try:
+        await sess.commit_unread_state_async(
+            s,
+            read_generation=target_read,
+            unread_recording_override=(
+                None if remove else sess._UNREAD_OVERRIDE_UNSET),
+        )
+    except FileNotFoundError:
+        return "failed"
+    except OSError as exc:
+        _log(f"[Pan] unread-recording alignment failed for {s.id}: {exc}")
+        return "failed"
+    await broadcast({
+        "type": "session.updated",
+        "sessionId": s.id,
+        "session": _session_summary(s),
+    })
+    return "committed"
+
+
+async def _align_session_to_policy(
+    s: sess.Session, *, before_scopes, after_scopes, clear_overrides: bool,
+    apply_generation: int | None = None,
+) -> str:
+    """Align one Session to the policy; committed/noop/failed/superseded.
+
+    The decision (override, bell, pin, and both scope sides) is re-derived
+    *under* this Session's lock from the freshest facts, so a per-Session
+    Enable/Mark/clear that lands while an apply is scanning can neither be
+    missed against a stale outside-the-lock snapshot nor be overwritten by an
+    older decision. When ``apply_generation`` is given and a newer apply has
+    started, this returns "superseded" without committing — the newer apply
+    owns the convergence, and an older apply can never commit after it.
+    """
+    async with worker.unread_done_lock(s.id):
+        if (apply_generation is not None
+                and unread_policy.current_unread_recording_apply_generation()
+                != apply_generation):
+            return "superseded"
+        bridge = unread_policy.msg_bridge_enabled(s)
+        pinned = _pinned_flag_for_scopes(s, before_scopes, after_scopes)
+        before_record = unread_policy.should_record_unread(
+            s, scopes=before_scopes, pinned=pinned, bridge=bridge)
+        remove_override = (
+            clear_overrides
+            and unread_policy.session_unread_recording_override(s) is not None)
+        after_record = (
+            unread_policy.is_scope_recorded(
+                after_scopes, bridge=bridge, pinned=bool(pinned))
+            if remove_override
+            else unread_policy.should_record_unread(
+                s, scopes=after_scopes, pinned=pinned, bridge=bridge))
+        zero_unread = not (before_record and after_record)
+        return await _apply_unread_alignment_locked(
+            s, zero_unread=zero_unread, remove_override=remove_override)
+
+
+async def _align_session_activation_transition(
+    s: sess.Session, *, bridge_before: bool | None = None,
+    pinned_before: bool | None = None,
+) -> str:
+    """Align one Session after a bell/pin change; committed/noop/failed.
+
+    ``bridge_before``/``pinned_before`` carry the pre-change fact of the
+    operation; the post-change fact, the scope set, and any override are
+    re-read under the lock, so a concurrent global apply or a second bell/pin
+    edit is answered from the freshest state instead of a stale snapshot. A
+    persisted override keeps the Session recorded through the transition
+    (record→record is a no-op and must not clear legitimate unread).
+    """
+    async with worker.unread_done_lock(s.id):
+        scopes = unread_policy.current_unread_recording()
+        bridge_now = unread_policy.msg_bridge_enabled(s)
+        pinned_now = _pinned_flag_for_scopes(s, scopes)
+        before_record = unread_policy.should_record_unread(
+            s, scopes=scopes,
+            pinned=pinned_before if pinned_before is not None else pinned_now,
+            bridge=bridge_before if bridge_before is not None else bridge_now)
+        after_record = unread_policy.should_record_unread(
+            s, scopes=scopes, pinned=pinned_now, bridge=bridge_now)
+        if before_record and after_record:
+            return "noop"
+        return await _apply_unread_alignment_locked(
+            s, zero_unread=True, remove_override=False)
+
+
+async def _coordinate_unread_recording(
+    sessions, *, before_scopes, after_scopes, clear_overrides: bool = False,
+    apply_generation: int | None = None,
+) -> tuple[list[str], list[str], bool]:
+    """Align every Session across a policy application.
+
+    Returns ``(changed, failed, superseded)``. Each Session's decision is
+    re-derived under its own lock (see _align_session_to_policy); when
+    ``apply_generation`` is given, a newer apply supersedes this one and the
+    remaining Sessions are left untouched for it to own. ``before_scopes`` is
+    the scope set in force before the change (equal to ``after_scopes`` for
+    Reapply/startup) and each Session's current override participates in the
+    "before" decision, so covering per-Session overrides and clearing
+    entered-exclusion leftovers both follow the same locked re-derivation.
+    Never takes a global lock and never does history-scale IO: one bounded
+    lock acquisition per Session, writes only where the aligned state differs.
+    """
+    changed: list[str] = []
+    failed: list[str] = []
+    for s in sessions:
+        outcome = await _align_session_to_policy(
+            s, before_scopes=before_scopes, after_scopes=after_scopes,
+            clear_overrides=clear_overrides,
+            apply_generation=apply_generation)
+        if outcome == "committed":
+            changed.append(s.id)
+        elif outcome == "failed":
+            failed.append(s.id)
+        elif outcome == "superseded":
+            return changed, failed, True
+    return changed, failed, False
+
+
+async def _coordinate_unread_recording_on_startup(sessions) -> int:
+    """Startup alignment for old data and crash leftovers.
+
+    The settings apply already clears Sessions excluded at the moment the
+    choice changes; this covers a restart after a failed clear and Sessions
+    loaded from disk under a policy applied by an earlier process. Persisted
+    per-Session overrides are legitimate state and stay untouched. Runs before
+    the HTTP server accepts connections, so it cannot race an apply.
+    """
+    scopes = unread_policy.refresh_unread_recording()
+    if "all" in scopes:
+        return 0
+    changed, _failed, _superseded = await _coordinate_unread_recording(
+        sessions, before_scopes=scopes, after_scopes=scopes)
+    return len(changed)
+
+
+@app.post("/api/sessions/{session_id}/unread-action")
+async def api_session_unread_action(session_id: str, data: dict | None = None):
+    """Session-menu unread actions with explicit expected-state checks.
+
+    Body: ``{"action": "enable-tracking", "expectedExcluded": true}`` or
+    ``{"action": "mark-unread"|"clear-unread", "expectedGeneration": <int>}``.
+
+    - enable-tracking persists a per-Session "record" override: this Session
+      records done unread from new events on (leftover unread is cleared;
+      older unread is never restored). A later global apply clears it.
+    - mark-unread records a fresh unread marker (+1 generation) only while the
+      Session records and its count is 0.
+    - clear-unread advances the read cursor to the observed generation while
+      the Session keeps recording (an older observation never clears newer
+      generations; a no-op observation is an idempotent success).
+
+    A stale expectation (concurrent done, bell/pin change, or a global apply
+    in between) fails with ``state_changed`` instead of applying a wrong
+    action. Writes publish only after the atomic commit.
+    """
+    action = data.get("action") if isinstance(data, dict) else None
+    if action not in _UNREAD_ACTION_VALUES:
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "action must be enable-tracking, mark-unread or clear-unread"}}
+    s = sess.get_cached(session_id)
+    if s is None:
+        s = await _store_read(sess.get, session_id, load_history=False)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found"}}
+
+    def _state_changed(message: str) -> dict:
+        return {"ok": False, "error": {"code": "state_changed", "message": message}}
+
+    async with worker.unread_done_lock(session_id):
+        tracking = unread_policy.should_record_unread(s)
+        generation = max(0, int(getattr(s, "unread_done_generation", 0) or 0))
+        read_generation = max(0, int(
+            getattr(s, "unread_done_read_generation", 0) or 0))
+        commit: dict | None = None
+        if action == "enable-tracking":
+            if data.get("expectedExcluded") is not True:
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedExcluded (true) is required"}}
+            if tracking:
+                return _state_changed("Session already records unread")
+            commit = {
+                "read_generation": (
+                    generation if read_generation < generation else None),
+                "unread_recording_override": "record",
+            }
+        elif action == "mark-unread":
+            expected_generation = data.get("expectedGeneration")
+            if (isinstance(expected_generation, bool)
+                    or not isinstance(expected_generation, int)
+                    or expected_generation < 0):
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedGeneration (non-negative integer) is required"}}
+            if not tracking:
+                return _state_changed("Session does not record unread")
+            if expected_generation != generation:
+                return _state_changed("Unread state changed; refresh and retry")
+            if read_generation < generation:
+                return _state_changed("Session already has unread")
+            commit = {"done_generation": generation + 1}
+        else:  # clear-unread
+            expected_generation = data.get("expectedGeneration")
+            if (isinstance(expected_generation, bool)
+                    or not isinstance(expected_generation, int)
+                    or expected_generation < 0):
+                return {"ok": False, "error": {
+                    "code": "invalid_params",
+                    "message": "expectedGeneration (non-negative integer) is required"}}
+            if not tracking:
+                return _state_changed("Session does not record unread")
+            observed = min(expected_generation, generation)
+            new_read = max(read_generation, observed)
+            if new_read > read_generation:
+                commit = {"read_generation": new_read}
+        if commit is not None:
+            try:
+                await sess.commit_unread_state_async(s, **commit)
+            except FileNotFoundError:
+                return {"ok": False, "error": {
+                    "code": "session_not_found",
+                    "message": f"Session {session_id} not found"}}
+            except OSError as exc:
+                return {"ok": False, "error": {
+                    "code": "unread_action_persist_failed",
+                    "message": str(exc) or "Could not persist unread action"}}
+            await broadcast({
+                "type": "session.updated",
+                "sessionId": s.id,
+                "session": _session_summary(s),
+            })
+    (projected_count, projected_generation, projected_read,
+     projected_tracking) = unread_policy.unread_cursor_projection(s)
+    return {
+        "ok": True,
+        "unreadTracking": projected_tracking,
+        "unreadRecordingOverride": (
+            unread_policy.session_unread_recording_override(s) or None),
+        "unreadDoneCount": projected_count,
+        "unreadDoneGeneration": projected_generation,
+        "unreadDoneReadGeneration": projected_read,
+    }
+
+
+@app.post("/api/settings/unread-recording/reapply")
+async def api_reapply_unread_recording():
+    """Re-apply the persisted unread-recording policy to every Session.
+
+    The explicit "Reapply settings" action: clears every per-Session override
+    and re-aligns excluded Sessions even when the persisted scope set did not
+    change. Failures are reported per Session; the read projection already
+    serves an authoritative count 0 for them, and the next terminal commit or
+    another apply retries the durable alignment.
+    """
+    scopes = unread_policy.refresh_unread_recording()
+    apply_generation = unread_policy.begin_unread_recording_apply()
+    changed, failed, superseded = await _coordinate_unread_recording(
+        sess.list_all(load_history=False),
+        before_scopes=scopes, after_scopes=scopes, clear_overrides=True,
+        apply_generation=apply_generation)
+    return {
+        "ok": True,
+        "unreadRecording": list(scopes),
+        "alignedSessionCount": len(changed),
+        "failedSessions": failed,
+        "superseded": superseded,
+    }
+
+
+@app.post("/api/sessions/pins/order")
+async def api_reorder_session_pins(data: dict):
+    """Reorder a visible subset of pins while preserving all other pin slots."""
+    ids = data.get("sessionIds")
+    expected_revision = data.get("pinRevision")
+    if (not isinstance(ids, list)
+            or not all(isinstance(item, str) and item.strip() for item in ids)
+            or isinstance(expected_revision, bool)
+            or not isinstance(expected_revision, int)
+            or expected_revision < 0):
+        return {"ok": False, "error": {
+            "code": "invalid_params",
+            "message": "sessionIds (array) and pinRevision (non-negative integer) are required"}}
+    ids = [item.strip() for item in ids]
+    try:
+        state, code, message = sess.reorder_pinned_sessions(ids, expected_revision)
+    except OSError as exc:
+        return {"ok": False, "error": {
+            "code": "pin_persist_failed", "message": str(exc) or "Could not persist pin order"}}
+    if code:
+        return {"ok": False, "error": {"code": code, "message": message}}
+    await broadcast({
+        "type": "session.pinsUpdated",
+        "pinRevision": state["pinRevision"],
+        "sessionIds": state["sessionIds"],
+    })
+    return {"ok": True, **state}
+
+
+@app.get("/api/sessions/{session_id}")
+async def api_get_session(session_id: str, view: str = "full",
+                          historyLimit: int = 0, historyRoles: str | None = None,
+                          toolOutput: str = "command_only", before: int = 0):
+    if historyRoles is not None:
+        return await _store_read(
+            _session_read_projection, session_id, historyLimit, before,
+            historyRoles, toolOutput)
+    bounded_history = historyLimit > 0
+    if view in {"metadata", "detail"} or bounded_history:
+        s = await _store_read(_summary_session_get, session_id)
+    else:
+        # The explicit full-history GET still hydrates the in-memory Session
+        # cache, which owns the store's read/write cache contract; BE-3 only
+        # moves the bounded list/history reads that back the cold dashboard
+        # load.  See the BE-3 note above _session_list_api.
+        s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    if view in {"metadata", "detail"}:
+        # Keep relationship/settings/system-prompt fields while avoiding the
+        # expensive and potentially large history/rawUsage/lastResult payloads.
+        # The default full view is unchanged for API/MCP compatibility.
+        return _session_to_api(
+            s,
+            include_history=False,
+            include_raw_usage=False,
+            include_last_result=False,
+        )
+    if bounded_history:
+        result = _session_to_api(s, include_history=False)
+        page = await _store_read(
+            sess.history_page, session_id, limit=historyLimit)
+        page = page or {"history": [], "total": 0, "hasMore": False, "start": 0}
+        result["history"] = _api_history(
+            session_id,
+            page["history"],
+            start=page.get("start", 0),
+            history_epoch=page.get("historyEpoch"),
+        )
+        result["historyTruncated"] = bool(page["hasMore"])
+        result["historyTotal"] = page["total"]
+        result["historyStart"] = page.get("start", 0)
+        result["historyEpoch"] = page.get("historyEpoch")
+        result["historyRevision"] = page.get("historyRevision", 0)
+        return result
+    return _session_to_api(s)
+
+
+@app.post("/api/sessions/{session_id}/legality/mark-safe-offline")
+@app.post("/api/sessions/{session_id}/legality/reconcile", deprecated=True)
+@app.post("/api/sessions/{session_id}/legal-state/sync", deprecated=True)
+async def api_sync_session_legal_worker_state(session_id: str):
+    """Explicitly mark prior Illegal executions safely offline."""
+    session = await _store_read(_summary_session_get, session_id)
+    if not session:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": f"Session {session_id} not found",
+        }
+    try:
+        return await worker.sync_legal_worker_state_to_runtime(
+            session_id, source="manual/mark-safe-offline",
+        )
+    except Exception as exc:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": str(exc),
+        }
+
+
+@app.post("/api/sessions/{session_id}/legality/mark-illegal")
+@app.post("/api/sessions/{session_id}/legality/request-recovery", deprecated=True)
+@app.post("/api/sessions/{session_id}/legal-state/running", deprecated=True)
+async def api_set_session_legal_worker_state_running(session_id: str):
+    """Explicitly mark an offline Session Illegal / pending recovery."""
+    try:
+        result = await worker.set_session_legal_worker_state_running(
+            session_id, source="manual/mark-illegal",
+        )
+    except Exception as exc:
+        return {
+            "sessionId": session_id,
+            "status": "error",
+            "error": str(exc),
+        }
+    if result.get("status") == "updated":
+        try:
+            await broadcast({"type": "session.updated", "sessionId": session_id})
+        except Exception as exc:
+            # The metadata is already durable. A transient websocket fan-out
+            # failure must not report the successful write as a failed action.
+            _log(f"[Session {session_id}] legal-state broadcast failed: {exc}")
+    return result
+
+
+@app.get("/api/sessions/{session_id}/usage")
+async def api_get_session_usage(session_id: str):
+    """Return the stable persisted input/output/cache usage projection.
+
+    This is a read-only view over Session.raw_usage / Session.total_usage. It
+    does not wait for an active provider refresh and, unlike the full session
+    response, does not expose the historical raw payload. Codex receives the
+    last persisted quota snapshot only; callers that need a best-effort live
+    refresh use ``/api/codex/quota`` separately.
+    """
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": {
+            "code": "session_not_found",
+            "message": f"Session {session_id} not found",
+        }}
+    result = sess.session_usage_view(s)
+    if s.adapter == "codex":
+        quota = await api_codex_quota(session_id=session_id, refresh=False)
+        result["codexQuota"] = quota if quota.get("ok") else None
+    return result
+
+
+@app.get("/api/sessions/{session_id}/managers")
+async def api_session_managers(session_id: str):
+    """Manager chain of a session, topmost first (level 1 = top).
+
+    Walks the managedBy chain upward from the session. Each entry carries
+    {level, id, name, workerStatus, lastResultStatus}:
+    - workerStatus: live worker status (None = no worker spawned)
+    - lastResultStatus: status of the session's last completed task
+      ("done"/"error"/...; None = never ran a task)
+
+    Edge cases:
+    - Dangling managedBy (manager deleted): the chain stops there — the
+      dangling id is not included (no info available about it).
+    - Cycles: a visited-set stops the walk on a repeated id.
+    - Unknown session_id → {"error": "Session not found"}.
+    - Session with no manager → {"managers": []}.
+    """
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    chain: list[sess.Session] = []
+    seen = {session_id}
+    cur = s
+    while True:
+        mb = cur.managed_by
+        if not mb or mb in seen:
+            break
+        manager = _summary_session_get(mb)
+        if manager is None:
+            break  # dangling reference → chain ends here
+        seen.add(mb)
+        chain.append(manager)
+        cur = manager
+    managers = []
+    for i, m in enumerate(reversed(chain)):  # topmost first
+        w = worker.find_alive_worker_by_session(m.id)
+        last_status = (m.last_result or {}).get("status") \
+            if isinstance(m.last_result, dict) else None
+        managers.append({
+            "level": i + 1,  # level 1 = topmost manager
+            "id": m.id,
+            "name": m.name,
+            "workerStatus": w.status if w else None,
+            "lastResultStatus": last_status,
+        })
+    return {"ok": True, "sessionId": session_id, "managers": managers}
+
+
+@app.get("/api/sessions/{session_id}/history", response_class=NetworkJSONResponse)
+async def api_session_history(session_id: str, before: int = 0, limit: int = 50,
+                              searchJump: bool = False, request: Request = None):
+    """Paginated session history for lazy-loading older messages."""
+    payload = await _store_read(
+        _history_page_wire_payload, session_id, before, limit, searchJump)
+    return await _history_network_response(payload, request)
+
+
+def _session_read_projection(session_id, limit, before, roles, tool_output,
+                             message_id=None):
+    from collections import deque
+    from packages.core import history_read
+
+    def error(code, message):
+        return {"ok": False, "error": {"code": code, "message": message}}
+
+    try:
+        selected, mode = history_read.options(roles, tool_output)
+        if limit < 0 or before < 0:
+            raise ValueError("limit and before must be nonnegative")
+    except ValueError as exc:
+        return error("invalid_params", str(exc))
+    if message_id is not None and not sess.is_pan_message_id(message_id):
+        return error("invalid_message_id", "A durable Pan messageId is required; legacy rows have no addressable id")
+    session = _summary_session_get(session_id)
+    if session is None:
+        return error("session_not_found", "Session not found")
+    # Keep only selected row locators, then reread the requested bodies. Cold
+    # JSONL scans retain O(limit) references, never all history or output bodies.
+    refs = deque(maxlen=min(limit, 200) if limit else None)
+    total = matched = eligible = 0
+    identity_count = 0
+    try:
+        with _history_search_scan_source(session) as source:
+            rows, read = source[:2]
+            for index, row, locator in rows:
+                total = index + 1
+                if message_id is not None:
+                    if not isinstance(row, dict) or row.get("messageId") != message_id:
+                        continue
+                    identity_count += 1
+                projected = history_read.project(row, index, selected, mode)
+                if projected is None:
+                    continue
+                matched += 1
+                if not before or index < before:
+                    eligible += 1
+                    refs.append((index, locator))
+            history = [history_read.project(read(locator), index, selected, mode)
+                       for index, locator in refs]
+    except _HistorySearchSnapshotChanged:
+        return error("history_changed", "History changed while reading; retry from the latest page")
+    except history_search_index.HistorySearchError:
+        return error("history_unavailable", "Session history could not be read")
+    if message_id is not None:
+        if identity_count != 1:
+            return error("message_not_found", "Message is missing or its identity is ambiguous in this Session")
+        if not history:
+            return error("message_filtered", "Message is excluded by roles; thinking requires explicit opt-in")
+        return {"ok": True, "sessionId": session_id, "message": history[0]}
+    # Absolute canonical positions are cursors, not persistent message ids.
+    start = refs[0][0] if refs else 0
+    has_more = eligible > len(refs)
+    result = _session_to_api(session, include_history=False, include_raw_usage=False,
+                             include_last_result=False)
+    last_result = session.last_result
+    result["lastResult"] = ({key: last_result[key] for key in (
+        "status", "taskId", "taskSeq", "sessionId", "workerId", "resultCursor",
+        "terminalKey", "historyEpoch", "historyRevision",
+        *(("result",) if "assistant" in selected and isinstance(last_result.get("result"), str) else ()),
+    ) if key in last_result} if isinstance(last_result, dict) else None)
+    # Summary previews are independent copies of body text; do not let them
+    # bypass a caller's selected roles or expose an unclassified tool preview.
+    for key in ("lastUserPreview", "lastAssistantPreview", "lastDisplayPreview"):
+        result.pop(key, None)
+    result.update(history=history, historyTotal=total, historyFilteredTotal=matched,
+                  historyTruncated=has_more, historyStart=start,
+                  nextBefore=start if has_more else None,
+                  historyEpoch=getattr(session, "history_epoch", None),
+                  historyRevision=getattr(session, "history_revision", 0))
+    return result
+
+
+@app.get("/api/sessions/{session_id}/messages/{message_id}")
+async def api_session_message_get(session_id: str, message_id: str,
+                                  roles: str = "user,assistant,tool",
+                                  toolOutput: str = "command_only"):
+    """Trusted local admin read; managed authorization is enforced by MCP."""
+    return await _store_read(_session_read_projection, session_id, 1, 0,
+                             roles, toolOutput, message_id)
+
+
+def _navigation_preview(content: str) -> str:
+    """Bound the rail projection without truncating a transport header's body."""
+    text = content.lstrip()
+    system = re.match(r"^////by (?:pan system|system)(?=\s|:|$)", text)
+    if system:
+        text = text[system.end():]
+        text = re.sub(r"^[^\S\r\n]*:", "", text, count=1)
+    else:
+        text = re.sub(r"^(?:@@@@by agent|////by agent|@@@@by qq)\s*:\s*[^\r\n]*(?:\r?\n|$)", "", text, count=1)
+    # Only scan enough non-whitespace characters for the 120 UTF-16-unit
+    # preview; never normalize an entire multi-megabyte body on the UI thread.
+    parts = []
+    length = 0
+    for match in re.finditer(r"\S+", text):
+        token = match.group(0)[:121]
+        parts.append(token)
+        length += len(token) + 1
+        if length > 121:
+            break
+    normalized = " ".join(parts)
+    units = normalized.encode("utf-16-le", errors="surrogatepass")
+    if len(units) <= 240:
+        return normalized
+    return units[:238].decode("utf-16-le", errors="replace").rstrip() + "…"
+
+
+def _navigation_page_lookup(session_id: str, before: int, limit: int):
+    from packages.core.message_navigation import JS_SPACE
+    page = _history_page_lookup(session_id, before, min(500, max(1, limit)), True)
+    if page is _NOT_FOUND:
+        return page
+    rows = []
+    for message in page["history"]:
+        content = message.get("content", "")
+        content = content if isinstance(content, str) else ""
+        row = {key: message[key] for key in ("role", "source", "taskIdSource", "messageId") if key in message}
+        # The shared frontend classifier only needs the leading marker. Keeping
+        # it here avoids a second implementation of User/Re/MA/Sys provenance.
+        row["content"] = content.lstrip(JS_SPACE)[:64]
+        row["navigationPreview"] = _navigation_preview(content)
+        rows.append(row)
+    return {**page, "history": _api_history(session_id, rows, start=page["start"], history_epoch=page.get("historyEpoch"))}
+
+
+@app.get("/api/sessions/{session_id}/navigation")
+async def api_session_navigation(session_id: str, before: int = 0, limit: int = 500):
+    """Read-only compact canonical projection, independent of body byte sizes.
+
+    Coverage is canonical start/total/epoch; every row, including non-targets,
+    is represented so the client can prove nearest and full completion.
+    """
+    page = await _store_read(_navigation_page_lookup, session_id, before, limit)
+    if page is _NOT_FOUND:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return page
+
+
+_HISTORY_SEARCH_CURSOR_TTL_SECONDS = 15 * 60
+_HISTORY_SEARCH_CURSOR_MAX_LENGTH = 2048
+_HISTORY_SEARCH_CURSOR_MAX_POSITION = 2_147_483_647
+
+
+class _HistorySearchSnapshotChanged(RuntimeError):
+    """The Session registry or an in-scope history changed during a page."""
+
+
+def _history_search_cursor_error() -> HTTPException:
+    return HTTPException(
+        status_code=409,
+        detail={
+            "code": "history_search_cursor_expired",
+            "message": "Search results changed or the cursor is invalid or expired; start a new search.",
+        },
+    )
+
+
+def _history_search_query_fingerprint(query: str) -> str:
+    return hashlib.sha256(query.encode("utf-8")).hexdigest()
+
+
+def _history_search_versions_fingerprint(
+    versions: list[dict], session_order: list[str],
+) -> str:
+    snapshot = [
+        [
+            item["sessionId"], item["historyEpoch"],
+            int(item["historyRevision"]), int(item["historyTotal"]),
+        ]
+        for item in versions
+    ]
+    encoded = json.dumps(
+        {"sessionOrder": session_order, "versions": snapshot},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _encode_history_search_cursor(
+    *, query: str, session_id: str | None, limit: int, versions: list[dict],
+    session_order: list[str], after: tuple[int, int], key: bytes,
+    roles: tuple[str, ...] = history_search_index.BODY_ROLES,
+    content_counts: bool = False,
+    tool_output: str = "include_output",
+) -> str:
+    payload = {
+        "v": 2,
+        "r": list(roles),
+        "c": content_counts,
+        "q": _history_search_query_fingerprint(query),
+        "s": session_id,
+        "l": limit,
+        "d": _history_search_versions_fingerprint(versions, session_order),
+        "a": [after[0], after[1]],
+        "t": int(time.time()),
+    }
+    if tool_output == "command_only":
+        payload["o"] = tool_output
+    raw = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+    body = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+    signature = hmac.new(
+        key, body.encode("ascii"), hashlib.sha256,
+    ).digest()
+    token = f"{body}.{base64.urlsafe_b64encode(signature).rstrip(b'=').decode('ascii')}"
+    if len(token) > _HISTORY_SEARCH_CURSOR_MAX_LENGTH:
+        raise RuntimeError("history search cursor exceeded its size bound")
+    return token
+
+
+def _decode_history_search_cursor(cursor: str) -> dict:
+    def decode_part(value: str) -> bytes:
+        if not value or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
+            raise ValueError("invalid base64")
+        return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+    try:
+        if not isinstance(cursor, str) or len(cursor) > _HISTORY_SEARCH_CURSOR_MAX_LENGTH:
+            raise ValueError("cursor size")
+        body, signature = cursor.split(".", 1)
+        if len(signature) != 43:
+            raise ValueError("signature size")
+        raw_signature = decode_part(signature)
+        payload = json.loads(decode_part(body).decode("utf-8"))
+        fields = {"v", "q", "s", "l", "d", "a", "t", "r", "c"}
+        if not isinstance(payload, dict) or set(payload) not in (fields, fields | {"o"}):
+            raise ValueError("shape")
+        if "o" in payload and payload["o"] != "command_only":
+            raise ValueError("tool projection")
+        if type(payload["v"]) is not int or payload["v"] != 2:
+            raise ValueError("version")
+        if (type(payload['c']) is not bool or not isinstance(payload['r'], list)
+                or tuple(payload['r']) != history_search_index.normalize_roles(payload['r'])):
+            raise ValueError('roles or counting mode')
+        if any(
+            not isinstance(payload[key], str)
+            or re.fullmatch(r"[0-9a-f]{64}", payload[key]) is None
+            for key in ("q", "d")
+        ):
+            raise ValueError("fingerprint")
+        if payload["s"] is not None and (
+            not isinstance(payload["s"], str) or not payload["s"]
+            or len(payload["s"]) > 256
+        ):
+            raise ValueError("scope")
+        if type(payload["l"]) is not int or not 1 <= payload["l"] <= history_search_index.MAX_HISTORY_SEARCH_LIMIT:
+            raise ValueError("limit")
+        after = payload["a"]
+        if (
+            not isinstance(after, list) or len(after) != 2
+            or any(
+                type(value) is not int or value < 0
+                or value > _HISTORY_SEARCH_CURSOR_MAX_POSITION
+                for value in after
+            )
+        ):
+            raise ValueError("position")
+        if type(payload["t"]) is not int:
+            raise ValueError("timestamp")
+        now = int(time.time())
+        if payload["t"] > now + 30 or now - payload["t"] > _HISTORY_SEARCH_CURSOR_TTL_SECONDS:
+            raise ValueError("expired")
+        return {"payload": payload, "body": body, "signature": raw_signature}
+    except (ValueError, TypeError, UnicodeError, json.JSONDecodeError, RecursionError):
+        raise _history_search_cursor_error() from None
+
+
+def _history_search_request(
+    query: str, session_id: str | None, limit: int,
+    after: tuple[int, int] | None = None,
+    cursor_auth: tuple[str, bytes] | None = None,
+    roles: tuple[str, ...] = history_search_index.BODY_ROLES,
+    content_counts: bool = False,
+    match_index: int | None = None,
+    message_id: str | None = None,
+    viewport_range: tuple[int, int] | None = None,
+    tool_output: str = "include_output",
+) -> dict:
+    """Run one lazy search against the authoritative Session registry."""
+    sessions = sess.list_all(load_history=False)
+    live_ids = [session.id for session in sessions]
+    if session_id is None:
+        scoped_sessions = sessions
+    else:
+        scoped_sessions = [session for session in sessions if session.id == session_id]
+        if not scoped_sessions:
+            return {"error": "Session not found"}
+
+    if content_counts:
+        result = history_search_scan.scan_history(
+            scoped_sessions, query, roles=roles, limit=limit, after=after,
+            match_index=match_index, message_id=message_id, viewport_range=viewport_range,
+            source=_history_search_scan_source, cursor_auth=cursor_auth,
+        )
+    else:
+        result = history_search_index.search_history(
+            sess.SESSION_DIR.parent / "history_search.sqlite3",
+            scoped_sessions, live_ids, query, limit=limit, after=after,
+            cursor_auth=cursor_auth, load_session=_load_history_search_snapshot,
+            roles=roles, content_counts=content_counts, match_index=match_index,
+            tool_output=tool_output,
+        )
+
+    # A Session may be deleted while the index is loading/rebuilding. Recheck
+    # the authoritative registry before exposing any cached result.
+    remaining_sessions = sess.list_all(load_history=False)
+    initial_registry_ids = [session.id for session in sessions]
+    remaining_registry_ids = [session.id for session in remaining_sessions]
+    remaining_ids = {session.id for session in remaining_sessions}
+    if session_id is not None and session_id not in remaining_ids:
+        return {"error": "Session not found"}
+    original_scope_ids = [session.id for session in scoped_sessions]
+    remaining_scope_ids = [
+        session.id for session in remaining_sessions
+        if session_id is None or session.id == session_id
+    ]
+    if (
+        original_scope_ids != remaining_scope_ids
+        or (session_id is None and initial_registry_ids != remaining_registry_ids)
+    ):
+        raise _HistorySearchSnapshotChanged("Session registry changed during search")
+    versions_by_session = {
+        version["sessionId"]: version for version in result["versions"]
+    }
+    for session in remaining_sessions:
+        if session_id is not None and session.id != session_id:
+            continue
+        indexed = versions_by_session.get(session.id)
+        if indexed is None:
+            raise _HistorySearchSnapshotChanged("Session index changed during search")
+        epoch, revision, _history_loaded, history_total = history_search_index.session_version(session)
+        if (
+            indexed["historyEpoch"] != epoch
+            or indexed["historyRevision"] != revision
+            or (
+                history_total is not None
+                and indexed["historyTotal"] != history_total
+            )
+        ):
+            raise _HistorySearchSnapshotChanged("Session history changed during search")
+    result["hits"] = [
+        hit for hit in result["hits"] if hit["sessionId"] in remaining_ids
+    ]
+    result["versions"] = [
+        version for version in result["versions"]
+        if version["sessionId"] in remaining_ids
+    ]
+    # A scoped cursor binds only the one Session whose order can affect its
+    # page. Keep the complete live_ids passed above for stale-index cleanup.
+    result["sessionOrder"] = remaining_scope_ids
+    return result
+
+
+@contextmanager
+def _history_search_scan_source(session):
+    """Stream canonical cold history, without hydrating the shared cache."""
+    if getattr(session, '_history_loaded', True):
+        with history_search_scan.memory_source(session) as source:
+            yield source
+        return
+    path = sess._history_path(session.id)
+    if not path.exists():
+        snapshot = _load_history_search_snapshot(session.id)
+        if snapshot is None:
+            raise history_search_index.HistorySearchError('Session history is unavailable')
+        with history_search_scan.memory_source(snapshot) as source:
+            yield source
+        return
+    try:
+        with path.open('rb') as handle:
+            before = path.stat()
+            def clean(row):
+                if isinstance(row, dict) and isinstance(row.get('content'), str) and '[delivered:' in row['content']:
+                    return sess._strip_delivery_marks([row])[0]
+                return row
+            def rows():
+                index = 0
+                offset = 0
+                while True:
+                    line = handle.readline()
+                    if not line:
+                        break
+                    position = offset
+                    offset += len(line)
+                    try:
+                        row = json.loads(line.decode('utf-8'))
+                    except (UnicodeDecodeError, json.JSONDecodeError):
+                        continue
+                    yield index, clean(row), position
+                    index += 1
+            def read(position):
+                handle.seek(position)
+                return clean(json.loads(handle.readline().decode('utf-8')))
+            yield rows(), read, (str(path.resolve()), before.st_size, before.st_mtime_ns)
+            after_stat = path.stat()
+            if (before.st_size, before.st_mtime_ns) != (after_stat.st_size, after_stat.st_mtime_ns):
+                raise _HistorySearchSnapshotChanged('History changed while scanning')
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise history_search_index.HistorySearchError(f'History scan is unavailable: {exc}') from exc
+
+
+def _load_history_search_snapshot(session_id: str):
+    """Load one history for reindexing without hydrating the shared Session cache."""
+    path = sess._path(session_id)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise history_search_index.HistorySearchError(
+            f"Session {session_id} history could not be loaded: {exc}"
+        ) from exc
+    try:
+        # This existing read-only loader merges the canonical JSONL and applies
+        # the same legacy compatibility cleanup as ordinary Session loading.
+        # Its result is request-local and is never assigned into sess._cache.
+        return sess._from_data_with_history(session_id, data)
+    except Exception as exc:
+        raise history_search_index.HistorySearchError(
+            f"Session {session_id} history could not be loaded: {exc}"
+        ) from exc
+
+
+@app.get("/api/history/search")
+async def api_history_search(
+    q: str = "",
+    sessionId: str | None = None,
+    limit: int = history_search_index.DEFAULT_HISTORY_SEARCH_LIMIT,
+    cursor: str | None = None,
+    roles: str | None = None,
+    countMode: str = 'messages',
+    matchIndex: int | None = None,
+    messageId: str | None = None,
+    prepareLegacy: bool = False,
+    viewportStart: int | None = None,
+    viewportEnd: int | None = None,
+    toolOutput: str = "include_output",
+):
+    """Search lazily selected text partitions in one Session or globally.
+
+    toolOutput=command_only selects the shared safe tool name/command FTS
+    partition in messages mode. Compatibility default include_output searches
+    the stored tool body. Projection is applied before matching/pagination,
+    and signed cursors bind the mode. No identity preparation is implied.
+    roles is a comma-separated subset of user,assistant,tool,thinking; an
+    explicit empty subset searches nothing. Omission keeps old clients' body
+    scope. countMode=content reports non-overlapping literal occurrences and
+    matchIndex seeks to a zero-based occurrence without transferring history.
+    An initial scoped content query may include viewportStart/viewportEnd;
+    viewportHit then locates the nearest canonical message without changing
+    the ordinary page, totals, or cursor ordering.
+
+    Content mode scans canonical history and caches bounded row references;
+    it does not create SQLite. Message mode retains the older lazy FTS index
+    for compatibility. Reads remain unchanged unless prepareLegacy is explicitly
+    enabled for an initial scoped content query; then missing IDs are repaired.
+    A nextCursor continues the same trimmed query, scope, and bounded limit.
+    It expires after 15 minutes or when the ordered search scope or any
+    in-scope history version changes; callers should then start a new search.
+    """
+    query = q.strip()
+    try:
+        selected_roles = history_search_index.normalize_roles(
+            None if roles is None else [role.strip() for role in roles.split(',') if role.strip()])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    if countMode not in ('messages', 'content'):
+        raise HTTPException(status_code=422, detail='countMode must be messages or content')
+    content_counts = countMode == 'content'
+    if toolOutput not in ('command_only', 'include_output'):
+        raise HTTPException(status_code=422, detail='toolOutput must be command_only or include_output')
+    if content_counts and toolOutput != 'include_output':
+        raise HTTPException(status_code=422, detail='command_only requires indexed messages mode')
+    if messageId is not None and (not content_counts or not sess.is_pan_message_id(messageId)):
+        raise HTTPException(status_code=422, detail='messageId requires content mode and a Pan identity')
+    if matchIndex is not None and (not content_counts or type(matchIndex) is not int
+                                  or not 0 <= matchIndex <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
+        raise HTTPException(status_code=422, detail='matchIndex requires content mode and a non-negative bounded integer')
+    viewport_range = None
+    if viewportStart is not None or viewportEnd is not None:
+        if (not content_counts or not sessionId or cursor is not None
+                or matchIndex is not None or messageId is not None
+                or type(viewportStart) is not int or type(viewportEnd) is not int
+                or not 0 <= viewportStart <= viewportEnd <= _HISTORY_SEARCH_CURSOR_MAX_POSITION):
+            raise HTTPException(status_code=422, detail='viewport range requires an initial scoped content search and bounded ordered indices')
+        viewport_range = (viewportStart, viewportEnd)
+    bounded = history_search_index.bounded_limit(limit)
+    decoded_cursor = _decode_history_search_cursor(cursor) if cursor is not None else None
+    cursor_data = decoded_cursor["payload"] if decoded_cursor is not None else None
+    cursor_auth = (
+        (decoded_cursor["body"], decoded_cursor["signature"])
+        if decoded_cursor is not None else None
+    )
+    after = None
+    if cursor_data is not None:
+        if (
+            cursor_data["q"] != _history_search_query_fingerprint(query)
+            or cursor_data["s"] != sessionId
+            or cursor_data["l"] != bounded
+            or cursor_data['r'] != list(selected_roles)
+            or cursor_data['c'] != content_counts
+            or cursor_data.get('o', 'include_output') != toolOutput
+        ):
+            raise _history_search_cursor_error()
+        after = (cursor_data["a"][0], cursor_data["a"][1])
+    if not query or not selected_roles:
+        if cursor_data is not None:
+            raise _history_search_cursor_error()
+        return {
+            "hits": [], "versions": [], "limit": bounded,
+            "hasMore": False, "nextCursor": None,
+            **({'totalMatches': 0, 'totalMessages': 0, 'roles': list(selected_roles)} if content_counts else {}),
+        }
+    if len(query) > history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "query must be at most "
+                f"{history_search_index.MAX_HISTORY_SEARCH_QUERY_LENGTH} characters"
+            ),
+        )
+    prepared_identities = 0
+    if prepareLegacy:
+        if not content_counts or sessionId is None or cursor is not None:
+            raise HTTPException(status_code=422, detail='prepareLegacy requires an initial content search in one Session')
+        from packages.core.history_identity_backfill import prepare_history_identities
+        target = await _store_read(sess.get, sessionId, load_history=False)
+        if target is not None:
+            try:
+                prepared_identities = await _store_read(prepare_history_identities, target)
+            except Exception as exc:
+                raise HTTPException(status_code=503, detail={
+                    'code': 'history_identity_preparation_failed',
+                    'message': 'Old history could not be prepared; retry search.',
+                }) from exc
+    try:
+        result = await _store_read(
+            _history_search_request, query, sessionId, bounded, after, cursor_auth,
+            selected_roles, content_counts, matchIndex, messageId, viewport_range,
+            toolOutput,
+        )
+    except _HistorySearchSnapshotChanged:
+        if cursor_data is not None:
+            raise _history_search_cursor_error() from None
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "history_search_snapshot_changed",
+                "message": "The Session list changed during search; start a new search.",
+            },
+        ) from None
+    except history_search_index.HistorySearchError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "history_search_unavailable", "message": str(exc)},
+        ) from exc
+    except history_search_index.HistorySearchCursorError:
+        raise _history_search_cursor_error() from None
+    if result.get("error"):
+        if cursor_data is not None:
+            raise _history_search_cursor_error()
+        return result
+    session_order = result.pop("sessionOrder", [])
+    if cursor_data is not None and not hmac.compare_digest(
+        cursor_data["d"],
+        _history_search_versions_fingerprint(result["versions"], session_order),
+    ):
+        raise _history_search_cursor_error()
+    next_after = result.pop("nextAfter", None)
+    cursor_key = result.pop("_cursorKey")
+    result["nextCursor"] = None
+    if result.get("hasMore"):
+        if next_after is None:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "history_search_unavailable",
+                    "message": "Search index could not create a continuation cursor.",
+                },
+            )
+        result["nextCursor"] = _encode_history_search_cursor(
+            query=query,
+            session_id=sessionId,
+            limit=bounded,
+            versions=result["versions"],
+            session_order=session_order,
+            after=next_after,
+            key=cursor_key,
+            roles=selected_roles,
+            content_counts=content_counts,
+            tool_output=toolOutput,
+        )
+    if prepared_identities:
+        result['preparedIdentities'] = prepared_identities
+    return result
+
+
+@app.post('/api/history/search/prepare')
+async def api_prepare_history_search(request: Request, data: dict = Body(...)):
+    """Demand-driven NDJSON preparation; no worker or request polling.
+
+    Every event is a bounded preview, not a stable paginated snapshot. Only
+    the final successful event exposes a normal search cursor. Disconnecting
+    stops subsequent Sessions; a started atomic write safely finishes.
+    """
+    query = data.get('q', '')
+    roles = data.get('roles', 'user,assistant,tool,thinking')
+    limit = data.get('limit', 50)
+    if not isinstance(query, str) or not isinstance(roles, str) or type(limit) is not int:
+        raise HTTPException(status_code=422, detail='Invalid preparation query')
+    initial = await api_history_search(q=query, roles=roles, limit=limit, countMode='content')
+    if not query.strip() or not initial.get('roles'):
+        return initial
+    from packages.core.history_identity_backfill import prepare_history_identities
+    sessions = await _store_read(sess.list_all, load_history=False)
+    order = [s.id for s in sessions]
+    if [v['sessionId'] for v in initial['versions']] != order:
+        raise _history_search_cursor_error()
+
+    async def events():
+        failed = []
+        latest = initial
+        def event(completed, final=False):
+            preview = dict(latest)
+            if not final or failed:
+                preview.update(nextCursor=None, hasMore=False)
+            return (json.dumps({'result': preview, 'completed': completed,
+                               'total': len(sessions), 'done': final,
+                               'failedSessions': failed}, ensure_ascii=True) + '\n').encode()
+        yield event(0)
+        for position, session in enumerate(sessions):
+            if await request.is_disconnected():
+                return
+            try:
+                before = await _store_read(sess.list_all, load_history=False)
+                if [s.id for s in before] != order:
+                    raise _history_search_cursor_error()
+                previous = {v['sessionId']: v for v in latest['versions']}
+                for current in before:
+                    old = previous[current.id]
+                    epoch, revision, _, total = history_search_index.session_version(current)
+                    if (epoch != old['historyEpoch'] or revision != old['historyRevision']
+                            or (total is not None and total != old['historyTotal'])):
+                        raise _history_search_cursor_error()
+                try:
+                    await _store_read(prepare_history_identities, session)
+                except Exception:
+                    failed.append(session.id)
+                latest = await api_history_search(q=query, roles=roles, limit=limit, countMode='content')
+                if [v['sessionId'] for v in latest['versions']] != order:
+                    raise _history_search_cursor_error()
+                # A repair may change only its own version, not another Session.
+                for version in latest['versions']:
+                    if version['sessionId'] != session.id and version != previous[version['sessionId']]:
+                        raise _history_search_cursor_error()
+                yield event(position + 1, position + 1 == len(sessions))
+            except HTTPException as exc:
+                yield (json.dumps({'error': {'status': exc.status_code,
+                                            'message': 'History changed or search is unavailable; retry search.'}}) + '\n').encode()
+                return
+            except Exception:
+                yield (json.dumps({'error': {'status': 503,
+                                            'message': 'Search preparation failed; results are incomplete. Retry search.'}}) + '\n').encode()
+                return
+        if not sessions:
+            yield event(0, True)
+    return StreamingResponse(events(), media_type='application/x-ndjson',
+                             headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+
+
+def _resolve_history_message(session_id: str, message_id: str):
+    """Resolve a durable Pan identity, or a supported old history identity."""
+    s = sess.get(session_id)
+    if s is None:
+        return None
+    if sess.is_pan_message_id(message_id) or message_id.startswith("msg_"):
+        matches = [i for i, message in enumerate(s.history)
+                   if isinstance(message, dict)
+                   and (message.get("messageId") == message_id
+                        or (message_id.startswith("msg_")
+                            and message.get("_pan_message_id") == message_id))]
+        if len(matches) != 1:
+            return s, None, "message_not_found"
+        return s, matches[0], None
+    parts = message_id.split(":")
+    if len(parts) != 4 or parts[0] != "legacy" or parts[1] != session_id:
+        return s, None, "message_not_found"
+    epoch_value = getattr(s, "history_epoch", None)
+    current_epoch = str(epoch_value) if epoch_value else "legacy"
+    if parts[2] != current_epoch:
+        return s, None, "message_not_found"
+    try:
+        index = int(parts[3])
+    except ValueError:
+        return s, None, "message_not_found"
+    if not 0 <= index < len(s.history):
+        return s, None, "message_not_found"
+    return s, index, None
+
+
+@app.post('/api/sessions/{session_id}/history/{message_id}/rewind')
+async def api_rewind_session_history(session_id: str, message_id: str,
+                                     payload: Annotated[dict | None, Body()] = None):
+    if not platform_layer.supports('rewind'):
+        return _unsupported_platform('Rewind')
+    active_worker = worker.find_alive_worker_by_session(session_id)
+    if active_worker and active_worker.status in {'running', 'queued'}:
+        return {'ok': False, 'error': {
+            'code': 'session_busy',
+            'message': 'Task is running; rewind is unavailable',
+        }}
+    try:
+        scope = coerce_rewind_scope((payload or {}).get('scope', 1))
+    except ValueError:
+        return {'ok': False, 'error': {
+            'code': 'invalid_scope',
+            'message': 'scope must be 1 (code and conversation), 2 (conversation only) '
+                       'or 3 (code only)',
+        }}
+    if (not isinstance(message_id, str)
+            or not (sess.is_pan_message_id(message_id)
+                    or message_id.startswith('msg_') or message_id.startswith('legacy:'))):
+        return {'ok': False, 'error': {'code': 'invalid_message_id', 'message': 'Invalid message id'}}
+    resolved = await _store_read(_resolve_history_message, session_id, message_id)
+    if resolved is None:
+        return {'ok': False, 'error': {'code': 'session_not_found', 'message': 'Session not found'}}
+    s, anchor_index, error_code = resolved
+    if error_code:
+        return {'ok': False, 'error': {'code': error_code, 'message': 'Message not found'}}
+    anchor = s.history[anchor_index]
+    if not isinstance(anchor, dict) or anchor.get('role') != 'user':
+        return {'ok': False, 'error': {
+            'code': 'message_not_rewindable',
+            'message': 'Only user messages can be used as rewind anchors',
+        }}
+    if s.adapter != 'cbc':
+        return {'ok': False, 'error': {
+            'code': 'adapter_not_supported',
+            'message': f'Rewind is not implemented for adapter {s.adapter}',
+        }}
+    if not s.cli_session_id:
+        return {'ok': False, 'error': {'code': 'missing_cli_session', 'message': 'Session has no CLI session id'}}
+    if not s.workdir:
+        return {'ok': False, 'error': {'code': 'missing_workdir', 'message': 'Session has no workdir'}}
+    anchor_text = _history_message_text(anchor).strip()
+    if len(anchor_text) < 3:
+        return {'ok': False, 'error': {'code': 'invalid_anchor', 'message': 'Anchor message has no usable text'}}
+
+    job_id = 'rewind_' + uuid.uuid4().hex[:16]
+    _update_rewind_record(
+        session_id,
+        job_id,
+        status='running',
+        stage='starting',
+        adapter=s.adapter,
+        cli_session_id=s.cli_session_id,
+        workdir=s.workdir,
+        scope=scope,
+        anchor={
+            'message_id': message_id,
+            'absolute_index': anchor_index,
+            'message_text': anchor_text,
+            'epoch': getattr(s, 'history_epoch', None),
+        },
+        limitation=_REWIND_LIMITATION,
+        created_at=datetime.now().isoformat(),
+        error=None,
+    )
+    task = asyncio.create_task(
+        _run_rewind_job(session_id, message_id, anchor_index, anchor_text, scope),
+        name=f'rewind:{job_id}',
+    )
+    _REWIND_TASKS[job_id] = task
+    task.add_done_callback(lambda _task, key=job_id: _REWIND_TASKS.pop(key, None))
+    await _broadcast_rewind_progress(session_id, job_id, 'starting', status='running')
+    return {
+        'ok': True,
+        'jobId': job_id,
+        'sessionId': session_id,
+        'scope': scope,
+        'scopeLabel': REWIND_SCOPE_LABELS[scope],
+        'status': 'queued',
+        'stage': 'starting',
+        'limitation': _REWIND_LIMITATION,
+    }
+
+
+@app.get('/api/sessions/{session_id}/rewind/{job_id}')
+async def api_get_rewind_job(session_id: str, job_id: str):
+    """Polling fallback for rewind progress: the modal polls this while a job
+    runs so a missed WS event can never leave the first click without
+    progress (Bug 3)."""
+    record = _rewind_store().load(session_id, job_id)
+    if record is None:
+        return {'ok': False, 'error': {'code': 'job_not_found', 'message': 'Rewind job not found'}}
+    return {
+        'ok': True,
+        'jobId': job_id,
+        'sessionId': session_id,
+        'stage': record.get('stage'),
+        'status': record.get('status'),
+        'scope': record.get('scope'),
+        'error': record.get('error'),
+        'newSessionId': record.get('new_pan_session_id'),
+        'limitation': record.get('limitation', _REWIND_LIMITATION),
+    }
+
+
+_REWIND_EVENT_TYPE = 'session.rewind.progress'
+_REWIND_LIMITATION = 'cbc rewind does not track files edited manually or via bash.'
+_REWIND_TASKS: dict[str, asyncio.Task] = {}
+
+
+def _rewind_store() -> RewindRecordStore:
+    return RewindRecordStore(DATA_DIR / 'rewind')
+
+
+def _history_message_text(message: dict) -> str:
+    content = message.get('content')
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                value = item.get('text') or item.get('content')
+                if isinstance(value, str):
+                    parts.append(value)
+            elif isinstance(item, str):
+                parts.append(item)
+        return ' '.join(parts)
+    return ''
+
+
+def _update_rewind_record(session_id: str, job_id: str, **changes) -> dict:
+    store = _rewind_store()
+    record = store.load(session_id, job_id) or {
+        'job_id': job_id,
+        'session_id': session_id,
+    }
+    record.update(changes)
+    record['updated_at'] = datetime.now().isoformat()
+    store.save(record)
+    return record
+
+
+async def _broadcast_rewind_progress(session_id: str, job_id: str, stage: str,
+                                     *, status: str | None = None,
+                                     error: str | None = None,
+                                     new_session_id: str | None = None,
+                                     details: dict | None = None) -> None:
+    await broadcast({
+        'type': _REWIND_EVENT_TYPE,
+        'sessionId': session_id,
+        'jobId': job_id,
+        'stage': stage,
+        'status': status or ('running' if stage not in {'completed', 'failed'} else stage),
+        'error': error,
+        'newSessionId': new_session_id,
+        'details': details or {},
+        'limitation': _REWIND_LIMITATION,
+    })
+
+
+def _rewind_adapter_config(parent) -> dict:
+    adapter_config = {
+        'always_thinking_enabled': parent.adapter_config.get('always_thinking_enabled', False),
+        'effort': parent.adapter_config.get('effort', ''),
+        'max_thinking_tokens': parent.adapter_config.get('max_thinking_tokens'),
+    }
+    for api_key, native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if native_key in parent.adapter_config:
+            adapter_config[native_key] = parent.adapter_config[native_key]
+    if parent.adapter_config.get('mcp_servers'):
+        adapter_config['mcp_servers'] = copy.deepcopy(parent.adapter_config['mcp_servers'])
+    for key in ('plugin_config_version', 'plugin_bindings', 'plugin_selection_revision'):
+        if key in parent.adapter_config:
+            adapter_config[key] = copy.deepcopy(parent.adapter_config[key])
+    return adapter_config
+
+
+def _create_rewound_session(parent, result, anchor_index: int):
+    raw_usage = sess.accumulate_raw_usage(None, result.raw_usage)
+    total_usage = sess.compute_total_usage(raw_usage)
+    base_name = f'{parent.name}@{anchor_index}'
+    if len(base_name) > 56:
+        base_name = base_name[:56].rstrip('-_')
+    return sess.create_with_available_name(
+        base_name,
+        adapter=parent.adapter,
+        cli_session_id=result.forked_cli_session_id,
+        model=parent.model,
+        permission_mode=parent.permission_mode,
+        always_thinking_enabled=parent.adapter_config.get('always_thinking_enabled', False),
+        effort=parent.adapter_config.get('effort', ''),
+        max_thinking_tokens=parent.adapter_config.get('max_thinking_tokens'),
+        raw_usage=raw_usage,
+        total_usage=total_usage,
+        workdir=parent.workdir,
+        history=result.history,
+        character_id=parent.character_id,
+        original_prompt=parent.original_prompt,
+        handoff_prompt=parent.handoff_prompt,
+        adapter_config=_rewind_adapter_config(parent),
+        pan_access=dict(parent.pan_access or {}),
+        notification_settings=dict(parent.notification_settings or {}),
+        # Inherit the parent's workspace membership so the new branch
+        # session stays visible under workspace filtering. workspace_ids is
+        # an existing field (root sessions persist it; managed sessions keep
+        # it empty and follow their manager), so this is a value copy, not
+        # a schema change.
+        workspace_ids=list(parent.workspace_ids or []),
+    )
+
+
+async def _run_rewind_job(parent_session_id: str, message_id: str,
+                          anchor_index: int, anchor_text: str,
+                          scope: int = 1) -> None:
+    loop = asyncio.get_running_loop()
+    started = time.monotonic()
+    job_id = asyncio.current_task().get_name().removeprefix('rewind:')
+
+    def update(**changes):
+        return _update_rewind_record(parent_session_id, job_id, **changes)
+
+    def broadcast_stage(stage: str, details: dict | None = None, *,
+                        status: str | None = None, error: str | None = None,
+                        new_session_id: str | None = None) -> None:
+        asyncio.run_coroutine_threadsafe(
+            _broadcast_rewind_progress(
+                parent_session_id, job_id, stage,
+                status=status, error=error, new_session_id=new_session_id,
+                details=details,
+            ),
+            loop,
+        )
+
+    def on_stage(stage: str, details) -> None:
+        if stage == 'completed':
+            return
+        update(stage=stage, status='failed' if stage == 'failed' else 'running',
+               error=(details or {}).get('error'))
+        broadcast_stage(stage, dict(details or {}),
+                        status='failed' if stage == 'failed' else 'running',
+                        error=(details or {}).get('error'))
+
+    result = None
+    try:
+        parent = await _store_read(sess.get, parent_session_id)
+        if parent is None:
+            raise ValueError('session_not_found')
+        result = await asyncio.to_thread(
+            run_hybrid_rewind,
+            parent.cli_session_id,
+            parent.workdir,
+            AnchorSpec(
+                message_text=anchor_text,
+                absolute_index=anchor_index,
+                # Identical first-line previews (worker reports share their
+                # header) make text-only matching ambiguous; the ordinal
+                # picks the exact occurrence among matching checkpoints.
+                match_ordinal=compute_match_ordinal(
+                    parent.history or [], anchor_index, anchor_text),
+            ),
+            scope=scope,
+            expected_files=None,
+            watched_files=extract_mutated_files(parent.history or [], anchor_index),
+            timeout=35.0,
+            on_stage=on_stage,
+        )
+        if not result.success:
+            raise RuntimeError(result.error or 'rewind failed')
+        latest_parent = await _store_read(sess.get, parent_session_id)
+        if latest_parent is None:
+            raise RuntimeError('parent session disappeared during rewind')
+        async with _plugin_session_claim(latest_parent):
+            new_session = await _plugin_io(_create_rewound_session, latest_parent, result, anchor_index)
+        update(
+            stage='completed',
+            status='completed',
+            error=None,
+            scope=scope,
+            new_pan_session_id=new_session.id,
+            new_pan_session_name=new_session.name,
+            forked_cli_session_id=result.forked_cli_session_id,
+            history_messages=len(result.history),
+            raw_usage_records=len(result.raw_usage),
+            restore_verification=(
+                result.file_rewind.restore_verification if result.file_rewind else None),
+            add_dirs=(result.file_rewind.add_dirs if result.file_rewind else None),
+            add_dirs_notes=(result.file_rewind.add_dirs_notes if result.file_rewind else None),
+            truncation=result.truncation.__dict__ if result.truncation else None,
+            elapsed_seconds=round(time.monotonic() - started, 3),
+        )
+        await _broadcast_rewind_progress(
+            parent_session_id, job_id, 'completed', status='completed',
+            new_session_id=new_session.id,
+            details={
+                'scope': scope,
+                'historyMessages': len(result.history),
+                'rawUsageRecords': len(result.raw_usage),
+                'elapsedSeconds': round(time.monotonic() - started, 3),
+            },
+        )
+        await broadcast({
+            'type': 'session.created',
+            'sessionId': new_session.id,
+            'name': new_session.name,
+        })
+    except Exception as exc:
+        # Avoid stacking duplicate prefixes (RuntimeError: RuntimeError: ...)
+        # when re-wrapping an already-formatted driver/hybrid error string.
+        _exc_message = str(exc)
+        _exc_prefix = f'{type(exc).__name__}:'
+        error = _exc_message if _exc_message.startswith(_exc_prefix) else f'{_exc_prefix} {_exc_message}'
+        update(stage='failed', status='failed', error=error,
+               restore_verification=(
+                   result.file_rewind.restore_verification
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               add_dirs=(
+                   result.file_rewind.add_dirs
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               add_dirs_notes=(
+                   result.file_rewind.add_dirs_notes
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               failure_screen_tail=(
+                   result.file_rewind.screen_tail
+                   if result is not None and result.file_rewind is not None else None
+               ),
+               elapsed_seconds=round(time.monotonic() - started, 3))
+        await _broadcast_rewind_progress(
+            parent_session_id, job_id, 'failed', status='failed', error=error,
+        )
+
+
+# ── Agent queue (session.queue_pending, normalized view) ──
+#
+# queue_pending 是异构落盘队列：task、report/notice、QQ 都使用统一 envelope；
+# 这里序列化为统一的 AgentQueueItem 供前端 SendQueuePanel 渲染。旧版本没有
+# queueItemId 的行只在迁移期间回退内容 hash，新写入项始终使用服务端 q_ ID。
+
+_REPORT_TEXT_MAX = 200
+
+
+def _queue_item_id(item: dict) -> str:
+    """Return the server-generated queue identity; hash only legacy rows."""
+    if item.get("queueItemId"):
+        return str(item["queueItemId"])
+    if item.get("id") and (item.get("kind") or item.get("schemaVersion")):
+        return str(item["id"])
+    if item.get("type") == "task" and item.get("id"):
+        return str(item["id"])
+    try:
+        # deliveryState changes during hand-off; it is bookkeeping, not item
+        # identity.  Keep report/QQ ids stable so a stale panel action still
+        # addresses the same durable item.
+        identity = {k: v for k, v in item.items() if k not in {
+            "deliveryState", "reservedBy", "reservedGeneration", "reservedAt",
+            "deliveryAttempts", "nextAttemptAt", "lastDeliveryError",
+        }}
+        canonical = json.dumps(identity, sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        canonical = repr(item)
+    return "sha1:" + hashlib.sha1(canonical.encode("utf-8")).hexdigest()
+
+
+def _queue_dispatch_state(s, item: dict) -> str:
+    """Expose the durable state, never infer it from Provider status."""
+    state = worker._delivery_state(item)
+    return "unknown_after_crash" if state == worker._DELIVERY_IN_FLIGHT else state
+
+
+def _queue_lock_meta(item: dict) -> dict:
+    return {
+        "locked": worker._queue_item_locked(item),
+        "lockManual": bool(item.get("queueLockManual")),
+        "lockSource": queue_locks.source(item),
+        "illegalBatchId": item.get("queueLockIllegalBatch"),
+        "lockAutoReport": bool(item.get("queueLockAutoReport")),
+        "steerPending": bool(item.get("queueSteerPending")),
+        "steerError": item.get("lastSteerError"),
+    }
+
+
+def _serialize_queue_item(item, session=None) -> dict | None:
+    """queue_pending item → AgentQueueItem；无法识别的形状返回 None（跳过）。"""
+    if not isinstance(item, dict):
+        return None
+    t = item.get("type")
+    # Before durable task envelopes were introduced, user/agent messages were
+    # persisted as {text, source} without a type.  They are tasks, never
+    # reports: treating a no-type text item as a report is what made a message
+    # show up under the Agent queue (and eventually acquire an @@@@by agent
+    # rendering after a worker restart).  Mirror worker._migrate_legacy_task_items
+    # here so the queue API is safe even before the next worker recovery tick.
+    if t == "task" or item.get("kind") == "task" or (t is None and isinstance(item.get("text"), str)):
+        source = worker._task_source(item) or "user"
+        meta = {
+            "seq": item.get("seq"),
+            "taskId": item.get("taskId"),
+            "revision": item.get("revision", 1),
+            "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+            **_queue_lock_meta(item),
+        }
+        if item.get("sourceSessionId") is not None:
+            meta["sourceSessionId"] = item.get("sourceSessionId")
+        return {
+            "id": _queue_item_id(item),
+            "queueItemId": _queue_item_id(item),
+            "kind": "task",
+            "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            **({"parts": [
+                    {key: value for key, value in part.items() if key != "__serverPath"}
+                    for part in item["parts"] if isinstance(part, dict)
+                ]}
+               if isinstance(item.get("parts"), list) else {}),
+            "createdAt": item.get("createdAt", 0),
+            "source": source,
+            "meta": meta,
+        }
+    # 通道提醒（qq/wechat/…）共用分支：kind/source 直接取 type，将来加通道不用
+    # 再复制一遍这段。
+    if t in ("qq", "wechat") or item.get("kind") in ("qq", "wechat"):
+        channel = t if t in ("qq", "wechat") else item.get("kind")
+        return {
+            "id": _queue_item_id(item),
+            "queueItemId": _queue_item_id(item),
+            "kind": channel,
+            "text": item.get("text") if isinstance(item.get("text"), str) else "",
+            "createdAt": item.get("createdAt", 0),
+            "source": channel,
+            "meta": {
+                "qqTarget": item.get("qqTarget"),
+                "channelTarget": item.get("channelTarget") or item.get("qqTarget"),
+                "channel": item.get("channel") or channel,
+                "canReply": item.get("canReply", True),
+                "time": item.get("time"),
+                "revision": item.get("revision", 1),
+                "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+                **_queue_lock_meta(item),
+            },
+        }
+    # 非 task/qq 一律按 report 处理（普通报告无 type 字段、zombie 为 type=zombie），
+    # 与 worker 消费端分类（type != "task" 即报告）保持一致；完全无 result 的
+    # 畸形项跳过。
+    if "result" not in item and t is not None:
+        return None
+    result = item.get("result")
+    if isinstance(result, str):
+        text = result
+    elif result is None:
+        text = ""
+    else:
+        try:
+            text = json.dumps(result, ensure_ascii=False)
+        except (TypeError, ValueError):
+            text = repr(result)
+    if len(text) > _REPORT_TEXT_MAX:
+        text = text[:_REPORT_TEXT_MAX] + "…"
+    meta = {
+        "status": item.get("status"),
+        "taskId": item.get("taskId"),
+        "workerId": item.get("workerId"),
+        "revision": item.get("revision", 1),
+        "dispatchState": _queue_dispatch_state(session, item) if session else worker._delivery_state(item),
+        **_queue_lock_meta(item),
+    }
+    # Preserve structured system-Job metadata in the queue API.  The text
+    # remains available for the Agent/CLI, but clients must not parse jobId or
+    # routing identity back out of result text.
+    for key in (
+        "noticeKind", "jobId", "targetSessionId", "targetSessionIds",
+        "creatorSessionId", "eventId",
+    ):
+        if key in item:
+            meta[key] = item[key]
+    if item.get("sourceSessionId") is not None:
+        meta["sourceSessionId"] = item.get("sourceSessionId")
+    return {
+        "id": _queue_item_id(item),
+        "queueItemId": _queue_item_id(item),
+        "kind": "report",
+        "text": text,
+        "createdAt": item.get("createdAt", 0),
+        "source": item.get("source") or "report",
+        "meta": meta,
+    }
+
+
+def _session_queue_items(s) -> list[dict]:
+    items = []
+    seen: set[str] = set()
+    # The pending API is intentionally narrower than the delivery ledger:
+    # queue_pending is the only source for items still awaiting delivery.
+    # Reserved/sent/failed/unknown records remain in the ledger for idempotency
+    # and diagnostics, but must disappear from this snapshot immediately.
+    source_items = [
+        it for it in (s.queue_pending or [])
+        if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED
+    ]
+    # queue_pending itself is the durable order. Locks only affect selection,
+    # never the list's position or the order shown to the user.
+    for it in source_items:
+        si = _serialize_queue_item(it, s)
+        if si is not None and si["id"] not in seen:
+            items.append(si)
+            seen.add(si["id"])
+    return items
+
+
+def _queue_item_in_public_projection(item: dict) -> bool:
+    """Shape filter mirroring ``_serialize_queue_item`` (keep them in sync).
+
+    Only rows the Agent-queue snapshot would actually render count toward the
+    card badge; the queue panel drops unknown-typed rows without a result, so
+    the summary does too.
+    """
+    item_type = item.get("type")
+    kind = item.get("kind")
+    if item_type == "task" or kind == "task" or (
+            item_type is None and isinstance(item.get("text"), str)):
+        return True
+    if item_type in ("qq", "wechat") or kind in ("qq", "wechat"):
+        return True
+    return "result" in item or item_type is None
+
+
+def _queue_pending_summary(s) -> tuple[int, bool]:
+    """(pending count, all locked) from queue_pending's public projection.
+
+    Mirrors ``_session_queue_items``: still-queued delivery state only, first
+    occurrence per queue id, shapes the snapshot would drop are skipped — so
+    the card badge always agrees with the Agent queue panel.  Only two scalars
+    travel in the Session summary (never the queue payload), keeping list/WS
+    refreshes an O(pending) metadata scan that never reads history.
+
+    ``all_locked`` is True only when the queue is non-empty AND every counted
+    row carries a real lock (manual or auto-report) — never inferred from
+    ``agent_reports_paused`` or worker presence.
+    """
+    count = 0
+    all_locked = True
+    seen: set[str] = set()
+    for item in (getattr(s, "queue_pending", None) or []):
+        if not isinstance(item, dict):
+            continue
+        if worker._delivery_state(item) != worker._DELIVERY_QUEUED:
+            continue
+        if not _queue_item_in_public_projection(item):
+            continue
+        item_id = _queue_item_id(item)
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+        count += 1
+        if not worker._queue_item_locked(item):
+            all_locked = False
+    return count, count > 0 and all_locked
+
+
+def _queue_snapshot_locked(s) -> dict:
+    """Capture one queue version while the caller holds queue_lock(s.id)."""
+    return {
+        "items": _session_queue_items(s),
+        "queueRevision": getattr(s, "queue_revision", 0),
+        "agentReportsPaused": bool(getattr(s, "agent_reports_paused", False)),
+        "queuePaused": bool(getattr(s, "queue_paused", False)),
+    }
+
+
+async def _mutate_queue_locks_locked(s, changes: list[tuple[dict, bool | None, bool | None]],
+                                     paused: bool | None = None) -> dict:
+    """Persist item lock sources and the optional report rule as one revision."""
+    old_paused = bool(getattr(s, "agent_reports_paused", False))
+    old_revision = getattr(s, "queue_revision", 0)
+    originals = []
+    changed = False
+    try:
+        for item, manual, automatic in changes:
+            item_id = _queue_item_id(item)
+            old_item = dict(item)
+            had_ledger = item_id in s.queue_delivery_ledger
+            ledger_record = s.queue_delivery_ledger.get(item_id)
+            old_ledger = dict(ledger_record) if isinstance(ledger_record, dict) else ledger_record
+            originals.append((item, old_item, item_id, had_ledger, old_ledger))
+            queue_locks.manual_change(item, manual, automatic)
+            if item != old_item:
+                worker._remember_queue_item(s, item, worker._DELIVERY_QUEUED)
+                changed = True
+        if paused is not None and paused != old_paused:
+            s.agent_reports_paused = paused
+            changed = True
+        if changed:
+            s.queue_revision = old_revision + 1
+            await worker._save_receipt(s)
+    except Exception:
+        for item, old_item, item_id, had_ledger, old_ledger in originals:
+            item.clear()
+            item.update(old_item)
+            if had_ledger:
+                s.queue_delivery_ledger[item_id] = old_ledger
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
+        s.agent_reports_paused = old_paused
+        s.queue_revision = old_revision
+        raise
+    return _queue_snapshot_locked(s)
+
+
+@app.get("/api/sessions/{session_id}/queue")
+async def api_session_queue(session_id: str):
+    """Normalized agent queue (session.queue_pending) for the frontend panel."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    async with worker.queue_lock(session_id):
+        migrated = worker._migrate_queue_delivery_state(s)
+        migrated = worker._sync_queued_ledger(s) or migrated
+        if migrated:
+            await worker._save_receipt(s)
+        snapshot = _queue_snapshot_locked(s)
+    return snapshot
+
+
+@app.post("/api/self-queue/{operation}")
+async def api_self_queue(operation: str, request: Request):
+    """Local MCP bridge; the caller header is set by the bound stdio server."""
+    from packages.core import self_queue
+    from packages.web.terminal_tools_api import _local, resolve_caller
+    caller = request.headers.get("X-Pan-Queue-Caller")
+    if not caller or not _local(request) or resolve_caller(caller) is None:
+        return {"ok": False, "error": "caller_unavailable"}
+    if operation in {"report-status", "report-consume"}:
+        data = await request.json()
+        allowed = {"itemId"} if operation == "report-consume" else set()
+        if (not isinstance(data, dict) or not set(data) <= allowed
+                or ("itemId" in data and (not isinstance(data["itemId"], str) or not data["itemId"]))):
+            return {"ok": False, "error": "invalid_request"}
+        return await (self_queue.report_status(caller) if operation == "report-status"
+                      else self_queue.report_consume(caller, data.get("itemId")))
+    if operation == "read":
+        return await self_queue.read(caller)
+    if operation == "consume":
+        data = await request.json()
+        if not isinstance(data, dict) or set(data) != {"itemId"} or not isinstance(data["itemId"], str):
+            return {"ok": False, "error": "invalid_request"}
+        return await self_queue.consume(caller, data["itemId"])
+    return {"ok": False, "error": "invalid_request"}
+
+
+@app.post("/api/sessions/{session_id}/queue")
+async def api_session_queue_enqueue(session_id: str, data: dict):
+    """Canonical user enqueue endpoint.
+
+    Only text and the browser idempotency key are accepted from the client;
+    source=user/kind=task are fixed by the server-side entry point.
+    """
+    text = data.get("text")
+    original_text = text
+    parts = data.get("parts")
+    normalized_parts = None
+    if parts is not None:
+        normalized_parts, generated_text, parts_error = _normalize_message_parts(session_id, parts)
+        if parts_error is not None:
+            return {"ok": False, "error": parts_error}
+        text = generated_text
+    elif isinstance(text, str):
+        # Upgrade old text/Markdown attachment links before the queue item is
+        # persisted, so retry/restart delivery has the same canonical path
+        # projection as a new structured request.
+        normalized_parts, generated_text, parts_error = _normalize_text_attachment_parts(
+            session_id, text)
+        if parts_error is not None:
+            return {"ok": False, "error": parts_error}
+        if normalized_parts is not None:
+            text = generated_text
+    if not isinstance(text, str) or not text.strip():
+        return {"ok": False, "error": {"code": "text_required",
+                                         "message": "text is required"}}
+    if normalized_parts is None:
+        attachment_error = _validate_message_attachment_references(session_id, text)
+        if attachment_error is not None:
+            return {"ok": False, "error": attachment_error}
+    client_id = data.get("clientMessageId")
+    if client_id is not None and (not isinstance(client_id, str) or len(client_id) > 512):
+        return {"ok": False, "error": {"code": "invalid_client_message_id",
+                                         "message": "clientMessageId must be a string of at most 512 characters"}}
+    locked = data.get("locked", False)
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": {"code": "invalid_queue_lock",
+                                         "message": "locked must be a boolean"}}
+    if locked:
+        parameters = inspect.signature(worker.enqueue_user_message).parameters
+        if ("locked" not in parameters
+                and not any(parameter.kind == inspect.Parameter.VAR_KEYWORD
+                            for parameter in parameters.values())):
+            return {"ok": False, "error": {"code": "locked_enqueue_unavailable",
+                                             "message": "Atomic locked enqueue is unavailable"}}
+    if normalized_parts is None:
+        # Keep the exact legacy call shape for embedders and test doubles that
+        # still implement the text-only queue contract.
+        if locked:
+            result = await worker.enqueue_user_message(session_id, text, client_id, locked=True)
+        else:
+            result = await worker.enqueue_user_message(session_id, text, client_id)
+    else:
+        # Older embedders may still expose the three-argument queue function.
+        # Production Worker accepts parts; a legacy replacement gets the
+        # canonical fallback text and keeps its established call shape.
+        parameters = inspect.signature(worker.enqueue_user_message).parameters
+        supports_parts = (
+            "parts" in parameters
+            or any(parameter.kind == inspect.Parameter.VAR_KEYWORD
+                   for parameter in parameters.values())
+        )
+        if supports_parts:
+            if locked:
+                result = await worker.enqueue_user_message(
+                    session_id, text, client_id, parts=normalized_parts, locked=True)
+            else:
+                result = await worker.enqueue_user_message(
+                    session_id, text, client_id, parts=normalized_parts)
+        else:
+            # A legacy replacement cannot consume the private path projection;
+            # preserve its established text-only input after server-side
+            # validation rather than changing its call semantics.
+            legacy_text = original_text if parts is None else text
+            if locked:
+                result = await worker.enqueue_user_message(
+                    session_id, legacy_text, client_id, locked=True)
+            else:
+                result = await worker.enqueue_user_message(session_id, legacy_text, client_id)
+    if result.get("status") == "error":
+        return {"ok": False, "error": {"code": "enqueue_failed",
+                                         "message": result.get("result", "enqueue failed")}}
+    s = _summary_session_get(session_id)
+    if s is not None:
+        async with worker.queue_lock(session_id):
+            item = _serialize_queue_item(result.get("item") or {}, s)
+            snapshot = _queue_snapshot_locked(s)
+    else:
+        item = _serialize_queue_item(result.get("item") or {})
+        snapshot = {"items": [], "queueRevision": 0, "agentReportsPaused": False}
+    return {"ok": True, "item": item, **snapshot,
+            "duplicate": bool(result.get("duplicate"))}
+
+
+def _queue_error(code: str, message: str, s=None) -> dict:
+    response = {"ok": False, "error": {"code": code, "message": message}}
+    if s is not None:
+        response.update(_queue_snapshot_locked(s))
+    return response
+
+
+@app.patch("/api/sessions/{session_id}/queue/order")
+async def api_session_queue_order_route(session_id: str, data: dict):
+    """Route the static order path before the dynamic item-id path below."""
+    return await api_session_queue_order(session_id, data)
+
+
+@app.patch("/api/sessions/{session_id}/queue/paused")
+async def api_session_queue_paused(session_id: str, data: dict):
+    """Pause this Session's entire queue without changing any item locks.
+
+    queue_lock also surrounds CLI write/drain and one-shot process creation.
+    Success therefore linearizes after every handoff already in that section
+    and before every not-yet-started handoff, including reserved rows.
+    """
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    paused = data.get("paused")
+    if not isinstance(paused, bool):
+        return {"ok": False, "error": "paused must be a boolean"}
+    async with worker.queue_lock(session_id):
+        old_paused = bool(getattr(s, "queue_paused", False))
+        old_revision = s.queue_revision
+        if paused != old_paused:
+            s.queue_paused = paused
+            s.queue_revision += 1
+            try:
+                await worker._save_receipt(s)
+            except Exception as exc:
+                s.queue_paused = old_paused
+                s.queue_revision = old_revision
+                return {"ok": False, "error": f"Could not save queue pause state: {exc}"}
+        snapshot = _queue_snapshot_locked(s)
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    if not paused:
+        await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
+
+
+@app.patch("/api/sessions/{session_id}/queue/reports-paused")
+async def api_session_queue_reports_paused(session_id: str, data: dict):
+    """Auto-lock queued Agent reports and future reports for this Session."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    paused = data.get("paused")
+    if not isinstance(paused, bool):
+        return {"ok": False, "error": "paused must be a boolean"}
+
+    async with worker.queue_lock(session_id):
+        changes = [
+            (item, None, paused)
+            for item in (s.queue_pending or [])
+            if isinstance(item, dict)
+            and worker._delivery_state(item) == worker._DELIVERY_QUEUED
+            and worker._is_pauseable_agent_report(item)
+        ]
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, changes, paused=paused)
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save report pause state: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
+
+
+@app.patch("/api/sessions/{session_id}/queue/locks")
+async def api_session_queue_locks(session_id: str, data: dict):
+    """Set every currently queued item's manual lock in one durable save."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    locked = data.get("locked")
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": "locked must be a boolean"}
+    async with worker.queue_lock(session_id):
+        changes = [
+            (item, True, None) if locked else (item, False, False)
+            for item in (s.queue_pending or [])
+            if isinstance(item, dict)
+            and worker._delivery_state(item) == worker._DELIVERY_QUEUED
+        ]
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, changes)
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save queue locks: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
+
+
+@app.patch("/api/sessions/{session_id}/queue/{item_id}/lock")
+async def api_session_queue_item_lock(session_id: str, item_id: str, data: dict):
+    """Lock or unlock one queued row without moving it in queue_pending."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    locked = data.get("locked")
+    if not isinstance(locked, bool):
+        return {"ok": False, "error": "locked must be a boolean"}
+    async with worker.queue_lock(session_id):
+        item = next((item for item in (s.queue_pending or [])
+                     if isinstance(item, dict) and _queue_item_id(item) == item_id), None)
+        if item is None or worker._delivery_state(item) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_lockable", "Queue item is no longer queued", s)
+        change = (item, True, None) if locked else (item, False, False)
+        try:
+            snapshot = await _mutate_queue_locks_locked(s, [change])
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not save queue lock: {exc}"}
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, **snapshot}
+
+
+def _queue_edit_json(value) -> str:
+    """Encode only faithful JSON values; never coerce tuple/key/NaN data."""
+    def validate(node):
+        if node is None or type(node) in {str, bool, int}:
+            return
+        if type(node) is float and math.isfinite(node):
+            return
+        if type(node) is list:
+            for child in node:
+                validate(child)
+            return
+        if type(node) is dict and all(type(key) is str for key in node):
+            for child in node.values():
+                validate(child)
+            return
+        raise ValueError("Queue body contains a value that cannot be edited losslessly as JSON")
+    validate(value)
+    return json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
+
+
+def _queue_parse_edit_json(text: str):
+    def reject_constant(value):
+        raise ValueError(f"Invalid JSON constant: {value}")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            result[key] = value
+        return result
+
+    result = json.loads(text, parse_constant=reject_constant, object_pairs_hook=unique_object)
+    _queue_edit_json(result)  # Also rejects exponent overflow to infinity.
+    return result
+
+
+def _queue_edit_parts_template(parts: list) -> list:
+    """Expose text slots around attachments without removing any original part."""
+    template = []
+    for part in parts:
+        if part.get("type") == "attachment" and (
+                not template or template[-1].get("type") == "attachment"):
+            template.append({"type": "text", "text": ""})
+        template.append(part)
+    if template and template[-1].get("type") == "attachment":
+        template.append({"type": "text", "text": ""})
+    return template
+
+
+def _queue_edit_equal(first, second) -> bool:
+    # JSON's bool/int and int/float values must not compare as Python aliases.
+    return json.dumps(first, sort_keys=True, allow_nan=False) == json.dumps(
+        second, sort_keys=True, allow_nan=False)
+
+
+def _queue_edit_body(item: dict) -> tuple[str, str, str]:
+    """Return storage field, full editor body and format, without row decoration."""
+    kind = worker._queue_item_kind(item)
+    if item.get("type") is None and isinstance(item.get("text"), str):
+        kind = "task"  # Mirror the consumer's legacy text-envelope migration.
+    if kind not in {"task", "report", "qq", "wechat"}:
+        raise ValueError("Unknown queue item kind cannot be edited losslessly")
+    field = "result" if kind == "report" else "text"
+    value = item.get(field)
+    if field == "text" and not isinstance(value, str):
+        raise ValueError("Task/channel body must be a string")
+    parts = item.get("parts")
+    if kind == "task" and not parts and isinstance(item.get("attachments"), list) and item["attachments"]:
+        parts = [{"type": "text", "text": value}] + [
+            {**attachment, "type": "attachment"} for attachment in item["attachments"]]
+    if field == "text" and isinstance(parts, list) and any(
+            not isinstance(part, dict) or part.get("type") != "text"
+            or set(part) - {"type", "text", "value"} for part in parts):
+        if any(not isinstance(part, dict) or part.get("type") not in {"text", "attachment"}
+               for part in parts):
+            raise ValueError("Unknown structured part cannot be edited losslessly")
+        public_parts = [{key: value for key, value in part.items() if key != "__serverPath"}
+                        for part in _queue_edit_parts_template(parts)]
+        return field, _queue_edit_json(public_parts), "parts"
+    if kind == "task" and isinstance(parts, list) and parts:
+        # Parts are authoritative for task dispatch; do not edit a stale text
+        # fallback that could omit the tail of a structured text-only message.
+        values = [part.get("text", part.get("value")) for part in parts]
+        if not all(isinstance(part_text, str) for part_text in values):
+            raise ValueError("Text parts require string values")
+        value = "".join(values)
+    if isinstance(value, str):
+        return field, value, "text"
+    return field, _queue_edit_json(value), "json"
+
+
+def _queue_edit_parts(session_id: str, original: list, text: str) -> tuple[list, str]:
+    """Edit text fields only, keeping attachment occurrences and metadata intact."""
+    original = _queue_edit_parts_template(original)
+    edited = _queue_parse_edit_json(text)
+    if not isinstance(edited, list) or len(edited) != len(original):
+        raise ValueError("Keep all structured parts in their original order; edit text fields only")
+    updated = []
+    for before, after in zip(original, edited):
+        public = {key: value for key, value in before.items() if key != "__serverPath"}
+        if before.get("type") == "text":
+            field = "text" if "text" in before else "value"
+            if not isinstance(after, dict) or not isinstance(after.get(field), str):
+                raise ValueError("Text parts require a string text field")
+            protected = dict(after)
+            protected[field] = public.get(field)
+            if not _queue_edit_equal(protected, public):
+                raise ValueError("Only text fields may change; preserve all part metadata")
+            updated.append({**before, field: after[field]})
+        else:
+            if not _queue_edit_equal(after, public):
+                raise ValueError("Attachment references, metadata and order cannot change")
+            updated.append(dict(before))
+    normalized, canonical, error = _normalize_message_parts(session_id, updated)
+    if error is not None:
+        raise ValueError(error["message"])
+    # Retain metadata not involved in normalization, with canonical attachment
+    # paths supplied by the existing Session registry validation.
+    preserved = [{**part, **canonical_part} for part, canonical_part in zip(updated, normalized)]
+    return preserved, canonical
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/edit")
+async def api_session_queue_edit_lock(session_id: str, item_id: str, data: dict):
+    """Acquire or renew the lease that keeps an edited item out of Worker hand-off."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    token = data.get("editToken")
+    if not isinstance(token, str) or not token or len(token) > 200:
+        return _queue_error("invalid_edit_token", "editToken is required")
+    expected = data.get("expectedRevision")
+    async with worker.queue_lock(session_id):
+        if s.readonly_session:
+            return _queue_error("readonly_session", "Readonly Session cannot be edited", s)
+        target = next((it for it in s.queue_pending or []
+                       if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
+        if target is None:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be edited", s)
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        current_revision = int(target.get("revision", 1))
+        if expected is not None and expected != current_revision:
+            return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
+        try:
+            _, full_text, body_format = _queue_edit_body(target)
+            if body_format == "text" and worker._queue_item_kind(target) == "task":
+                legacy_parts, _, legacy_error = _normalize_text_attachment_parts(session_id, full_text)
+                if legacy_error is not None:
+                    raise ValueError(legacy_error["message"])
+                if legacy_parts:
+                    _, full_text, body_format = _queue_edit_body({**target, "parts": legacy_parts})
+        except (ValueError, TypeError, RecursionError) as error:
+            return _queue_error("queue_body_not_editable", str(error), s)
+        body = ({"text": full_text, "bodyFormat": body_format, "revision": current_revision}
+                if data.get("includeBody", True) else {})
+        previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
+        lease, conflict = worker.acquire_queue_edit_lock(s, item_id, token)
+        if conflict or lease is None:
+            return _queue_error("queue_item_edit_locked", "Queue item is being edited elsewhere", s)
+        try:
+            await worker._save_receipt(s)
+        except Exception:
+            if previous:
+                s.queue_edit_locks[item_id] = previous
+            else:
+                s.queue_edit_locks.pop(item_id, None)
+            raise
+    return {"ok": True, "editToken": token, "expiresAt": lease["expiresAt"], **body}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/edit/release")
+async def api_session_queue_edit_release(session_id: str, item_id: str, data: dict):
+    """Release a matching edit lease and wake the Worker if it was holding the FIFO head."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    token = data.get("editToken")
+    if not isinstance(token, str) or not token:
+        return _queue_error("invalid_edit_token", "editToken is required")
+    async with worker.queue_lock(session_id):
+        previous = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
+        released = worker.release_queue_edit_lock(s, item_id, token)
+        if released:
+            try:
+                await worker._save_receipt(s)
+            except Exception:
+                s.queue_edit_locks[item_id] = previous
+                raise
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, "released": released}
+
+
+@app.patch("/api/sessions/{session_id}/queue/{item_id}")
+async def api_session_queue_update(session_id: str, item_id: str, data: dict):
+    """Edit a queued body, retaining its original kind and durable identity."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"ok": False, "error": "Session not found"}
+    text = data.get("text")
+    expected = data.get("expectedRevision")
+    edit_token = data.get("editToken")
+    requested_parts = data.get("parts")
+    if not isinstance(edit_token, str) or not edit_token:
+        return _queue_error("invalid_edit_token", "editToken is required")
+    async with worker.queue_lock(session_id):
+        if s.readonly_session:
+            return _queue_error("readonly_session", "Readonly Session cannot be edited", s)
+        target = next((it for it in s.queue_pending or []
+                       if isinstance(it, dict) and _queue_item_id(it) == item_id), None)
+        if target is None:
+            if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
+                return _queue_error("queue_item_not_editable", "Only queued messages can be edited", s)
+            return _queue_error("not_found", "Queue item not found", s)
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_editable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be edited", s)
+        lease = worker._active_queue_edit_lock(s, item_id)
+        if (lease is None
+                or lease.get("tokenHash") != worker._queue_edit_token_digest(edit_token)):
+            return _queue_error("queue_item_edit_expired", "Edit lease expired; reopen the editor", s)
+        if not isinstance(text, str):
+            return _queue_error("text_required", "text must be a string", s)
+        normalized_parts = None
+        try:
+            field, _, body_format = _queue_edit_body(target)
+            new_value = _queue_parse_edit_json(text) if body_format == "json" else text
+            composer_parts = data.get("composerParts")
+            if composer_parts is not None:
+                kind = worker._queue_item_kind(target)
+                if target.get("type") is None and isinstance(target.get("text"), str):
+                    kind = "task"
+                if kind != "task" or field != "text":
+                    return _queue_error("queue_parts_unsupported", "Only task messages support composer parts", s)
+                normalized_parts, new_value, error = _normalize_message_parts(session_id, composer_parts)
+                if error is not None:
+                    return _queue_error(error["code"], error["message"], s)
+                # Occurrences are editor identities, never resource authorization.
+                # All resource metadata and paths still come from the registry.
+                occurrences = set()
+                original_parts = target.get("parts") or ([{"type": "text", "text": target.get("text", "")}] +
+                    [{**attachment, "type": "attachment"} for attachment in target.get("attachments", [])])
+                original_occurrences = {
+                    part.get("occurrenceId", f"queue-occurrence-{index}"): part
+                    for index, part in enumerate(_queue_edit_parts_template(original_parts))
+                    if part.get("type") == "attachment"
+                }
+                for ref, normalized in zip(composer_parts, normalized_parts):
+                    if ref.get("type") == "text" and "editorUrl" in ref:
+                        url = ref["editorUrl"]
+                        if (not isinstance(url, dict) or set(url) - {"id", "url", "label"}
+                                or not isinstance(url.get("id"), str) or not url["id"]
+                                or not isinstance(url.get("url"), str)
+                                or urlsplit(url["url"]).scheme not in {"http", "https"}
+                                or not urlsplit(url["url"]).netloc
+                                or any(not isinstance(value, str) or len(value) > 32768 for value in url.values())):
+                            raise ValueError("Invalid URL node")
+                        normalized["editorUrl"] = dict(url)
+                    if ref.get("type") == "attachment":
+                        occurrence = ref.get("occurrenceId")
+                        if not isinstance(occurrence, str) or not occurrence or len(occurrence) > 200 or occurrence in occurrences:
+                            raise ValueError("Attachment occurrences must be unique nonempty strings")
+                        occurrences.add(occurrence)
+                        before = original_occurrences.get(occurrence)
+                        if before and before.get("attachmentId") != ref["attachmentId"]:
+                            raise ValueError("An existing occurrence cannot change its attachment identity")
+                        if before:
+                            normalized.update({**before, **normalized})
+                        normalized["occurrenceId"] = occurrence
+            # Optional new-attachment references. The client may only name the
+            # opaque attachmentId; every other field is supplied by the Session
+            # attachment registry via _normalize_message_parts.  Only task
+            # messages may carry attachments: the dispatch path projects parts
+            # for tasks exclusively (_deliver_queue_unit), while report/notice/
+            # channel bodies render from result/text alone, so attachments on
+            # those kinds would never reach the consumer.
+            added_parts: list | None = None
+            if composer_parts is None and requested_parts is not None:
+                kind = worker._queue_item_kind(target)
+                if target.get("type") is None and isinstance(target.get("text"), str):
+                    kind = "task"  # Mirror _queue_edit_body's legacy envelope rule.
+                if kind != "task" or field != "text":
+                    return _queue_error(
+                        "queue_parts_unsupported",
+                        "Attachments can only be added to task messages; "
+                        "report/notice/channel bodies cannot carry attachment parts", s)
+                if not isinstance(requested_parts, list) or len(requested_parts) > 512:
+                    return _queue_error("invalid_parts", "parts must be an array of at most 512 items", s)
+                for ref in requested_parts:
+                    if (not isinstance(ref, dict) or ref.get("type") != "attachment"
+                            or not isinstance(ref.get("attachmentId"), str)
+                            or not ref["attachmentId"]):
+                        return _queue_error("invalid_parts", "attachment part is invalid", s)
+            if composer_parts is None and requested_parts:
+                added_parts, _, parts_error = _normalize_message_parts(
+                    session_id,
+                    [{"type": "attachment", "attachmentId": ref["attachmentId"]}
+                     for ref in requested_parts])
+                if parts_error is not None:
+                    return _queue_error(parts_error["code"], parts_error["message"], s)
+            if composer_parts is not None:
+                pass
+            elif body_format == "parts":
+                normalized_parts, new_value = _queue_edit_parts(session_id, target["parts"], text)
+                if added_parts:
+                    # Existing attachment parts keep their server-side identity,
+                    # metadata and relative order; new attachments are appended.
+                    normalized_parts = normalized_parts + added_parts
+            elif field == "text":
+                if added_parts:
+                    normalized_parts = [{"type": "text", "text": text}] + added_parts
+                    new_value = text
+                elif isinstance(target.get("parts"), list):
+                    normalized_parts, new_value, error = _normalize_message_parts(
+                        session_id, [{"type": "text", "text": text}])
+                    if error is not None:
+                        return _queue_error(error["code"], error["message"], s)
+            # Enforce the parts budget on the FINAL assembled array: the text
+            # branch adds one text part on top of the requested attachments, so
+            # counting before assembly can pass while the result exceeds 512.
+            if normalized_parts is not None and len(normalized_parts) > 512:
+                return _queue_error("invalid_parts", "too many message parts", s)
+            if field == "text" and not new_value.strip():
+                return _queue_error("text_required", "text is required", s)
+        except (ValueError, TypeError, RecursionError) as error:
+            return _queue_error("invalid_queue_body", str(error), s)
+        current_revision = int(target.get("revision", 1))
+        if expected is not None and expected != current_revision:
+            return _queue_error("queue_revision_conflict", "Queue item revision conflict", s)
+        old_target = dict(target)
+        old_ledger = dict(s.queue_delivery_ledger.get(item_id, {}))
+        old_edit_lease = dict(lease)
+        old_queue_revision = s.queue_revision
+        target[field] = new_value
+        if normalized_parts is not None:
+            target["parts"] = normalized_parts
+        target["revision"] = current_revision + 1
+        target["updatedAt"] = datetime.now().isoformat()
+        _ledger = s.queue_delivery_ledger.get(item_id)
+        if not isinstance(_ledger, dict):
+            _ledger = dict(old_target)
+            s.queue_delivery_ledger[item_id] = _ledger
+        _ledger.update(target)
+        s.queue_edit_locks.pop(item_id, None)
+        s.queue_revision += 1
+        try:
+            await worker._save_receipt(s)
+        except Exception:
+            target.clear()
+            target.update(old_target)
+            if old_ledger:
+                _ledger.clear()
+                _ledger.update(old_ledger)
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
+            s.queue_edit_locks[item_id] = old_edit_lease
+            s.queue_revision = old_queue_revision
+            raise
+    await worker._bcast({
+        "type": "queue.item_updated",
+        "sessionId": session_id,
+        "queueItemId": item_id,
+        "queueRevision": s.queue_revision,
+        "item": _serialize_queue_item(target, s),
+    })
+    await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, "item": _serialize_queue_item(target, s),
+            "queueRevision": s.queue_revision}
+
+
+@app.delete("/api/sessions/{session_id}/queue/{item_id}")
+async def api_session_queue_delete(session_id: str, item_id: str):
+    """Remove one still-queued item; delivery receipts remain auditable."""
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    async with worker.queue_lock(session_id):
+        pending = s.queue_pending or []
+        target = next((it for it in pending if isinstance(it, dict)
+                       and _queue_item_id(it) == item_id), None)
+        if target is None:
+            if item_id in (getattr(s, "queue_delivery_ledger", {}) or {}):
+                return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
+            return {"ok": False, "error": "not_found"}
+        if worker._delivery_state(target) != worker._DELIVERY_QUEUED:
+            return _queue_error("queue_item_not_deletable", "Queue item is no longer queued", s)
+        if target.get("queueSteerPending"):
+            return _queue_error("queue_steer_pending", "Steer confirmation pending; item cannot be deleted", s)
+        old_pending = list(pending)
+        old_record = dict(s.queue_delivery_ledger.get(item_id, {}))
+        was_edit_locked = worker.queue_item_edit_locked(s, item_id)
+        old_edit_lock = dict(getattr(s, "queue_edit_locks", {}).get(item_id, {}))
+        old_queue_revision = s.queue_revision
+        s.queue_pending = [it for it in pending if it is not target]
+        s.queue_edit_locks.pop(item_id, None)
+        record = s.queue_delivery_ledger.get(item_id)
+        if not isinstance(record, dict):
+            record = dict(target)
+            s.queue_delivery_ledger[item_id] = record
+        worker._set_delivery_state(s, record, worker._DELIVERY_DELETED)
+        s.queue_revision += 1
+        try:
+            await worker._save_receipt(s)
+        except Exception:
+            s.queue_pending = old_pending
+            if old_record:
+                s.queue_delivery_ledger[item_id] = old_record
+            else:
+                s.queue_delivery_ledger.pop(item_id, None)
+            if old_edit_lock:
+                s.queue_edit_locks[item_id] = old_edit_lock
+            else:
+                s.queue_edit_locks.pop(item_id, None)
+            s.queue_revision = old_queue_revision
+            raise
+    await worker._bcast({"type": "queue.item_removed", "sessionId": session_id,
+                         "queueItemId": item_id, "queueRevision": s.queue_revision})
+    if was_edit_locked:
+        # Removing the locked FIFO head can unblock later queue items.
+        await worker._wake_worker(session_id, auto_spawn=False)
+    return {"ok": True, "queueItemId": item_id,
+            "queueRevision": s.queue_revision}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/steer")
+async def api_session_queue_steer(session_id: str, item_id: str, data: dict):
+    revision = data.get("expectedRevision")
+    if type(revision) is not int or revision < 1:
+        return _queue_error("invalid_revision", "A positive item expectedRevision is required")
+    if set(data) != {"expectedRevision"}:
+        return _queue_error("invalid_steer_body", "Queue Steer accepts only expectedRevision; body/source come from the queue")
+    error = await worker.steer_queue_item(session_id, item_id, revision)
+    s = _summary_session_get(session_id)
+    if error:
+        return _queue_error("queue_steer_failed", error, s)
+    async with worker.queue_lock(session_id):
+        return {"ok": True, "outcome": "accepted", "consumption": "unconfirmed", **_queue_snapshot_locked(s)}
+
+
+@app.post("/api/sessions/{session_id}/queue/{item_id}/retry")
+async def api_session_queue_retry(session_id: str, item_id: str):
+    """Requeue a failed or interrupted item using its existing queue identity."""
+    result = await worker.retry_pending_item(session_id, item_id)
+    if isinstance(result, str):
+        return {"ok": False, "error": result}
+    item = result.get("item", result) if isinstance(result, dict) else result
+    return {"ok": True, "item": _serialize_queue_item(
+                item, _summary_session_get(session_id)),
+            "status": result.get("status") if isinstance(result, dict) else None}
+
+
+async def api_session_queue_order(session_id: str, data: dict):
+    """Reorder all still-queued sources within the persisted queue.
+
+    Body: {"orderedIds": ["id1", ...]} — the relative order of every queued
+    source (user, agent, report, QQ, or system) in `orderedIds` becomes the new
+    pending sequence; omitted queued items keep their relative order at the end.
+    Returns the reordered normalized items.
+    """
+    s = _summary_session_get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    order = data.get("orderedIds", data.get("order"))
+    if not isinstance(order, list):
+        return {"error": "order (array of item ids) required"}
+    expected = data.get("expectedQueueRevision")
+    async with worker.queue_lock(session_id):
+        if expected is not None and expected != getattr(s, "queue_revision", 0):
+            return _queue_error("queue_revision_conflict", "Queue revision conflict", s)
+        pending = [it for it in (s.queue_pending or [])
+                   if isinstance(it, dict) and worker._delivery_state(it) == worker._DELIVERY_QUEUED]
+        by_id = {_queue_item_id(it): it for it in pending}
+        if len({str(i) for i in order}) != len(order):
+            return _queue_error("invalid_queue_order", "orderedIds contains duplicates", s)
+        unknown = [str(i) for i in order if str(i) not in by_id]
+        if unknown:
+            return _queue_error("invalid_queue_order", "orderedIds contains unknown or claimed items", s)
+        ordered = [by_id[str(i)] for i in order]
+        ordered.extend(it for it in pending if it not in ordered)
+        old_pending = list(s.queue_pending or [])
+        old_positions = {id(it): it.get("position") for it in old_pending}
+        old_queue_revision = s.queue_revision
+        # Keep any reserved/writing rows in their existing slots while
+        # applying the requested order to every still-queued source.
+        queued_slots = [index for index, it in enumerate(old_pending)
+                        if isinstance(it, dict)
+                        and worker._delivery_state(it) == worker._DELIVERY_QUEUED]
+        s.queue_pending = list(old_pending)
+        for slot, it in zip(queued_slots, ordered):
+            s.queue_pending[slot] = it
+        for position, it in enumerate(s.queue_pending):
+            it["position"] = position
+        s.queue_revision += 1
+        try:
+            await worker._save_receipt(s)
+        except Exception:
+            s.queue_pending = old_pending
+            for it in old_pending:
+                if old_positions[id(it)] is None:
+                    it.pop("position", None)
+                else:
+                    it["position"] = old_positions[id(it)]
+            s.queue_revision = old_queue_revision
+            raise
+        snapshot = _queue_snapshot_locked(s)
+    await worker._bcast({"type": "queue.snapshot", "sessionId": session_id, **snapshot})
+    return snapshot
+
+
+_SESSION_SETTINGS_LOCKS: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
+
+
+@app.patch("/api/sessions/{session_id}")
+async def api_update_session(session_id: str, data: dict):
+    async with _SESSION_SETTINGS_LOCKS.setdefault(session_id, asyncio.Lock()):
+        s = sess.get(session_id)
+        if s is None:
+            return {'error': 'Session not found'}
+        requested = {b.get('plugin_id', '') for b in data.get('pluginBindings', []) if isinstance(b, dict)}
+        requested.update(n for n in data.get('mcpServers', []) if isinstance(n, str))
+        async with _plugin_session_claim(s, {p for p in requested if p.startswith('action-group-')}):
+            return await _update_session_settings(session_id, data)
+
+
+async def _update_session_settings(session_id: str, data: dict):
+    """Update session-level settings without spawning a worker."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    from packages.core import source_notifications
+    previous_error_routes = source_notifications.routes("newError", s.id) if "notificationSettings" in data else None
+    require_restart = False
+    changing_plugins = "pluginBindings" in data or "mcpServers" in data
+    previous_config = copy.deepcopy(s.adapter_config) if changing_plugins else None
+    old_mcp_servers = s.adapter_config.get("mcp_servers")
+    old_output_mode = s.adapter_config.get("output_mode")
+    try:
+        if changing_plugins:
+            def prepare_plugins():
+                if 'pluginBindings' in data:
+                    return _validate_plugin_update(s, data)
+                staged_session = copy.copy(s)
+                staged_session.adapter_config = copy.deepcopy(s.adapter_config)
+                _apply_mcp_servers(staged_session, data['mcpServers'], force=bool(data.get('forceMcp')))
+                return staged_session.adapter_config
+            prepared = await _plugin_io(prepare_plugins)
+            _apply_session_updates(s, data, plugin_config=prepared)
+        else:
+            _apply_session_updates(s, data)
+    except ValueError as e:
+        if previous_config is not None:
+            s.adapter_config = previous_config
+        return {"error": str(e)}
+    new_mcp_servers = s.adapter_config.get("mcp_servers")
+    new_output_mode = s.adapter_config.get("output_mode")
+    # MCP servers 增删或执行模式切换都需要重启 worker 才生效
+    require_restart = (old_mcp_servers != new_mcp_servers
+                       or old_output_mode != new_output_mode)
+    if previous_config is not None:
+        def enabled_action_groups(config):
+            return {b['plugin_id'] for b in config.get('plugin_bindings', [])
+                    if b.get('enabled') and b.get('plugin_id', '').startswith('action-group-')}
+        # Group releases load only at Worker startup, including when an
+        # already-present gateway keeps exactly the same physical descriptor.
+        require_restart |= enabled_action_groups(previous_config) != enabled_action_groups(s.adapter_config)
+    if previous_config is not None:
+        staged_config = s.adapter_config
+        s.adapter_config = previous_config
+        outcome = sess.DurableOutcome()
+        try:
+            await sess.commit_adapter_config_async(s, staged_config, previous_config=previous_config, outcome=outcome)
+        except asyncio.CancelledError:
+            if (outcome.succeeded and (require_restart or any(k in data for k in _PROCESS_AFFECTING_FIELDS))
+                    and worker.find_alive_worker_by_session(session_id)):
+                worker.request_delayed_restart(session_id)
+            raise
+    else:
+        await sess.save_async(s)
+    if "notificationSettings" in data:
+        from packages.core.source_notifications import invalidate_session
+        await asyncio.to_thread(invalidate_session, s.id, previous_error_routes)
+    result = _session_to_api(s)
+    # 进程相关字段变更（model/effort/thinking/MCP 等）：idle worker 立即
+    # respawn 让新配置生效；running worker 标记 pending_restart，回 idle 时
+    # 自动 respawn（worker._maybe_restart_pending）。
+    if any(k in data for k in _PROCESS_AFFECTING_FIELDS) or ("pluginBindings" in data and require_restart):
+        w = worker.find_alive_worker_by_session(session_id)
+        if w:
+            restart_intent = worker.request_delayed_restart(session_id)
+            if isinstance(restart_intent, str):
+                result["restartError"] = restart_intent
+            else:
+                result["delayedRestart"] = restart_intent
+                result["pluginRestart"] = restart_intent
+            require_restart = True
+    if require_restart:
+        result["requireRestart"] = True
+    if "pluginBindings" in data:
+        result["pluginApplyStatus"] = "failed" if result.get("restartError") else "pending" if result.get("delayedRestart") else "next_start" if require_restart else "applied"
+    # Register retirement immediately after the durable commit, before an
+    # external notification can fail or be cancelled. The saved selection must
+    # never depend on successful WebSocket delivery to take effect in a Worker.
+    await broadcast({
+        "type": "session.updated",
+        "sessionId": s.id,
+        "session": _session_summary(s),
+    })
+    return result
+
+
+@app.post("/api/sessions/{session_id}/rename")
+async def api_rename_session(session_id: str, data: dict):
+    """Rename a session by its internal ID (no worker required)."""
+    new_name = (data.get("name") or "").strip()
+    if not new_name:
+        return {"error": "name is required"}
+
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+
+    if s.name == new_name:
+        return {"sessionId": s.id, "name": new_name, "status": "unchanged"}
+
+    err = _check_session_name(new_name)
+    if err:
+        return {"error": err}
+
+    old_name = s.name
+    s.name = new_name
+    await sess.save_async(s)
+
+    # G7: 把重命名持久化进 adapter 原生存储（按 provider 统一调用，P0-2）。
+    # kimi/opencode 显式回写 state.json / SQLite；cbc 追加 custom-title 事件
+    # （与 fork 时的写标题路径一致），三者均幂等安全。
+    # kimi_home 仅对支持该 kwarg 的 provider（kimi：方案 C 隔离 HOME）传递——
+    # 按签名过滤，避免 cbc/codex/claude/opencode 收到多余 kwarg 报 TypeError
+    # （2026-10-24 修复：此前每次非 kimi 重命名都会打印 write_custom_title
+    # failed，原生标题静默不落盘）。
+    if s.cli_session_id:
+        provider = _sessions_provider(s.adapter)
+        if provider is not None:
+            try:
+                provider.write_custom_title(
+                    s.cli_session_id, new_name, s.workdir or None,
+                    **provider_kwargs(
+                        provider.write_custom_title,
+                        kimi_home=s.adapter_config.get("kimi_home_dir")),
+                )
+            except Exception as e:
+                print(f"[rename] {s.adapter} write_custom_title failed: {e}")
+
+    await broadcast({
+        "type": "session.renamed",
+        "sessionId": s.id,
+        "oldName": old_name,
+        "newName": new_name,
+        "name": new_name,
+        "session": _session_summary(s),
+    })
+    return {"sessionId": s.id, "name": new_name, "status": "renamed"}
+
+
+def _branch_ownership(source: sess.Session) -> tuple[str | None, list[str]] | str:
+    """Validate source ownership and return its manager plus root membership.
+
+    Branching must not turn a broken managed child into an unrelated root, nor
+    inherit workspace ids from a child. Check the full chain and its backlinks
+    before touching adapter-owned fork state.
+    """
+    current = source
+    seen: set[str] = set()
+    while True:
+        if current.id in seen:
+            return f"Cannot branch from Session {source.id}: manager cycle at {current.id}"
+        seen.add(current.id)
+        manager_id = current.managed_by
+        if not manager_id:
+            return (source.managed_by, list(current.workspace_ids[:1]))
+        manager = sess.get(manager_id, load_history=False)
+        if manager is None:
+            return f"Cannot branch from Session {source.id}: manager {manager_id} not found"
+        if current.id not in manager.managed:
+            return (f"Cannot branch from Session {source.id}: manager relationship "
+                    f"{manager_id} -> {current.id} is inconsistent")
+        current = manager
+
+
+@app.post("/api/sessions/{session_id}/branch")
+@_plugin_copy_admission
+async def api_branch_session(session_id: str, data: dict):
+    """Branch from a session — copy adapter-specific transcript, import new session, preserve settings.
+
+    Dispatches by adapter because each backend stores sessions differently
+    (cbc: JSONL under a project dir; kimi: wire.jsonl under ~/.kimi-code/sessions).
+    """
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    ownership = _branch_ownership(s)
+    if isinstance(ownership, str):
+        return {"error": ownership}
+    manager_id, root_workspace_ids = ownership
+    if not s.cli_session_id:
+        return {"error": "Session has no CLI session ID — cannot branch"}
+
+    name = (data.get("name") or "").strip()
+    if not name:
+        name = f"{s.name}-branch"
+
+    err = _check_session_name(name)
+    if err:
+        return {"error": err}
+
+    # Fork via pure file operations — no CLI process spawned.
+    # 按 provider 统一调用（P0-2）：cbc=复制 JSONL、kimi=原生 `kimi fork`
+    # （2.3.1+，旧版目录复制）、opencode=SQLite 行复制，各自 fork_session 内部实现。
+    # kimi_home 仅对支持该 kwarg 的 provider（kimi）传递：MCP 会话的父会话状态
+    # 在隔离 HOME 里，真实 home 索引找不到，不传会导致 branch 直接失败。
+    cwd = s.workdir or ""
+    provider = _sessions_provider(s.adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {s.adapter}"}
+    home_kwargs = provider_kwargs(
+        provider.fork_session,
+        kimi_home=s.adapter_config.get("kimi_home_dir"))
+    try:
+        new_cli_id = provider.fork_session(s.cli_session_id, name, cwd or None, **home_kwargs)
+    except FileNotFoundError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Fork failed: {e}"}
+
+    try:
+        history = provider.parse_history(
+            new_cli_id, cwd or None,
+            **provider_kwargs(provider.parse_history,
+                              kimi_home=s.adapter_config.get("kimi_home_dir")))
+        raw_usage_entries = provider.get_raw_usage(
+            new_cli_id, cwd or None,
+            **provider_kwargs(provider.get_raw_usage,
+                              kimi_home=s.adapter_config.get("kimi_home_dir")))
+    except Exception as e:
+        return {"error": f"Failed to parse forked session: {e}"}
+
+    # A branch is a new Pan Session even though its provider transcript was
+    # copied from an existing native thread. Give the newly materialized rows
+    # Pan IDs while leaving provider nativeItemId intact as matching evidence.
+    history = sess.assign_pan_message_ids(history)
+
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(s.adapter, raw_usage_entries))
+    total_usage = sess.compute_total_usage(raw_usage)
+
+    # Preserve MCP binding from parent so branched session inherits
+    # character identity + MCP servers (needed for --resume to work with tools).
+    new_adapter_config = {
+        "always_thinking_enabled": s.adapter_config.get("always_thinking_enabled", False),
+        "effort": s.adapter_config.get("effort", ""),
+        "max_thinking_tokens": s.adapter_config.get("max_thinking_tokens"),
+    }
+    for _api_key, _native_key in _CODEX_CONTEXT_SETTING_KEYS:
+        if _native_key in s.adapter_config:
+            new_adapter_config[_native_key] = s.adapter_config[_native_key]
+    if s.adapter_config.get("mcp_servers"):
+        new_adapter_config["mcp_servers"] = copy.deepcopy(s.adapter_config["mcp_servers"])
+    # 方案 C 隔离 HOME 随 branch 传递：fork 出的 kimi 会话物理上位于父会话的
+    # 隔离 HOME 内，新 Pan session 必须复用同一 HOME 才能 -S 续接它；若不复用，
+    # 首轮 spawn 会建一个空 HOME，resume 找不到会话（上下文丢失）。
+    # mcp.json 里的 PAN_AGENT_SESSION_ID/TITLE 在每次 spawn 时按当前 session
+    # 重写（_prepare_kimi_home 幂等），父子并发运行时的身份以各自 spawn 为准。
+    if s.adapter_config.get("kimi_home_dir"):
+        new_adapter_config["kimi_home_dir"] = s.adapter_config["kimi_home_dir"]
+    for key in ("plugin_config_version", "plugin_bindings", "plugin_selection_revision"):
+        if key in s.adapter_config:
+            new_adapter_config[key] = copy.deepcopy(s.adapter_config[key])
+
+    new_adapter_config.update(sess.native_usage_cursor_config(s.adapter, raw_usage_entries))
+
+    new_s = sess.create(
+        name=name,
+        adapter=s.adapter,
+        cli_session_id=new_cli_id,
+        model=s.model,
+        permission_mode=s.permission_mode,
+        always_thinking_enabled=s.adapter_config.get("always_thinking_enabled", False),
+        effort=s.adapter_config.get("effort", ""),
+        max_thinking_tokens=s.adapter_config.get("max_thinking_tokens"),
+        raw_usage=raw_usage,
+        total_usage=total_usage,
+        workdir=s.workdir,
+        history=history,
+        character_id=s.character_id,
+        original_prompt=s.original_prompt,
+        handoff_prompt=s.handoff_prompt,
+        adapter_config=new_adapter_config,
+        pan_access=dict(s.pan_access),
+        notification_settings=dict(s.notification_settings),
+        workspace_ids=root_workspace_ids if manager_id is None else [],
+    )
+
+    if manager_id is not None:
+        claim_error = sess.claim(manager_id, new_s.id)
+        if claim_error:
+            try:
+                sess.delete(new_s.id)
+            except Exception as cleanup_error:
+                return {"error": f"{claim_error}; failed to remove new Session: {cleanup_error}"}
+            return {"error": claim_error}
+
+    await broadcast({
+        "type": "session.created",
+        "sessionId": new_s.id,
+        "name": new_s.name,
+    })
+
+    return _session_to_api(new_s)
+
+
+@app.post("/api/sessions/{session_id}/handoff")
+async def api_session_handoff(session_id: str, data: dict):
+    """A is the URL Session; targetSessionId selects EXISTING B, never a new ID.
+
+    Existing mode preserves B's effective systemPrompt, CLI identity/history,
+    settings and name. originalPrompt metadata follows the override selector;
+    handoffPrompt is also one ordinary queued input. copySettings true and
+    adapter changes are unsupported for existing B. See skill field table.
+    """
+    if "targetSessionId" not in data:
+        return await _api_session_handoff_new(session_id, data)
+    target_id = data["targetSessionId"]
+    if not isinstance(target_id, str) or not target_id:
+        return {"error": "targetSessionId must be a nonempty existing Session ID (B)"}
+    if "copySettings" in data and type(data["copySettings"]) is not bool:
+        return {"error": "copySettings must be boolean when explicitly provided; omit it to preserve B settings"}
+    if any(key not in {"targetSessionId", "handoffPrompt", "copySettings", "adapter", "model",
+                        "permissionMode", "overrideOriginalPrompt", "originalPrompt"} for key in data):
+        return {"error": "Unknown existing-target handoff field; confirm source A, target B and settings intent"}
+    async with AsyncExitStack() as stack:
+        # Same spawn -> plugin -> queue order as normal delivery; no await
+        # between core preflight and completion of its multi-record commit.
+        for sid in sorted({session_id, target_id}):
+            await stack.enter_async_context(await worker._session_spawn_lock(sid))
+        from packages.plugins.lifecycle import session_claim
+        for sid in sorted({session_id, target_id}):
+            s = sess.get(sid)
+            if s is None:
+                return {"error": f"Session {sid} not found; existing mode never creates B"}
+            await stack.enter_async_context(session_claim(s))
+        for sid in sorted({session_id, target_id}):
+            await stack.enter_async_context(worker.queue_lock(sid))
+        result = sess.handoff_session(
+            session_id, data.get("handoffPrompt"), target_session_id=target_id,
+            copy_settings=data.get("copySettings"), adapter=data.get("adapter"),
+            model=data.get("model"), permission_mode=data.get("permissionMode"),
+            override_original_prompt=data.get("overrideOriginalPrompt", False),
+            original_prompt=data.get("originalPrompt"))
+        if isinstance(result, str):
+            return {"error": result}
+        a, b = result
+    # The original durable message is consumed by the ordinary watchdog/queue.
+    # Do not force/restart, unlock, or inject metadata into a running CLI.
+    try:
+        job_retarget = background_jobs.retarget_session_jobs(a.id, b.id)
+    except Exception as exc:
+        job_retarget = {"errors": [{"error": str(exc)}]}
+    await broadcast({"type": "session.updated", "sessionId": a.id})
+    await broadcast({"type": "session.updated", "sessionId": b.id})
+    # Only a queue signal; never use Force or unlock gates for a handoff brief.
+    await worker._wake_worker(b.id)
+    item_id = a.handoff_receipt["queueItemId"]
+    record = worker._ledger_record(b, item_id)
+    state = worker._delivery_state(record) if record is not None else None
+    delivery_status = ("sent_to_cli" if state == "sent_to_cli" else
+                       "queued" if state == "queued" else "unconfirmed")
+    return {"ok": True, "mode": "existing", "archivedSession": _session_to_api(a),
+            "session": _session_to_api(b), "jobRetarget": job_retarget,
+            "briefDelivery": {"status": delivery_status, "deliveryState": state,
+                              "queueItemId": item_id,
+                              "sessionId": b.id}}
+
+
+@_plugin_copy_admission
+async def _api_session_handoff_new(session_id: str, data: dict):
+    """替身交接（session_handoff v1）：创建孪生 session B 接替 A。
+
+    Body: {"handoffPrompt": <必填，A 的 agent 编写的交接简报>,
+           "copySettings": bool (默认 true), "adapter"?, "model"?,
+           "permissionMode"?, "overrideOriginalPrompt": bool (默认 false),
+           "originalPrompt"?: string (启用覆写时必填，空字符串清空)}
+
+    行为见 ``sess.handoff_session``：关系网接替 + B 自动 manage A + 可选设置
+    复制（不含旧交接简报）+ B.system_prompt = 本次 handoffPrompt 与选定 original_prompt
+    拼接 + 重命名（A → "(archive) <原名>"，B → "<原名>"）。
+    """
+    override_original_prompt = data.get("overrideOriginalPrompt", False)
+    original_prompt = data.get("originalPrompt")
+    if type(override_original_prompt) is not bool:
+        return {"error": "overrideOriginalPrompt must be a boolean"}
+    if override_original_prompt and not isinstance(original_prompt, str):
+        return {"error": "originalPrompt must be a string when overrideOriginalPrompt is true"}
+    if not isinstance(data.get("handoffPrompt"), str):
+        return {"error": "handoffPrompt is required and must be a string"}
+    handoff_prompt = data["handoffPrompt"].strip()
+    if not handoff_prompt:
+        return {"error": "handoffPrompt is required — 由 session A 的 agent 编写交接简报"}
+    copy_settings = data.get("copySettings", True)
+    if not isinstance(copy_settings, bool):
+        copy_settings = True
+    adapter = data.get("adapter")
+    model = data.get("model")
+    permission_mode = data.get("permissionMode")
+    if not copy_settings and not adapter:
+        return {"error": "adapter is required when copySettings is false"}
+
+    # ── 能力预校验：新 adapter 与 model / settings 组合必须成立 ──
+    # 切 adapter 时连继承自 A 的设置也一并核验，避免交接出一个必然启动失败
+    # 的 B（不静默换模型/清设置）。
+    session_a = sess.get(session_id)
+    if session_a is None:
+        return {"error": f"Session {session_id} not found"}
+    if len(sess.effective_workspace_ids(session_a)) > 1:
+        return {"error": "Session has multiple Workspace memberships; resolve its legacy membership before handoff"}
+    new_adapter_name = adapter or (session_a.adapter if copy_settings else "cbc")
+    switched = new_adapter_name != session_a.adapter
+    try:
+        new_adapter = resolve_adapter(new_adapter_name)
+        if model:
+            validate_model(new_adapter, model)
+        elif copy_settings and session_a.model and switched:
+            try:
+                validate_model(new_adapter, session_a.model)
+            except AdapterCapabilityError:
+                return {"error": (
+                    f"handoff to adapter '{new_adapter_name}' would inherit "
+                    f"model '{session_a.model}' from session A (adapter "
+                    f"'{session_a.adapter}'), which does not support it. Pass "
+                    f"an explicit supported 'model' or use copySettings=false."
+                )}
+        if permission_mode:
+            validate_permission_mode(new_adapter, permission_mode)
+        elif copy_settings and session_a.permission_mode and switched:
+            try:
+                validate_permission_mode(new_adapter, session_a.permission_mode)
+            except AdapterCapabilityError:
+                return {"error": (
+                    f"handoff to adapter '{new_adapter_name}' would inherit "
+                    f"permissionMode '{session_a.permission_mode}' from session "
+                    f"A (adapter '{session_a.adapter}'), which does not support "
+                    f"it. Pass an explicit 'permissionMode' or use "
+                    f"copySettings=false."
+                )}
+    except AdapterCapabilityError as exc:
+        return {"error": str(exc)}
+
+    result = sess.handoff_session(
+        session_id, handoff_prompt,
+        copy_settings=copy_settings, adapter=adapter, model=model,
+        override_original_prompt=override_original_prompt, original_prompt=original_prompt,
+        permission_mode=permission_mode,
+    )
+    if isinstance(result, str):
+        return {"error": result}
+    a, b = result
+    # Retarget immediately after handoff commits.  This per-record pass is
+    # intentionally recoverable: Job write failures must not hide or roll back
+    # the already-created successor Session.
+    try:
+        # Resolve both active API roots (the unified Jobs API and legacy
+        # background-job routes may use distinct directories).
+        job_retarget = background_jobs.retarget_session_jobs(session_id, b.id)
+    except Exception as exc:
+        job_retarget = {
+            "oldSessionId": session_id,
+            "newSessionId": b.id,
+            "scanned": 0,
+            "updated": 0,
+            "unchanged": 0,
+            "errors": [{
+                "jobId": None,
+                "error": f"retarget pass failed: {type(exc).__name__}: {exc}",
+            }],
+        }
+    # 跨 adapter 复制设置时，清洗 adapter_config：源 adapter 的 effort /
+    # thinking / output_mode / maxThinkingTokens 对新 adapter 不成立的降级为
+    # 默认（复制残值的既有降级语义；显式传参已在上面硬校验）。
+    if switched and copy_settings:
+        b.adapter_config = sanitize_adapter_config(
+            new_adapter_name, b.adapter_config, model=b.model)
+        await sess.save_async(b)
+    await broadcast({
+        "type": "session.renamed",
+        "sessionId": a.id,
+        "oldName": b.name,  # A 原名 == B 现名
+        "newName": a.name,
+    })
+    await broadcast({
+        "type": "session.created",
+        "sessionId": b.id,
+        "name": b.name,
+    })
+    await broadcast({
+        "type": "session.handoff.jobs_retargeted",
+        "sessionId": a.id,
+        "newSessionId": b.id,
+        "jobRetarget": job_retarget,
+    })
+    return {
+        "ok": True,
+        "archivedSession": _session_to_api(a),
+        "session": _session_to_api(b),
+        "jobRetarget": job_retarget,
+    }
+
+
+def _cleanup_mcp_config(session_id: str) -> None:
+    """S3：session 删除后清理 data/mcp-configs/<session_id>.mcp.json。
+
+    cbc 运行期间持续读取该文件（mcp-configs 生命周期立项），但 session
+    删除后不再需要，避免残留。文件不存在时静默跳过。
+    """
+    p = DATA_DIR / "mcp-configs" / f"{session_id}.mcp.json"
+    try:
+        p.unlink(missing_ok=True)
+    except OSError as e:
+        _log(f"[mcp-config] 清理失败 {p}: {e}")
+
+
+def _cleanup_kimi_home(session_id: str) -> None:
+    """S3：session 删除后清理 data/kimi-homes/<session_id>/ 隔离 HOME（方案 C）。
+
+    kimi MCP 会话的整个用户目录（config.toml + mcp.json + kimi 自身写入的
+    sessions/、session_index.jsonl 等）都在该隔离目录内，删除 session 时一并
+    清理，避免 data/ 残留。目录不存在时静默跳过。
+
+    Branch 出的 kimi MCP 会话会共享父会话的隔离 HOME（fork 出的 kimi 会话
+    物理上在那里，见 api_branch_session）。此时若仍有其他 Session 引用同一
+    HOME，跳过清理——否则父删子留会把子的 -S resume 打断。
+    """
+    p = DATA_DIR / "kimi-homes" / session_id
+    if not p.exists():
+        return
+    shared_by = [
+        other.id for other in sess.list_all(load_history=False)
+        if other.id != session_id
+        and other.adapter == "kimi"
+        and other.adapter_config.get("kimi_home_dir") == str(p)
+    ]
+    if shared_by:
+        _log(f"[kimi-home] {p} 仍被 {len(shared_by)} 个 session 引用，跳过清理")
+        return
+    try:
+        shutil.rmtree(p)
+    except OSError as e:
+        _log(f"[kimi-home] 清理失败 {p}: {e}")
+
+
+def _cleanup_rewind_records(session_id: str) -> None:
+    """Remove this Session's rewind sidecar records, if present."""
+    p = DATA_DIR / "rewind" / session_id
+    try:
+        if p.exists():
+            shutil.rmtree(p)
+    except OSError as e:
+        _log(f"[rewind] cleanup failed {p}: {e}")
+
+
+def _session_targets_from_item(value: object) -> set[str]:
+    if not isinstance(value, dict):
+        return set()
+    targets = set()
+    one = (value.get("targetSessionId") or value.get("target_session_id")
+           or value.get("sessionId"))
+    if isinstance(one, str) and one:
+        targets.add(one)
+    many = value.get("targetSessionIds")
+    if isinstance(many, list):
+        targets.update(item for item in many if isinstance(item, str) and item)
+    for key in ("target", "targetStruct"):
+        target = value.get(key)
+        if isinstance(target, dict):
+            target_id = target.get("sessionId")
+            if isinstance(target_id, str) and target_id:
+                targets.add(target_id)
+            target_ids = target.get("sessionIds")
+            if isinstance(target_ids, list):
+                targets.update(item for item in target_ids if isinstance(item, str) and item)
+    return targets
+
+
+def _retention_session_reference_reason(session_id: str, record: dict) -> str | None:
+    if record.get("managed") or record.get("managed_by") or record.get("managedBy"):
+        return "managed_relationship"
+    if record.get("queue_pending") or record.get("queuePending"):
+        return "queue_pending"
+    if record.get("queue_edit_locks") or record.get("usage_enrichment_pending"):
+        return "session_background_work_pending"
+    subscriptions = (record.get("report_subscriptions") or [])
+    if subscriptions:
+        return "pending_report_subscription"
+    ledger = record.get("queue_delivery_ledger") or {}
+    if not isinstance(ledger, dict):
+        return "delivery_ledger_unclear"
+    terminal_states = {"sent_to_cli", "deleted"}
+    for item in ledger.values():
+        if not isinstance(item, dict):
+            return "delivery_ledger_unclear"
+        state = item.get("deliveryState")
+        if state not in terminal_states:
+            return "pending_delivery_notification"
+    try:
+        if reminders.list_for_session(session_id):
+            return "pending_reminder"
+    except Exception:
+        return "pending_notification_state_unclear"
+    return None
+
+
+def _retention_safe_root(root: Path) -> Path | None:
+    try:
+        info = root.lstat()
+        resolved = root.resolve(strict=True)
+    except OSError:
+        return None
+    if (not stat.S_ISDIR(info.st_mode) or root.is_symlink()
+            or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            or os.path.normcase(str(resolved)) != os.path.normcase(str(Path(os.path.abspath(root))))):
+        return None
+    return resolved
+
+
+def _retention_safe_session_file(root: Path, path: Path) -> Path | None:
+    try:
+        info = path.lstat()
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    if (not stat.S_ISREG(info.st_mode) or path.is_symlink()
+            or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            or getattr(info, "st_nlink", 1) != 1
+            or os.path.normcase(str(resolved)) != os.path.normcase(str(Path(os.path.abspath(path))))):
+        return None
+    return resolved
+
+
+def _retention_disk_session_record(session_id: str) -> tuple[dict, float | None, str | None] | None:
+    root = _retention_safe_root(Path(sess.SESSION_DIR))
+    if root is None or not session_id or Path(session_id).name != session_id:
+        return None
+    metadata_path = _retention_safe_session_file(root, root / f"{session_id}.json")
+    if metadata_path is None:
+        return None
+    try:
+        record = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    if not isinstance(record, dict) or record.get("id") != session_id:
+        return None
+    history_path = root / f"{session_id}.history.jsonl"
+    try:
+        history_path.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return None
+    else:
+        if _retention_safe_session_file(root, history_path) is None:
+            return None
+    activity, error = _retention_history_activity(history_path, record)
+    return record, activity, error
+
+
+def _retention_all_session_records(deadline: float | None = None) -> list[dict] | None:
+    root = Path(sess.SESSION_DIR)
+    try:
+        resolved_root = _retention_safe_root(root)
+        if resolved_root is None:
+            return None
+        records = []
+        total_bytes = 0
+        for index, path in enumerate(resolved_root.iterdir()):
+            if deadline is not None and time.monotonic() > deadline:
+                return None
+            if index >= 10000:
+                return None
+            if path.suffix != ".json" or path.name.endswith(".history.jsonl"):
+                continue
+            safe_path = _retention_safe_session_file(resolved_root, path)
+            if safe_path is None:
+                return None
+            size = safe_path.stat().st_size
+            total_bytes += size
+            if size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
+                return None
+            raw = json.loads(safe_path.read_text(encoding="utf-8"))
+            if (not isinstance(raw, dict) or not isinstance(raw.get("id"), str)
+                    or not raw["id"] or raw["id"] != path.stem):
+                return None
+            records.append(raw)
+        return records
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+def _retention_job_reference_reason(session_id: str) -> str | None:
+    roots = []
+    background = os.environ.get("PAN_BACKGROUND_JOBS_DIR")
+    scheduler = os.environ.get("PAN_SCHEDULER_DIR")
+    roots.append(Path(background).expanduser() if background else DATA_DIR / "background_jobs")
+    scheduler_root = Path(scheduler).expanduser() if scheduler else (
+        Path(background).expanduser() if background else DATA_DIR / "background_jobs")
+    roots.append(scheduler_root)
+    seen = set()
+    locations = [root / "jobs" for root in roots]
+    locations.append(DATA_DIR / "scheduler" / "tasks")
+    for jobs_dir in locations:
+        key = os.path.normcase(str(jobs_dir.resolve(strict=False)))
+        if key in seen:
+            continue
+        seen.add(key)
+        if not jobs_dir.exists():
+            continue
+        try:
+            dir_info = jobs_dir.lstat()
+            if (not stat.S_ISDIR(dir_info.st_mode) or jobs_dir.is_symlink()
+                    or getattr(dir_info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)):
+                return "job_registry_path_unclear"
+            for path in jobs_dir.glob("*.json"):
+                info = path.lstat()
+                if (not stat.S_ISREG(info.st_mode) or path.is_symlink()
+                        or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)):
+                    return "job_registry_path_unclear"
+                job = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(job, dict):
+                    return "job_registry_record_unclear"
+                targets = _session_targets_from_item(job)
+                if session_id not in targets:
+                    continue
+                status = str(job.get("status") or "").lower()
+                if status in {"running", "starting"}:
+                    return "running_job_reference"
+                if status in {"queued", "pending"}:
+                    return "pending_job_reference"
+                enabled_scheduled = (
+                    job.get("kind") == "scheduled-task"
+                    and job.get("enabled") is True
+                    and status not in {"cancelled", "canceled", "completed", "deleted", "disabled"}
+                )
+                if enabled_scheduled:
+                    return "enabled_scheduled_job_reference"
+                if (
+                    status in {"scheduled", "pending"}
+                    and isinstance(job.get("schedule"), (dict, list))
+                ):
+                    return "scheduled_job_reference"
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return "job_registry_record_unclear"
+    return None
+
+
+def _retention_reference_reason(session_id: str, record: dict) -> str | None:
+    reason = _retention_session_reference_reason(session_id, record)
+    if reason:
+        return reason
+    records = _retention_all_session_records()
+    if records is None:
+        return "session_reference_scan_unclear"
+    for other in records:
+        if other.get("id") == session_id:
+            continue
+        managed = other.get("managed") or []
+        subscriptions = other.get("report_subscriptions") or []
+        manager = other.get("managed_by") or other.get("managedBy")
+        if (not isinstance(managed, list) or not isinstance(subscriptions, list)
+                or (manager is not None and not isinstance(manager, str))):
+            return "session_reference_scan_unclear"
+        if (session_id in managed or manager == session_id
+                or session_id in subscriptions):
+            return "referenced_by_other_session"
+        queue = other.get("queue_pending") or []
+        ledger = other.get("queue_delivery_ledger") or {}
+        if (not isinstance(queue, list) or not isinstance(ledger, dict)):
+            return "session_reference_scan_unclear"
+        if any(not isinstance(item, dict) for item in queue):
+            return "session_reference_scan_unclear"
+        if any(not isinstance(item, dict) for item in ledger.values()):
+            return "session_reference_scan_unclear"
+        if any(session_id in _session_targets_from_item(item) for item in queue):
+            return "referenced_by_pending_queue"
+        if any(session_id in _session_targets_from_item(item) for item in ledger.values() if isinstance(item, dict)):
+            return "referenced_by_delivery_ledger"
+    return _retention_job_reference_reason(session_id)
+
+
+def _retention_plain_tree(path: Path, root: Path) -> bool:
+    """Validate every descendant before retention removes an owned directory."""
+    safe_root = _retention_safe_root(root)
+    if safe_root is None:
+        return False
+    try:
+        info = path.lstat()
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(safe_root)
+    except (OSError, ValueError):
+        return False
+    if (not stat.S_ISDIR(info.st_mode) or path.is_symlink()
+            or getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            or os.path.normcase(str(resolved)) != os.path.normcase(str(Path(os.path.abspath(path))))):
+        return False
+    try:
+        entries = list(path.iterdir())
+    except OSError:
+        return False
+    for child in entries:
+        try:
+            child_info = child.lstat()
+            child_resolved = child.resolve(strict=True)
+            child_resolved.relative_to(safe_root)
+        except (OSError, ValueError):
+            return False
+        if (child.is_symlink()
+                or getattr(child_info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+                or os.path.normcase(str(child_resolved)) != os.path.normcase(str(Path(os.path.abspath(child))))):
+            return False
+        if stat.S_ISDIR(child_info.st_mode):
+            if not _retention_plain_tree(child, root):
+                return False
+        elif not stat.S_ISREG(child_info.st_mode) or getattr(child_info, "st_nlink", 1) != 1:
+            return False
+    return True
+
+
+def _retention_workdir_reference_snapshot(deadline, session_id=""):
+    """Read/resolve references once, off-loop and outside the claim mutex."""
+    def check_deadline():
+        if time.monotonic() > deadline:
+            raise ValueError("workdir_reference_scan_limit")
+
+    paths = []
+    def add(raw, reason):
+        check_deadline()
+        if not isinstance(raw, str) or not raw or not Path(raw).is_absolute():
+            raise ValueError(reason)
+        paths.append((Path(raw).resolve(strict=False), reason))
+
+    check_deadline()
+    records = _retention_all_session_records(deadline)
+    check_deadline()
+    if records is None:
+        raise ValueError("workdir_session_references_unclear")
+    if len(sess._cache) > 10000:
+        raise ValueError("workdir_session_cache_limit")
+    cached_sessions = list(sess._cache.values())
+    if len(cached_sessions) > 10000:
+        raise ValueError("workdir_session_cache_limit")
+    records.extend({"id": obj.id, "workdir": obj.workdir}
+                   for obj in cached_sessions)
+    for row in records:
+        if session_id and row.get("id") == session_id:
+            continue
+        raw = row.get("workdir")
+        if raw is not None and raw != "":
+            add(raw, "workdir_referenced_by_session")
+    workspace_root = Path(workspaces.WORKSPACE_DIR)
+    if workspace_root.exists() or workspace_root.is_symlink():
+        safe_root = _retention_safe_root(workspace_root)
+        if safe_root is None:
+            raise ValueError("workdir_workspace_references_unclear")
+        total_bytes = 0
+        for index, path in enumerate(safe_root.glob("*.json")):
+            check_deadline()
+            size = path.lstat().st_size
+            total_bytes += size
+            if index >= 10000 or size > 8 * 1024 * 1024 or total_bytes > 32 * 1024 * 1024:
+                raise ValueError("workdir_workspace_scan_limit")
+            safe = _retention_safe_session_file(safe_root, path)
+            if safe is None:
+                raise ValueError("workdir_workspace_references_unclear")
+            data = json.loads(safe.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not isinstance(data.get("dirs", []), list):
+                raise ValueError("workdir_workspace_references_unclear")
+            for raw in data.get("dirs", []):
+                add(raw, "workdir_referenced_by_workspace")
+    if len(workspaces._cache) > 10000:
+        raise ValueError("workdir_workspace_cache_limit")
+    cached_workspaces = list(workspaces._cache.values())
+    if len(cached_workspaces) > 10000:
+        raise ValueError("workdir_workspace_cache_limit")
+    for workspace in cached_workspaces:
+        for raw in workspace.dirs:
+            add(raw, "workdir_referenced_by_workspace")
+    check_deadline()
+
+    def state(candidate):
+        check_deadline()
+        for index, (reference, reason) in enumerate(paths):
+            if index % 128 == 0:
+                check_deadline()
+            if (reference == candidate or reference in candidate.parents
+                    or candidate in reference.parents):
+                return True, reason
+        return False, None
+    return state
+
+
+def _retention_workdir_reference_state(session_id: str, candidate: Path) -> tuple[bool | None, str | None]:
+    try:
+        return _retention_workdir_reference_snapshot(time.monotonic() + 20, session_id)(candidate)
+    except (OSError, ValueError, TypeError):
+        return None, "workdir_references_unclear"
+
+
+def _retention_remove_workdir(session_id: str, record: dict) -> tuple[bool, str | None]:
+    # Session lifetime is not a workdir age or deletion authority.
+    return False, "workdir_independent_retention"
+
+
+def _workdir_collector():
+    return WorkdirRetention(Path(WORKDIRS_DIR),
+                            lambda path: _retention_workdir_reference_state("", path),
+                            snapshot_loader=_retention_workdir_reference_snapshot)
+
+
+def _retention_cleanup_auxiliary(session_id: str) -> list[str]:
+    """Delete only this Session's fixed MCP config and isolated Kimi HOME."""
+    skipped: list[str] = []
+    if not session_id or Path(session_id).name != session_id or any(c in session_id for c in "\\/:\0"):
+        return ["session_auxiliary_id_unclear"]
+    mcp_root = DATA_DIR / "mcp-configs"
+    safe_mcp_root = _retention_safe_root(mcp_root)
+    mcp_path = mcp_root / f"{session_id}.mcp.json"
+    if safe_mcp_root is not None:
+        if mcp_path.exists() or mcp_path.is_symlink():
+            safe_mcp = _retention_safe_session_file(safe_mcp_root, mcp_path)
+            if safe_mcp is None:
+                skipped.append("mcp_session_config_unsafe")
+            else:
+                try:
+                    safe_mcp.unlink()
+                except OSError as exc:
+                    skipped.append("mcp_session_config_cleanup_failed")
+                    _log(f"[retention] MCP Session config cleanup skipped: {type(exc).__name__}")
+    elif mcp_root.exists() or mcp_root.is_symlink():
+        skipped.append("mcp_config_root_unsafe")
+    kimi_root = DATA_DIR / "kimi-homes"
+    safe_kimi_root = _retention_safe_root(kimi_root)
+    kimi_home = kimi_root / session_id
+    if safe_kimi_root is not None and (kimi_home.exists() or kimi_home.is_symlink()):
+        if _retention_plain_tree(kimi_home, kimi_root):
+            try:
+                shutil.rmtree(kimi_home)
+            except OSError as exc:
+                skipped.append("kimi_session_home_cleanup_failed")
+                _log(f"[retention] Kimi Session HOME cleanup skipped: {type(exc).__name__}")
+        else:
+            skipped.append("kimi_session_home_unsafe")
+    elif (kimi_root.exists() or kimi_root.is_symlink()) and safe_kimi_root is None:
+        skipped.append("kimi_home_root_unsafe")
+    rewind_root = DATA_DIR / "rewind"
+    safe_rewind_root = _retention_safe_root(rewind_root)
+    rewind_dir = rewind_root / session_id
+    if safe_rewind_root is not None and (rewind_dir.exists() or rewind_dir.is_symlink()):
+        if _retention_plain_tree(rewind_dir, rewind_root):
+            try:
+                shutil.rmtree(rewind_dir)
+            except OSError:
+                skipped.append("rewind_records_cleanup_failed")
+        else:
+            skipped.append("rewind_records_unsafe")
+    elif (rewind_root.exists() or rewind_root.is_symlink()) and safe_rewind_root is None:
+        skipped.append("rewind_root_unsafe")
+    return skipped
+
+
+class SessionDeleteError(RuntimeError):
+    """A Session could not be safely detached and removed from storage."""
+
+
+def _delete_session_storage(session_id: str, *, cleanup_auxiliary: bool,
+                            retention_cleanup: bool = False) -> list[str]:
+    try:
+        delete_error = sess.delete_with_release(session_id)
+    except Exception as exc:
+        raise SessionDeleteError(
+            f"Failed to prepare Session {session_id} deletion: {exc}"
+        ) from exc
+    if delete_error:
+        # The core operation rolls relationships back and refuses to report
+        # deletion when either detachment or file removal fails.
+        raise SessionDeleteError(delete_error)
+    if cleanup_auxiliary:
+        if retention_cleanup:
+            return _retention_cleanup_auxiliary(session_id)
+        else:
+            _cleanup_mcp_config(session_id)
+            _cleanup_kimi_home(session_id)
+            _cleanup_rewind_records(session_id)
+    return []
+
+
+async def _delete_session_records(session_id: str, *, cleanup_auxiliary: bool = True,
+                                  storage_in_thread: bool = False,
+                                  retention_cleanup: bool = False):
+    if storage_in_thread:
+        lifecycle_skips = await asyncio.to_thread(
+            _delete_session_storage, session_id,
+            cleanup_auxiliary=cleanup_auxiliary,
+            retention_cleanup=retention_cleanup,
+        )
+    else:
+        lifecycle_skips = _delete_session_storage(
+            session_id, cleanup_auxiliary=cleanup_auxiliary,
+            retention_cleanup=retention_cleanup,
+        )
+    w = worker.find_worker_by_session(session_id)
+    if w:
+        asyncio.create_task(
+            worker.cleanup_worker_background(w.worker_id, w.session_id)
+        )
+    await broadcast({
+        "type": "session.deleted",
+        "sessionId": session_id,
+    })
+    response = {"sessionId": session_id, "status": "deleted"}
+    if retention_cleanup:
+        response["lifecycleSkipReasons"] = lifecycle_skips
+    return response
+
+
+async def _retention_delete_session(session_id: str, expected: dict) -> dict:
+    spawn_lock = await worker._session_spawn_lock(session_id)
+    async with spawn_lock:
+        async with worker.queue_lock(session_id):
+            current = await asyncio.to_thread(sess.get, session_id, load_history=False)
+            if current is None:
+                return {"reason": "session_already_missing"}
+            current_record = current.to_dict()
+            disk = await asyncio.to_thread(_retention_disk_session_record, session_id)
+            if disk is None:
+                return {"reason": "session_path_or_metadata_unclear"}
+            disk_record, disk_activity, history_error = disk
+            expected_updated = expected.get("updated_at") or expected.get("updatedAt")
+            if (current.updated_at != expected_updated
+                    or disk_record.get("updated_at") != expected_updated):
+                return {"reason": "session_changed_during_scan"}
+            if history_error:
+                return {"reason": history_error}
+            if (disk_activity != expected.get("__retentionHistoryActivity")
+                    or getattr(current, "history_revision", 0) != expected.get("history_revision", 0)):
+                return {"reason": "history_changed_during_scan"}
+            if worker.find_alive_worker_by_session(session_id) is not None:
+                return {"reason": "live_worker"}
+            if worker.find_worker_by_session(session_id) is not None:
+                return {"reason": "worker_reference_unclear"}
+            reason = await asyncio.to_thread(
+                _retention_session_reference_reason, session_id, current_record,
+            )
+            if not reason:
+                reason = await asyncio.to_thread(
+                    _retention_reference_reason, session_id, disk_record,
+                )
+            if reason:
+                return {"reason": reason}
+            final_disk = await asyncio.to_thread(_retention_disk_session_record, session_id)
+            if final_disk is None:
+                return {"reason": "session_path_or_metadata_unclear"}
+            final_record, final_activity, final_history_error = final_disk
+            if final_history_error:
+                return {"reason": final_history_error}
+            if (final_record.get("updated_at") != expected_updated
+                    or final_activity != expected.get("__retentionHistoryActivity")):
+                return {"reason": "session_changed_during_scan"}
+            reason = await asyncio.to_thread(
+                _retention_reference_reason, session_id, final_record,
+            )
+            if reason:
+                return {"reason": reason}
+            if worker.find_alive_worker_by_session(session_id) is not None:
+                return {"reason": "live_worker"}
+            if worker.find_worker_by_session(session_id) is not None:
+                return {"reason": "worker_reference_unclear"}
+            workdir_record = dict(final_record)
+            # The existing Session store owns the JSON + JSONL delete. Session
+            # scoped MCP/Kimi state is cleaned only after this Session is safe.
+            deletion = await _delete_session_records(
+                session_id, cleanup_auxiliary=True, storage_in_thread=True,
+                retention_cleanup=True,
+            )
+            workdir_removed, workdir_reason = await asyncio.to_thread(
+                _retention_remove_workdir, session_id, workdir_record,
+            )
+            workdir_skipped = bool(workdir_record.get("workdir")) and not workdir_removed
+            return {
+                "deleted": True,
+                "workdirSkipped": workdir_skipped,
+                "workdirSkipReason": workdir_reason,
+                "lifecycleSkipReasons": deletion.get("lifecycleSkipReasons", []),
+            }
+
+
+@app.delete("/api/sessions/{session_id}")
+async def api_delete_session(session_id: str):
+    """Delete a session and its worker if running."""
+    try:
+        return await _delete_session_records(session_id)
+    except SessionDeleteError as exc:
+        return {"error": str(exc)}
+
+
+@app.post("/api/sessions/batch-delete")
+async def api_batch_delete_sessions(data: dict):
+    """Delete sessions and workers, optionally expanding managed descendants.
+
+    ``sessionIds`` retains the historical exact-delete behavior.  When
+    ``cascadeSessionIds`` is supplied, the server expands those roots from
+    their persisted ``managed`` lists, deduplicates shared descendants, and
+    deletes child sessions before their parents.  This keeps the browser from
+    having to guess a nested relationship graph.
+    """
+    session_ids = data.get("sessionIds", [])
+    if not session_ids:
+        return {"error": "sessionIds is required"}
+
+    cascade_ids = [sid for sid in data.get("cascadeSessionIds", [])
+                   if sid in session_ids]
+    ordered_ids = list(dict.fromkeys(
+        sess.expand_managed_descendants(cascade_ids) + list(session_ids)
+    ))
+    deleted_ids: list[str] = []
+    for sid in ordered_ids:
+        try:
+            _delete_session_storage(
+                sid, cleanup_auxiliary=True, retention_cleanup=False,
+            )
+        except SessionDeleteError as exc:
+            if deleted_ids:
+                await broadcast({
+                    "type": "sessions.deleted",
+                    "sessionIds": deleted_ids,
+                })
+            return {
+                "deleted": len(deleted_ids),
+                "sessionIds": deleted_ids,
+                "error": str(exc),
+            }
+        w = worker.find_worker_by_session(sid)
+        if w:
+            asyncio.create_task(
+                worker.cleanup_worker_background(w.worker_id, w.session_id)
+            )
+        deleted_ids.append(sid)
+
+    await broadcast({
+        "type": "sessions.deleted",
+        "sessionIds": deleted_ids,
+    })
+
+    return {"deleted": len(deleted_ids), "sessionIds": deleted_ids}
+
+
+@app.get("/api/models")
+async def api_models(adapter: str = "cbc"):
+    """Return model list and default for a given adapter.
+
+    ``modelCreditMultipliers`` is an optional additive field (model id ->
+    credit consumption multiplier); adapters without a reliable source omit
+    it (empty mapping). ``models`` stays a plain list of raw model IDs.
+    """
+    a = _safe_adapter(adapter)
+    return {
+        "models": a.supported_models,
+        "default": a.default_model,
+        "modelCreditMultipliers": await _model_credit_multipliers(a),
+    }
+
+
+@app.get("/api/model-catalog")
+async def api_model_catalog(adapter: str | None = None):
+    """Read service caches/declarations only; HTTP is trusted local admin."""
+    from packages.core.model_catalog import adapter_catalog
+
+    adapters = list_adapters()
+    if adapter is not None:
+        adapters = [a for a in adapters if a.name == adapter]
+        if not adapters:
+            return {"ok": False, "error": {"code": "unknown_adapter", "message": "Adapter is not registered"}}
+    rows = []
+    for item in adapters:
+        try:
+            rows.append(await _store_read(adapter_catalog, item))
+        except Exception:
+            rows.append({"adapter": item.name, "models": [], "status": "unknown"})
+    return {"ok": True, "adapters": rows,
+            "availability": "metadata_only_not_provider_verified"}
+
+
+@app.post("/api/sessions/broadcast")
+async def api_sessions_broadcast(data: dict):
+    """Send one message to selected Sessions through the normal send path.
+
+    This is an immediate fan-out primitive.  Scheduled fan-out uses the same
+    per-target send semantics through the durable time-Job endpoint below.
+    """
+    session_ids = data.get("sessionIds")
+    text = data.get("text")
+    if not isinstance(session_ids, list) or not session_ids:
+        return {"ok": False, "error": {"code": "missing_session_ids",
+                                         "message": "sessionIds must be a non-empty array"}}
+    if not isinstance(text, str) or not text:
+        return {"ok": False, "error": {"code": "missing_text",
+                                         "message": "text is required"}}
+    client_message_id = data.get("clientMessageId")
+    if client_message_id is not None and (
+            not isinstance(client_message_id, str)
+            or not client_message_id
+            or len(client_message_id) > 256):
+        return {"ok": False, "error": {"code": "invalid_client_message_id",
+                                         "message": "clientMessageId must be a non-empty string up to 256 characters"}}
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    unique_ids = list(dict.fromkeys(str(value) for value in session_ids))
+    results = []
+    for session_id in unique_ids:
+        target = sess.get(session_id)
+        if not target:
+            results.append({"sessionId": session_id, "status": "error",
+                            "result": f"Session {session_id} not found"})
+            continue
+        denied = _source_access_error(target, source_session_id)
+        if denied:
+            results.append({"sessionId": session_id, "status": "error",
+                            "error": denied["error"]})
+            continue
+        result = await worker.send_session(
+            session_id, text, source=source_type, force=bool(data.get("force")),
+            client_message_id=client_message_id,
+            source_session_id=source_session_id)
+        results.append({"sessionId": session_id, **result})
+    failed = [item for item in results if item.get("status") == "error"]
+    return {"ok": not failed, "status": "partial" if failed and len(failed) < len(results)
+            else ("error" if failed else "queued"), "results": results}
+
+
+@app.post("/api/sessions/wake")
+async def api_sessions_wake(data: dict):
+    """Explicit recovery operation, separate from ordinary broadcast."""
+    ids = data.get("sessionIds")
+    key = data.get("clientMessageId")
+    if (not isinstance(ids, list) or not ids or
+            any(not isinstance(sid, str) or not sid for sid in ids)):
+        raise HTTPException(status_code=422, detail="sessionIds must contain Session IDs")
+    if key is not None and (not isinstance(key, str) or not key or len(key) > 256):
+        raise HTTPException(status_code=422, detail="invalid clientMessageId")
+    source, source_sid, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    results = []
+    for sid in dict.fromkeys(ids):
+        target = sess.get(sid, load_history=False)
+        denied = _source_access_error(target, source_sid) if target else None
+        if denied:
+            results.append({"sessionId": sid, "status": "error", "error": denied["error"]})
+            continue
+        result = await worker.wake_session(sid, client_message_id=key,
+                                          source=source, source_session_id=source_sid)
+        results.append({"sessionId": sid, **result})
+    return {"ok": all(row.get("status") == "queued" for row in results), "results": results}
+
+
+# ── Durable background jobs ──
+
+# ── R5: retire the pre-canonical durable Job writes ──
+# R6-B: only explicit 410 tombstones remain for the four removed writers.
+# Reads and cancel stay available while historical owners drain.
+RETIRED_LEGACY_WRITE = {"code": "retired",
+                        "message": "Legacy Job write entrypoint retired; use the canonical /api API"}
+
+
+async def _retired_legacy_write(request: Request):
+    """Refuse a pre-canonical durable Job mutation after authenticating it.
+
+    Only trusted local MCP could ever reach these writers, so the provenance
+    check runs first and fails closed: an untrusted caller gets 401 instead of
+    falling through to a Runner spawn. A trusted caller then gets the explicit
+    retirement, before any store, process or redelivery is touched.
+    """
+    authorized = await _legacy_mcp_authority(request, "write", action=True)
+    if authorized is None:
+        raise HTTPException(status_code=401,
+                            detail="User Bearer or trusted MCP transport required")
+    raise HTTPException(status_code=410, detail=RETIRED_LEGACY_WRITE)
+
+
+_retired_legacy_write.retirement_boundary = True
+
+
+async def _legacy_mcp_authority(request: Request, capability: str, *, action: bool = False):
+    """Authenticate only the private MCP compatibility transport.
+
+    Legacy tools retain their existing Session access gates. Their internal
+    Action representation must not add the opt-in four-object permissions to
+    the old tool contract. The private IPC marker and Pan plugin binding still
+    establish provenance; explicit Action/Job tools use their normal grants.
+    """
+    from packages.automation.authorization import delegated
+    if request is None or not delegated(request):
+        return None
+    return {'type': 'legacy-mcp'}
+
+
+async def _legacy_action_job(kind: str, fields: dict, request: Request):
+    """Retired legacy producer; authentication and refusal precede all work."""
+    from packages.jobs.final_api import retired_legacy_write
+    return await retired_legacy_write(request)
+
+
+@app.get("/api/background-jobs")
+async def api_background_job_list(targetSessionId: str | None = None, request: Request = None):
+    # Service lifecycle Jobs share the durable Registry but are not ordinary
+    # Session-targeted background commands and must not leak into this API.
+    if request is not None:
+        await _legacy_mcp_authority(request, 'read')
+    from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+    jobs = [legacy_view(job) if is_legacy_action_job(job) else job for job in background_jobs.list_jobs()
+            if job.get("kind") in {background_jobs.BACKGROUND_PROCESS_KIND,
+                                    background_jobs.SESSION_MESSAGE_KIND,
+                                    background_jobs.SESSION_BROADCAST_KIND}
+            and not job.get("scheduledParentJobId")]
+    if targetSessionId:
+        jobs = [j for j in jobs if (j.get("targetSessionId") == targetSessionId
+                                   or targetSessionId in (j.get("targetSessionIds") or []))]
+    return {"jobs": jobs}
+
+
+@app.get("/api/background-jobs/{job_id}")
+async def api_background_job_get(job_id: str, request: Request = None):
+    await _legacy_mcp_authority(request, 'read')
+    job = background_jobs.get(job_id)
+    from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+    if is_legacy_action_job(job):
+        job = legacy_view(job)
+    return job or {"ok": False, "error": {"code": "job_not_found", "message": "job not found"}}
+
+
+@app.post("/api/background-jobs/{job_id}/cancel")
+async def api_background_job_cancel(job_id: str, request: Request = None):
+    try:
+        job = background_jobs.get(job_id)
+        if job and getattr(job, 'get', lambda *_: None)('legacyCompat'):
+            from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
+            if is_legacy_action_job(job):
+                auth = await _legacy_mcp_authority(request, 'lifecycle')
+                if auth is None:
+                    raise ValueError('legacy Action cancellation requires trusted MCP transport')
+                runtime = request.app.state.automation.job_runtime
+                if (job.get('legacyCompat') == background_jobs.BACKGROUND_PROCESS_KIND
+                        and job.get('processAdmissionId') and not runtime.live_for(job_id)
+                        and job.get('status') in {'unknown', 'uncertain'}):
+                    # Recovery has no in-memory waiter to cancel the detached
+                    # Runner. Reuse the original PID/create-time guarded path.
+                    await asyncio.to_thread(background_jobs.cancel, job_id, runtime.root)
+                return legacy_view(await runtime.cancel(job_id, job['configRevision']))
+        return background_jobs.cancel(job_id)
+    except ValueError as exc:
+        code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
+        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+
+
+# Explicit negative controls only: none of these routes owns a producer.
+for _path, _method in (("/api/background-jobs", "POST"),
+                       ("/api/session-message-jobs", "POST"),
+                       ("/api/background-jobs/{job_id}", "PATCH"),
+                       ("/api/background-jobs/{job_id}/retry", "POST")):
+    app.add_api_route(_path, _retired_legacy_write, methods=[_method],
+                      name="retired_legacy_" + _method.lower() + "_" +
+                           _path.strip("/").replace("/", "_").replace("{", "").replace("}", ""),
+                      tags=["retired"], deprecated=True)
+
+
+# ── 定时任务（scheduler 插件） ──
+scheduler_api.bind(broadcast=broadcast)
+app.include_router(scheduler_api.router)
+
+# ── Job 统一 API（P2：全 kind 一览/管理；/api/scheduler/* 兼容别名照旧） ──
+from packages.jobs import api as jobs_api  # noqa: E402  延迟导入避免启动期循环
+
+jobs_api.bind(broadcast=broadcast)
+from packages.jobs.action_api import router as action_jobs_router
+from packages.jobs.final_api import install as install_canonical_jobs
+install_canonical_jobs(app, action_jobs_router, jobs_api.router)
+
+# ── 终端 REST（P2 REST/lifespan 第一批：路由注册 + lifespan 起停薄接入） ──
+from packages.web import terminal_api  # noqa: E402  延迟导入避免启动期循环
+from packages.web import terminal_ws  # noqa: E402  终端 WS 桥（P2 WS 第一批）
+from packages.web import terminal_tools_api  # noqa: E402
+
+app.include_router(terminal_api.router)
+app.include_router(terminal_ws.router)
+app.include_router(terminal_tools_api.router)
+from packages.web import native_control_api  # noqa: E402
+app.include_router(native_control_api.router)
+
+
+async def _model_credit_multipliers(a) -> dict:
+    """在线程中读取 adapter 的模型倍率表，避免阻塞 event loop。
+
+    cbc 的倍率读取是有界本地文件 IO（单文件 ≤4MB，见 adapter 注释），但
+    async handler 内同步执行仍会卡住事件循环（影响同实例其他请求/WS）。
+    这里经 asyncio.to_thread 隔离；无该能力的 adapter（getattr 缺省 {})、
+    读取异常统一返回空 dict——附加字段缺失不影响主响应形状。
+    """
+    try:
+        return await asyncio.to_thread(lambda: getattr(a, "model_credit_multipliers", {}) or {})
+    except Exception:
+        return {}
+
+
+@app.get("/api/adapter/config")
+async def api_adapter_config(adapter: str = "cbc"):
+    """Return adapter configuration for frontend selects (per-adapter dynamic)."""
+    a = _safe_adapter(adapter)
+    return {
+        "adapter": a.name,
+        "models": a.supported_models,
+        "defaultModel": a.default_model,
+        "effortValues": list(a.effort_values),
+        "modelEfforts": getattr(a, "model_efforts", {}),
+        "modelCreditMultipliers": await _model_credit_multipliers(a),
+        "permissionModes": a.permission_modes,
+        "defaultPermissionMode": a.default_permission_mode,
+        "supportedSettings": getattr(a, "supported_settings", ["model", "permissionMode", "thinking", "effort"]),
+        "executionModes": [mode for mode in a.execution_modes if mode != "oneshot"],
+    }
+
+
+@app.get("/api/adapters")
+async def api_list_adapters():
+    """Return all registered adapter names and basic info."""
+    adapters = list_adapters()
+    return {
+        "adapters": [
+            {
+                "name": a.name,
+                "defaultModel": a.default_model,
+                "supportsResume": a.supports_resume,
+                "supportsFork": a.supports_fork,
+                "supportsSteer": bool(getattr(a, "supports_native_steer", False)),
+            }
+            for a in adapters
+        ],
+        "default": "cbc",
+    }
+
+
+# ── App settings (config.json ui) ──
+
+_NEW_SESSION_DEFAULT_KEYS = {"adapter", "outputMode", "sessionTemplate", "workdir"}
+
+
+@app.get("/api/new-session-defaults")
+async def api_get_new_session_defaults():
+    """Return saved New Session form defaults, if configured."""
+    return {"defaults": load_config().get("new_session_defaults")}
+
+
+@app.put("/api/new-session-defaults")
+async def api_put_new_session_defaults(data: dict):
+    """Strictly validate and atomically persist New Session form defaults."""
+    unknown = set(data) - _NEW_SESSION_DEFAULT_KEYS - {"pluginBindings"}
+    missing = _NEW_SESSION_DEFAULT_KEYS - set(data)
+    if unknown or missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Expected exactly {sorted(_NEW_SESSION_DEFAULT_KEYS)}; "
+            f"missing={sorted(missing)}, unknown={sorted(unknown)}",
+        )
+
+    adapter_name = data["adapter"]
+    if not isinstance(adapter_name, str) or not adapter_name:
+        raise HTTPException(status_code=400, detail="adapter must be a non-empty string")
+    try:
+        adapter = get_adapter(adapter_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    output_mode = data["outputMode"]
+    if not isinstance(output_mode, str):
+        raise HTTPException(status_code=400, detail="outputMode must be a string")
+    if output_mode:
+        try:
+            validate_output_mode(adapter, output_mode)
+        except AdapterCapabilityError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    template_name = data["sessionTemplate"]
+    if not isinstance(template_name, str):
+        raise HTTPException(status_code=400, detail="sessionTemplate must be a string")
+    if template_name:
+        _ensure_manifest_fresh()
+        template = (
+            _character_manager.get_session_template(template_name)
+            if _character_manager is not None
+            else None
+        )
+        if template is None:
+            raise HTTPException(status_code=400, detail=f"Unknown session template: {template_name}")
+        if template.adapter and template.adapter != adapter_name:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Template {template_name!r} requires adapter {template.adapter!r}",
+            )
+
+    workdir = data["workdir"]
+    if not isinstance(workdir, str):
+        raise HTTPException(status_code=400, detail="workdir must be a string")
+
+    defaults = {
+        "adapter": adapter_name,
+        "outputMode": output_mode,
+        "sessionTemplate": template_name,
+        "workdir": workdir.strip(),
+    }
+    if "pluginBindings" in data:
+        try:
+            defaults["pluginBindings"] = _plugin_catalog().bindings(data["pluginBindings"])
+            _set_plugin_config({}, defaults["pluginBindings"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raw = read_config_file()
+    raw["new_session_defaults"] = defaults
+    save_config(raw)
+    return {"defaults": defaults}
+
+@app.get("/api/settings/qq-plugins")
+async def api_get_qq_plugins():
+    qq = load_config().get("qq") or {}
+    selected = qq.get("plugin_id") or qq.get("channel") or "napcat"
+    legacy_channels = qq.get("channels")
+    legacy_multi_channel = not qq.get("plugin_id") and isinstance(legacy_channels, list) and bool(legacy_channels)
+    try:
+        result = await asyncio.to_thread(gateway_plugins.list_plugins, selected)
+        for plugin in result["plugins"]:
+            channel_config = qq.get(plugin["channel"])
+            plugin["tokenConfigured"] = bool(
+                isinstance(channel_config, dict) and channel_config.get("token")
+            )
+        result["legacyMultiChannel"] = legacy_multi_channel
+        result["legacyChannelCount"] = len(legacy_channels) if legacy_multi_channel else 0
+        snowluma = qq.get("snowluma") or {}
+        result["snowlumaAccounts"] = snowluma.get("accounts", []) if isinstance(snowluma, dict) else []
+        return result
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/select")
+async def api_select_qq_plugin(plugin_id: str):
+    try:
+        plugin = await asyncio.to_thread(gateway_plugins._plugin, plugin_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    qq["plugin_id"] = plugin_id
+    qq["channel"] = plugin["channel"]
+    channel_config = qq.get(plugin["channel"])
+    if not isinstance(channel_config, dict):
+        channel_config = {}
+    channel_config["ws_urls"] = [plugin["wsUrl"]]
+    qq[plugin["channel"]] = channel_config
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "selected": plugin_id, "requiresPanRestart": True}
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/start")
+async def api_start_qq_plugin(plugin_id: str):
+    selected = (load_config().get("qq") or {}).get("plugin_id") or (load_config().get("qq") or {}).get("channel") or "napcat"
+    if plugin_id != selected:
+        raise HTTPException(status_code=409, detail="select this QQ plugin before starting it")
+    try:
+        result = await asyncio.to_thread(gateway_plugins.start, plugin_id)
+        if result.get("ok"):
+            from packages.core.inbox_service import get_inbox
+            get_inbox().set_available("qq", True)
+        return result
+    except (ValueError, OSError, psutil.Error) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/qq-plugins/{plugin_id}/stop")
+async def api_stop_qq_plugin(plugin_id: str):
+    try:
+        from packages.core.inbox_service import get_inbox
+        selected = (load_config().get("qq") or {}).get("plugin_id") or (load_config().get("qq") or {}).get("channel") or "napcat"
+        if plugin_id == selected:
+            get_inbox().set_available("qq", False)
+        return await asyncio.to_thread(gateway_plugins.stop, plugin_id)
+    except (ValueError, OSError, psutil.Error) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/qq-plugins/{plugin_id}/autostart")
+async def api_qq_plugin_autostart(plugin_id: str, data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"enabled"} or not isinstance(data["enabled"], bool):
+        raise HTTPException(status_code=422, detail="expected enabled boolean")
+    try:
+        return await asyncio.to_thread(gateway_plugins.set_autostart, plugin_id, data["enabled"])
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/qq-plugins/{plugin_id}/token")
+async def api_qq_plugin_token(plugin_id: str, data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"token"} or not isinstance(data["token"], str):
+        raise HTTPException(status_code=422, detail="expected token string")
+    try:
+        plugin = await asyncio.to_thread(gateway_plugins._plugin, plugin_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    channel = qq.get(plugin["channel"])
+    if not isinstance(channel, dict):
+        channel = {}
+    channel["token"] = data["token"]
+    qq[plugin["channel"]] = channel
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "requiresPanRestart": True}
+
+
+def _validate_snowluma_accounts(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise ValueError("accounts must be an array")
+    accounts: list[dict[str, str]] = []
+    uins: set[str] = set()
+    ports: set[int] = set()
+    for entry in value:
+        if not isinstance(entry, dict) or set(entry) != {"bot_uin", "ws_url"}:
+            raise ValueError("each account needs bot_uin and ws_url")
+        uin = entry["bot_uin"]
+        url = entry["ws_url"]
+        if not isinstance(uin, str) or not uin.isascii() or not uin.isdecimal() or int(uin) <= 0:
+            raise ValueError("bot_uin must be a positive decimal QQ number")
+        if not isinstance(url, str):
+            raise ValueError("ws_url must be a local WebSocket URL")
+        try:
+            parsed = urlsplit(url)
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("ws_url has an invalid port") from exc
+        if (parsed.scheme != "ws" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+                or port is None or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or parsed.path not in {"", "/"}):
+            raise ValueError("ws_url must be ws://127.0.0.1:<port>/ (or localhost)")
+        if uin in uins or port in ports:
+            raise ValueError("QQ numbers and WebSocket ports must be unique")
+        uins.add(uin)
+        ports.add(port)
+        accounts.append({"bot_uin": uin, "ws_url": url})
+    return accounts
+
+
+@app.put("/api/settings/qq-plugins/snowluma/accounts")
+async def api_qq_snowluma_accounts(data: dict = Body(...)):
+    if not isinstance(data, dict) or set(data) != {"accounts"}:
+        raise HTTPException(status_code=422, detail="expected accounts array")
+    try:
+        accounts = _validate_snowluma_accounts(data["accounts"])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    raw = read_config_file()
+    qq = raw.get("qq") if isinstance(raw.get("qq"), dict) else {}
+    channel = qq.get("snowluma") if isinstance(qq.get("snowluma"), dict) else {}
+    channel["accounts"] = accounts
+    qq["snowluma"] = channel
+    raw["qq"] = qq
+    save_config(raw)
+    return {"ok": True, "requiresPanRestart": True, "accounts": accounts}
+
+
+@app.get("/api/settings/ui")
+async def api_get_settings_ui():
+    """Return the app-settings ``ui`` object (merged with defaults).
+
+    Backs the React ``appSettingsStore``. config.json's ``ui`` object is the
+    single source of truth for these display-level settings, shared across
+    browsers/sessions (previously they lived in browser localStorage).
+    """
+    from packages.core import auto_report
+    ui = dict(load_config().get("ui") or {})
+    ui["autoReport"] = auto_report.normalize(ui.get("autoReport"))
+    from packages.core.source_notifications import normalize_error_exclusions
+    ui['errorNotificationExclusions'] = normalize_error_exclusions(ui.get('errorNotificationExclusions'))
+    return ui
+
+
+@app.get("/api/data/catalog")
+async def api_get_data_catalog():
+    """Return the read-only inventory of registered Pan storage locations.
+
+    The catalog contains resolved paths and existence flags only. It does not
+    traverse directories, inspect file contents, or accept path filters.
+    """
+    return get_data_catalog()
+
+
+@app.post("/api/settings/workdir-retention/preview")
+async def api_preview_workdir_retention(data: dict = Body(...)):
+    if set(data) != {"days"}:
+        raise HTTPException(status_code=400, detail="Only days is accepted")
+    try:
+        return await asyncio.to_thread(_workdir_collector().run, data["days"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/settings/workdir-retention/delete")
+async def api_delete_workdir_retention(data: dict = Body(...)):
+    if (set(data) != {"days", "names"} or not isinstance(data.get("names"), list)
+            or not data["names"] or len(data["names"]) > 2000
+            or any(not isinstance(name, str) for name in data["names"])):
+        raise HTTPException(status_code=400, detail="Expected days and 1–2000 directory names")
+    try:
+        return await asyncio.to_thread(_workdir_collector().run, data["days"], data["names"], delete=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/settings/data-retention")
+async def api_get_data_retention():
+    """Read Data-owned retention policies and recent scan results."""
+    config = load_config()
+    raw_retention = config.get("data_retention") or {}
+    return {
+        "policies": normalize_data_retention_policies(raw_retention),
+        "configKey": "data_retention",
+        "lastScans": _get_data_retention_service().get_status(),
+    }
+
+
+@app.put("/api/settings/data-retention")
+async def api_put_data_retention(data: dict = Body(...)):
+    """Strictly save Data-owned policies; Jobs settings have their own API."""
+    if not isinstance(data, dict) or set(data) != {"policies"}:
+        raise HTTPException(status_code=422, detail="expected policies only")
+    config = load_config()
+    current = normalize_data_retention_policies(config.get("data_retention"))
+    try:
+        policies = validate_data_retention_update({"policies": data["policies"]}, current)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    raw = read_config_file()
+    retention = raw.get("data_retention")
+    if not isinstance(retention, dict):
+        retention = {}
+    # Remove the short-lived Data-owned Jobs slot introduced by the earlier
+    # integration draft. Canonical Jobs settings live under config.jobs.
+    retention.pop("jobs", None)
+    retention.update(policies)
+    raw["data_retention"] = retention
+    save_config(raw)
+    return {
+        "policies": policies,
+        "configKey": "data_retention",
+        "lastScans": _get_data_retention_service().get_status(),
+    }
+
+
+@app.put("/api/settings/ui")
+async def api_put_settings_ui(data: dict, request: Request = None):
+    """Merge partial/full ui settings into config.json's ``ui`` object.
+
+    Body may carry any subset of the ui fields; provided keys are merged over
+    the current values (defaults fill the rest) and persisted atomically.
+    Unknown keys are stored as-is for forward compatibility. Returns the full
+    merged ui object.
+
+    Changing the unread-recording scope set (``notifications.unreadRecording``)
+    publishes the new policy immediately: Sessions that just became excluded
+    are cleared to an authoritative count 0, other clients reload the settings
+    over the ``settings.uiUpdated`` broadcast, and a failed config write
+    changes nothing (the previous policy stays active).
+    """
+    from packages.core import auto_report
+    if "autoReport" in data:
+        try:
+            data = {**data, "autoReport": auto_report.normalize(data["autoReport"], strict=True)}
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+    if 'errorNotificationExclusions' in data:
+        from packages.interactions.runtime import principal
+        if request is None or await principal(app, request) is None:
+            raise HTTPException(401, detail='User authorization required')
+    ui = dict(load_config().get("ui") or {})
+    from packages.core.source_notifications import normalize_error_exclusions
+    if 'errorNotificationExclusionsEpoch' in data:
+        raise HTTPException(422, detail='errorNotificationExclusionsEpoch is server-managed')
+    if 'errorNotificationExclusions' in data:
+        try:
+            value = normalize_error_exclusions(data['errorNotificationExclusions'], strict=True)
+        except ValueError as exc:
+            raise HTTPException(422, detail=str(exc)) from exc
+        data = {**data, 'errorNotificationExclusions': value}
+        if value != normalize_error_exclusions(ui.get('errorNotificationExclusions')):
+            data['errorNotificationExclusionsEpoch'] = uuid.uuid4().hex
+    if "sessionErrorBridge" in data:
+        if type(data["sessionErrorBridge"]) is not bool:
+            raise HTTPException(422, detail="sessionErrorBridge must be boolean")
+        data = {**data, "sessionErrorBridgeEpoch": uuid.uuid4().hex}
+    elif "sessionErrorBridgeEpoch" in data:
+        raise HTTPException(422, detail="sessionErrorBridgeEpoch is server-managed")
+    if "autoForceSend" in data:
+        # Strict shape: the three automatic Force sources are independent
+        # booleans. Reject unknown keys and non-boolean values instead of
+        # coercing them (a typo must not silently enable delivery).
+        raw_auto_force = data["autoForceSend"]
+        allowed = set(worker.AUTO_FORCE_SOURCE_CLASSES)
+        if not isinstance(raw_auto_force, dict):
+            raise HTTPException(status_code=422, detail="autoForceSend must be an object")
+        unknown = sorted(set(raw_auto_force) - allowed)
+        if unknown:
+            raise HTTPException(
+                status_code=422,
+                detail=f"autoForceSend accepts only {sorted(allowed)}; got {unknown}",
+            )
+        if any(type(value) is not bool for value in raw_auto_force.values()):
+            raise HTTPException(
+                status_code=422,
+                detail="autoForceSend values must be booleans",
+            )
+        current_auto_force = ui.get("autoForceSend")
+        merged_auto_force = (
+            dict(current_auto_force) if isinstance(current_auto_force, dict) else {}
+        )
+        merged_auto_force.update(raw_auto_force)
+        # Persist only strict booleans; a malformed legacy value becomes off
+        # instead of surviving as a coercible truthy object.
+        data = {**data, "autoForceSend": {
+            name: merged_auto_force.get(name) is True
+            for name in worker.AUTO_FORCE_SOURCE_CLASSES
+        }}
+    # A save that carries the unread-recording key is a global "apply": it
+    # clears per-Session overrides and re-aligns every Session, even when the
+    # scope set itself did not change.
+    unread_apply_requested = (
+        isinstance(data.get("notifications"), dict)
+        and "unreadRecording" in data["notifications"])
+    if "notifications" in data:
+        if not isinstance(data["notifications"], dict):
+            raise HTTPException(status_code=422, detail="notifications must be an object")
+        updated_notifications = dict(ui.get("notifications") or {})
+        updated_notifications.update(data["notifications"])
+        if "completionBridge" in data["notifications"]:
+            try:
+                updated_notifications["completionBridge"] = notifications.completion_bridge_defaults(
+                    data["notifications"]["completionBridge"], strict=True)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+        from packages.core import source_notifications
+        for source in source_notifications.SOURCES:
+            if source in data["notifications"]:
+                try:
+                    value = source_notifications.normalize(data["notifications"][source], strict=True)
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
+                value["epoch"] = uuid.uuid4().hex
+                updated_notifications[source] = value
+        if "unreadRecording" in data["notifications"]:
+            # Canonical form: empty sets become ["none"], all/none absorb the
+            # category scopes, bell-on + bell-off collapse to all.
+            updated_notifications["unreadRecording"] = list(
+                unread_policy.normalize_unread_recording(
+                    data["notifications"]["unreadRecording"]))
+        data = {**data, "notifications": updated_notifications}
+    ui.update(data)
+    before_scopes = unread_policy.current_unread_recording()
+    raw = read_config_file()
+    raw["ui"] = ui
+    save_config(raw)
+    after_scopes = unread_policy.refresh_unread_recording()
+    if 'errorNotificationExclusions' in data:
+        await broadcast({'type': 'settings.uiUpdated'})
+    if after_scopes != before_scopes:
+        await broadcast({
+            "type": "settings.uiUpdated",
+            "unreadRecording": list(after_scopes),
+        })
+    if unread_apply_requested:
+        apply_generation = unread_policy.begin_unread_recording_apply()
+        _changed, failed, _superseded = await _coordinate_unread_recording(
+            sess.list_all(load_history=False),
+            before_scopes=before_scopes, after_scopes=after_scopes,
+            clear_overrides=True, apply_generation=apply_generation)
+        if failed:
+            # The settings are saved; the follow-up alignment could not reach
+            # every Session. Report that honestly instead of letting the
+            # client show an unconditional success.
+            _log(
+                "[Pan] unread-recording apply left "
+                f"{len(failed)} Session(s) unaligned: {', '.join(failed[:5])}"
+            )
+            return {**ui, "unreadRecordingApply": {
+                "ok": False, "failedSessions": failed}}
+    return ui
+
+
+@app.get("/api/settings/session-lifecycle")
+async def api_get_settings_session_lifecycle():
+    """Read cross-browser Exit and startup legal-state preferences."""
+    return _session_lifecycle_preferences()
+
+
+@app.put("/api/settings/session-lifecycle")
+async def api_put_settings_session_lifecycle(data: dict = Body(...)):
+    """Strictly merge lifecycle preferences into config.json.
+
+    The lifecycle enums and wakeMessage are accepted. The raw config is updated so
+    unrelated project configuration and future keys remain intact.
+    """
+    if not isinstance(data, dict) or not data:
+        raise HTTPException(status_code=422, detail="expected lifecycle preference fields")
+    unknown = sorted(set(data) - set(_SESSION_LIFECYCLE_DEFAULTS))
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "unsupported_session_lifecycle_fields", "fields": unknown},
+        )
+    allowed = {
+        "exitStrategy": _SESSION_LIFECYCLE_EXIT_STRATEGIES,
+        "startupPreference": _SESSION_LIFECYCLE_STARTUP_PREFERENCES,
+    }
+    for field_name, value in data.items():
+        if field_name == "wakeMessage":
+            if not isinstance(value, str) or not value.strip() or len(value) > 32000:
+                raise HTTPException(status_code=422, detail="wakeMessage must be non-blank and at most 32000 characters")
+            continue
+        if not isinstance(value, str) or value not in allowed[field_name]:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "invalid_session_lifecycle_preference",
+                    "field": field_name,
+                    "allowed": sorted(allowed[field_name]),
+                },
+            )
+
+    current = _session_lifecycle_preferences()
+    updated = {**current, **data}
+    raw = read_config_file()
+    section = raw.get("session_lifecycle")
+    if not isinstance(section, dict):
+        section = {}
+    section.update(updated)
+    raw["session_lifecycle"] = section
+    save_config(raw)
+    return updated
+
+
+# ── Worker settings (config.json worker, hot-applied) ──
+
+_WORKER_SETTING_KEYS = ("timeout_sec", "task_timeout_sec", "idle_sec")
+
+
+@app.put("/api/settings/worker")
+async def api_put_settings_worker(data: dict):
+    """Merge worker lifecycle timeouts into config.json's ``worker`` object.
+
+    Body may carry any subset of {timeout_sec, task_timeout_sec, idle_sec};
+    each provided value must be a positive number (seconds). Provided keys
+    are merged over the current worker section (unprovided keys and other
+    fields in the section are kept) and persisted atomically, then
+    worker.reload_worker_config() re-reads the file so the running server
+    applies the new values without a restart. Returns the {before, after}
+    diff in the same shape as the ``worker`` entry of /api/config/reload.
+    """
+    patch: dict = {}
+    for k in _WORKER_SETTING_KEYS:
+        if k not in data:
+            continue
+        try:
+            v = float(data[k])
+        except (TypeError, ValueError):
+            return {"error": f"worker.{k} must be a number (seconds)"}
+        if not (math.isfinite(v) and v > 0):  # rejects 0 / negative / inf / nan
+            return {"error": f"worker.{k} must be a positive number (seconds)"}
+        patch[k] = v
+    if not patch:
+        return {
+            "error": "no worker keys provided (expected any of: "
+            + ", ".join(_WORKER_SETTING_KEYS)
+            + ")"
+        }
+    raw = read_config_file()
+    section = dict(raw.get("worker") or {})
+    section.update(patch)
+    raw["worker"] = section
+    save_config(raw)
+    return worker.reload_worker_config()
+
+
+# ── Optional direct LAN listener ──
+
+def _lan_controller():
+    from packages.remote.lan_runtime import Controller
+    controller = getattr(app.state, "lan_controller", None)
+    if controller is None:
+        def read():
+            from packages.core.config import CONFIG_FILE
+            if not CONFIG_FILE.exists():
+                return {}
+            value = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("config.json must be an object; existing file preserved")
+            return value
+        controller = Controller(app, read_config=read, write_config=save_config)
+        app.state.lan_controller = controller
+    return controller
+
+
+def _require_lan_management(request):
+    # LAN listener marks every request, including a local client using 0.0.0.0.
+    # Browser management is only permitted from the primary loopback origin.
+    if request.scope.get("pan_lan_entry") or not request.client:
+        raise HTTPException(403, "请从本机回环地址管理 LAN 入口")
+    from packages.web.terminal_api import is_loopback_host, normalize_origin
+    if not is_loopback_host(request.client.host):
+        raise HTTPException(403, "请从本机回环地址管理 LAN 入口")
+    host = request.headers.get("host", "")
+    try:
+        hostname = urlsplit(f"http://{host}").hostname
+    except ValueError:
+        hostname = None
+    origin = request.headers.get("origin")
+    if not is_loopback_host(hostname) or (origin is not None and
+            normalize_origin(origin) != normalize_origin(f"{request.url.scheme}://{host}")):
+        raise HTTPException(403, "Local same-origin administration required")
+    if request.headers.get("sec-fetch-site", "same-origin") != "same-origin":
+        raise HTTPException(403, "Local same-origin administration required")
+
+
+@app.get("/api/remote/lan")
+async def api_lan_status():
+    return await _lan_controller().operation("status")
+
+
+@app.put("/api/remote/lan")
+async def api_lan_config(request: Request):
+    _require_lan_management(request)
+    try:
+        value = await request.json()
+    except (ValueError, UnicodeError):
+        raise HTTPException(422, "Invalid LAN JSON configuration") from None
+    return await _lan_controller().operation("save", value)
+
+
+@app.post("/api/remote/lan/{action}")
+async def api_lan_control(action: str, request: Request):
+    _require_lan_management(request)
+    if action not in {"start", "stop"}:
+        raise HTTPException(400, "Unknown LAN action")
+    return await _lan_controller().operation(action)
+
+
+# ── Remote tunnel (cloudflared, owned by packages.core.launcher) ──
+#
+# The launcher writes a checkout-scoped state record containing the PID,
+# creation time, port-specific marker, argv and process type.  The web API
+# never scans or kills an unrecorded cloudflared process.
+
+_PAN_TUNNEL_MARKER = "pan_cf_config_"
+
+
+def _owned_tunnel() -> dict[str, Any] | None:
+    """Read only the launcher-recorded cloudflared process for this checkout."""
+    return launcher.owned_cloudflared(_PROJECT_DIR)
+
+
+def _matches_pan_tunnel(name: str, cmdline: str) -> bool:
+    """Pure matcher for Pan's own tunnel cloudflared process.
+
+    True only when the process is a cloudflared binary AND its command line
+    references the temp tunnel config marker (pan_cf_config_<port>.yml).
+    Service processes (cloudflared-ssh etc.) never reference that file and
+    are never matched; the actual lifecycle operation is delegated to the
+    launcher-owned state record below.
+    """
+    if not cmdline:
+        return False
+    base = name.lower()
+    if not base.startswith("cloudflared"):
+        return False
+    return _PAN_TUNNEL_MARKER in cmdline
+
+
+def _find_pan_tunnel_processes() -> list[dict]:
+    """Return only the launcher-recorded tunnel after identity validation."""
+    owned = launcher.owned_cloudflared(_PROJECT_DIR)
+    if not owned or not owned.get("identity", {}).get("ok"):
+        return []
+    record = owned["record"]
+    return [{
+        "pid": record.get("pid"), "name": "cloudflared.exe",
+        "cmdline": " ".join(record.get("argv") or []),
+        "createdAt": record.get("createdAt"),
+    }]
+
+
+def _kill_pan_tunnel_processes(procs: list[dict]) -> list[int]:
+    """Deprecated compatibility hook; destructive work belongs to launcher."""
+    return []
+
+
+@app.get("/api/remote/status")
+async def api_remote_status():
+    """Remote tunnel status for the App Settings modal.
+
+    ``available`` reflects the raw on-disk config (remote section present);
+    ``enabled`` comes from the merged config. ``running`` is true only for
+    the launcher-recorded tunnel whose identity still matches.
+    """
+    config = load_config()
+    raw = read_config_file()
+    remote = config.get("remote") or {}
+    return {
+        "available": "remote" in raw,
+        "enabled": bool(remote.get("enabled")),
+        "provider": remote.get("provider"),
+        "quickTunnel": bool(remote.get("quick_tunnel")),
+        "protocol": remote.get("protocol") or "",
+        "port": config.get("port"),
+        "running": bool((_owned_tunnel() or {}).get("identity", {}).get("ok")),
+    }
+
+
+_TAILSCALE_CONTROLLER = None
+
+
+def _tailscale_controller():
+    global _TAILSCALE_CONTROLLER
+    if _TAILSCALE_CONTROLLER is None:
+        uvicorn_server = getattr(app.state, "pan_uvicorn_server", None)
+        runtime_port = uvicorn_server.config.port if uvicorn_server is not None else _main_restart_port()
+        _TAILSCALE_CONTROLLER = TailscaleController(
+            DATA_DIR / "tailscale", runtime_port,
+            read_config=read_config_file, write_config=save_config,
+        )
+    return _TAILSCALE_CONTROLLER
+
+
+@app.get("/api/remote/tailscale")
+async def api_tailscale_status():
+    controller = _tailscale_controller()
+    return await controller.operation(controller.status)
+
+
+@app.put("/api/remote/tailscale")
+async def api_tailscale_config(request: Request):
+    controller = _tailscale_controller()
+    return await controller.operation(controller.control, "save", await request.json())
+
+
+@app.post("/api/remote/tailscale/{action}")
+async def api_tailscale_control(action: str):
+    if action not in {"start", "stop"}:
+        raise HTTPException(status_code=400, detail="Unknown Tailscale action")
+    controller = _tailscale_controller()
+    return await controller.operation(controller.control, action)
+
+
+@app.post("/api/remote/restart")
+async def api_remote_restart():
+    """Restart only this checkout's launcher-recorded cloudflared tunnel."""
+    config = load_config()
+    remote = config.get("remote") or {}
+    if not remote.get("enabled"):
+        return {"ok": False, "error": "remote is not enabled in config.json"}
+
+    try:
+        result = launcher.restart_cloudflared(_PROJECT_DIR)
+    except launcher.LauncherError as exc:
+        return {"ok": False, "error": str(exc), "killed": []}
+    await asyncio.sleep(0.2)
+    result["restarted"] = bool((_owned_tunnel() or {}).get("identity", {}).get("ok"))
+    return result
+
+
+# ── Config hot-reload ──
+
+@app.get("/api/remote/mcp")
+async def api_mcp_remote_status():
+    from packages.remote.mcp_runtime import status
+    return {**await asyncio.to_thread(status, _PROJECT_DIR),
+            "config": load_config().get("mcp_remote") or {}}
+
+
+@app.put("/api/remote/mcp")
+async def api_mcp_remote_config(request: Request):
+    payload = await request.json()
+    allowed = {"enabled", "port", "public_hostname", "access_issuer", "access_audience", "config_path", "binary_path"}
+    if not isinstance(payload, dict) or set(payload) - allowed:
+        raise HTTPException(status_code=400, detail="Invalid MCP configuration fields")
+    if "enabled" in payload and not isinstance(payload["enabled"], bool):
+        raise HTTPException(status_code=400, detail="enabled must be boolean")
+    if "port" in payload and (type(payload["port"]) is not int or not 1024 <= payload["port"] <= 65535):
+        raise HTTPException(status_code=400, detail="Invalid MCP port")
+    if any(not isinstance(value, str) for key, value in payload.items() if key not in {"enabled", "port"}):
+        raise HTTPException(status_code=400, detail="MCP text fields must be strings")
+    raw = read_config_file()
+    raw["mcp_remote"] = {**(load_config().get("mcp_remote") or {}), **payload}
+    save_config(raw)
+    return {"ok": True}
+
+
+@app.post("/api/remote/mcp/{action}")
+async def api_mcp_remote_control(action: str):
+    from packages.remote.mcp_runtime import control
+    if action not in {"start", "stop", "restart"}:
+        raise HTTPException(status_code=400, detail="Unknown MCP action")
+    try:
+        return await asyncio.to_thread(control, _PROJECT_DIR, action)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+def _reload_adapter_models() -> tuple[list[dict], list[str]]:
+    """Invalidate adapter model caches and return count diffs and errors."""
+    adapters_out = []
+    errors: list[str] = []
+    for a in list_adapters():
+        entry: dict = {"name": a.name}
+        try:
+            entry["modelsBefore"] = len(a.supported_models)
+        except Exception as e:
+            entry["modelsBefore"] = None
+            errors.append(f"{a.name}: read before: {e}")
+        invalidate = getattr(a, "invalidate_models_cache", None)
+        if callable(invalidate):
+            try:
+                invalidate()
+            except Exception as e:
+                errors.append(f"{a.name}: invalidate: {e}")
+        try:
+            entry["modelsAfter"] = len(a.supported_models)
+        except Exception as e:
+            entry["modelsAfter"] = None
+            errors.append(f"{a.name}: read after: {e}")
+        adapters_out.append(entry)
+    return adapters_out, errors
+
+
+@app.post("/api/codex/refresh-official-models")
+async def api_codex_refresh_official_models():
+    """Replace the Codex whitelist with the visible official model catalog."""
+    try:
+        codex_argv = [str(part) for part in get_adapter("codex").resolved_cli_argv()]
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"failed to resolve codex executable: {e}",
+        ) from e
+    if not codex_argv:
+        raise HTTPException(status_code=502, detail="failed to resolve codex executable: empty argv")
+
+    command = [*codex_argv, "debug", "models"]
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            timeout=30,
+            cwd=str(_PROJECT_DIR),
+            **command_window_options(),
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="codex debug models timed out")
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"failed to run codex debug models: {e}") from e
+
+    stdout_raw = completed.stdout
+    stderr_raw = completed.stderr
+
+    def _capture_bytes(value) -> bytes | None:
+        # ``capture_output=True`` returns bytes. Accept strings too for older
+        # subprocess shims and callers, encoding them explicitly as UTF-8.
+        if isinstance(value, bytes):
+            return value
+        if isinstance(value, str):
+            return value.encode("utf-8")
+        return None
+
+    stdout_bytes = _capture_bytes(stdout_raw)
+    stderr_bytes = _capture_bytes(stderr_raw)
+    stdout_size = len(stdout_bytes) if stdout_bytes is not None else 0
+    stderr_size = len(stderr_bytes) if stderr_bytes is not None else 0
+
+    if completed.returncode != 0:
+        detail = (
+            "codex debug models failed "
+            f"(exit code {completed.returncode}; stdout {stdout_size} bytes; "
+            f"stderr {stderr_size} bytes)"
+        )
+        # Include only a short, plain-text first line from a small stderr. Never
+        # echo JSON/model payloads or large CLI output into the settings UI.
+        if stderr_bytes and stderr_size <= 200:
+            hint = stderr_bytes.decode("utf-8", errors="replace").strip().splitlines()
+            if hint:
+                first_line = " ".join(hint[0].split())
+                if first_line and not any(char in first_line for char in "{}[]"):
+                    detail += f": {first_line}"
+        raise HTTPException(status_code=502, detail=detail)
+
+    if stdout_bytes is None:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout was not captured "
+                f"(stderr {stderr_size} bytes)"
+            ),
+        )
+    if not stdout_bytes.strip():
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is empty "
+                f"(stderr {stderr_size} bytes)"
+            ),
+        )
+
+    try:
+        # Codex CLI writes UTF-8 JSON, including large model descriptions and
+        # instruction fields. Decode explicitly instead of using the Windows
+        # locale codec (which can fail and leave CompletedProcess.stdout=None).
+        stdout_text = stdout_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is not valid UTF-8 "
+                f"at byte {e.start} ({stdout_size} bytes)"
+            ),
+        ) from e
+
+    try:
+        catalog = json.loads(stdout_text)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: stdout is not valid JSON "
+                f"at line {e.lineno}, column {e.colno} ({stdout_size} bytes)"
+            ),
+        ) from e
+
+    if isinstance(catalog, dict):
+        if "models" not in catalog:
+            keys = ", ".join(sorted(str(key) for key in catalog.keys()))
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "invalid codex model catalog: expected a JSON object with "
+                    f"models[] or a JSON array (object keys: {keys or '(none)'})"
+                ),
+            )
+        catalog = catalog["models"]
+    if not isinstance(catalog, list):
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: expected models[] or a JSON "
+                f"array, got {type(catalog).__name__}"
+            ),
+        )
+
+    models = []
+    seen_models = set()
+    for index, item in enumerate(catalog):
+        if not isinstance(item, dict):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "invalid codex model catalog: "
+                    f"entry {index} is {type(item).__name__}, expected an object"
+                ),
+            )
+        if item.get("visibility") in (None, "list"):
+            slug = item.get("slug")
+            if not isinstance(slug, str) or not slug.strip():
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "invalid codex model catalog: "
+                        f"visible entry {index} has no valid slug"
+                    ),
+                )
+            slug = slug.strip()
+            if slug not in seen_models:
+                models.append(slug)
+                seen_models.add(slug)
+    if not models:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "invalid codex model catalog: catalog contains no visible models "
+                f"({len(catalog)} entries)"
+            ),
+        )
+
+    before = list(get_adapter("codex").supported_models)
+    raw = read_config_file()
+    codex = dict(raw.get("codex") or {})
+    codex["models"] = models
+    raw["codex"] = codex
+    save_config(raw)
+
+    _, reload_errors = _reload_adapter_models()
+    if reload_errors:
+        raise HTTPException(status_code=500, detail="; ".join(reload_errors))
+    after = list(get_adapter("codex").supported_models)
+    return {"ok": True, "before": before, "after": after}
+
+@app.post("/api/config/reload")
+async def api_config_reload(data: dict | None = None):
+    """Force a config.json hot-reload (adapters / worker / plugin / memory / python).
+
+    config.json is re-read from disk on every load_config() call, but a few
+    things are read once and then cached: the adapters' class-level model-list
+    caches (codex/opencode/cbc with TTL, kimi/claude permanent), worker.py's
+    module-level lifecycle timeouts, worker.py's memory-injection switch
+    (``memory.enabled``), and the registered plugin manifest list
+    (``plugin_manifests``, fixed at lifespan). This endpoint invalidates all
+    of them so edits to config.json take effect without a server restart —
+    same style as POST /api/manifest/reload.
+
+    Body (optional): ``{"scope": "adapters" | "worker" | "plugin" | "memory"
+    | "python" | "all"}`` — default "all". Idempotent: repeated calls just re-read the
+    same config. Per-item failures are collected into ``errors`` and reported
+    with ``reloaded: false`` instead of a 500. The response always carries
+    ``requiresRestart`` — fields that are startup-frozen by nature and can
+    never hot-apply (the bound port, logging handlers, the Windows startup
+    console window, and the external remote tunnel process).
+    """
+    scope = (data or {}).get("scope") or "all"
+    if scope not in ("adapters", "worker", "plugin", "memory", "python", "all"):
+        return {"reloaded": False, "error": f"Unknown scope: {scope}"}
+
+    result: dict = {"reloaded": True}
+    errors: list[str] = []
+
+    if scope in ("python", "all"):
+        # The resolver is intentionally uncached.  This metadata proves the
+        # fresh choice without returning a configured path or environment
+        # value, either of which could contain sensitive information.
+        try:
+            result["python"] = resolve_pan_python_info()
+        except Exception as e:
+            errors.append(f"python: {e}")
+
+    if scope in ("adapters", "all"):
+        adapters_out, adapter_errors = _reload_adapter_models()
+        errors.extend(adapter_errors)
+        result["adapters"] = adapters_out
+
+    if scope in ("worker", "all"):
+        try:
+            result["worker"] = worker.reload_worker_config()
+        except Exception as e:
+            errors.append(f"worker: {e}")
+
+    if scope in ("memory", "all"):
+        try:
+            result["memory"] = worker.reload_memory_config()
+        except Exception as e:
+            errors.append(f"memory: {e}")
+
+    if scope in ("plugin", "all"):
+        if _character_manager is None:
+            errors.append("plugin: character manager not initialized")
+        else:
+            before_paths = list(_character_manager._plugin_paths)
+            # Same default as lifespan: a missing key loads the project and
+            # first-party MCP manifests; an explicit [] clears all plugins.
+            new_paths = list(
+                load_config().get("plugin_manifests", DEFAULT_PLUGIN_MANIFESTS)
+            )
+            cfg, plug_errors = _character_manager.reload_plugin_paths(new_paths)
+            plugin_entry: dict = {"before": before_paths, "after": new_paths}
+            if cfg is None:
+                # Aborted: previous paths + config kept by the manager.
+                plugin_entry["applied"] = False
+                plugin_entry["errors"] = plug_errors
+                errors.extend(f"plugin: {e}" for e in plug_errors)
+            else:
+                from packages.core.inbox_service import reconcile_sources
+                reconcile_sources(cfg)
+                plugin_entry["applied"] = True
+                plugin_entry["sessionTemplates"] = len(cfg.session_templates)
+                plugin_entry["mcpServers"] = len(cfg.mcp_servers)
+                plugin_entry["characters"] = len(cfg.character_templates)
+                plugin_entry["commandRoutes"] = len(cfg.command_routes)
+            result["plugin"] = plugin_entry
+
+    # Startup-frozen fields a config.json edit can never hot-apply.
+    result["requiresRestart"] = ["port", "logging", "remote", "startup"]
+
+    if errors:
+        result["reloaded"] = False
+        result["errors"] = errors
+    return result
+
+
+# ── Spawn ──
+
+@app.post("/api/spawn")
+async def api_spawn(data: dict):
+    """Spawn a Worker for a Session."""
+    session_id = data.get("sessionId")
+    if session_id:
+        s = sess.get(session_id)
+        if not s:
+            return {"error": f"Session {session_id} not found"}
+        # 已有 Session 的 spawn 不接受切换 adapter（此前被静默忽略）。
+        # 换 adapter 是结构性切换（进程 argv/协议都不同），必须走 handoff。
+        req_adapter = data.get("adapter")
+        if req_adapter and req_adapter != s.adapter:
+            return {"error": (
+                f"Session '{s.name}' uses adapter '{s.adapter}' and cannot "
+                f"be spawned with adapter '{req_adapter}'. Adapter switching "
+                f"requires POST /api/sessions/{session_id}/handoff."
+            )}
+        # kill existing worker (avoid multiple workers on same session)
+        existing = worker.find_worker_by_session(session_id)
+        if existing:
+            await worker.kill_worker(existing.worker_id)
+        settings_result = await api_update_session(session_id, data)
+        if settings_result.get('error'):
+            return settings_result
+    else:
+        created = await api_create_session(data)
+        if created.get('error'):
+            return created
+        s = sess.get(created['id'])
+        session_id = s.id
+
+    result = await worker.create_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+
+    w = result
+    return {
+        "workerId": w.worker_id,
+        "sessionId": session_id,
+        "name": s.name,
+        "status": w.status,
+        "model": s.model or get_adapter(s.adapter).default_model,
+    }
+
+
+def _request_source_metadata(data: dict, default: str = "agent"):
+    """Parse the two independent source fields at an HTTP boundary.
+
+    只读校验（不覆盖/改写 data）：source 缺失时按 default（agent），显式传入
+    的 source 必须在合法集合内（worker.SOURCE_TYPES，含未来 meta-agent /
+    automation），非法类型或未知字符串直接拒绝——HTTP handler 不得在调用本函数
+    前把客户端 source 无条件覆盖为 agent。sourceSessionId 校验其确为存在的
+    Session。返回 (source_type, source_session_id, None) 或
+    (None, None, {"error": ...})。
+    """
+    source_type, error = worker._normalize_source_type(data.get("source"), default)
+    if error:
+        return None, None, {"error": error}
+    source_session_id, error = worker._normalize_source_session_id(
+        data.get("sourceSessionId"))
+    if error:
+        return None, None, {"error": error}
+    return source_type, source_session_id, None
+
+
+def _source_access_error(target, source_session_id):
+    if (target is not None and source_session_id
+            and source_session_id != target.id and target.readonly_session
+            and target.managed_by == source_session_id):
+        return {"ok": False, "error": {"code": "readonly_session",
+                "message": worker.READONLY_SESSION_ERROR}}
+    return None
+
+
+@app.post("/api/task")
+async def api_task(data: dict):
+    """Send a task to a Worker by worker_id or session_id."""
+    worker_id = data.get("workerId")
+    session_id = data.get("sessionId")
+    # source 是开放但受校验的来源元数据：先校验再走流程（缺省 agent，未知/
+    # 非法 source 直接拒绝），绝不把客户端传入的 source 无条件覆盖为 agent。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    if session_id:
+        target = sess.get(session_id)
+        if not target:
+            return {"error": f"Session {session_id} not found"}
+        denied = _source_access_error(target, source_session_id)
+        if denied:
+            return denied
+
+    if not worker_id and session_id:
+        w = worker.find_alive_worker_by_session(session_id)
+        if w:
+            worker_id = w.worker_id
+
+    if not worker_id and session_id:
+        s = sess.get(session_id)
+        if not s:
+            return {"error": f"Session {session_id} not found"}
+        result = await worker.create_worker(session_id)
+        if isinstance(result, str):
+            return {"error": f"Worker auto-spawn failed: {result}"}
+        worker_id = result.worker_id
+        await broadcast({
+            "type": "worker.spawned",
+            "workerId": worker_id,
+            "sessionId": session_id,
+            "generation": result.generation,
+            "name": s.name,
+            "status": "idle",
+            "model": s.model or get_adapter(s.adapter).default_model,
+            "reason": "auto-spawned by /api/task",
+        })
+
+    if not worker_id:
+        return {"error": "workerId or sessionId required"}
+
+    text = data.get("text")
+    if not text:
+        return {"error": "text is required"}
+
+    if not session_id:
+        resolved = worker.get_worker(worker_id)
+        session_id = resolved.session_id if resolved else None
+    if session_id:
+        target = sess.get(session_id)
+        if target:
+            denied = _source_access_error(target, source_session_id)
+            if denied:
+                return denied
+    send_kwargs = {"source": source_type}
+    if data.get("taskId") is not None:
+        send_kwargs["task_id"] = data.get("taskId")
+    elif data.get("inheritTaskId") and source_type == "agent" and session_id:
+        # Legacy task callers can inherit the same context as agent_send. Keep
+        # the same enqueue-time snapshot as /api/send without turning the
+        # inherited id into a second assign idempotency key.
+        send_kwargs["task_id"] = target.active_task_id if target else None
+        send_kwargs["idempotent_task_id"] = False
+    if data.get("clientMessageId") is not None:
+        send_kwargs["client_message_id"] = data.get("clientMessageId")
+    if source_session_id is not None:
+        send_kwargs["source_session_id"] = source_session_id
+    err = await worker.send_task(worker_id, text, **send_kwargs)
+    if err:
+        if session_id and err in ("Worker not found", "Worker process dead"):
+            old = worker.find_worker_by_session(session_id)
+            if old:
+                await worker.kill_worker(old.worker_id)
+            s = sess.get(session_id)
+            if s:
+                result = await worker.create_worker(session_id)
+                if not isinstance(result, str):
+                    worker_id = result.worker_id
+                    err = await worker.send_task(worker_id, text, **send_kwargs)
+        if err:
+            return {"error": err}
+
+    w = worker.get_worker(worker_id)
+    return {
+        "workerId": worker_id,
+        "sessionId": w.session_id if w else session_id,
+        "status": "queued",
+        "queueItemId": (worker._find_queue_item_by_idempotency(
+            _summary_session_get(session_id),
+            client_message_id=data.get("clientMessageId"),
+            task_id=data.get("taskId")) or {}).get("queueItemId"),
+    }
+
+
+@app.post("/api/send")
+async def api_send(data: dict):
+    """向 session（agent）发消息（阶段 6 寻址兼容层）。
+
+    workerId / sessionId 皆可寻址（编排对象是 agent，进程是顺带的）。
+    sessionId 无活 worker 时**不报错**：消息入 Session.queue_pending
+    （type=task），由全局 watchdog spawn 后经 _recover_pending_signals
+    分发。force=true 按能力即时 Steer 优先；idle 普通 handoff，无能力才 restart。
+    source=agent 的消息在入队时继承目标 Session.active_task_id 作为 report
+    配对上下文；该值不参加 assign 幂等，source=user 不继承。
+    隔离由 MCP 层实施（与 /api/claim 同约定），本端点不检查 pan_access。
+    """
+    worker_id = data.get("workerId")
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not text:
+        return {"error": "text is required"}
+    if not worker_id and not session_id:
+        return {"error": "workerId or sessionId required"}
+    # source 契约先于寻址/投递校验：缺省 agent，非法类型/未知字符串拒绝，
+    # 合法 source 保留透传（与 /api/task、/api/notify 同约定）。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    if worker_id and not session_id:
+        w = worker.get_worker(worker_id)
+        if not w:
+            return {"error": "Worker not found"}
+        session_id = w.session_id
+    target = sess.get(session_id)
+    if source_session_id and not target:
+        return {"error": f"Session {session_id} not found"}
+    denied = _source_access_error(target, source_session_id)
+    if denied:
+        return denied
+    send_kwargs = {"source": source_type, "force": bool(data.get("force"))}
+    if data.get("clientMessageId") is not None:
+        send_kwargs["client_message_id"] = data.get("clientMessageId")
+    if source_session_id is not None:
+        send_kwargs["source_session_id"] = source_session_id
+    result = await worker.send_session(session_id, text, **send_kwargs)
+    if isinstance(result, dict) and result.get("status") == "error":
+        return {"error": result.get("result") or "send failed"}
+    return result
+
+
+@app.post("/api/notify")
+async def api_notify(data: dict):
+    """[internal/MCP-only] 向 session 投递一条提醒（MCP agent_notify 专用）。
+
+    不作为通用对外 API（README/API 文档不宣传）；隔离由 MCP 层
+    _check_access 实施（仅允许调用方自己或其 managed 的 session），本端点
+    与 /api/send 同约定不检查 pan_access。
+
+    Body: {"targetSessionId": <目标 session id>, "text": <提醒正文>,
+           "source"?: <来源类型，如 agent>,
+           "sourceSessionId"?: <来源 session id>}
+
+    内部走 worker.enqueue_notice：与 report 相同的持久化投递链路
+    （queue_pending 落盘 + 唤醒 + 无活 worker 立即 auto-spawn，不等
+    watchdog tick）。区别于 /api/send：投递的是「通知」而非任务消息。
+    """
+    target = (data.get("targetSessionId") or data.get("sessionId") or "").strip()
+    text = data.get("text")
+    if not target or not text:
+        return {"error": "targetSessionId and text are required"}
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return source_error
+    target_session = sess.get(target)
+    if not target_session:
+        return {"error": f"Session {target} not found"}
+    denied = _source_access_error(target_session, source_session_id)
+    if denied:
+        return denied
+    notice_kwargs = {"source": source_type}
+    if source_session_id is not None:
+        notice_kwargs["source_session_id"] = source_session_id
+    result = await worker.enqueue_notice(target, str(text),
+                                         **notice_kwargs)
+    if isinstance(result, dict) and not result.get("ok", True):
+        return {"error": (result.get("error") or {}).get("message", "notify failed")}
+    return result
+
+
+@app.post("/api/assign")
+async def api_assign(data: dict):
+    """异步分派：发任务后立即返回 queued，完成时通过 worker.result 事件回调。
+
+    taskId 可选：带 taskId 时走幂等语义（同 taskId 重发不双跑），见 worker.assign；
+    成功入队后该值成为 Session 的持久 active_task_id。
+    """
+    session_id = data.get("sessionId")
+    text = data.get("text")
+    if not session_id or not text:
+        return {"ok": False, "error": {"code": "missing_params",
+                                       "message": "sessionId and text are required"}}
+    task_id = data.get("taskId")
+    # 同其它 HTTP handler：source 契约先校验（缺省 agent，非法拒绝，合法保留）。
+    source_type, source_session_id, source_error = _request_source_metadata(data)
+    if source_error:
+        return {"status": "error", "result": source_error["error"]}
+    target = sess.get(session_id)
+    if not target:
+        return {"status": "error", "result": f"Session {session_id} not found"}
+    denied = _source_access_error(target, source_session_id)
+    if denied:
+        return {"status": "error", "result": denied["error"]["message"]}
+    return await worker.assign(session_id, text,
+                               source=source_type,
+                               source_session_id=source_session_id,
+                               task_id=task_id)
+
+
+@app.post("/api/report-subscribe")
+async def api_report_subscribe(data: dict):
+    """meta-agent 订阅某个 managed session 的完成报告（立项 4.3 订阅制）。
+
+    Body: {"managerId": <meta-agent session id>, "sessionId": <managed session id>}
+
+    订阅后，该 managed session 每次完成（done/error）都会把报告 append 到
+    meta-agent 的落盘队列 queue_pending（报告形状 {status,result,sessionId,taskId,workerId}）。
+    未订阅则只保留现有 worker.result 广播。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"error": "managerId and sessionId are required"}
+    # 禁止自订阅：meta-agent 不能订阅自己（自管理/自订阅无意义且会自我唤醒）
+    if manager_id == session_id:
+        return {"error": f"Cannot subscribe to itself ({session_id})"}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"error": f"Manager session {manager_id} not found"}
+    target = sess.get(session_id)
+    if not target:
+        return {"error": f"Session {session_id} not found"}
+    # 软约束：已有归属且不属于该 manager → 拒绝（防止越权订阅）
+    # A deleted manager may remain in historical data as a dangling reference;
+    # treat that target as unmanaged so it can be recovered.
+    if (target.managed_by and target.managed_by != manager_id
+            and sess.get(target.managed_by) is not None):
+        return {"error": f"Session {session_id} is managed by {target.managed_by}, not {manager_id}"}
+    # 订阅即接管：建立 managed 关系（双向落盘，立项 4.2）。
+    # claim 内部已自动 report_subscribe；此处 add 幂等，保留作防御性兜底。
+    sess.claim(manager_id, session_id)
+    manager.report_subscriptions.add(session_id)
+    await sess.save_async(manager)
+    return {
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "subscribed": True,
+        "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
+
+
+@app.post("/api/report-unsubscribe")
+async def api_report_unsubscribe(data: dict):
+    """取消订阅 managed session 的完成报告（立项 4.3）。"""
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"error": "managerId and sessionId are required"}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"error": f"Manager session {manager_id} not found"}
+    manager.report_subscriptions.discard(session_id)
+    await sess.save_async(manager)
+    return {
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "subscribed": session_id in manager.report_subscriptions,
+        "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
+
+
+@app.put("/api/sessions/{session_id}/report-to-manager")
+async def api_set_reports_to_manager(session_id: str, data: dict):
+    """Toggle only the direct parent's subscription to this Session's reports."""
+    manager_id = data.get("managerId")
+    enabled = data.get("enabled")
+    expected_enabled = data.get("expectedEnabled")
+    if (not isinstance(manager_id, str) or not manager_id
+            or not isinstance(enabled, bool) or not isinstance(expected_enabled, bool)):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "managerId, enabled and expectedEnabled(boolean) are required"}}
+    target = sess.get(session_id)
+    manager = sess.get(manager_id)
+    if not target or not manager or target.managed_by != manager_id or session_id not in manager.managed:
+        return {"ok": False, "error": {"code": "manager_changed",
+                "message": "The direct manager changed; refresh and retry"}}
+    if (session_id in manager.report_subscriptions) != expected_enabled:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The report subscription changed; refresh and retry"}}
+    if enabled:
+        manager.report_subscriptions.add(session_id)
+    else:
+        manager.report_subscriptions.discard(session_id)
+    await sess.save_async(manager)
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "sessionId": session_id, "managerId": manager_id,
+            "reportsToManager": session_id in manager.report_subscriptions}
+
+
+@app.post("/api/sessions/{session_id}/manual-report")
+async def api_session_manual_report(session_id: str, data: dict):
+    """显式手动汇报：把指定完成运行的报告送达其 manager。
+
+    Body: {"taskId": <str|null>, "taskSeq": <int|null>,
+           "resultCursor": <int|null>, "messageId": <str>}
+
+    与自动汇报的关系：复用同一路由目标（manager 落盘队列 queue_pending）、
+    同一 item 形状与唤醒/广播路径；内容按**运行身份**取自服务端持久终态
+    索引（任意已完成运行，不限于最新终态），调用方只提交身份、不提交正文。
+    与订阅完全解耦——manager 已 report_unsubscribe 时手动汇报依然送达，且本
+    端点不修改订阅、不临时开订阅。
+
+    **任何已完成运行均可汇报**，包括无 taskId 的普通对话/原生轮次：此时以该
+    运行的 taskSeq 或持久 resultCursor 绑定具体运行（两者都经会话身份视图
+    ``terminalResults`` 暴露；服务端正文权威，客户端只提交身份与末块
+    messageId）。只有可证明的持久运行身份才构成绑定（非空 taskId / 已存储
+    taskSeq / 正 resultCursor）；三种身份都不提供、或提交的 resultCursor ≤ 0
+    且无其他身份 → ``no_run_identity`` 明确失败，绝不汇报“最新终态”，也绝
+    不允许身份视图给无身份旧行显示的派生 0 成为可投递绑定；终态解析出来但
+    行本身无可证明身份 → 同样``no_run_identity`` 拒绝。resultCursor 与
+    taskId/taskSeq 矛盾 → ``run_mismatch`` 明确失败；索引中找不到对应终态 →
+    ``no_task_result``，绝不顶替。
+
+    幂等：服务端按运行身份 (sessionId, taskId, taskSeq；该行无 taskSeq 时用
+    其持久 resultCursor) 推导确定性 key 去重，messageId 只证明归属、不参与
+    去重；重复点击/并发/换身份路径/未确认后的重试都不会二次入队，不同运行各
+    自独立。
+    """
+    message_id = data.get("messageId")
+    task_id = data.get("taskId")
+    task_seq = data.get("taskSeq")
+    result_cursor = data.get("resultCursor")
+    if not isinstance(message_id, str) or not message_id.strip() or len(message_id) > 200:
+        return {"ok": False, "error": {"code": "invalid_message_id",
+                                       "message": "messageId (non-empty string) is required"}}
+    if task_id is not None and (
+            not isinstance(task_id, str) or not task_id.strip() or len(task_id) > 200):
+        return {"ok": False, "error": {"code": "invalid_task_id",
+                                       "message": "taskId must be a non-empty string or null"}}
+    if task_seq is not None and (isinstance(task_seq, bool) or not isinstance(task_seq, int)
+                                 or task_seq < 0):
+        return {"ok": False, "error": {"code": "invalid_task_seq",
+                                       "message": "taskSeq must be a non-negative integer or null"}}
+    if result_cursor is not None and (isinstance(result_cursor, bool)
+                                      or not isinstance(result_cursor, int)
+                                      or result_cursor < 0):
+        return {"ok": False, "error": {"code": "invalid_result_cursor",
+                                       "message": "resultCursor must be a non-negative integer or null"}}
+    if sess.get(session_id) is None:
+        return {"ok": False, "error": {"code": "session_not_found",
+                                       "message": f"Session {session_id} not found"}}
+    result, error = await worker.enqueue_manual_report(
+        session_id, task_id, task_seq, message_id, result_cursor)
+    if error is not None:
+        return {"ok": False, "error": error,
+                "retryable": bool(error.get("retryable"))}
+    return {"ok": True, "sessionId": session_id, "managerId": result["managerId"],
+            "queueItemId": result["queueItemId"],
+            "alreadyReported": result["alreadyReported"]}
+
+
+from packages.web.agent_inbox_api import register as _register_agent_inbox_api
+_register_agent_inbox_api(app)
+from packages.interactions.api import register as _register_interaction_card_api
+_register_interaction_card_api(app)
+
+
+# ── 通道 session 绑定（订阅 inbox 更新提醒，镜像 report-subscribe 链路）──
+# 订阅**字段**保持平行（qq_subscriptions / wechat_subscriptions，老数据不动），
+# 但订阅/解绑/通知的**处理逻辑**在此泛化为通道无关：_channel_subscribe /
+# _channel_unsubscribe / _channel_notify 按 channel 名取 session 上的
+# <channel>_subscriptions 集合。将来加第三个通道只需多挂三个路由，不再复制
+# 一遍实现体。
+
+
+def _channel_subscriptions(s, channel: str) -> set:
+    """取某通道的订阅集合（未知 channel → 空 set，不抛）。
+
+    返回的是 session 上的真实集合对象（即便为空），这样 _channel_subscribe /
+    _channel_unsubscribe 的 .add()/.discard() 能就地改到订阅字段上。注意不能用
+    `getattr(...) or set()`：空 set 是 falsy，会落到 or 后面那个**全新空 set**，
+    导致首次订阅被加进一个临时集合、永远写不进 session（qq/wechat 都会中招）。
+    """
+    subs = getattr(s, f"{channel}_subscriptions", None)
+    return subs if isinstance(subs, set) else set()
+
+
+async def _channel_subscribe(channel: str, data: dict) -> dict:
+    """订阅某通道会话的 inbox 更新提醒（通道无关实现）。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <id>, "bot_uin"?: <bot 账号>}
+
+    订阅后，该会话每次收到新消息都会推送一条 `@@@@by <channel>` 提醒到本
+    session 的落盘队列 queue_pending 并唤醒其 worker。
+
+    bot_uin 可选（多账号，目前仅 QQ 有此语义）：订阅粒度为「某 bot 的某用户/群」，
+    订阅键 `<type>:<id>@<bot_uin>`；缺省订阅键 `<type>:<id>`（不区分 bot）。
+    """
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
+    _channel_subscriptions(s, channel).add(target_key)
+    await sess.save_async(s)
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_patterns
+        box = get_inbox()
+        sync_qq_patterns(box)
+        for locker in box.list():
+            source = locker["source"]
+            if source["pluginId"] == "qq" and source["scope"] == target_type and source["peerId"] == target_id and (not bot_uin or source["botId"] == bot_uin):
+                box.subscribe(locker["id"], s.id, "full")
+    subs = _channel_subscriptions(s, channel)
+    return {
+        "sessionId": session_id,
+        f"{channel}Target": target_key,
+        "subscribed": True,
+        f"{channel}Subscriptions": sorted(subs),
+    }
+
+
+async def _channel_unsubscribe(channel: str, data: dict) -> dict:
+    """取消订阅某通道会话的 inbox 更新提醒（通道无关实现）。"""
+    session_id = (data.get("sessionId") or "").strip()
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    bot_uin = (data.get("bot_uin") or "").strip()
+    if not session_id or not target_id or target_type not in ("user", "group"):
+        return {"error": "sessionId, target_type(user|group) and target_id are required"}
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    target_key = f"{target_type}:{target_id}@{bot_uin}" if bot_uin else f"{target_type}:{target_id}"
+    _channel_subscriptions(s, channel).discard(target_key)
+    await sess.save_async(s)
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_patterns
+        box = get_inbox()
+        sync_qq_patterns(box)
+        for locker in box.list():
+            source = locker["source"]
+            if source["pluginId"] == "qq" and source["scope"] == target_type and source["peerId"] == target_id and (not bot_uin or source["botId"] == bot_uin):
+                remaining = _channel_subscriptions(s, "qq")
+                if f"{target_type}:{target_id}" not in remaining and f"{target_type}:{target_id}@{source['botId']}" not in remaining:
+                    box.subscribe(locker["id"], s.id, "silent")
+    subs = _channel_subscriptions(s, channel)
+    return {
+        "sessionId": session_id,
+        f"{channel}Target": target_key,
+        "subscribed": target_key in subs,
+        f"{channel}Subscriptions": sorted(subs),
+    }
+
+
+async def _channel_notify(channel: str, data: dict) -> dict:
+    """通道插件上报 inbox 更新（通道无关实现）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ..., "bot_uin"?: <bot 账号>, "can_reply"?: bool}
+
+    找到所有订阅该会话的 session，各推送一条 `@@@@by <channel>` 提醒到其
+    queue_pending 并唤醒 worker。can_reply=false 用于微信这类不能主动推送、
+    只能带 context_token 回复的通道，提醒文本会带 `canReply: false` 提示。
+    """
+    target_type = (data.get("target_type") or "").strip().lower()
+    target_id = (data.get("target_id") or "").strip()
+    if not target_id or target_type not in ("user", "group"):
+        return {"error": "target_type(user|group) and target_id are required"}
+    if channel == "qq":
+        from packages.core.inbox_service import get_inbox, sync_qq_subscriptions
+        box = get_inbox()
+        lid = data.get("lockerId")
+        if not lid or not any(r["id"] == lid for r in box.list()):
+            return {"ok": False, "error": "durable lockerId required; notify does not ingest body"}
+        source = next(r["source"] for r in box.list() if r["id"] == lid)
+        if source["pluginId"] != "qq" or source["scope"] != target_type or source["peerId"] != target_id or (data.get("bot_uin") and source["botId"] != str(data["bot_uin"])):
+            return {"ok": False, "error": "locker source mismatch"}
+        if "qq" not in _plugin_catalog().plugins:
+            box.set_available("qq", False)
+            return {"ok": False, "status": "unavailable"}
+        sync_qq_subscriptions(box, lid)
+        result = await box.forward(lid)
+        return {"ok": True, **result}
+    can_reply = data.get("can_reply")
+    delivered = await worker.enqueue_channel_reminder(
+        channel,
+        target_type,
+        target_id,
+        nickname=(data.get("nickname") or ""),
+        text=(data.get("text") or ""),
+        time_str=(data.get("time") or ""),
+        bot_uin=(data.get("bot_uin") or ""),
+        can_reply=True if can_reply is None else bool(can_reply),
+    )
+    return {"ok": True, "delivered": delivered}
+
+
+@app.post("/api/qq/subscribe")
+async def api_qq_subscribe(data: dict):
+    """Pan session 订阅某 QQ 会话的 inbox 更新提醒（镜像 report-subscribe）。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <QQ 号 / 群号>, "bot_uin"?: <bot QQ 号>}
+
+    订阅后，该 QQ 会话每次收到新消息（selective 模式入 inbox）都会推送一条
+    `@@@@by qq` 提醒到本 session 的落盘队列 queue_pending 并唤醒其 worker。
+
+    bot_uin 可选（多账号）：订阅粒度为「某 bot 的某用户/群」，订阅键
+    `<type>:<id>@<bot_uin>`；缺省订阅键 `<type>:<id>`（不区分 bot，任何 bot
+    收到都提醒，兼容旧订阅）。
+
+    响应字段（qqTarget / qqSubscriptions）保持不变，前端 Postbox 与 pan-qq
+    MCP 零感知——实现已转调通道无关的 _channel_subscribe。
+    """
+    return await _channel_subscribe("qq", data)
+
+
+@app.post("/api/qq/unsubscribe")
+async def api_qq_unsubscribe(data: dict):
+    """取消订阅某 QQ 会话的 inbox 更新提醒（转调 _channel_unsubscribe）。"""
+    return await _channel_unsubscribe("qq", data)
+
+
+async def _validated_completion_defaults() -> dict:
+    """Validate selected QQ routes on the off-to-on user action only."""
+    ui = load_config().get("ui") or {}
+    raw = (ui.get("notifications") or {}).get("completionBridge", {})
+    defaults = notifications.completion_bridge_defaults(raw, strict=True)
+    if not any(defaults[key] for key in ("system", "browser", "qqReport", "qqSubscribe")):
+        raise ValueError("Select at least one default completion notification in AppSettings → Notification")
+    if not (defaults["qqReport"] or defaults["qqSubscribe"]):
+        return defaults
+    channels = await _qq_plugin_get("/api/qq/channels")
+    if channels.get("ok") is False or not isinstance(channels.get("channels"), list):
+        raise ValueError("QQ bots are unavailable; update Notification defaults or reconnect the bot")
+    available = {str(row.get("bot_uin") or ""): row.get("connected") is True
+                 for row in channels["channels"] if isinstance(row, dict)}
+    contacts_by_bot = {}
+    for target in defaults["qqTargets"]:
+        base, _, bot = target.partition("@")
+        if (bot and not available.get(bot)) or (not bot and not any(available.values())):
+            raise ValueError(f"QQ bot for {target} is unavailable; update Notification contacts")
+        if bot not in contacts_by_bot:
+            response = await _qq_plugin_get("/api/qq/recent_contacts", {"bot_uin": bot} if bot else None)
+            if response.get("ok") is False or not isinstance(response.get("contacts"), list):
+                raise ValueError("QQ contacts are unavailable; update Notification contacts or retry")
+            contacts_by_bot[bot] = {
+                f"{'group' if row.get('chatType') == 2 else 'user'}:{row.get('peerUin')}"
+                for row in response["contacts"] if isinstance(row, dict) and row.get("chatType") in (1, 2)
+            }
+        if base not in contacts_by_bot[bot]:
+            raise ValueError(f"QQ contact {target} is no longer available; update Notification contacts")
+    return defaults
+
+
+@app.put("/api/sessions/{session_id}/msg-bridge")
+async def api_set_session_msg_bridge(session_id: str, data: dict):
+    """Set the card's QQ/system/browser notification group in one save."""
+    from packages.core import qq_reports
+    enabled = data.get("enabled")
+    expected_enabled = data.get("expectedEnabled")
+    if (not isinstance(enabled, bool) or not isinstance(expected_enabled, bool)
+            or enabled == expected_enabled):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "enabled and expectedEnabled must be opposite boolean values"}}
+    target = sess.get(session_id)
+    if not target:
+        return {"ok": False, "error": {"code": "session_not_found",
+                "message": "Session not found"}}
+    if _msg_bridge_enabled(target) != expected_enabled:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The msgBridge setting changed; refresh and retry"}}
+    defaults = None
+    if enabled:
+        try:
+            defaults = await _validated_completion_defaults()
+        except ValueError as exc:
+            return {"ok": False, "error": {"code": "invalid_completion_defaults", "message": str(exc)},
+                    "msgBridgeEnabled": _msg_bridge_enabled(target)}
+    # Default editing never changes Sessions. Apply only on off-to-on;
+    # disabling still clears the entire existing notification group.
+    async with worker.queue_lock(session_id):
+        if sess.get(session_id, load_history=False) is not target:
+            return {"ok": False, "error": {"code": "session_not_found", "message": "Session changed or was removed"}}
+        if target.readonly_session:
+            return {"ok": False, "error": {"code": "readonly_session", "message": "Readonly Session cannot be edited"}}
+        if _msg_bridge_enabled(target) != expected_enabled:
+            return {"ok": False, "error": {"code": "state_changed", "message": "The msgBridge setting changed; refresh and retry"}}
+        old_subscriptions = set(target.qq_subscriptions)
+        old_targets = set(target.qq_report_targets)
+        old_outbox = {key: dict(value) for key, value in target.qq_report_outbox.items()}
+        from packages.core import source_notifications
+        previous_error_routes = source_notifications.routes("newError", target.id)
+        old_settings = dict(target.notification_settings)
+        rolled_back = False
+        def rollback():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
+            target.qq_subscriptions = old_subscriptions
+            target.qq_report_targets = old_targets
+            target.qq_report_outbox = old_outbox
+            target.notification_settings = old_settings
+        def commit():
+            try:
+                target.qq_subscriptions.clear()
+                target.qq_report_targets.clear()
+                qq_reports.cancel_pending(target)
+                target.notification_settings = {
+                    "browser": bool(defaults and defaults["browser"]),
+                    "system": bool(defaults and defaults["system"]),
+                }
+                if defaults:
+                    if defaults["qqReport"]:
+                        target.qq_report_targets.update(defaults["qqTargets"])
+                    if defaults["qqSubscribe"]:
+                        target.qq_subscriptions.update(defaults["qqTargets"])
+                sess._save_body(target)
+            except BaseException:
+                rollback()
+                raise
+        outcome = sess.DurableOutcome()
+        try:
+            await sess._persist_async_outcome(target.id, commit, outcome)
+        except BaseException:
+            if not outcome.succeeded:
+                rollback()
+            raise
+    from packages.core.source_notifications import invalidate_session
+    await asyncio.to_thread(invalidate_session, target.id, previous_error_routes)
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    # Unread recording policy: a bell edit can flip this Session's record
+    # decision (bell-on / bell-off scopes); align its unread immediately. The
+    # decision is re-derived under the Session lock (see
+    # _align_session_activation_transition) so a concurrent apply or override
+    # cannot be answered from a stale snapshot.
+    await _align_session_activation_transition(
+        target, bridge_before=expected_enabled)
+    return {"ok": True, "sessionId": session_id,
+            "msgBridgeEnabled": _msg_bridge_enabled(target),
+            "qqSubscriptions": sorted(target.qq_subscriptions),
+            "qqReportTargets": sorted(target.qq_report_targets),
+            "notificationSettings": notifications.normalize_notification_settings(target.notification_settings)}
+
+
+@app.put("/api/sessions/{session_id}/qq-report")
+async def api_qq_report(session_id: str, data: dict):
+    """Toggle independent task reports for one bot/contact identity."""
+    from packages.core import qq_reports
+    target = data.get("target")
+    enabled = data.get("enabled")
+    expected = data.get("expectedEnabled")
+    if (not isinstance(target, str) or qq_reports.parse_target(target) is None
+            or not isinstance(enabled, bool) or not isinstance(expected, bool)):
+        return {"ok": False, "error": {"code": "missing_params", "message": "Valid target, enabled and expectedEnabled are required"}}
+    async with worker.queue_lock(session_id):
+        s = sess.get(session_id, load_history=False)
+        if s is None:
+            return {"ok": False, "error": {"code": "session_not_found", "message": "Session not found"}}
+        if s.readonly_session:
+            return {"ok": False, "error": {"code": "readonly_session", "message": "Readonly Session cannot be edited"}}
+        if (target in s.qq_report_targets) != expected:
+            return {"ok": False, "error": {"code": "state_changed", "message": "Report setting changed; refresh and retry"}}
+        from packages.core import source_notifications
+        previous_error_routes = source_notifications.routes("newError", s.id)
+        old = set(s.qq_report_targets)
+        old_outbox = {key: dict(value) for key, value in s.qq_report_outbox.items()}
+        rolled_back = False
+        def rollback():
+            nonlocal rolled_back
+            if rolled_back:
+                return
+            rolled_back = True
+            s.qq_report_targets = old
+            s.qq_report_outbox = old_outbox
+        def commit():
+            try:
+                if enabled:
+                    s.qq_report_targets.add(target)
+                else:
+                    s.qq_report_targets.discard(target)
+                    qq_reports.cancel_pending(s, target)
+                sess._save_body(s)
+            except BaseException:
+                rollback()
+                raise
+        outcome = sess.DurableOutcome()
+        try:
+            await sess._persist_async_outcome(s.id, commit, outcome)
+        except BaseException:
+            if not outcome.succeeded:
+                rollback()
+            raise
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    from packages.core.source_notifications import invalidate_session
+    await asyncio.to_thread(invalidate_session, s.id, previous_error_routes)
+    return {"ok": True, "sessionId": session_id, "qqReportTargets": sorted(s.qq_report_targets), "msgBridgeEnabled": _msg_bridge_enabled(s)}
+
+
+@app.post("/api/qq/notify")
+async def api_qq_notify(data: dict):
+    """QQ 插件上报 inbox 更新（由 packages/qq/plugin.py 调用）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ..., "bot_uin"?: <bot QQ 号>}
+
+    找到所有订阅该 QQ 会话的 session，各推送一条 `@@@@by qq` 提醒到其
+    queue_pending 并唤醒 worker。bot_uin 可选（多账号来源标注）：同时命中
+    不区分 bot 的旧订阅键与 `<type>:<id>@<bot>` 精确订阅键。返回投递数量。
+    """
+    return await _channel_notify("qq", data)
+
+
+@app.post("/api/wechat/subscribe")
+async def api_wechat_subscribe(data: dict):
+    """Pan session 订阅某微信会话的 inbox 更新提醒。
+
+    Body: {"sessionId": <pan session id>, "target_type": "user"|"group",
+           "target_id": <微信用户/群 id>}
+
+    响应字段 wechatTarget / wechatSubscriptions（与 QQ 端点平行命名）。
+    """
+    return await _channel_subscribe("wechat", data)
+
+
+@app.post("/api/wechat/unsubscribe")
+async def api_wechat_unsubscribe(data: dict):
+    """取消订阅某微信会话的 inbox 更新提醒。"""
+    return await _channel_unsubscribe("wechat", data)
+
+
+@app.post("/api/wechat/notify")
+async def api_wechat_notify(data: dict):
+    """微信插件上报 inbox 更新（由 packages/wechat 插件调用）。
+
+    Body: {"target_type": "user"|"group", "target_id": ..., "nickname": ...,
+           "text": ..., "time": ..., "can_reply"?: bool}
+
+    找到所有订阅该微信会话的 session，各推送一条 `@@@@by wechat` 提醒到其
+    queue_pending 并唤醒 worker。can_reply=false 表示此刻无可用 context_token
+    （iLink 不能主动推送），提醒文本会带 `canReply: false`。返回投递数量。
+    """
+    return await _channel_notify("wechat", data)
+
+
+# 复用 AsyncClient：避免每个代理请求新建连接（Windows 下 async httpx 首次
+# 初始化/连接池创建可达数秒，复用后仅首次有开销）。
+_qq_plugin_client: httpx.AsyncClient | None = None
+
+
+def _qq_plugin_client_get() -> httpx.AsyncClient:
+    global _qq_plugin_client
+    if _qq_plugin_client is None:
+        _qq_plugin_client = httpx.AsyncClient(timeout=5)
+    return _qq_plugin_client
+
+
+async def _qq_plugin_get(path: str, params: dict | None = None) -> dict:
+    """GET 代理到 QQ 插件（packages/qq/plugin.py，PAN_QQ_API_URL，默认 8080）。
+
+    统一错误形态 {ok:false, error:{code,message}}；连接失败归为 connection_error，
+    HTTP 非 2xx 透传插件返回体（插件已按同一形态返回）。
+    """
+    plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    try:
+        r = await _qq_plugin_client_get().get(f"{plugin_url}{path}", params=params)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            if isinstance(body, dict) and body.get("error"):
+                return body
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": e.response.status_code,
+            "message": e.response.text[:300]}}
+    except httpx.HTTPError as e:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(e).__name__}: {e}"}}
+
+
+async def _qq_plugin_post(path: str, body: dict) -> dict:
+    """POST through the existing isolated QQ plugin HTTP process boundary."""
+    plugin_url = os.environ.get("PAN_QQ_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    try:
+        response = await _qq_plugin_client_get().post(
+            f"{plugin_url}{path}", json=body)
+        response.raise_for_status()
+        payload = response.json()
+        if path == "/api/qq/send" and isinstance(payload, dict):
+            from packages.actions.qq_channel_provider import QQSendResponse
+            return QQSendResponse(payload, body)
+        return payload if isinstance(payload, dict) else {
+            "ok": False, "error": {"code": "invalid_response",
+                                    "message": "QQ plugin returned a non-object response"}}
+    except httpx.HTTPStatusError as exc:
+        try:
+            payload = exc.response.json()
+            if isinstance(payload, dict) and payload.get("error"):
+                return payload
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": exc.response.status_code,
+            "message": exc.response.text[:300]}}
+    except httpx.HTTPError as exc:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(exc).__name__}: {exc}"}}
+
+
+async def _send_scheduled_qq(*, target_type: str, target_id: str,
+                             text: str, bot_uin: str | None = None) -> dict:
+    """Send only fixed text through the QQ plugin's registered send route."""
+    if target_type not in {"private", "group"}:
+        return {"ok": False, "error": {
+            "code": "invalid_target_type", "message": "invalid QQ target type"}}
+    body = {"target_type": target_type, "target_id": target_id, "text": text}
+    if bot_uin:
+        body["bot_uin"] = bot_uin
+    return await _qq_plugin_post("/api/qq/send", body)
+
+
+def _bind_qq_channel_provider(final_jobs):
+    """Bind the canonical Action to the existing QQ plugin sender once."""
+    if getattr(final_jobs.executor, "channel_provider", None) is None:
+        from packages.actions.qq_channel_provider import QQChannelProvider
+        final_jobs.executor.channel_provider = QQChannelProvider(_send_scheduled_qq)
+    return final_jobs.executor.channel_provider
+
+
+_wechat_plugin_client: httpx.AsyncClient | None = None
+
+
+def _wechat_plugin_client_get() -> httpx.AsyncClient:
+    global _wechat_plugin_client
+    if _wechat_plugin_client is None:
+        _wechat_plugin_client = httpx.AsyncClient(timeout=5)
+    return _wechat_plugin_client
+
+
+async def _wechat_plugin_get(path: str, params: dict | None = None) -> dict:
+    """GET 代理到微信插件（packages/wechat，PAN_WECHAT_API_URL，默认 8081）。
+
+    与 _qq_plugin_get 同构：统一错误形态 {ok:false, error:{code,message}}；
+    连接失败归为 connection_error，HTTP 非 2xx 透传插件返回体。
+    """
+    plugin_url = os.environ.get(
+        "PAN_WECHAT_API_URL", "http://127.0.0.1:8081").rstrip("/")
+    try:
+        r = await _wechat_plugin_client_get().get(f"{plugin_url}{path}",
+                                                  params=params)
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        try:
+            body = e.response.json()
+            if isinstance(body, dict) and body.get("error"):
+                return body
+        except ValueError:
+            pass
+        return {"ok": False, "error": {
+            "code": e.response.status_code,
+            "message": e.response.text[:300]}}
+    except httpx.HTTPError as e:
+        return {"ok": False, "error": {
+            "code": "connection_error",
+            "message": f"{type(e).__name__}: {e}"}}
+
+
+@app.get("/api/wechat/contacts")
+async def api_wechat_contacts():
+    """列出近期的微信联系人（代理到微信插件 /api/wechat/recent_contacts）。
+
+    Postbox 弹窗需要可选微信会话列表。iLink 无权威联系人接口，插件从本地
+    落盘推导，因此响应的 source 恒为 "local"。
+    """
+    return await _wechat_plugin_get("/api/wechat/recent_contacts")
+
+
+@app.get("/api/wechat/channels")
+async def api_wechat_channels():
+    """列出已注册的微信通道（代理到插件 /api/wechat/channels）。
+
+    每项 {name, bot_uin, connected}；微信单通道（iLink），bot_uin 恒空。
+    """
+    return await _wechat_plugin_get("/api/wechat/channels")
+
+
+@app.get("/api/qq/contacts")
+async def api_qq_contacts(bot_uin: str = ""):
+    """列出最近的 QQ 联系人/群（代理到 QQ 插件 recent_contacts）。
+
+    postbox 弹窗需要可选 QQ 会话列表。QQ 插件（packages/qq/plugin.py）在独立
+    端口（默认 8080，PAN_QQ_API_URL 可覆盖）暴露 GET /api/qq/recent_contacts，
+    此处代理转发，让前端统一走 Pan Core 同源 /api，避免跨域。bot_uin 可选
+    （多账号）：透传给插件，只拉指定 bot 通道的联系人；缺省插件走默认通道。
+    """
+    params = {"bot_uin": bot_uin} if bot_uin else None
+    return await _qq_plugin_get("/api/qq/recent_contacts", params)
+
+
+@app.get("/api/qq/channels")
+async def api_qq_channels():
+    """列出已注册的 QQ bot 通道（代理到插件 /api/qq/channels）。
+
+    Postbox 合并模式据此对每个 bot 分别拉联系人；每项 {name, bot_uin, connected}。
+    """
+    return await _qq_plugin_get("/api/qq/channels")
+
+
+@app.post("/api/claim")
+async def api_claim(data: dict):
+    """建立 managed 关系（双向落盘，立项 4.2）。
+
+    Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
+
+    效果：manager.managed += [sessionId]，session.managed_by = managerId。
+    约束：session 若已有其他 manager 则拒绝。can_claim_unmanaged 能力限制仅由
+    MCP 层（packages/mcp/server.py _check_access）实施；本端点（web/前端途径）
+    不检查 pan_access——前端 manage 调整拥有最高权限。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "managerId and sessionId are required"}}
+    manager = sess.get(manager_id)
+    if not manager:
+        return {"ok": False, "error": {
+            "code": "manager_not_found",
+            "message": f"Manager session {manager_id} not found"}}
+    # 不检查 manager.can_claim_unmanaged：pan_access 限制只由 MCP 层实施，
+    # web/前端途径拥有最高权限（前端 manage 调整不受限）。
+    # claim 已自动 report_subscribe（manager.report_subscriptions 加入 session_id）
+    err = sess.claim(manager_id, session_id)
+    if err:
+        return {"ok": False, "error": {
+            "code": "claim_failed",
+            "message": err}}
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
+    return {
+        "ok": True,
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "managed": list(manager.managed),
+        "reportSubscriptions": sorted(manager.report_subscriptions),
+    }
+
+
+@app.post("/api/unclaim")
+async def api_unclaim(data: dict):
+    """解除 managed 关系（管理方主动解绑，不删除 session）。
+
+    Body: {"managerId": <manager session id>, "sessionId": <managed session id>}
+
+    效果：manager.managed 移除 sessionId，session.managed_by 置空，同时清理
+    manager.report_subscriptions 对该 session 的订阅（解除管理即退订报告）。
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    if not manager_id or not session_id:
+        return {"ok": False, "error": {
+            "code": "missing_params",
+            "message": "managerId and sessionId are required"}}
+    err = sess.unclaim(manager_id, session_id)
+    if err:
+        return {"ok": False, "error": {
+            "code": "unclaim_failed",
+            "message": err}}
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    await broadcast({"type": "session.updated", "sessionId": manager_id})
+    manager = sess.get(manager_id)
+    return {
+        "ok": True,
+        "managerId": manager_id,
+        "sessionId": session_id,
+        "managed": list(manager.managed) if manager else [],
+    }
+
+
+@app.post("/api/readonly")
+async def api_readonly(data: dict):
+    """Set or clear a managed session's persistent readonly state.
+
+    Only the target's current manager may change it; unlike claim this endpoint
+    never establishes a managed relationship or accepts a claim capability.
+    """
+    manager_id = (data.get("managerId") or "").strip()
+    session_id = (data.get("sessionId") or "").strip()
+    enabled = data.get("readonlySession")
+    if not manager_id or not session_id or not isinstance(enabled, bool):
+        return {"ok": False, "error": {"code": "missing_params",
+                "message": "managerId, sessionId and readonlySession(boolean) are required"}}
+    if manager_id == session_id:
+        return {"ok": False, "error": {"code": "permission_denied",
+                "message": "A session cannot set readonly on itself"}}
+    manager = sess.get(manager_id)
+    target = sess.get(session_id)
+    if not manager:
+        return {"ok": False, "error": {"code": "manager_not_found",
+                "message": f"Manager session {manager_id} not found"}}
+    if not target:
+        return {"ok": False, "error": {"code": "session_not_found",
+                "message": f"Session {session_id} not found"}}
+    if target.managed_by != manager_id or session_id not in manager.managed:
+        return {"ok": False, "error": {"code": "permission_denied",
+                "message": f"Session {manager_id} does not manage {session_id}"}}
+    expected_readonly = data.get("expectedReadonlySession")
+    if isinstance(expected_readonly, bool) and target.readonly_session != expected_readonly:
+        return {"ok": False, "error": {"code": "state_changed",
+                "message": "The readonly setting changed; refresh and retry"}}
+    target.readonly_session = enabled
+    await sess.save_async(target)
+    await broadcast({"type": "session.updated", "sessionId": session_id})
+    return {"ok": True, "managerId": manager_id, "sessionId": session_id,
+            "readonlySession": target.readonly_session}
+
+
+@app.post("/api/kill/{worker_id}")
+async def api_kill(worker_id: str):
+    """Kill a Worker process. Does NOT delete the Session."""
+    err = await worker.kill_worker(worker_id, report_abnormal=True)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "killed"}
+
+
+@app.get("/api/list")
+async def api_list():
+    """List running workers."""
+    return {
+        "workers": [
+            {
+                "workerId": w.worker_id,
+                "sessionId": w.session_id,
+                "status": w.status,
+            "generation": getattr(w, "generation", 0),
+            }
+            for w in worker.list_live_workers()
+        ]
+    }
+
+
+@app.get("/api/cli/status")
+async def api_cli_status():
+    """Return user-facing availability diagnostics for supported Agent CLIs."""
+    adapters = get_cli_diagnostics()
+    return {
+        "adapters": adapters,
+        "available": [entry["name"] for entry in adapters if entry["available"]],
+        "hasAvailable": any(entry["available"] for entry in adapters),
+    }
+
+
+def _is_codex_worker(w) -> bool:
+    """Match only live workers backed by the Codex adapter."""
+    return getattr(getattr(w, "adapter", None), "name", "") == "codex"
+
+
+_codex_wham_provider = CodexWhamProvider()
+
+
+def _codex_worker_profile_key(w, default_key: str) -> str:
+    """Return a live Worker's profile identity without persisting Worker IDs."""
+    value = getattr(w, "codex_profile_key", None)
+    if isinstance(value, str) and value:
+        return value
+    # Hand-built test/compat workers have no profile metadata. Treat each as
+    # unknown rather than silently claiming that two account snapshots share a
+    # profile.
+    worker_id = getattr(w, "worker_id", None)
+    return f"unknown-worker:{worker_id or id(w)}"
+
+
+async def _persist_live_codex_quota(w, store: CodexQuotaStore) -> bool:
+    rate_limits = getattr(w, "native_rate_limits", None)
+    if not isinstance(rate_limits, dict) or not rate_limits:
+        return False
+    observed_at = (
+        getattr(w, "native_rate_limits_updated_at", None)
+        or getattr(w, "native_rate_limits_received_at", None)
+    )
+    _, updated = await asyncio.to_thread(
+        store.update,
+        rate_limits,
+        observed_at=observed_at,
+        received_at=getattr(w, "native_rate_limits_received_at", None) or observed_at,
+        source="app-server-push",
+    )
+    return updated
+
+
+async def _codex_quota_for_request(
+    *,
+    session_id: str,
+    target_worker=None,
+    candidates: list | None = None,
+    requested_window: str = "all",
+    refresh: bool = True,
+) -> dict:
+    base_profile = resolve_profile_identity()
+    live_worker = target_worker
+    live_workers = candidates or []
+    selected_profile_key = base_profile.profile_key
+    live_snapshot_updated = False
+    if live_worker is not None:
+        worker_profile_key = getattr(live_worker, "codex_profile_key", None)
+        if isinstance(worker_profile_key, str) and worker_profile_key:
+            selected_profile_key = worker_profile_key
+    elif live_workers:
+        groups: dict[str, list] = {}
+        for candidate in live_workers:
+            groups.setdefault(_codex_worker_profile_key(candidate, base_profile.profile_key), []).append(candidate)
+        if len(groups) > 1:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "quota_ambiguous",
+                    "message": "More than one Codex profile is available; pass session_id",
+                    "candidates": [
+                        {"profileKey": key, "sessionIds": [w.session_id for w in values]}
+                        for key, values in groups.items()
+                    ],
+                },
+            }
+        same_profile = next(iter(groups.values()))
+        live_worker = max(
+            same_profile,
+            key=lambda value: (
+                getattr(value, "native_rate_limits_updated_at", None) or "",
+                getattr(value, "worker_id", None) or "",
+            ),
+        )
+        worker_profile_key = getattr(live_worker, "codex_profile_key", None)
+        if isinstance(worker_profile_key, str) and worker_profile_key:
+            selected_profile_key = worker_profile_key
+    else:
+        cached_profiles = CodexQuotaStore.available_profile_keys()
+        if len(cached_profiles) > 1:
+            return {
+                "ok": False,
+                "error": {
+                    "code": "quota_ambiguous",
+                    "message": "More than one cached Codex profile is available; pass session_id",
+                    "candidates": [{"profileKey": key} for key in cached_profiles],
+                },
+            }
+
+    profile = base_profile if selected_profile_key == base_profile.profile_key else CodexProfile(
+        home=base_profile.home,
+        account_id=base_profile.account_id,
+        chatgpt_account_id=base_profile.chatgpt_account_id,
+        profile_key=selected_profile_key,
+    )
+    store = CodexQuotaStore(profile)
+    if live_worker is not None:
+        live_snapshot_updated = await _persist_live_codex_quota(live_worker, store)
+
+    record = store.load()
+    refresh_result = (
+        await _codex_wham_provider.maybe_refresh(store)
+        if refresh else None
+    )
+    if refresh_result is not None and refresh_result.record is not None:
+        record = refresh_result.record
+    if record is None:
+        error = {
+            "code": "quota_unavailable",
+            "message": "No Codex quota snapshot is available",
+            "provider": "codex",
+            "sessionId": session_id,
+        }
+        if refresh_result is not None and refresh_result.error_code:
+            error["refresh"] = refresh_result.error_code
+        if refresh_result is not None and refresh_result.credential_status:
+            error["credentialStatus"] = refresh_result.credential_status
+        return {"ok": False, "error": error}
+
+    stale = is_stale(record, _codex_wham_provider.ttl_seconds)
+    result = format_codex_quota_record(
+        record,
+        session_id=session_id or None,
+        worker_id=getattr(live_worker, "worker_id", None) if live_worker else None,
+        requested_window=requested_window,
+        stale=stale,
+    )
+    result["cacheMode"] = "live" if live_snapshot_updated else "persisted"
+    result["profileKey"] = profile.profile_key
+    if refresh_result is not None and refresh_result.error_code and refresh_result.error_code != "feature_disabled":
+        result["refreshError"] = refresh_result.error_code
+        if refresh_result.credential_status:
+            result["credentialStatus"] = refresh_result.credential_status
+    return result
+
+
+@app.get("/api/codex/quota")
+async def api_codex_quota(session_id: str = "", window: str = "all", refresh: bool = True):
+    """Query global Codex account windows, preferring live push data.
+
+    ``first`` is the five-hour window and ``secondary`` is the weekly window;
+    neither name selects an adapter fallback or a model. Without a session id
+    one Codex profile must be selected when multiple profiles are live. The
+    quota belongs to that provider profile rather than to a Pan Session.
+
+    This is a loopback HTTP trusted-admin interface.  It has no manager
+    identity authentication and does not apply managed-session isolation;
+    callers must not invent or pass a manager parameter.  Managed isolation
+    is enforced by the MCP caller layer before it calls this endpoint.
+
+    The response may be a live app-server push, a persisted last-good value, or
+    an optional WHAM refresh. ``refresh=false`` is the cache-only form used by
+    the Session usage endpoint and never waits for WHAM. ``observedAt``/
+    ``receivedAt`` are local Pan times; the provider's original update time is
+    not fabricated or exposed.
+    """
+    if not validate_quota_window(window):
+        return {"ok": False, "error": {
+            "code": "invalid_window",
+            "message": "window must be one of 'all', 'first', or 'secondary'",
+        }}
+
+    if session_id:
+        target = sess.get(session_id)
+        if target is None:
+            return {"ok": False, "error": {
+                "code": "session_not_found",
+                "message": f"Session {session_id} not found",
+            }}
+        if target.adapter != "codex":
+            return {"ok": False, "error": {
+                "code": "unsupported_provider",
+                "message": f"Session {session_id} uses adapter {target.adapter!r}; Codex quota requires adapter 'codex'",
+            }}
+        selected = worker.find_alive_worker_by_session(session_id)
+        return await _codex_quota_for_request(
+            session_id=session_id,
+            target_worker=selected,
+            requested_window=window,
+            refresh=refresh,
+        )
+    else:
+        candidates = [w for w in worker.list_live_workers() if _is_codex_worker(w)]
+    return await _codex_quota_for_request(
+        session_id="",
+        candidates=candidates,
+        requested_window=window,
+        refresh=refresh,
+    )
+
+
+# ── cbc Session Import ──
+
+@app.get("/api/cbc/projects")
+async def api_cbc_projects():
+    config = load_config()
+    ci = config.get("cbc_import", {})
+    recent_days = ci.get("import_recent_days", 30)
+    min_resume_bytes = ci.get("min_resume_bytes", 200)
+    projects = cbc_sessions.list_cbc_projects(
+        recent_days=recent_days, min_resume_bytes=min_resume_bytes
+    )
+    return {"projects": projects}
+
+
+@app.get("/api/cbc/sessions")
+async def api_cbc_sessions(project_dir: str = "", cwd: str = "", all: int = 0):
+    """List external cbc sessions available for import."""
+    config = load_config()
+    filter_cfg = config.get("cbc_import", {})
+
+    if project_dir:
+        all_sessions = cbc_sessions.list_cbc_sessions(project_dir=project_dir)
+    else:
+        cwd = cwd or str(Path.cwd())
+        all_sessions = cbc_sessions.list_cbc_sessions(cwd)
+
+    if all:
+        return {"sessions": all_sessions, "total": len(all_sessions)}
+
+    exclude_patterns = filter_cfg.get("exclude_workdir_patterns", [])
+    target_dir = None
+    if filter_cfg.get("project_dir_exact_match", False):
+        target_dir = sanitize_project_dir_name(cwd)
+
+    filtered: list[dict] = []
+    for s in all_sessions:
+        if target_dir and s["project_dir"].lower() != target_dir:
+            continue
+        if not target_dir and any(p in s["project_dir"] for p in exclude_patterns):
+            continue
+        if s["message_count"] < filter_cfg.get("min_message_count", 5):
+            continue
+        filtered.append(s)
+
+    filtered.sort(key=lambda x: x.get("last_timestamp", ""), reverse=True)
+
+    max_shown = filter_cfg.get("max_sessions_shown", 30)
+    total = len(filtered)
+    filtered = filtered[:max_shown]
+
+    return {
+        "sessions": filtered,
+        "total": total,
+        "shown": len(filtered),
+    }
+
+
+@app.get("/api/cbc/browse")
+async def api_cbc_browse(path: str = "", limit: int = 30, offset: int = 0, q: str = ""):
+    """Browse cbc sessions as a file-tree."""
+    result = cbc_sessions.browse_cbc_tree(
+        path=path, limit=limit, offset=offset, query=q,
+    )
+    return result
+
+
+@app.post("/api/cbc/sessions/import")
+async def api_cbc_sessions_import(data: dict):
+    """Import a cbc session into Pan (Session only, no worker spawned)."""
+    return await _import_session(cbc_sessions, "cbc", data)
+
+
+# ── Kimi import ──
+
+@app.get("/api/kimi/workspaces")
+async def api_kimi_workspaces():
+    """List Kimi workspaces that have sessions."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"workspaces": kimi_sessions.list_kimi_workspaces()}
+
+
+@app.get("/api/kimi/sessions")
+async def api_kimi_sessions(cwd: str = ""):
+    """List Kimi sessions for a workspace."""
+    from packages.core.adapters.kimi import sessions as kimi_sessions
+    return {"sessions": kimi_sessions.list_kimi_sessions_for_cwd(cwd)}
+
+
+@app.post("/api/kimi/sessions/import")
+async def api_kimi_sessions_import(data: dict):
+    """Import a Kimi session into Pan (Session only, no worker spawned)."""
+    return await _import_session(kimi_sessions, "kimi", data)
+
+
+# ── OpenCode import ──
+
+@app.get("/api/opencode/sessions")
+async def api_opencode_sessions(cwd: str = ""):
+    """List OpenCode sessions available for import (read from SQLite DB)."""
+    sessions = opencode_sessions.list_opencode_sessions(cwd or None)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@app.post("/api/opencode/sessions/import")
+async def api_opencode_sessions_import(data: dict):
+    """Import an OpenCode session into Pan (Session only, no worker spawned)."""
+    return await _import_session(opencode_sessions, "opencode", data)
+
+
+# ── Generic adapter sessions (P0-2: SessionsProvider 统一分派) ──
+# 每新增一个 adapter，只要其在 adapters/__init__.py 注册了 sessions provider
+# （模块，提供 SessionsProvider 协议函数），以下通用路由即自动覆盖，server.py
+# 无需再写 import/branch/rename 分派。旧 /api/cbc|kimi|opencode/* 端点保留为
+# 薄包装（前端仍在用，见 app.ts / api.ts）。
+
+
+def _sessions_provider(adapter: str):
+    """按 adapter 名取 sessions provider；未注册返回 None。"""
+    try:
+        return get_sessions_provider(adapter)
+    except KeyError:
+        return None
+
+
+_REIMPORT_CONFIRMATION_KEY = os.urandom(32)
+
+
+def _reimport_digest(value) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _reimport_confirmation(existing, native_history, native_usage, native_snapshot=None) -> str:
+    snapshot = {"session": existing.id, "adapter": existing.adapter,
+                "cli": existing.cli_session_id, "cwd": existing.workdir,
+                "epoch": existing.history_epoch, "revision": existing.history_revision,
+                "history": existing.history, "readonly": existing.readonly_session,
+                "native": native_history, "usage": native_usage, "nativeSnapshot": native_snapshot}
+    return hmac.new(_REIMPORT_CONFIRMATION_KEY, _reimport_digest(snapshot).encode("ascii"),
+                    hashlib.sha256).hexdigest()
+
+
+def _reimport_conflict(existing, history, native_history, native_usage, native_snapshot=None, *, stale=False):
+    imported_ids = {row.get("messageId") for row in history
+                    if isinstance(row, dict) and sess.is_pan_message_id(row.get("messageId"))}
+    missing = [(index, row) for index, row in enumerate(existing.history)
+               if isinstance(row, dict) and row.get("queueEnvelopes")
+               and row.get("messageId") not in imported_ids]
+    if not missing:
+        return None
+    items = []
+    for index, row in missing[:20]:
+        native_id = row.get("nativeItemId")
+        same_id = native_id and any(r.get("nativeItemId") == native_id and r.get("role") == row.get("role")
+                                   for r in native_history)
+        same_body = any(sess._history_body_fingerprint(r) == sess._history_body_fingerprint(row)
+                        for r in native_history if isinstance(r, dict) and isinstance(r.get("content"), str))
+        reason = ("missing_identity" if not sess.is_pan_message_id(row.get("messageId")) else
+                  "changed_native_item" if same_id else
+                  "ambiguous_match" if same_body else "missing_or_changed")
+        items.append({"position": index + 1, "messageId": row.get("messageId"),
+                      "source": row.get("source") or row.get("kind") or "unknown",
+                      "reason": reason, "preview": " ".join(str(row.get("content") or "").split())[:160]})
+    return {"sessionId": existing.id, "historyRevision": existing.history_revision,
+            "count": len(missing), "items": items, "omittedCount": max(0, len(missing) - len(items)),
+            "confirmationToken": _reimport_confirmation(existing, native_history, native_usage, native_snapshot),
+            "stale": stale}
+
+
+async def _import_session(provider, adapter: str, data: dict) -> dict:
+    # Take the gate BEFORE reading native usage: a read captured while an
+    # enrichment save is in flight must not later overwrite its newer base.
+    existing = next((s for s in sess.list_all(load_history=False)
+                     if s.cli_session_id == data.get("session_id")
+                     and s.adapter == adapter), None)
+    if existing is None:
+        if data.get("force"):
+            return {"ok": False, "errorCode": "reimport_stale", "error": "Reimport confirmation no longer identifies an existing Session; check again"}
+        return await _import_session_locked(provider, adapter, data)
+    if existing.readonly_session:
+        return {"ok": False, "errorCode": "readonly_session", "error": "Readonly Session cannot be reimported"}
+    async with sess.usage_commit_lock(existing):
+        try:
+            return await _import_session_locked(provider, adapter, data)
+        except sess.NativeReimportConflict as error:
+            return {"ok": False, "errorCode": "reimport_stale", "error": f"Native reimport failed: {error}; check again before confirming"}
+
+
+async def _import_session_locked(provider, adapter: str, data: dict) -> dict:
+    """Import an adapter-native session into Pan（Session only，不 spawn worker）。
+
+    三个旧 import 端点（cbc/kimi/opencode）与通用 /api/adapters/{adapter}/sessions/import
+    共用此实现。行为差异由 provider 能力位承载：
+    - ``session_exists(session_id, cwd)``：可选；存在则启用 import-guard
+      （cbc/opencode 提供，kimi 不提供 → 保持旧的无 guard 行为）。
+    - ``project_dir_to_path(project_dir)``：可选；cbc 独有，把 cbc 项目目录名
+      解析回真实路径（旧 /api/cbc/sessions/import 契约）。
+    """
+    session_id = data.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    cwd = data.get("cwd") or data.get("workdir") or str(Path.cwd())
+
+    # cbc 兼容：project_dir 直接给出且未显式传 cwd 时，解析为真实路径。
+    project_dir = data.get("project_dir")
+    if project_dir and not data.get("cwd") and not data.get("workdir"):
+        resolver = getattr(provider, "project_dir_to_path", None)
+        if resolver:
+            resolved = resolver(project_dir)
+            if resolved:
+                cwd = resolved
+
+    try:
+        snapshot_reader = getattr(provider, "get_reimport_snapshot", None)
+        native_snapshot = snapshot_reader(session_id, cwd) if snapshot_reader else None
+        history = provider.parse_history(session_id, cwd)
+        raw_usage_entries = provider.get_raw_usage(session_id, cwd)
+        if snapshot_reader and snapshot_reader(session_id, cwd) != native_snapshot:
+            return {"ok": False, "errorCode": "reimport_stale", "error": "Native history changed while checking reimport; check again"}
+    except Exception as e:
+        return {"error": f"Failed to parse session history: {e}"}
+
+    # 防御（#import-guard）：验证 adapter 侧 session 真实存在，防止孤儿/坏 id
+    # 污染导入（例如某 Pan session 的 cli_session_id 被错误指向不存在的 session，
+    # 直接 import 会匹配到 existing 并清空其 history）。
+    exists = getattr(provider, "session_exists", None)
+    if exists and not exists(session_id, cwd):
+        return {"error": f"{adapter} session {session_id} not found on disk; refusing to import"}
+
+    raw_usage = sess.accumulate_raw_usage(
+        None, sess.normalize_native_usage_entries(adapter, raw_usage_entries))
+    total_usage = sess.compute_total_usage(raw_usage)
+
+    # 信用验证：比对 raw_usage_entries 总和与 total_usage（调试用途，不阻断导入）
+    credit_sum = sum(
+        e.get("rawUsage", {}).get("credit", 0) for e in raw_usage_entries
+    )
+    cli_credit = total_usage.get("credit", 0) if total_usage else 0
+    if abs(credit_sum - cli_credit) > 0.01:
+        _log(f"[WARN] import credit mismatch ({adapter}): sum={credit_sum:.2f} cli={cli_credit:.2f}")
+
+    # Dedup by cli_session_id（限定同 adapter）
+    existing = None
+    for s in sess.list_all(load_history=False):
+        if s.cli_session_id == session_id and s.adapter == adapter:
+            existing = s
+            break
+
+    # 防御（#import-guard）：匹配到已有 session 但解析不出任何历史时，拒绝用空
+    # 历史覆盖，避免把已有会话数据清空。
+    if existing and not history:
+        _log(f"[WARN] import {session_id}: history empty for existing session {existing.id}; refusing to overwrite")
+        return {"error": f"{adapter} session {session_id} has no parseable history; refusing to overwrite existing session {existing.id}"}
+
+    if existing:
+        # Summary list entries may be shallow. Reimport matching needs the
+        # canonical durable rows, while a loaded cache (including pending
+        # appends from a live Worker) remains the best available baseline.
+        if not getattr(existing, "_history_loaded", True):
+            existing = sess.get(existing.id) or existing
+        if existing.readonly_session:
+            return {"ok": False, "errorCode": "readonly_session", "error": "Readonly Session cannot be reimported"}
+        expected_history_revision = existing.history_revision
+        native_history = history
+        confirmation = _reimport_confirmation(existing, native_history, raw_usage_entries, native_snapshot)
+        history = sess.assign_pan_message_ids(
+            history,
+            previous_history=(existing.history
+                              if getattr(existing, "_history_loaded", True) else []),
+        )
+        force = data.get("force") is True
+        valid_confirmation = (force and data.get("panSessionId") == existing.id
+                              and isinstance(data.get("confirmationToken"), str)
+                              and hmac.compare_digest(data["confirmationToken"].encode("utf-8"), confirmation.encode("ascii")))
+        conflict = _reimport_conflict(existing, history, native_history, raw_usage_entries, native_snapshot,
+                                     stale=force and not valid_confirmation)
+        if force and not valid_confirmation:
+            return {"ok": False, "errorCode": "reimport_stale", "conflict": conflict,
+                    "error": "Reimport confirmation expired or does not match this Session; check and confirm again"}
+        if conflict and not valid_confirmation:
+            return {"ok": False, "errorCode": "reimport_origin_conflict", "conflict": conflict,
+                    "error": "Native reimport cannot match all Pan queue origins losslessly; existing history retained"}
+        validate_reimport = None
+        if valid_confirmation:
+            native_digest = _reimport_digest([native_history, raw_usage_entries])
+            def validate_reimport(after_save):
+                if existing.readonly_session:
+                    raise sess.NativeReimportConflict("Session became readonly during native reimport")
+                if not after_save and _reimport_confirmation(existing, native_history, raw_usage_entries,
+                                                             native_snapshot) != confirmation:
+                    raise sess.NativeReimportConflict("Session changed while confirmed reimport was waiting")
+                current = [provider.parse_history(session_id, cwd), provider.get_raw_usage(session_id, cwd)]
+                if (_reimport_digest(current) != native_digest or
+                        (snapshot_reader and snapshot_reader(session_id, cwd) != native_snapshot)):
+                    raise sess.NativeReimportConflict("Native history changed during confirmed reimport")
+    else:
+        history = sess.assign_pan_message_ids(history)
+
+    if existing:
+        w = worker.find_alive_worker_by_session(existing.id)
+        if w:
+            # Worker process is alive — overwrite history atomically.
+            # _replaying=True prevents _read_stdout from appending during
+            # the race window (CLI writes to external store before stdout),
+            # which would otherwise duplicate agent-side messages.
+            w._replaying = True
+            try:
+                # history 整体替换 → 全量重写 jsonl（增量 append 会把新历史
+                # 头部误判为已落盘而跳过）
+                await sess.replace_usage_totals_async(
+                    existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
+                    history=history, expected_history_revision=expected_history_revision,
+                    validate_reimport=validate_reimport)
+                await broadcast({
+                    "type": "session.updated",
+                    "sessionId": existing.id,
+                })
+            finally:
+                w._replaying = False
+            response = _session_import_api(existing)
+            return {**response, "reimported": True}
+        w = worker.find_worker_by_session(existing.id)
+        if w:
+            await worker.kill_worker(w.worker_id)
+        await sess.replace_usage_totals_async(
+            existing, raw_usage, native_entries=raw_usage_entries, force_full=True,
+            history=history, expected_history_revision=expected_history_revision,
+            clear_last_result=True, validate_reimport=validate_reimport)
+        await broadcast({
+            "type": "session.updated",
+            "sessionId": existing.id,
+        })
+        response = _session_import_api(existing)
+        return {**response, "reimported": True}
+
+    name = (
+        data.get("name", "")
+        or provider.get_session_title(session_id, cwd)
+        or f"{adapter}-{session_id[:8]}"
+    )
+
+    # 模板/能力字段：复用 _build_session_params 模板解析（显式 > 模板 > 默认），
+    # 使导入的会话能带 model / permission_mode / MCP / pan_access。
+    # workdir 刻意保留外部项目路径（cwd），不落 data/workdirs/<name>。
+    try:
+        params = _build_session_params(
+            {
+                "adapter": adapter,
+                "name": name,
+                "sessionTemplate": data.get("sessionTemplate"),
+                **({"workspaceIds": data["workspaceIds"]} if "workspaceIds" in data else {}),
+                **({"panAccess": data["panAccess"]} if "panAccess" in data else {}),
+                **({key: data[key] for key in (
+                    "modelContextWindow", "modelAutoCompactTokenLimit",
+                    "model_context_window", "model_auto_compact_token_limit",
+                ) if key in data}),
+                **{key: data[key] for key in ("originalPrompt", "handoffPrompt", "systemPrompt")
+                   if key in data},
+            },
+            resolve_workdir=False,
+            strict_mcp=False,
+        )
+    except ValueError as e:
+        return {"error": f"Failed to apply session template: {e}"}
+
+    # model 兜底：模板未显式指定时回填原生存储里实际用过的模型
+    # （opencode 旧端点行为；cbc/kimi 顺带受益，无害）。
+    model = params.get("model") or (
+        raw_usage_entries[0].get("model") if raw_usage_entries else None
+    )
+
+    config = copy.deepcopy(params.get('adapter_config') or {})
+    async with _plugin_coordinator().claim(shared=_action_groups(config)):
+        if 'plugin_bindings' in config:
+            await _plugin_io(_set_plugin_config, config, config['plugin_bindings'])
+        s = await _plugin_io(sess.create,
+            name=name, adapter=adapter, cli_session_id=session_id, history=history,
+            raw_usage=raw_usage, total_usage=total_usage, workdir=cwd, model=model,
+            permission_mode=params.get('permission_mode'), session_template=params.get('session_template'),
+            original_prompt=params.get('original_prompt'), handoff_prompt=params.get('handoff_prompt'),
+            pan_access=params.get('pan_access'),
+            adapter_config={**config, **sess.native_usage_cursor_config(adapter, raw_usage_entries)},
+            workspace_ids=params.get('workspace_ids', []))
+
+    await broadcast({
+        "type": "session.created",
+        "sessionId": s.id,
+        "name": s.name,
+    })
+
+    return _session_import_api(s)
+
+
+@app.get("/api/adapters/{adapter}/sessions")
+async def api_adapter_sessions(adapter: str, cwd: str = ""):
+    """List adapter-native sessions available for import (generic)."""
+    provider = _sessions_provider(adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {adapter}"}
+    # An empty cwd means all native sessions.  Providers can still apply
+    # their own safe default/filtering when a caller supplies a directory.
+    sessions = provider.list_sessions(cwd or None)
+    return {"sessions": sessions, "total": len(sessions)}
+
+
+@app.post("/api/adapters/{adapter}/sessions/import")
+async def api_adapter_sessions_import(adapter: str, data: dict):
+    """Import an adapter-native session into Pan (generic)."""
+    provider = _sessions_provider(adapter)
+    if provider is None:
+        return {"error": f"Unknown adapter: {adapter}"}
+    return await _import_session(provider, adapter, data)
+
+
+# ── Worker actions ──
+
+@app.get("/api/sessions/{session_id}/worker/delayed-restart")
+async def api_delayed_restart_state(session_id: str):
+    if not _summary_session_get(session_id):
+        return {"error": f"Session {session_id} not found"}
+    return {"delayedRestart": worker.delayed_restart_state(session_id)}
+
+
+@app.post("/api/sessions/{session_id}/worker/delayed-restart")
+async def api_delayed_restart(session_id: str, existing_worker_only: bool = False):
+    # MCP never implicitly starts an offline Session. Keep this check and intent
+    # capture synchronous on the event loop, avoiding a client-side check race.
+    if existing_worker_only:
+        session = _summary_session_get(session_id)
+        if not session:
+            return {"error": f"Session {session_id} not found"}
+        if legal_offline.is_illegal(session):
+            return {"error": "Session is Illegal; delayed restart cannot authorize recovery"}
+        if worker.find_alive_worker_by_session(session_id) is None:
+            prior = worker.delayed_restart_state(session_id)
+            if prior and prior.get("action") == "restart" and prior.get("status") == "restarting":
+                # The accepted coordinator may have retired the old process.
+                # A duplicate only reads its receipt; it must not start again.
+                return {"delayedRestart": prior}
+            return {"error": "No live Worker; delayed restart will not start an offline Session"}
+    result = worker.request_delayed_restart(session_id)
+    return {"error": result} if isinstance(result, str) else {"delayedRestart": result}
+
+@app.post("/api/worker/{worker_id}/restart")
+async def api_restart(worker_id: str):
+    err = await worker.restart_worker(worker_id)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "restarted"}
+
+
+@app.post("/api/sessions/{session_id}/worker/restart")
+async def api_restart_or_start(session_id: str):
+    """Restart the session's live worker, or start it when it is gone."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": f"Session {session_id} not found"}
+    result = await worker.restart_or_start_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    return {
+        "workerId": result.worker_id,
+        "sessionId": session_id,
+        "status": result.status,
+    }
+
+
+@app.post("/api/sessions/{session_id}/worker/kill")
+async def api_session_kill(session_id: str):
+    """Kill the session's live worker; workerId is response detail only."""
+    result = await worker.kill_session_worker(session_id, report_abnormal=True)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "offline"}
+
+
+@app.post("/api/worker/{worker_id}/settings")
+async def api_worker_settings(worker_id: str, data: dict):
+    """Apply model/mode/thinking settings to a session and respawn the worker."""
+    w = worker.get_worker(worker_id)
+    if not w:
+        return {"error": "Worker not found"}
+    s = sess.get(w.session_id)
+    if not s:
+        return {"error": "Session not found"}
+
+    settings_result = await api_update_session(s.id, data)
+    if settings_result.get('error'):
+        return settings_result
+
+    adapter = get_adapter(s.adapter)
+    extra_args: list[str] = []
+    # Most native CLIs consume these compatibility overrides directly. Codex
+    # uses a persistent wrapper and receives all settings from its Session via
+    # --codex-extra-args; passing --model/--permission-mode to the wrapper would
+    # make argparse reject the process before it can handle the next message.
+    if not getattr(adapter, "settings_via_session", False):
+        if "model" in data:
+            extra_args.extend(["--model", data["model"]])
+        if "permissionMode" in data:
+            extra_args.extend(["--permission-mode", data["permissionMode"] or ""])
+        extra_args.extend(adapter.effort_args(s))
+
+    err = await worker.respawn_worker(worker_id, extra_args if extra_args else None)
+    if err:
+        return {"error": err}
+
+    return {
+        "workerId": worker_id,
+        "sessionId": s.id,
+        "model": s.model,
+        "permissionMode": s.permission_mode,
+        "alwaysThinkingEnabled": s.adapter_config.get("always_thinking_enabled", False),
+        "effort": s.adapter_config.get("effort", ""),
+        "status": "settings applied",
+    }
+
+
+@app.post("/api/worker/{worker_id}/rename")
+async def api_rename(worker_id: str, data: dict):
+    new_name = data.get("name")
+    if not new_name:
+        return {"error": "name is required"}
+
+    err = _check_session_name(new_name)
+    if err:
+        return {"error": err}
+
+    session_id = None
+    w = worker.get_worker(worker_id)
+    if w:
+        session_id = w.session_id
+    else:
+        session_id = data.get("sessionId") or worker_id
+
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+
+    old_name = s.name
+    s.name = new_name
+    await sess.save_async(s)
+    await broadcast({
+        "type": "session.renamed",
+        "sessionId": s.id,
+        "oldName": old_name,
+        "newName": new_name,
+    })
+    return {"sessionId": s.id, "name": new_name, "status": "renamed"}
+
+
+@app.post("/api/worker/{worker_id}/branch")
+async def api_branch(worker_id: str, data: dict):
+    w = worker.get_worker(worker_id)
+    if not w:
+        return {"error": "Worker not found"}
+
+    orig = sess.get(w.session_id)
+    if not orig or not orig.cli_session_id:
+        return {"error": "Session not ready for branching"}
+    ownership = _branch_ownership(orig)
+    if isinstance(ownership, str):
+        return {"error": ownership}
+    manager_id, root_workspace_ids = ownership
+
+    name = data.get("name") or f"{orig.name}-branch"
+    new_session = sess.create(name, adapter=orig.adapter, model=orig.model,
+                              permission_mode=orig.permission_mode,
+                              always_thinking_enabled=orig.adapter_config.get("always_thinking_enabled", False),
+                              effort=orig.adapter_config.get("effort", ""),
+                              max_thinking_tokens=orig.adapter_config.get("max_thinking_tokens"),
+                              workdir=orig.workdir,
+                              workspace_ids=root_workspace_ids if manager_id is None else [])
+
+    if manager_id is not None:
+        claim_error = sess.claim(manager_id, new_session.id)
+        if claim_error:
+            try:
+                sess.delete(new_session.id)
+            except Exception as cleanup_error:
+                return {"error": f"{claim_error}; failed to remove new Session: {cleanup_error}"}
+            return {"error": claim_error}
+
+    result = await worker.branch_worker(worker_id, new_session.id)
+    if isinstance(result, str):
+        if manager_id is not None:
+            release_error = sess.release(new_session.id)
+            if release_error:
+                return {"error": f"{result}; failed to roll back managed relationship: "
+                                 f"{release_error}; Session {new_session.id} was retained"}
+        try:
+            sess.delete(new_session.id)
+        except Exception as cleanup_error:
+            return {"error": f"{result}; failed to remove new Session: {cleanup_error}"}
+        return {"error": result}
+
+    return {
+        "workerId": result.worker_id,
+        "sessionId": new_session.id,
+        "name": new_session.name,
+        "status": "idle",
+        "parentSessionId": w.session_id,
+    }
+
+
+@app.post("/api/worker/{worker_id}/interrupt")
+async def api_interrupt(worker_id: str):
+    err = await worker.interrupt_worker(worker_id)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "interrupted"}
+
+
+@app.post("/api/sessions/{session_id}/worker/interrupt")
+async def api_session_interrupt(session_id: str):
+    """Interrupt the session's live worker; workerId is response detail only."""
+    result = await worker.interrupt_session_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"workerId": None, "sessionId": session_id, "status": "offline"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "interrupted"}
+
+
+@app.post("/api/worker/{worker_id}/control")
+async def api_worker_control(worker_id: str, data: dict):
+    """Send an adapter-native out-of-band control to a live worker."""
+    control = data.get("control") if isinstance(data.get("control"), dict) else data
+    err = await worker.send_control_message(worker_id, control)
+    if err:
+        return {"error": err}
+    return {"workerId": worker_id, "status": "control sent"}
+
+
+@app.post("/api/sessions/{session_id}/worker/control")
+async def api_session_worker_control(session_id: str, data: dict):
+    """Send a native control using the session as the stable address."""
+    control = data.get("control") if isinstance(data, dict) and isinstance(data.get("control"), dict) else data
+    result = await worker.send_session_control(session_id, control)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"error": "Worker not found"}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "control sent"}
+
+
+@app.post("/api/worker/{worker_id}/steer")
+async def api_worker_steer(worker_id: str, data: dict):
+    """Admit text into a running native turn; admission does not prove consumption."""
+    outcome = {}
+    err = await worker.steer_worker(
+        worker_id, data.get("text") if isinstance(data, dict) else "",
+        data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
+    )
+    if err:
+        return {"error": err, "outcome": outcome.get('status', 'unknown')}
+    return {"workerId": worker_id, "status": "steer sent", "outcome": "accepted", "consumption": "unconfirmed"}
+
+
+@app.post("/api/sessions/{session_id}/worker/steer")
+async def api_session_worker_steer(session_id: str, data: dict):
+    outcome = {}
+    result = await worker.steer_session_worker(
+        session_id, data.get("text") if isinstance(data, dict) else "",
+        data.get("messageId") if isinstance(data, dict) else None,
+        outcome=outcome,
+    )
+    if isinstance(result, str):
+        return {"error": result, "outcome": outcome.get('status', 'unknown')}
+    if result is None:
+        return {"error": "Worker not found", "outcome": outcome.get('status', 'rejected')}
+    return {"workerId": result.worker_id, "sessionId": session_id, "status": "steer sent",
+            "outcome": "accepted", "consumption": "unconfirmed"}
+
+
+@app.post("/api/worker/{worker_id}/claude-permission")
+async def api_claude_permission(worker_id: str, data: dict):
+    """Bridge Claude Code's MCP permission-prompt callback to the dashboard."""
+    if not isinstance(data, dict):
+        return {"behavior": "deny", "message": "Invalid permission request"}
+    tool_name = data.get("toolName") or data.get("tool_name") or "unknown"
+    tool_input = data.get("input")
+    if not isinstance(tool_input, dict):
+        tool_input = {}
+    return await worker.request_claude_permission(
+        worker_id, str(tool_name), tool_input,
+    )
+
+
+@app.post("/api/worker/{worker_id}/takeover")
+async def api_takeover(worker_id: str):
+    w = worker.get_worker(worker_id)
+    if not w:
+        return {"error": "Worker not found"}
+    s = sess.get(w.session_id)
+    if not s:
+        return {"error": "Session not found"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    if w.status == "held":
+        return {"error": "Worker already in takeover mode"}
+
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+
+    # Takeover must leave no Pan app-server alive.  Restarting here would spawn
+    # a replacement writer immediately before the native TUI resumes the same
+    # Codex thread, which fails with "already has an active writer".
+    err = await worker.takeover_worker(worker_id)
+    if err:
+        return {"error": err}
+
+    generation = w.generation
+    await broadcast({
+        "type": "worker.status",
+        "sessionId": w.session_id,
+        "workerId": w.worker_id,
+        "generation": getattr(w, "generation", 0),
+        "status": "held",
+    })
+
+    try:
+        await _open_takeover_terminal(w,
+            # 逐参数引号转义：takeover 命令含 --resume <cli_session_id>，裸 join
+            # 会把其特殊字符拆成额外参数，导致 takeover 终端 cbc 启动失败。
+            subprocess.list2cmdline(adapter_cmd),
+            s.workdir or Path.cwd(), generation,
+        )
+    except FileNotFoundError:
+        return {"error": "terminal opener not found"}
+    except (OSError, RuntimeError) as e:
+        return {"error": str(e)}
+
+    return {
+        "workerId": worker_id,
+        "sessionId": w.session_id,
+        "cliSessionId": s.cli_session_id,
+        # list2cmdline 逐参数引号转义（同 /takeover）：system_prompt 含空格时
+        # 裸 join 的命令无法直接粘贴执行（takeover 修复）。
+        # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
+        # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+        "takeoverPid": w.takeover_pid,
+        "status": "takeover started",
+    }
+
+
+@app.get("/api/sessions/{session_id}/worker/takeover-readiness")
+async def api_takeover_readiness(session_id: str):
+    s = _summary_session_get(session_id)
+    if s is None:
+        return {"ready": False, "reason": "Session not found"}
+    return await asyncio.to_thread(_takeover_readiness, s)
+
+
+@app.post("/api/sessions/{session_id}/worker/takeover")
+async def api_session_takeover(session_id: str):
+    """Take over the session's live worker using sessionId as the control key."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
+    if not w:
+        return {"error": "Worker is offline. Start the worker before takeover."}
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+
+    result = await worker.takeover_session_worker(session_id)
+    if isinstance(result, str):
+        return {"error": result}
+    if result is None:
+        return {"error": "Worker went offline before takeover. Start the worker and retry."}
+    w = result
+    generation = w.generation
+    await broadcast({
+        "type": "worker.status",
+        "sessionId": session_id,
+        "workerId": w.worker_id,
+        "generation": getattr(w, "generation", 0),
+        "status": "held",
+    })
+    try:
+        await _open_takeover_terminal(w,
+            subprocess.list2cmdline(adapter_cmd), s.workdir or Path.cwd(), generation,
+        )
+    except FileNotFoundError:
+        return {"error": "terminal opener not found"}
+    except (OSError, RuntimeError) as e:
+        return {"error": str(e)}
+    return {
+        "workerId": w.worker_id,
+        "sessionId": session_id,
+        "cliSessionId": s.cli_session_id,
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+        "takeoverPid": w.takeover_pid,
+        "status": "takeover started",
+    }
+
+
+@app.get("/api/worker/{worker_id}/takeover-command")
+async def api_takeover_command(worker_id: str):
+    """Return the takeover command without executing it (mobile use).
+
+    Unlike POST /takeover, this does NOT restart the worker or open a
+    terminal.  The caller (mobile dashboard) copies the command to
+    clipboard so the user can paste it manually.
+    """
+    w = worker.get_worker(worker_id)
+    if not w:
+        return {"error": "Worker not found"}
+    s = sess.get(w.session_id)
+    if not s:
+        return {"error": "Session not found"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+
+    return {
+        "workerId": worker_id,
+        "sessionId": w.session_id,
+        "cliSessionId": s.cli_session_id,
+        # list2cmdline 逐参数引号转义（同 /takeover）：takeover 命令含 --resume
+        # <cli_session_id>，裸 join 的命令无法直接粘贴执行。
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+    }
+
+
+@app.get("/api/sessions/{session_id}/worker/takeover-command")
+async def api_session_takeover_command(session_id: str):
+    """Return a takeover command by session, without changing runtime state."""
+    s = sess.get(session_id)
+    if not s:
+        return {"error": "Session not found"}
+    admission = await asyncio.to_thread(_takeover_readiness, s)
+    if not admission["ready"]:
+        return {"error": admission["reason"]}
+    w = worker._find_control_worker(session_id)
+    if not w:
+        return {"error": "Worker is offline. Start the worker before takeover."}
+    adapter_cmd = w.adapter.takeover_command(s)
+    if not adapter_cmd:
+        return {"error": f"Adapter '{w.adapter.name}' does not support takeover"}
+    return {
+        "workerId": w.worker_id,
+        "sessionId": session_id,
+        "cliSessionId": s.cli_session_id,
+        "takeoverCommand": subprocess.list2cmdline(adapter_cmd),
+    }
+
+
+# ── Memory API ──
+
+_memory_managers: dict[str, object] = {}  # character_id → MemoryManager
+
+# character_id must be exactly "char_" + 16 lowercase hex (or "default")
+_CHARACTER_ID_RE = re.compile(r"^(?:char_[0-9a-f]{16}|default)$")
+
+
+def _validate_character_id(character_id: str) -> bool:
+    """Return True if character_id is safe to embed in a filesystem path."""
+    return bool(_CHARACTER_ID_RE.match(character_id))
+
+
+def _get_memory_manager(character_id: str):
+    """Get or create a MemoryManager for a character.
+
+    Rejects unsafe character_ids (path traversal). Memory is indexed with the
+    same sentence-transformers provider used by the worker injection path
+    (packages/core/memory_context.py) to avoid embedding dims mismatch.
+    """
+    from packages.core.memory import MemoryManager, PROVIDER_SENTENCE_TRANSFORMERS
+
+    if not _validate_character_id(character_id):
+        raise ValueError(
+            f"Invalid character_id: {character_id!r}. "
+            "Expected 'char_<16 hex>' or 'default'."
+        )
+
+    if character_id not in _memory_managers:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        db_path = str(DATA_DIR / "memory" / f"{character_id}.sqlite")
+        db_path_parent = Path(db_path).parent
+        db_path_parent.mkdir(parents=True, exist_ok=True)
+        _memory_managers[character_id] = MemoryManager(
+            db_path=db_path,
+            api_key=api_key,
+            provider=PROVIDER_SENTENCE_TRANSFORMERS,
+        )
+    return _memory_managers[character_id]
+
+
+# ── Character API ──
+
+
+def _ensure_manifest_fresh() -> None:
+    """Hot-reload the manifest if any manifest file changed on disk.
+
+    Cheap on the hot path: only ``stat``s files (no read / parse). A full
+    re-read + re-parse + atomic config swap happens *only* when the newest
+    mtime advanced or the set of manifest files changed. Any failure is
+    swallowed (and already logged inside the manager) so a request never 500s
+    on a broken manifest.
+    """
+    if _character_manager is None:
+        return
+    try:
+        if _character_manager.manifest_changed():
+            _character_manager.reload_manifest()
+            from packages.core.inbox_service import reconcile_sources
+            reconcile_sources(_character_manager._manifest_config)
+    except Exception:
+        _log("[Pan] Manifest hot-reload check failed (non-fatal)")
+
+
+_SESSION_TEMPLATE_SAVE_FIELDS = {
+    "adapter", "model", "permission_mode", "system_prompt", "mcp_mode",
+    "mcp_servers", "pan_access", "plugin_bindings",
+}
+_SESSION_TEMPLATE_PAN_ACCESS_FIELDS = {
+    "restrict_to_managed", "can_claim_unmanaged", "auto_claim_created",
+}
+
+
+def _validate_session_template_save_payload(data: dict) -> dict:
+    """Strictly validate the manifest SessionTemplate schema for create-only save."""
+    if not isinstance(data, dict):
+        raise ValueError("Request body must be a JSON object")
+    allowed = {"name", *_SESSION_TEMPLATE_SAVE_FIELDS}
+    unknown = set(data) - allowed
+    if unknown:
+        raise ValueError("Unknown Session Template field(s): " + ", ".join(sorted(map(str, unknown))))
+
+    raw_name = data.get("name")
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        raise ValueError("Template name must be a non-empty string")
+    result: dict[str, Any] = {"name": raw_name.strip()}
+
+    raw_adapter = data.get("adapter")
+    if "adapter" in data:
+        if raw_adapter is not None and not isinstance(raw_adapter, str):
+            raise ValueError("adapter must be a string or null")
+        normalized_adapter = raw_adapter or ""
+        result["adapter"] = normalized_adapter
+    adapter_name = result.get("adapter") or "cbc"
+    adapter = resolve_adapter(adapter_name)
+
+    if "model" in data:
+        model = data["model"]
+        if model is not None and not isinstance(model, str):
+            raise ValueError("model must be a string or null")
+        if model:
+            validate_model(adapter, model)
+        result["model"] = model
+
+    if "permission_mode" in data:
+        permission_mode = data["permission_mode"]
+        if permission_mode is not None and not isinstance(permission_mode, str):
+            raise ValueError("permission_mode must be a string or null")
+        if permission_mode:
+            validate_permission_mode(adapter, permission_mode)
+        result["permission_mode"] = permission_mode
+
+    if "system_prompt" in data:
+        system_prompt = data["system_prompt"]
+        if isinstance(system_prompt, str):
+            result["system_prompt"] = system_prompt
+        elif isinstance(system_prompt, list) and all(isinstance(line, str) for line in system_prompt):
+            result["system_prompt"] = list(system_prompt)
+        else:
+            raise ValueError("system_prompt must be a string or an array of strings")
+
+    if "mcp_mode" in data:
+        mcp_mode = data["mcp_mode"]
+        if mcp_mode not in ("always", "optional", "never"):
+            raise ValueError("mcp_mode must be one of: always, optional, never")
+        result["mcp_mode"] = mcp_mode
+
+    if "mcp_servers" in data and "plugin_bindings" in data:
+        raise ValueError("Specify plugin_bindings or mcp_servers, not both")
+    if "plugin_bindings" in data:
+        result["plugin_bindings"] = _plugin_catalog().bindings(data["plugin_bindings"])
+        _set_plugin_config({}, result["plugin_bindings"])
+    if "mcp_servers" in data:
+        mcp_servers = data["mcp_servers"]
+        if not isinstance(mcp_servers, list) or not all(
+            isinstance(name, str) and name.strip() for name in mcp_servers
+        ):
+            raise ValueError("mcp_servers must be an array of non-empty server names")
+        _resolve_mcp_server_configs(mcp_servers)
+        result["mcp_servers"] = list(mcp_servers)
+
+    if "pan_access" in data:
+        pan_access = data["pan_access"]
+        if not isinstance(pan_access, dict):
+            raise ValueError("pan_access must be an object of boolean capability flags")
+        unknown_access = set(pan_access) - _SESSION_TEMPLATE_PAN_ACCESS_FIELDS
+        if unknown_access:
+            raise ValueError("Unknown pan_access field(s): " + ", ".join(sorted(map(str, unknown_access))))
+        if any(not isinstance(value, bool) for value in pan_access.values()):
+            raise ValueError("pan_access values must be booleans")
+        result["pan_access"] = dict(pan_access)
+
+    return result
+
+
+@app.get("/api/session-templates/targets")
+async def api_session_template_manifest_targets():
+    """List loaded, parseable manifest choices for saving a Session Template."""
+    if _character_manager is None:
+        return {"manifestTargets": [], "loaded": False}
+    _ensure_manifest_fresh()
+    targets = _character_manager.list_session_template_manifest_targets()
+    return {"manifestTargets": targets, "total": len(targets), "loaded": True}
+
+
+@app.post("/api/session-templates")
+async def api_save_session_template(data: dict):
+    """Create-only save of one strictly validated Session Template."""
+    if _character_manager is None:
+        return {"ok": False, "error": "Character manager not initialized"}
+    target_id = data.get("manifestId") if isinstance(data, dict) else None
+    if not isinstance(target_id, str) or not target_id:
+        return {"ok": False, "error": "manifestId (loaded manifest target id) is required"}
+    payload = {key: value for key, value in data.items() if key != "manifestId"}
+    base_template = payload.pop("baseTemplate", None)
+    _ensure_manifest_fresh()
+    try:
+        saved = _character_manager.save_session_template(
+            target_id, payload, validate=_validate_session_template_save_payload,
+            base_template=base_template,
+        )
+    except (ValueError, RuntimeError, OSError) as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, **saved}
+
+
+@app.get("/api/session-templates")
+async def api_session_templates():
+    """List available session templates from manifest.
+
+    Semantically this endpoint lists session_templates (the former "profiles"),
+    which now describe session config rather than characters.
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
+    templates = _character_manager.list_session_templates()
+    return {
+        "sessionTemplates": [
+            {
+                "name": t.name,
+                "adapter": t.adapter,
+                "model": t.model,
+                "mcpMode": t.mcp_mode,
+                "mcpServers": list(t.mcp_servers or []),
+                "pluginBindings": t.plugin_bindings,
+                "sourceManifest": t.source_manifest,
+                "sourceManifestLabel": t.source_manifest_label,
+                "system_prompt_preview": t.system_prompt[:100] + "..." if len(t.system_prompt) > 100 else t.system_prompt,
+                "panAccess": {
+                    "restrictToManaged": t.restrict_to_managed,
+                    "canClaimUnmanaged": t.can_claim_unmanaged,
+                    "autoClaimCreated": t.auto_claim_created,
+                },
+            }
+            for t in templates
+        ],
+        "total": len(templates),
+    }
+
+
+@app.get("/api/mcp/servers")
+async def api_mcp_servers():
+    """List all available MCP servers from the manifest.
+
+    Returns the full catalog of MCP servers declared across plugin manifests
+    (deduplicated/merged). Used by the Manage modal's "MCP Server" section to
+    let the user multi-select which servers a session enables.
+
+    Does NOT expose `env` (may contain secrets). If the manifest is not loaded
+    yet, returns an empty list with `loaded: false` instead of a 500.
+    """
+    if _character_manager is None or _character_manager._manifest_config is None:
+        return {"servers": [], "loaded": False}
+    _ensure_manifest_fresh()
+    try:
+        catalog = _plugin_catalog()
+        servers = []
+        for plugin in catalog.plugins.values():
+            if plugin.source.get("kind") == "panel":
+                continue  # A UI-only plugin has no Session agent projection.
+            source = catalog.servers.get(plugin.source.get("server_ref"), {})
+            servers.append({**{k: source.get(k) for k in ("command", "cwd", "url", "transport", "type")},
+                            **plugin.public()})
+    except ValueError as exc:
+        return {"servers": [], "loaded": False, "error": str(exc)}
+    return {"servers": servers, "loaded": True}
+
+
+@app.get("/api/characters/profiles")
+async def api_characters_profiles():
+    """Deprecated alias for GET /api/session-templates (backward compat).
+
+    Old callers hitting the historical ``/api/characters/profiles`` path get
+    the same response; new code should use ``/api/session-templates``.
+    """
+    return await api_session_templates()
+
+
+@app.post("/api/manifest/reload")
+async def api_manifest_reload():
+    """Force a manifest hot-reload.
+
+    Idempotent: calling it repeatedly just reloads the same files and returns
+    the same counts. Returns the number of loaded templates/servers/routes so
+    the caller can confirm the new state. On failure it returns the last good
+    counts and ``reloaded: false`` (the previous config is kept).
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized", "reloaded": False}
+    config = _character_manager.reload_manifest()
+    if config is None:
+        return {
+            "reloaded": False,
+            "sessionTemplates": 0,
+            "mcpServers": 0,
+            "characters": 0,
+            "commandRoutes": 0,
+        }
+    return {
+        "reloaded": True,
+        "sessionTemplates": len(config.session_templates),
+        "mcpServers": len(config.mcp_servers),
+        "characters": len(config.character_templates),
+        "commandRoutes": len(config.command_routes),
+    }
+
+
+@app.get("/api/manifest/command-routes")
+async def api_manifest_command_routes():
+    """List QQ Bot command routes from loaded manifests.
+
+    Used by the QQ Bot plugin (separate NoneBot2 process) to do prefix
+    matching: a message starting with one of ``prefixes`` is forwarded
+    directly to ``target`` (HTTP POST ``{"text": "..."}``) without going
+    through the LLM path. The plugin should sort by prefix length descending
+    so ``.rca`` wins over ``.rc``.
+    """
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
+    routes = _character_manager.list_command_routes()
+    return {
+        "routes": [
+            {"prefixes": list(r.prefixes), "target": r.target}
+            for r in routes
+        ],
+        "total": len(routes),
+    }
+
+
+@app.post("/api/characters")
+async def api_characters_create(data: dict):
+    """Create a new character from a manifest character_template."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    _ensure_manifest_fresh()
+    template_name = data.get("template_name", "")
+    if not template_name:
+        return {"error": "template_name is required"}
+    try:
+        char = _character_manager.create_character(
+            template_name=template_name,
+            name=data.get("name"),
+            auto_index=True,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    return {
+        "id": char.id,
+        "name": char.name,
+        "memory_db_path": char.memory_db_path,
+        "memory_dir": char.memory_dir,
+        "created_at": char.created_at,
+    }
+
+
+@app.get("/api/characters")
+async def api_characters_list():
+    """List all created characters."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    chars = _character_manager.list_characters()
+    return {
+        "characters": [
+            {"id": c.id, "name": c.name}
+            for c in chars
+        ],
+        "total": len(chars),
+    }
+
+
+@app.get("/api/characters/{character_id}")
+async def api_characters_get(character_id: str):
+    """Get character details including memory stats."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
+    char = _character_manager.get_character(character_id)
+    if char is None:
+        return {"error": f"Character {character_id} not found"}
+    mem_stats = None
+    try:
+        mgr = _character_manager.get_memory_manager(character_id)
+        if mgr:
+            mem_stats = mgr.stats()
+    except Exception:
+        pass
+    return {
+        "id": char.id,
+        "name": char.name,
+        "memory_db_path": char.memory_db_path,
+        "memory_dir": char.memory_dir,
+        "memory_stats": {"files": mem_stats.files, "chunks": mem_stats.chunks} if mem_stats else None,
+        "created_at": char.created_at,
+    }
+
+
+@app.delete("/api/characters/{character_id}")
+async def api_characters_delete(character_id: str):
+    """Delete a character and its memory store."""
+    if _character_manager is None:
+        return {"error": "Character manager not initialized"}
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
+    if _character_manager.delete_character(character_id):
+        # Drop any cached MemoryManager in this module too — the underlying
+        # .sqlite has been unlinked and the fd is stale (#33).
+        mgr = _memory_managers.pop(character_id, None)
+        if mgr is not None:
+            try:
+                mgr.close()
+            except Exception:
+                pass
+        return {"status": "deleted", "character_id": character_id}
+    return {"error": f"Character {character_id} not found"}
+
+
+@app.post("/api/memory/index")
+async def api_memory_index(data: dict):
+    """Index a directory of .md files into the memory store.
+    
+    Request body:
+        character_id: str — which character's memory store
+        dir_path: str     — directory containing .md files to index
+    """
+    character_id = data.get("character_id", "default")
+    dir_path = data.get("dir_path")
+    if not dir_path:
+        return {"error": "dir_path is required"}
+
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    # Restrict dir_path to the project root to prevent arbitrary-directory
+    # indexing (security). Mirrors _resolve_fs_path's containment check.
+    try:
+        target = Path(dir_path).resolve()
+        target.relative_to(_PROJECT_DIR)
+    except ValueError:
+        return {
+            "error": f"dir_path {dir_path!r} is outside allowed roots "
+            f"({_PROJECT_DIR})"
+        }
+
+    report = mgr.index_directory(str(target))
+    return {
+        "character_id": character_id,
+        "files_scanned": report.files_scanned,
+        "files_modified": report.files_modified,
+        "chunks_upserted": report.chunks_upserted,
+        "details": [
+            {"path": d.path, "status": d.status, "chunks": d.chunks}
+            for d in report.details
+        ],
+    }
+
+
+@app.get("/api/memory/search")
+async def api_memory_search(
+    q: str = "",
+    character_id: str = "default",
+    max_results: int = 6,
+    min_score: float = 0.35,
+):
+    """Search the memory store for a character.
+    
+    Query params:
+        q            — search query text
+        character_id — which character's memory store
+        max_results  — max number of results (default 6)
+        min_score    — minimum score threshold (default 0.35)
+    """
+    if not q.strip():
+        return {"results": [], "total": 0}
+
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
+    results = mgr.search(q, max_results=max_results, min_score=min_score)
+    return {
+        "results": [
+            {
+                "chunk_id": r.chunk_id,
+                "path": r.path,
+                "text": r.text,
+                "score": round(r.score, 4),
+                "start_line": r.start_line,
+                "end_line": r.end_line,
+                "source": r.source,
+            }
+            for r in results
+        ],
+        "total": len(results),
+    }
+
+
+@app.get("/api/memory/stats")
+async def api_memory_stats(character_id: str = "default"):
+    """Get memory store statistics for a character."""
+    try:
+        mgr = _get_memory_manager(character_id)
+    except ValueError as e:
+        return {"error": str(e)}
+    stats = mgr.stats()
+    return {
+        "character_id": character_id,
+        "files": stats.files,
+        "chunks": stats.chunks,
+    }
+
+
+@app.post("/api/memory/inject")
+async def api_memory_inject(data: dict):
+    """Search memory and return formatted context for Worker injection.
+
+    Request body:
+        text         — user's query to search memory AND the task text
+        character_id — which character's memory to search (default: "default")
+        max_results  — max memory snippets (default: 3)
+        min_score    — minimum score threshold (default: 0.35)
+
+    Returns:
+        injected_text — the task text with memory context prepended
+        context       — raw memory context (Markdown)
+        snippet_count — number of memory snippets found
+    """
+    from packages.core.memory_context import search_and_format, inject_context
+
+    text = data.get("text", "")
+    if not text.strip():
+        return {"error": "text is required"}
+
+    character_id = data.get("character_id", "default")
+    max_results = data.get("max_results", 3)
+    min_score = float(data.get("min_score", 0.35))
+
+    if not _validate_character_id(character_id):
+        return {"error": f"Invalid character_id: {character_id!r}"}
+
+    # Search memory using the task text as query
+    context = search_and_format(
+        query=text,
+        character_id=character_id,
+        max_results=max_results,
+        min_score=min_score,
+        db_dir=str(DATA_DIR / "memory"),
+    )
+
+    if context.snippet_count > 0:
+        injected = inject_context(text, context)
+    else:
+        injected = text
+
+    return {
+        "injected_text": injected,
+        "context": context.results_md,
+        "snippet_count": context.snippet_count,
+        "character_id": character_id,
+    }
+
+
+# ── File-system operations ──
+
+@app.get("/api/fs/list")
+async def api_fs_list(session_id: str, path: str = "", include_hidden: bool = False):
+    """List files/dirs under a path within the session's workdir."""
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.is_dir():
+        return {"error": f"Not a directory: {path!r}"}
+    try:
+        entries = []
+        for entry in sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
+            if entry.name.startswith("."):
+                if not include_hidden:
+                    continue
+                if entry.name in _HIDDEN_ENTRIES:
+                    continue
+            stat = entry.stat()
+            entries.append({
+                "name": entry.name,
+                "type": "dir" if entry.is_dir() else "file",
+                "size": stat.st_size if entry.is_file() else 0,
+                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+        return {"entries": entries}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.get("/api/fs/read")
+async def api_fs_read(session_id: str, path: str = "", download: bool = False):
+    """Read file contents within the session's workdir.
+
+    download=False (default): JSON {content, size}, UTF-8 text, 5 MiB cap
+    (editor file-open path). download=True: binary attachment download via
+    FileResponse (streamed, no size cap, works for binary files too).
+    """
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.is_file():
+        return {"error": f"Not a file: {path!r}"}
+    if download:
+        # Sanitize: strip header-injection chars (CR/LF/quotes/control) —
+        # starlette itself quotes non-ASCII via RFC 5987.
+        safe_name = "".join(
+            c for c in target.name if ord(c) >= 32 and c not in '"\\'
+        ).strip() or "download"
+        media_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        return FileResponse(target, filename=safe_name, media_type=media_type)
+    if target.stat().st_size > _MAX_FILE_BYTES:
+        return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
+    try:
+        content = target.read_text(encoding="utf-8")
+        return {"content": content, "size": len(content)}
+    except UnicodeDecodeError:
+        return {"error": "Cannot read binary file"}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.post("/api/fs/write")
+async def api_fs_write(data: dict):
+    """Write content to a file within the session's workdir (atomic write)."""
+    session_id = data.get("session_id")
+    path = data.get("path", "")
+    content = data.get("content", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    if len(content) > _MAX_FILE_BYTES:
+        return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # atomic: write to temp then replace
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(str(tmp), str(target))
+        return {"path": path, "size": len(content)}
+    except PermissionError:
+        return {"error": f"Permission denied: {path!r}"}
+
+
+@app.post("/api/fs/rename")
+async def api_fs_rename(data: dict):
+    """Rename a file or directory within the session's workdir."""
+    session_id = data.get("session_id")
+    frm = data.get("from", "")
+    to = data.get("to", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    if not frm:
+        return {"error": "from path required"}
+    if not to:
+        return {"error": "to path required"}
+    try:
+        src = _resolve_fs_path(session_id, frm)
+        dst = _resolve_fs_path(session_id, to)
+    except ValueError as e:
+        return {"error": str(e)}
+    try:
+        _rename_no_overwrite(src, dst)
+        return {"from": frm, "to": to}
+    except PermissionError:
+        return {"error": f"Permission denied"}
+    except OSError as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/fs/delete")
+async def api_fs_delete(data: dict):
+    """Delete a file or empty directory within the session's workdir."""
+    session_id = data.get("session_id")
+    path = data.get("path", "")
+    if not session_id:
+        return {"error": "session_id required"}
+    try:
+        target = _resolve_fs_path(session_id, path)
+    except ValueError as e:
+        return {"error": str(e)}
+    if not target.exists():
+        return {"error": f"Not found: {path!r}"}
+    try:
+        if target.is_dir():
+            target.rmdir()  # only deletes empty dirs — safety
+        else:
+            target.unlink()
+        return {"path": path, "deleted": True}
+    except OSError as e:
+        return {"error": str(e)}
+
+
+# ── Editor: open one file with the system default application ──
+
+_EXTERNAL_OPEN_TIMEOUT_SECONDS = 2.0
+
+
+class ExternalOpenUnavailable(RuntimeError):
+    """This server/platform has no way to open a file with a system handler."""
+
+
+class ExternalOpenFailed(RuntimeError):
+    """The platform opener could not be started or exited with an error."""
+
+
+def _external_opener_argv(target: Path, platform: str | None = None) -> list[str] | None:
+    """Return the fixed opener argv for `platform`, or None when unavailable.
+
+    The caller supplies a filesystem path only; no part of the opener command
+    comes from the request, so this can never execute an arbitrary program.
+    Windows has no argv form (it uses ``os.startfile``).
+    """
+    selected = platform or sys.platform
+    if selected == "darwin":
+        return ["open", str(target)]
+    if selected.startswith("linux"):
+        opener = shutil.which("xdg-open")
+        return [opener, str(target)] if opener else None
+    return None
+
+
+def _reap_external_opener(process: "subprocess.Popen") -> None:
+    """Reap an opener that is still running, outside the request's thread.
+
+    Only the exit status is logged; the user's path never reaches the log.
+    """
+
+    def reap() -> None:
+        returncode = process.wait()
+        if returncode != 0:
+            logging.getLogger("pan.web.editor_open").warning(
+                "system file opener exited with status %s", returncode
+            )
+
+    threading.Thread(target=reap, name="external-open-reaper", daemon=True).start()
+
+
+def _opener_error_detail(exc: OSError) -> str:
+    """Readable opener failure without echoing the user's full path."""
+    code = getattr(exc, "winerror", None) or exc.errno
+    suffix = f" {code}" if code else ""
+    return f"system file opener failed ({type(exc).__name__}{suffix})"
+
+
+def _open_file_with_system_default(target: Path) -> None:
+    """Open one existing file with the OS default handler, never via a shell."""
+    if sys.platform == "win32":
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise ExternalOpenUnavailable("no system file opener is available")
+        try:
+            startfile(str(target))
+        except OSError as exc:
+            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+        return
+
+    argv = _external_opener_argv(target)
+    if argv is None:
+        raise ExternalOpenUnavailable("no system file opener is available")
+    try:
+        process = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+    except FileNotFoundError as exc:
+        raise ExternalOpenUnavailable("no system file opener is available") from exc
+    except OSError as exc:
+        raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+
+    try:
+        returncode = process.wait(timeout=_EXTERNAL_OPEN_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        # Editors and browsers often keep the launcher alive after the window
+        # opens. The file was handed off, so report success and reap the child
+        # out of band instead of holding the request open.
+        _reap_external_opener(process)
+        return
+    if returncode != 0:
+        raise ExternalOpenFailed(f"system file opener exited with status {returncode}")
+
+
+def _editor_open_allowed_roots(session_id: str) -> list[Path]:
+    """Filesystem roots a Session may hand to the system opener.
+
+    Mirrors the roots the server can verify: the Session workdir and the dirs
+    of the Session's effective Workspace. Browser-only Temp roots are excluded
+    on purpose — the client cannot grant itself filesystem access.
+    """
+    roots: list[Path] = []
+    session = _summary_session_get(session_id)
+    if session is not None and getattr(session, "workdir", None):
+        roots.append(Path(session.workdir))
+    for workspace_id in sess.effective_workspace_ids(session_id):
+        workspace = workspaces.get(workspace_id)
+        if workspace is None:
+            continue
+        for raw in workspace.dirs:
+            if isinstance(raw, str) and raw.strip():
+                roots.append(Path(raw))
+    return roots
+
+
+@app.post("/api/editor/open-external")
+async def api_editor_open_external(data: dict):
+    """Open one Editor file with the operating system's default application.
+
+    The request carries a path, never a command. It is resolved with the same
+    containment rules as the Editor read path (``..``, absolute escapes and
+    symlink targets are resolved first) and must stay inside the Session
+    workdir or one of its Workspace dirs.
+    """
+    session_id = data.get("session_id")
+    raw_path = data.get("path")
+    if not isinstance(session_id, str) or not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    if not isinstance(raw_path, str) or not raw_path.strip() or "\x00" in raw_path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    try:
+        target = _resolve_fs_path(session_id, raw_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        # Unresolvable syntax (for example a drive-relative Windows name) and
+        # symlink loops are client errors, not server failures.
+        raise HTTPException(status_code=400, detail="Invalid path") from exc
+    # Check containment before existence so traversal never distinguishes
+    # existing from missing files outside the allowed roots.
+    roots = _editor_open_allowed_roots(session_id)
+    if not roots or not _path_is_allowed(target, roots):
+        raise HTTPException(
+            status_code=403,
+            detail="Path is outside the allowed workspace roots",
+        )
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {target.name}")
+    if not target.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {target.name}")
+
+    try:
+        # Off the event loop: Popen/wait may block briefly on a slow handler.
+        await asyncio.to_thread(_open_file_with_system_default, target)
+    except ExternalOpenUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except ExternalOpenFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "name": target.name}
+
+
+# ── React SPA ──
+if REACT_DIST_EXISTS:
+    react_name = (
+        "react"
+        if not app.routes or not any(
+            getattr(r, "name", "") == "react" for r in app.routes
+        )
+        else "react_v2"
+    )
+
+    @app.get(f"/{react_name}/", response_class=HTMLResponse)
+    async def react_index_html():
+        """Serve React index.html with no-cache so new builds are picked up on refresh."""
+        # The route table is built at import time, but the dist availability
+        # flag can change while the process is alive (and is intentionally
+        # patchable for startup/error-path checks). Do not let the static
+        # mount turn a missing build into a misleading 200 response.
+        if not REACT_DIST_EXISTS:
+            return _react_unavailable_response()
+        return HTMLResponse(
+            content=(REACT_DIST_DIR / "index.html").read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-cache"},
+        )
+
+    app.mount(
+        f"/{react_name}",
+        ReactStaticFiles(directory=str(REACT_DIST_DIR), html=True),
+        name=react_name,
+    )
+
+else:
+
+    @app.get("/react/", response_class=HTMLResponse)
+    async def react_unavailable():
+        """Return an actionable error when the React build is missing."""
+        return _react_unavailable_response()
+
+
+# ── Static files ──
+from packages.actions.api import install as _install_action_api
+_install_action_api(sys.modules[__name__])
+from packages.automation.api import install as _install_automation_api
+_install_automation_api(sys.modules[__name__])
+
+
+STATIC_DIR = _WEB_DIR / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# Native login entries are the sole source of truth; no config.json mirror.
+@app.get("/api/settings/login-startup")
+def api_get_login_startup():
+    from packages.core.login_startup import LoginStartup
+    try:
+        return LoginStartup().status()
+    except (OSError, RuntimeError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.put("/api/settings/login-startup")
+def api_put_login_startup(data: dict = Body(...)):
+    from packages.core.login_startup import LoginStartup, RegistrationError
+    if set(data) != {"enabled", "revision"} or type(data.get("enabled")) is not bool or not isinstance(data.get("revision"), str):
+        raise HTTPException(status_code=422, detail="enabled (boolean) and revision are required")
+    try:
+        return LoginStartup().update(data["enabled"], data["revision"])
+    except RegistrationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (OSError, UnicodeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
