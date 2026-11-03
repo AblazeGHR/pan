@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.196" timestamp="2026-11-03T10:51:17.323296+08:00" hostname="ablaze"><testcase classname="tests.test_service_process_backend" name="test_canonical_restart_uses_existing_cli_start_lock" time="0.013"><failure message="Failed: canonical restart did not hold shared lock">tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6887/test_canonical_restart_uses_ex0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001FD78265350&gt;
+
+    def test_canonical_restart_uses_existing_cli_start_lock(tmp_path, monkeypatch):
+        from packages.core import launcher, main_lifecycle, cli, platform
+        monkeypatch.setattr(platform, "supports", lambda name: True)
+        monkeypatch.setattr(main_lifecycle, "service_process_identity", lambda *a: {"ok": True})
+        monkeypatch.setattr(launcher, "stop_service", lambda *a, **kw: {"stopped": True})
+        monkeypatch.setattr(main_lifecycle, "offline_checks", lambda **kw: {"ok": True})
+        calls = []
+        def start(root, **kw):
+            with pytest.raises(launcher.LauncherError, match="Another pan start"):
+                with cli.start_lock(root):
+                    pytest.fail("canonical restart did not hold shared lock")
+            calls.append(root)
+        monkeypatch.setattr(launcher, "start_service", start)
+        monkeypatch.setattr(main_lifecycle, "ready_checks", lambda **kw: {
+            "ok": True, "newPid": 43, "newPidCreatedAt": 20., "port": 43219,
+            "http": True, "identity": {"ok": True, "root": str(tmp_path.resolve())},
+            "listenerOwner": 43})
+        phases = []
+        store = SimpleNamespace(phase=lambda *a, **kw: phases.append(a[3]))
+        doc = {"effectId": "effect_original", "attempt": {}, "claim": "claim_original",
+            "effectKey": {"runId": "run_original", "stepId": "step_original",
+                          "targetId": "main", "operationOrdinal": 0},
+            "frozenPlan": {"operation": "service.restart", "arguments": {
+                "root": str(tmp_path), "port": 43219, "oldPid": 42, "oldPidCreatedAt": 10.}}}
+&gt;       result = main_lifecycle.run_canonical_supervisor(store, doc)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_service_process_backend.py:140:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+baseline-main-lifecycle:199: in run_canonical_supervisor
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6887/test_canonical_restart_uses_ex0')
+kw = {'timeout': 30.0}
+
+    def start(root, **kw):
+        with pytest.raises(launcher.LauncherError, match="Another pan start"):
+            with cli.start_lock(root):
+&gt;               pytest.fail("canonical restart did not hold shared lock")
+E               Failed: canonical restart did not hold shared lock
+
+tests\test_service_process_backend.py:126: Failed</failure></testcase></testsuite></testsuites>

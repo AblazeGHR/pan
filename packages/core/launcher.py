@@ -1,4 +1,4 @@
-"""Windows-safe Pan process launcher and lifecycle primitives.
+"""Pan process launcher and lifecycle primitives.
 
 The launcher is the single owner of the Windows service boundary.  ``main.py``
 owns the FastAPI/Uvicorn process and QQ bridge; this module owns starting that
@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from packages.core import console_bootstrap, console_logs
+from packages.core.platform import service_process
 
 
 DEFAULT_PORT = 8768
@@ -629,6 +630,15 @@ def _terminate_record(record: dict[str, Any] | None, root: Path, *, log_path: Pa
                       allow_fallback: bool = True) -> dict[str, Any]:
     if not record:
         return {"stopped": True, "fallback": False, "reason": "no recorded process"}
+    if os.name != "nt" and record.get("processType") == "main":
+        # Recovery rechecks native birth/boot/group identity; never synthesize
+        # group authority from a historical PID or psutil timestamp.
+        identity = process_identity(record.get("pid"), root, record.get("createdAt"),
+                                    process_type="main", marker=record.get("marker"),
+                                    entry_marker=record.get("entry"))
+        if not identity.get("ok"):
+            return {"stopped": False, "fallback": False, "reason": identity.get("error")}
+        return service_process.terminate(record)
     identity = process_identity(
         record.get("pid"), root, record.get("createdAt"),
         process_type=record.get("processType", "main"),
@@ -769,7 +779,9 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
     marker = f"--pan-root-marker={root}"
     console_out = log_path.parent / console_logs.OUT_NAME
     console_err = log_path.parent / console_logs.ERR_NAME
-    redirect_console = hidden or os.name == "nt"
+    # Services must not retain the invoking POSIX terminal's stdout/stderr.
+    # Windows already redirected both visible and hidden service consoles.
+    redirect_console = True
     # When redirecting, the console destinations are owned by the child entry
     # shim (see console_bootstrap): no log file handle crosses the process
     # boundary, so a venv python.exe redirector cannot pin the file open.  Both
@@ -800,22 +812,28 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
         # environment and generate their MCP descriptors later, including after a
         # config reload has changed config.json.
         child_env["PAN_PORT"] = str(port)
-        process = subprocess.Popen(
+        process = service_process.spawn(
             argv, cwd=str(root), stdin=subprocess.DEVNULL if hidden else None,
             # DEVNULL also covers interpreters whose stdout handle would otherwise
             # be invalid; the shim redirects to data/logs immediately.
             stdout=subprocess.DEVNULL if redirect_console else None,
             stderr=subprocess.DEVNULL if redirect_console else None,
-            close_fds=True, creationflags=_creation_flags(hidden),
+            creationflags=_creation_flags(hidden),
             env=child_env,
         )
     except OSError as exc:
         raise LauncherError(f"failed to launch Pan Core: {exc}") from exc
     created = process_create_time(process.pid)
     if created is None:
-        process.terminate()
+        if os.name == "nt":
+            process.terminate()
+        else:
+            owned = process.pan_owned_process
+            owned.owner.terminate(owned)
         raise LauncherError("Pan Core creation time could not be read")
     record = _record(process.pid, root, "main", argv, created, marker)
+    if os.name != "nt":
+        record["processIdentity"] = process.pan_process_identity
     identity = process_identity(process.pid, root, created, process_type="main", marker=marker)
     if not identity.get("ok"):
         _terminate_record(record, root, log_path=log_path)

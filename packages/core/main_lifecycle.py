@@ -196,7 +196,11 @@ def run_canonical_supervisor(store, doc):
                              "oldPid": old_pid, "oldPidCreatedAt": birth, "offlineProof": offline},
                              {"confirmed": True}).as_dict()
     store.phase(identity, attempt, claim, "starting")
-    launcher.start_service(Path(root), timeout=launcher.READY_TIMEOUT_SEC)
+    # Share CLI start/debug exclusion; a detached supervisor is not exempt
+    # from a concurrent user start. Lock failure remains an explicit error.
+    from packages.core.cli import start_lock
+    with start_lock(Path(root)):
+        launcher.start_service(Path(root), timeout=launcher.READY_TIMEOUT_SEC)
     store.phase(identity, attempt, claim, "checking_ready")
     deadline = time.monotonic() + START_TIMEOUT_SEC
     checks = {}

@@ -106,6 +106,11 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
 
+CP-X5 第一片（2026-11-03）：POSIX 主服务 spawn/强身份恢复的薄 backend 已接入
+launcher；Linux/macOS `service.lifecycle` 保持 false。完整对等矩阵、官方机制依据、
+Windows 合成 HTTP 证据边界和未完成证明链见
+[CP_X5_PARITY_20261103.md](CP_X5_PARITY_20261103.md)。进程组启动不等于服务生命周期验收。
+
 CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
 启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回
