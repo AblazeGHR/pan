@@ -151,6 +151,16 @@ def test_close_live_process_refuses_fd_release():
                 count=lib.proc_listpgrppids(b.owned.pgid,buf,ctypes.sizeof(buf))
                 exc.add_note(str({'diagnostic_group_members':list(buf[:max(0,count)]),
                     'native_list_count':count,'native_list_errno':ctypes.get_errno()}))
+                import psutil
+                root=psutil.Process(b.pid)
+                exc.add_note(str({'root_status':root.status(),'same_uid':root.uids()==psutil.Process().uids(),
+                    'root_image_basename':os.path.basename(root.exe()),
+                    'children':[p.pid for p in root.children(recursive=True)]}))
+                # Read-only observation of exec/startup settling, bounded; this
+                # never retries a destructive signal or turns uncertainty green.
+                time.sleep(1.)
+                exc.add_note(str({'after_observation_root_code':b.exit_code(),
+                    'after_observation_status':root.status() if root.is_running() else 'gone'}))
             raise
 
 
