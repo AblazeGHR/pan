@@ -637,7 +637,9 @@ def _terminate_record(record: dict[str, Any] | None, root: Path, *, log_path: Pa
                                     process_type="main", marker=record.get("marker"),
                                     entry_marker=record.get("entry"))
         if not identity.get("ok"):
-            return {"stopped": False, "fallback": False, "reason": identity.get("error")}
+            proof = service_process.offline(record)
+            return {"stopped": proof["confirmed"], "fallback": False,
+                    "reason": proof["reason"], "treeProof": proof}
         return service_process.terminate(record)
     identity = process_identity(
         record.get("pid"), root, record.get("createdAt"),
@@ -836,7 +838,12 @@ def _start_main(root: Path, port: int, python_argv: list[str], hidden: bool,
         record["processIdentity"] = process.pan_process_identity
     identity = process_identity(process.pid, root, created, process_type="main", marker=marker)
     if not identity.get("ok"):
-        _terminate_record(record, root, log_path=log_path)
+        if os.name != "nt":
+            cleanup = process.pan_owned_process.owner.kill_tree(process.pan_owned_process, timeout=5)
+            if not cleanup.confirmed:
+                raise LauncherError(f"Pan Core identity failed; original spawn cleanup unconfirmed: {cleanup}")
+        else:
+            _terminate_record(record, root, log_path=log_path)
         raise LauncherError(f"Pan Core identity failed: {identity.get('error')}")
     return record
 
@@ -1084,7 +1091,13 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
         pid, root_path, created, process_type="main",
         marker=record.get("marker"), entry_marker=record.get("entry", MAIN_ENTRY_MARKER),
     )
-    if not identity.get("ok"):
+    already_offline = False
+    if not identity.get("ok") and os.name != "nt":
+        proof = service_process.offline(record)
+        if not proof["confirmed"]:
+            raise LauncherError(f"service tree exit unconfirmed: {proof}")
+        already_offline = True
+    elif not identity.get("ok"):
         if not _same_record_alive(record):
             clear_state(root_path)
             return {"stopped": True, "fallback": False, "reason": "Pan was already offline"}
@@ -1096,7 +1109,12 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     if owner is not None and owner != pid:
         raise LauncherError(f"Pan port {port} is owned by PID={owner}, not verified Pan PID={pid}")
     _write_log(log_path, f"stopping Pan pid={pid} port={port}")
-    coordinated, coordination_error = _request_internal_shutdown(port, log_path)
+    if os.name != "nt" and not already_offline:
+        record["processTreeSnapshot"] = service_process.capture(record)
+        state["main"] = record
+        save_state(root_path, state)
+    coordinated, coordination_error = ((True, None) if already_offline else
+                                        _request_internal_shutdown(port, log_path))
     if coordinated:
         _write_log(log_path, "Pan accepted internal graceful shutdown")
     deadline = time.monotonic() + STOP_TIMEOUT_SEC
@@ -1122,6 +1140,11 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
             raise LauncherError(
                 f"Pan graceful shutdown failed ({coordination_error}); verified fallback failed: {outcome}"
             )
+    tree_proof = None
+    if os.name != "nt":
+        tree_proof = service_process.offline(record)
+        if not tree_proof["confirmed"]:
+            raise LauncherError(f"service tree exit unconfirmed: {tree_proof}")
     from packages.remote.mcp_runtime import control
     control(root_path, "stop")
     for field in ("qq", "cloudflared"):
@@ -1140,7 +1163,7 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     return {
         "stopped": True, "fallback": fallback,
         "fallbackExecutor": "taskkill /T /F" if fallback else None,
-        "coordinated": coordinated, "pid": pid,
+        "coordinated": coordinated, "pid": pid, "treeProof": tree_proof,
     }
 
 

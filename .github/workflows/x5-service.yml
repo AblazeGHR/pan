@@ -1,0 +1,53 @@
+name: X5 owned service lifecycle trial
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  service:
+    name: service (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install service trial dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout
+      - name: Import and collect shared contract suite
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_service_process_backend.py tests/test_x5_service_evidence.py
+          tests/test_x5_service_native.py tests/test_launcher.py
+          tests/test_lifecycle_fast_contract.py tests/test_lifecycle_prelaunch_fence.py
+          tests/test_lifecycle_strict_successors.py tests/test_p5b_lifecycle_action.py
+          --collect-only -q -o addopts=
+      - name: Platform backend, cancellation, receipt and failure contracts
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_service_process_backend.py tests/test_x5_service_evidence.py
+          tests/test_launcher.py tests/test_lifecycle_fast_contract.py
+          tests/test_lifecycle_prelaunch_fence.py tests/test_lifecycle_strict_successors.py
+          tests/test_p5b_lifecycle_action.py
+          -q -ra -o addopts= --timeout=90
+          --junitxml=${{ runner.temp }}/x5-service/contracts.xml
+      - name: Native owned main, independent CLI exit, HTTP restart and lock competition
+        env:
+          X5_RUN_NATIVE_SERVICE: '1'
+          X5_EVIDENCE_ROOT: ${{ runner.temp }}/x5-service/native
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_x5_service_native.py -q -ra -o addopts= --timeout=360
+          --junitxml=${{ runner.temp }}/x5-service/native.xml
+      - name: Upload original failures and target evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x5-service-${{ matrix.os }}
+          path: ${{ runner.temp }}/x5-service/
+          if-no-files-found: error

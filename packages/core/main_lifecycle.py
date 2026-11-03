@@ -187,6 +187,8 @@ def run_canonical_supervisor(store, doc):
     store.phase(identity, attempt, claim, "stopping", root=root, port=port, oldPid=old_pid, oldPidCreatedAt=birth)
     stopped = launcher.stop_service(Path(root), port, old_pid, birth, require_identity=True)
     offline = offline_checks(root=root, port=port, old_pid=old_pid, old_pid_created_at=birth)
+    if stopped.get("treeProof") is not None:
+        offline["serviceTreeProof"] = stopped["treeProof"]
     store.phase(identity, attempt, claim, "stopped", stopReceipt=stopped, offlineProof=offline)
     if stopped.get("stopped") is not True or offline.get("ok") is not True:
         return EffectReceipt(key, "unknown", {"code": "offline_unconfirmed", "phase": "uncertain", "offlineProof": offline},

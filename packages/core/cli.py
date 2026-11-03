@@ -90,7 +90,10 @@ def status(root):
         owner = launcher.listener_owner(port)
         record = launcher.load_state(root).get("main") or {}
         alive = record.get("pid") and launcher.process_alive(record["pid"], record.get("createdAt"))
-        return {**base, "state": "unknown" if owner or alive else "stopped",
+        tree_unknown = False
+        if os.name != "nt" and record.get("pid") and not alive:
+            tree_unknown = not launcher.service_process.offline(record)["confirmed"]
+        return {**base, "state": "unknown" if owner or alive or tree_unknown else "stopped",
                 "listenerOwner": owner, "error": str(exc)}
 
 

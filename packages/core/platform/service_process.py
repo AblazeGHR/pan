@@ -22,8 +22,27 @@ def spawn(argv, *, cwd, env, stdin, stdout, stderr, creationflags=0):
     # later supervisors recover through the same persisted identity contract.
     process = owned.popen
     process.pan_owned_process = owned
-    process.pan_process_identity = owner.recoverable_identity(owned)
+    try:
+        process.pan_process_identity = owner.recoverable_identity(owned)
+    except BaseException:
+        # Only this original retained handle authorizes spawn-abort cleanup.
+        # Never reconstruct authority from a PID whose identity was not saved.
+        cleanup = owner.kill_tree(owned, timeout=5)
+        if not cleanup.confirmed:
+            from packages.core.platform.process import OwnershipUnknownError
+            raise OwnershipUnknownError(f"service spawn identity failed; cleanup unconfirmed: {cleanup}")
+        raise
     return process
+
+
+def capture(record):
+    from packages.core.platform.service_process_posix import capture as observe
+    return observe(record)
+
+
+def offline(record):
+    from packages.core.platform.service_process_posix import offline as observe
+    return observe(record)
 
 
 def terminate(record):
