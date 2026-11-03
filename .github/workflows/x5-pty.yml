@@ -39,6 +39,9 @@ jobs:
           tests/test_platform_process_posix_unit.py tests/test_platform_process_contract.py
           tests/test_terminal_api.py tests/test_service_process_backend.py
           -q -ra -o addopts= --timeout=90 --junitxml=artifacts/x5-pty/contracts.xml
+      - name: Independent native PTY exec and signal diagnostic
+        if: ${{ always() && runner.os != 'Windows' }}
+        run: python scripts/x5_pty_native_repro.py --output artifacts/x5-pty/native-repro.json
       - name: Preserve target provenance
         if: always()
         run: python -c "import json,platform,pathlib,subprocess; p=pathlib.Path('artifacts/x5-pty'); p.mkdir(parents=True,exist_ok=True); (p/'target.json').write_text(json.dumps(dict(sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),platform=platform.platform(),python=platform.python_version(),capabilityInjection=False)),encoding='utf-8')"

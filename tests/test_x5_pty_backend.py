@@ -4,6 +4,7 @@ import sys
 import time
 from dataclasses import replace
 import threading
+import subprocess
 
 import pytest
 
@@ -152,15 +153,24 @@ def test_close_live_process_refuses_fd_release():
                 exc.add_note(str({'diagnostic_group_members':list(buf[:max(0,count)]),
                     'native_list_count':count,'native_list_errno':ctypes.get_errno()}))
                 import psutil
+                from packages.core.platform import process_darwin as darwin
+                native,_=darwin._libraries();info=darwin.BsdInfoWithUniqueId()
+                copied=native.proc_pidinfo(b.pid,darwin.PROC_PIDT_BSDINFOWITHUNIQID,1,
+                    ctypes.byref(info),ctypes.sizeof(info))
+                exc.add_note(str({'native_copy_bytes':copied,'native_status':info.bsd.status,
+                    'native_flags':info.bsd.flags,'uid':info.bsd.uid,'ruid':info.bsd.ruid,
+                    'svuid':info.bsd.svuid,'caller_uid':os.getuid(),'caller_euid':os.geteuid()}))
                 root=psutil.Process(b.pid)
-                exc.add_note(str({'root_status':root.status(),'same_uid':root.uids()==psutil.Process().uids(),
-                    'root_image_basename':os.path.basename(root.exe()),
-                    'children':[p.pid for p in root.children(recursive=True)]}))
-                # Read-only observation of exec/startup settling, bounded; this
-                # never retries a destructive signal or turns uncertainty green.
-                time.sleep(1.)
-                exc.add_note(str({'after_observation_root_code':b.exit_code(),
-                    'after_observation_status':root.status() if root.is_running() else 'gone'}))
+                for name,read in [('status',root.status),('uids',root.uids),
+                    ('image',lambda:os.path.basename(root.exe())),
+                    ('children',lambda:[p.pid for p in root.children(recursive=True)])]:
+                    try:value=read()
+                    except psutil.Error as diagnostic_error:value=type(diagnostic_error).__name__
+                    exc.add_note(str({name:value}))
+                # A bounded retained wait is diagnostic only; keep original failure.
+                try:b.owned.popen.wait(timeout=1.)
+                except subprocess.TimeoutExpired:pass
+                exc.add_note(str({'after_observation_root_code':b.exit_code()}))
             raise
 
 
