@@ -21,3 +21,5 @@ R1 exact f60903afa9e1370f0a2308e884f146580a22162a / CI41677939734 三平台succe
 Windows安装原sidecar依赖后完整组合278 passed/23 skipped，含原emulator48项实际执行；追加启动owner负控3/7（passed/skipped）。代码未开放cap，目标真实host/HTTPWS含snapshot与原生引擎测试待CI。R1原始raw-host候选继续作为独立已验输入，不把其证据混入R2。
 
 R2 CI41680919347 exactc4e21864原红保留r2/ci及zip/hash：Windows success；macOS两个旧FILETIME/DPAPI测试被安装sidecar后误启用；Linux另有自然EOF超时。新增host/emulator/真实HTTPWS snapshot均通过。R3给这两个明确Winpipe/FILETIME恢复和删除秘密断言的测试补Windows平台门禁，不改其断言，POSIX重启lost-owner/unknown回收有独立真目标测试；非将未知回收改成功。POSIX backend read由周期空字节改为原PtyBackend约定的阻塞直到data/EOF/error/cancel，避免quiet-window抢先于真实HUP结束，新增受控terminal事件read不能提前空返回契约，原EOF/tail断言保留。
+
+R3 CI41682823589 exactfdbbe30b三平台success：Windows279/24、Linux205/98、macOS204/99（passed/skipped）。POSIX native snapshot/applied cursor/resize与permission/startup owner、HTTPWS、宿主丢失、原EOF及新read事件契约通过；原emulator48项在POSIX仍属Windows-only，不能混报目标通过。R4只补两个剩余边界证据：跨Session不同terminal的token不得input/resize，两个独立TerminalService竞争原registry同ID时原子create失败不得创建替代终端。source执行路径与R3相同，不提前开放cap或宣称UI/browser验收。

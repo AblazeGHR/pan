@@ -266,3 +266,52 @@ def test_failed_emulator_start_retains_original_cleanup_owner(tmp_path,monkeypat
     assert state.local_resource is owner and state.attached is False
     assert s.close(record.terminal_id)['status']=='exited'
     assert owner.calls==1
+
+
+@native
+def test_cross_session_control_token_cannot_write_other_terminal(tmp_path):
+    s=TerminalService(tmp_path,shell_argv=shell())
+    a=s.create(session_id='owned-session-a')['terminal_id']
+    b=s.create(session_id='owned-session-b')['terminal_id']
+    try:
+        token=s.attach(a,'a-controller',role='control')
+        page=wait(lambda:s.read(b),lambda p:b'HOST-READY' in p['data'])
+        cursor=page['next_cursor']
+        with pytest.raises(NotControlLeaseError,match='token-terminal-mismatch'):
+            s.input(b,token,b'CROSS-SESSION-FORBIDDEN\n')
+        with pytest.raises(NotControlLeaseError,match='token-terminal-mismatch'):
+            s.resize(b,token,40,120)
+        assert s.get(a)['scope']['session_id']=='owned-session-a'
+        assert s.get(b)['scope']['session_id']=='owned-session-b'
+        assert b'CROSS-SESSION-FORBIDDEN' not in s.read(b,cursor)['data']
+    finally:
+        assert s.close(a)['status']=='exited'
+        assert s.close(b)['status']=='exited'
+        s.shutdown()
+
+
+@native
+def test_competing_original_registry_create_never_spawns_replacement(tmp_path,monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    services=[TerminalService(tmp_path,shell_argv=shell()) for _ in range(2)]
+    tid=services[0].registry.new_terminal_id();barrier=threading.Barrier(2)
+    for service in services:
+        create=service.registry.create
+        def synchronized(record,create=create):
+            barrier.wait(timeout=5)
+            return create(record)
+        monkeypatch.setattr(service.registry,'create',synchronized)
+    def create(service):
+        try:return service,service.create(terminal_id=tid)
+        except StartupFailed as error:return service,error
+    with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(create,services))
+    winners=[(s,r) for s,r in results if isinstance(r,dict)]
+    try:
+        assert len(winners)==1
+        losers=[r for _,r in results if isinstance(r,StartupFailed)]
+        assert len(losers)==1 and losers[0].reason=='existing-local-terminal-no-replay'
+        assert len(services[0].registry.list())==1
+        assert sum(len(s._states) for s in services)==1
+    finally:
+        for s,r in winners:assert s.close(r['terminal_id'])['status']=='exited'
