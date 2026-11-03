@@ -1,7 +1,6 @@
-"""Opt-in owned full main/CLI/HTTP trial, including target POSIX candidates.
+"""Opt-in owned main/CLI/HTTP acceptance using shipped capability declarations.
 
-The isolated archived copy explicitly injects ONLY the lifecycle capability
-for target execution. This does not change the shipped capability declaration.
+No capability/sitecustomize injection. Every subprocess runs the archived product.
 """
 import json
 import os
@@ -35,17 +34,8 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
                        cwd=repo, stdout=stream, check=True)
     with tarfile.open(archive) as stream:
         stream.extractall(root, filter="data")
-    # No production flag is added. Only this disposable, marker-fenced copy
-    # performs a candidate capability trial across its independently spawned hosts.
-    (root / ".x5-owned-trial").touch()
-    (root / "sitecustomize.py").write_text(
-        "import os\nfrom pathlib import Path\n"
-        "r=Path(__file__).resolve().parent\n"
-        "if str(r)==os.environ.get('X5_OWNED_TRIAL_ROOT') and (r/'.x5-owned-trial').is_file():\n"
-        " import packages.core.platform as p\n"
-        " old=p.CAPABILITIES['service.lifecycle']\n"
-        " p.CAPABILITIES['service.lifecycle']=p.Capability(old.name, old.supported_on|{p.platform_name()}, 'owned X5 candidate trial')\n",
-        encoding="utf-8")
+    assert not (root / "sitecustomize.py").exists()
+    assert (root / "packages/core/platform/__init__.py").read_bytes() == (repo / "packages/core/platform/__init__.py").read_bytes()
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -56,8 +46,8 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
         "session_lifecycle": {"exitStrategy": "ask", "startupPreference": "ask"}}
     (root / "config.json").write_text(json.dumps(config), encoding="utf-8")
     env = {k: v for k, v in os.environ.items() if not k.upper().startswith("PAN_") and k.upper() != "PYTHONPATH"}
-    env.update(PYTHONPATH=str(root), X5_OWNED_TRIAL_ROOT=str(root), PYTHONIOENCODING="utf-8")
-    observed = {"sourceSha": source, "trialCapabilityInjection": True, "protectedPortAvoided": True,
+    env.update(PYTHONPATH=str(root), PYTHONIOENCODING="utf-8")
+    observed = {"sourceSha": source, "trialCapabilityInjection": False, "protectedPortAvoided": True,
                 "platform": sys.platform, "declaredCapabilityUnchanged": True}
     holder = None
     release = root / "release-lock"
@@ -101,6 +91,20 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
         # This CLI subprocess is the startup caller/Worker surrogate. It must
         # exit before independently surviving main is queried below.
         cli("start", "--timeout", "25", via_worker=True)
+        from packages.core import platform
+        platform_response = http("GET", "/api/platform")
+        platform_response.raise_for_status()
+        advertised = platform_response.json()
+        assert advertised == {"platform": platform.platform_name(), "capabilities": platform.capabilities()}
+        assert advertised["capabilities"]["service.lifecycle"] is True
+        if os.name == "posix":
+            assert advertised["capabilities"]["process.hiddenDesktop"] is False
+        for operation in ("restart", "exit"):
+            status_response = http("GET", f"/api/main/{operation}/status")
+            status_response.raise_for_status()
+            assert status_response.json()["available"] is True, status_response.text
+        observed["httpPlatformLifecycleSupported"] = True
+        observed["httpLifecycleStatusAvailable"] = True
         old = http("GET", "/api/main/identity").json()
         assert Path(old["root"]).resolve() == root
         assert json.loads(cli("status").stdout)["state"] == "running"

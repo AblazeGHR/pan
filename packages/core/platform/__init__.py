@@ -127,11 +127,11 @@ CAPABILITIES: Mapping[str, Capability] = {
         frozenset({WINDOWS}),
         "rewind 复用 ConPTY 交互式菜单自动化",
     ),
-    # UI Exit/Restart 依赖 main_lifecycle supervisor（cmd.exe 脱离父进程树）。
+    # 同用户、direct Python 服务生命周期；不是 sandbox 或开机/登出持久服务。
     "service.lifecycle": Capability(
         "service.lifecycle",
-        frozenset({WINDOWS}),
-        "main lifecycle supervisor 依赖 Windows 脱离父进程树的启动方式",
+        frozenset({WINDOWS, DARWIN, LINUX}),
+        "同用户 direct Python 服务 start/exit/restart/status；原身份/receipt/组证明，不承诺 sandbox、logout/reboot 自启或 POSIX 异 PID handoff",
     ),
     # 进程所有权：Windows Job Object 与 POSIX setsid/进程组实现均可由
     # typed executor 复用；各平台仍需通过契约测试证明实际运行语义。

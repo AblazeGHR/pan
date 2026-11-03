@@ -57,10 +57,11 @@ def test_capability_matrix_shape_and_order():
 
 def test_capabilities_match_implemented_platform_backends():
     # ProcessOwner now has both Windows Job Object and POSIX process-group
-    # implementations. Other Phase A capabilities remain Windows-only.
+    # implementations, including scoped service lifecycle. Other capabilities
+    # retain their own platform boundary (especially hiddenDesktop).
     for name in EXPECTED_CAPABILITIES:
         assert plat.supports(name, "win32") is True, name
-        expected = name in {"processOwner", "job.runtimeOwner", "time.hostZone"}
+        expected = name in {"processOwner", "job.runtimeOwner", "time.hostZone", "service.lifecycle"}
         assert plat.supports(name, "darwin") is expected, name
         assert plat.supports(name, "linux") is expected, name
 

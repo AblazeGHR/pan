@@ -2,6 +2,38 @@
 
 Windows 用户级 `pan` 入口通过绝对安装路径启动，与当前工作目录无关。不需要管理员权限，不安装系统服务；命令只管理注册指向的这一份 Pan。
 
+## Linux / macOS 服务生命周期
+
+`service.lifecycle` 正式支持 Windows、Linux 和 macOS。在 Linux/macOS 的 checkout
+目录中，用已安装项目依赖的直接 Python 解释器运行 CLI（系统 Python 或 `.venv/bin/python`）：
+
+```sh
+cd /absolute/path/to/Pan
+python -m packages.core.cli --root "$PWD" start
+python -m packages.core.cli --root "$PWD" status
+python -m packages.core.cli --root "$PWD" restart --running offline
+python -m packages.core.cli --root "$PWD" exit --running preserve
+```
+
+支持范围是同一 OS 用户、同一 checkout 的 start/exit/restart/status。start 确认 ready
+后返回；启动终端结束或启动 Worker 进程退出后，服务可继续运行。目标验证包含独立合成
+Worker 与 CLI 两层退出，不代表验证了所有第三方宿主的外层 Job/sandbox 强制清理策略。
+`GET /api/platform` 返回 `service.lifecycle=true`；App Settings 的 Restart/Exit 复用
+同一 capability 与 canonical Action。
+
+服务生命周期不提供 sandbox 安全隔离保证。POSIX 退出证明覆盖原进程组及已观察成员，
+不承诺任意未观察逃逸后代的 containment；不能把这种进程管理等同于 Windows 私有桌面、
+受限令牌或 Job 安全机制。Linux/macOS 的 `process.hiddenDesktop` 仍为 false。
+
+本功能不注册 systemd/launchd，不包含登出保持或开机自启。POSIX 解释器 wrapper 若让
+listener 转移到不同 PID，会明确报 `unsupported_interpreter_handoff`；请使用直接
+Python 解释器。身份、权限、旧树残留或启动结果未确认时返回错误/unknown，保留原 receipt
+及所有权记录，不自动重投；不要用新请求绕过旧 unknown。
+
+POSIX `debug` 是前台弱身份调试路径，不属于上述强身份组生命周期承诺；不会凭 PID/时间戳
+增加组终止权限。无法证明安全时相关操作会拒绝或保持 unknown。需要完整生命周期时使用
+`start`。下文的用户级命令注册与 show/hide console 是 Windows 功能。
+
 | 命令 | 行为 |
 | --- | --- |
 | `pan start` | 复用 launcher 的解释器选择、实例检查与 HTTP ready 屏障。按 `startup.console_hidden` 启动独立进程，ready 后返回；重复实例/端口冲突返回非零。 |
@@ -28,7 +60,7 @@ pan restart --running offline
 pan exit --running preserve
 ```
 
-debug 保留前台 main.py 的信号行为：主服务 Ctrl+C 不构成安全退出授权。需要合法退出时，在另一个 shell 使用 `pan exit`。前台调试窗口归调用者所有，show/hide 拒绝控制该窗口。默认日志为 `data/logs/pan.log`，配置的 `logging.file` 可以覆盖；stdout/stderr 也保留在前台。debug 不是 doctor，且不会修改 `logging.level`。
+debug 保留前台 main.py 的信号行为：主服务 Ctrl+C 不构成安全退出授权。Windows 调试实例需要合法退出时，可在另一个 shell 使用 `pan exit`；POSIX debug 的弱身份限制见上文。前台调试窗口归调用者所有，show/hide 拒绝控制该窗口。默认日志为 `data/logs/pan.log`，配置的 `logging.file` 可以覆盖；stdout/stderr 也保留在前台。debug 不是 doctor，且不会修改 `logging.level`。
 
 ## 隐藏、detach 与日志
 

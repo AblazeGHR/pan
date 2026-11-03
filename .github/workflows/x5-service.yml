@@ -25,7 +25,7 @@ jobs:
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
           tests/test_service_process_backend.py tests/test_x5_service_evidence.py tests/test_x5_service_network.py
-          tests/test_x5_service_native.py tests/test_launcher.py
+          tests/test_x5_service_native.py tests/test_launcher.py tests/test_platform_layer.py tests/test_platform_api.py
           tests/test_lifecycle_fast_contract.py tests/test_lifecycle_prelaunch_fence.py
           tests/test_lifecycle_strict_successors.py tests/test_p5b_lifecycle_action.py
           --collect-only -q -o addopts=
@@ -35,7 +35,7 @@ jobs:
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
           tests/test_service_process_backend.py tests/test_x5_service_evidence.py tests/test_x5_service_network.py
-          tests/test_launcher.py tests/test_lifecycle_fast_contract.py
+          tests/test_launcher.py tests/test_platform_layer.py tests/test_platform_api.py tests/test_lifecycle_fast_contract.py
           tests/test_lifecycle_prelaunch_fence.py tests/test_lifecycle_strict_successors.py
           tests/test_p5b_lifecycle_action.py
           -q -ra -o addopts= --timeout=90

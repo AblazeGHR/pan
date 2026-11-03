@@ -927,7 +927,7 @@ def _canonical_lifecycle_status(operation: str) -> dict:
 def _main_restart_status() -> dict:
     paths = _main_restart_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = platform_layer.is_windows() and launcher_module.is_file()
+    available = platform_layer.supports("service.lifecycle") and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -964,11 +964,11 @@ def _main_restart_status() -> dict:
         result["requestId"] = request_id
     if not available:
         result["reason"] = (
-            "main service restart is available only on Windows"
-            if not platform_layer.is_windows()
+            "main service restart requires service.lifecycle support"
+            if not platform_layer.supports("service.lifecycle")
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
-        if not platform_layer.is_windows():
+        if not platform_layer.supports("service.lifecycle"):
             result["code"] = "unsupported_platform"
     return result
 
@@ -1075,7 +1075,7 @@ def _main_exit_paths() -> dict[str, Path]:
 def _main_exit_status() -> dict:
     paths = _main_exit_paths()
     launcher_module = Path(launcher.__file__).resolve()
-    available = platform_layer.is_windows() and launcher_module.is_file()
+    available = platform_layer.supports("service.lifecycle") and launcher_module.is_file()
     missing = [str(path) for path in paths.values() if not path.is_file()]
     registry_root = _main_restart_registry_root()
     port = _main_restart_port()
@@ -1124,11 +1124,11 @@ def _main_exit_status() -> dict:
         result["error"] = error
     if not available:
         result["reason"] = (
-            "main service exit is available only on Windows"
-            if not platform_layer.is_windows()
+            "main service exit requires service.lifecycle support"
+            if not platform_layer.supports("service.lifecycle")
             else "Pan lifecycle supervisor is missing: " + str(launcher_module)
         )
-        if not platform_layer.is_windows():
+        if not platform_layer.supports("service.lifecycle"):
             result["code"] = "unsupported_platform"
     return result
 
@@ -4017,7 +4017,7 @@ async def health():
     return {"status": "ok", "version": __version__}
 
 
-def _unsupported_platform(feature: str) -> JSONResponse:
+def _unsupported_platform(feature: str, *, message: str | None = None) -> JSONResponse:
     """Stable "unsupported on this platform" contract: 501 + static code.
 
     Carries no path, account, host or exception text: clients decide from the
@@ -4029,7 +4029,7 @@ def _unsupported_platform(feature: str) -> JSONResponse:
             "ok": False,
             "error": {
                 "code": "unsupported_platform",
-                "message": f"{feature} is available on Windows only",
+                "message": message or f"{feature} is available on Windows only",
             },
         },
     )
@@ -4180,7 +4180,8 @@ async def api_system_main_lifecycle(payload: Annotated[dict | None, Body()] = No
         raise HTTPException(status_code=409, detail={"code": "service_online", "message": "start is a host-local Action"})
     options = _parse_main_lifecycle_options({"options": payload.get("options", {})}, operation)
     if operation in lifecycle_action.PROTECTED_OPERATIONS and not platform_layer.supports("service.lifecycle"):
-        return _unsupported_platform("Main service " + operation)
+        return _unsupported_platform("Main service " + operation,
+                                     message="service.lifecycle is not supported on this platform")
     current_pid = os.getpid()
     current_birth = launcher.process_create_time(current_pid)
     if current_birth is None:
@@ -4322,7 +4323,7 @@ async def api_runtime_issue_schema():
 
 @app.get("/api/main/restart/status")
 async def api_main_restart_status():
-    """Report whether the safe Windows main-service restart is available."""
+    """Report availability of the declared main-service lifecycle capability."""
     return _main_restart_status()
 
 

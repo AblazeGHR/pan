@@ -1,7 +1,7 @@
 """Durable lifecycle supervisor for the Pan main service.
 
 Canonical state lives in the independent execution receipt store. Protected
-Windows stop/start uses the verified launcher primitives. Legacy supervisor
+Service stop/start uses the verified platform launcher primitives. Legacy supervisor
 names are retained as read-only compatibility entry points until R6.
 """
 from __future__ import annotations

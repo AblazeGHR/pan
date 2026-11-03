@@ -184,6 +184,9 @@ Use a Job row menu **Pin / Unpin** to keep important Jobs ahead of unpinned rows
 
 The main-service **Restart** and **Exit** controls are under App Settings → **General**. In supported launch modes, the settings page provides the main-service restart action; if it is unavailable, restart Pan through the same entry point used to start it. These controls are different from the Worker **Restart** in the top bar. The current default values for **Restart and Exit Session policy** and **Startup preference** are **Ask every time**. Restart or Exit stops live Workers; when a Session still has a persisted legal state of running, the configured policy can ask whether to mark it offline or preserve that state.
 
+Windows, Linux, and macOS declare `service.lifecycle` support. On Linux/macOS, use the same user and a direct Python interpreter (system Python or a virtual environment); the service survives the starting terminal and a synthetic Worker process exiting. This is service management, not a sandbox: it does not promise containment of unobserved escaped descendants, logout persistence, or boot startup. POSIX interpreter handoff to another PID remains unsupported. Foreground debug identity does not grant additional termination authority; use `start` for managed lifecycle. `process.hiddenDesktop` remains unavailable on POSIX. See [CLI commands and limits](PAN_CLI.md).
+
+
 If Pan starts and finds Sessions still recorded as running but without a live Worker, the Dashboard shows **Continue previous Sessions?**, lists the candidates, and asks you to choose:
 
 1. **Restart these Sessions**: send “继续” (continue) to each candidate through the normal Session message path.

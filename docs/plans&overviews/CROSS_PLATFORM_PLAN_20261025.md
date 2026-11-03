@@ -102,9 +102,11 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `terminal.native` | 可用 | 不可用 | 不可用 | Windows ConPTY + Job Object；POSIX PTY 属 Phase D |
 | `terminal.detach` | 可用 | 不可用 | 不可用 | durable detach 依赖 Job Object 与命名管道所有权 |
 | `rewind` | 可用 | 不可用 | 不可用 | 复用 ConPTY 交互式菜单自动化（仅 cbc） |
-| `service.lifecycle` | 可用 | 不可用 | 不可用 | UI 旧入口保留；WP05b canonical 单步 service.restart/exit 经受保护 supervisor，取消窗口在 stopping 前关闭，ready/offline 需证据；POSIX 显式 capability_unsupported |
+| `service.lifecycle` | 可用 | 可用（限定范围） | 可用（限定范围） | 同用户 direct Python；原 receipt/授权/取消/锁/ready 与 offline 证明链；POSIX 不支持异 PID interpreter handoff，不承诺 sandbox、logout 或开机自启；见 [CLI](../PAN_CLI.md) |
 | `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
+
+当前 CP-X5 正式声明 Linux/macOS service.lifecycle 支持上述范围；原生门禁直接运行产品声明，不再注入能力。hiddenDesktop 保持 false。正式声明候选的远端证据另见 `artifacts/cp-x5/RELEASE_REPORT.md`。以下 R1/R2/底层候选记录是历史阶段，false 描述不代表当前注册表。
 
 CP-X5 第一片（2026-11-03）：POSIX 主服务 spawn/强身份恢复的薄 backend 已接入
 launcher；Linux/macOS `service.lifecycle` 保持 false。完整对等矩阵、官方机制依据、

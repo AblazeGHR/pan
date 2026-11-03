@@ -184,6 +184,12 @@ Job 行菜单的 **Pin / Unpin** 可让重要 Job 排在未置顶项前。置顶
 
 主服务的 **Restart** 和 **Exit** 位于 App Settings → **General**，与顶栏的 Worker **Restart** 不同。在受支持的启动方式下，设置页提供主服务重启；若该按钮显示不可用，请通过启动 Pan 时使用的同一入口重启。当前默认的 **Restart and Exit Session policy** 与 **Startup preference** 都是 **Ask every time**。重启或退出会停止活 Worker；如有 Session 的 legal state 仍为 running，设置允许询问是否标记为 offline 或保留 running 状态。
 
+Windows/Linux/macOS 均声明 `service.lifecycle` 支持。同用户、直接 Python 解释器通过
+`start` 启动的服务，可在启动终端及启动 Worker 退出后继续运行；验证使用合成 Worker。
+这不包括登出保持、开机自启或 sandbox 安全隔离，也不保证任意未观察逃逸后代的 containment。
+POSIX 异 PID interpreter handoff 保持明确 unsupported，前台 weak debug 不增加组杀权限；
+Linux/macOS hiddenDesktop 仍关闭。命令与完整边界见 [Pan CLI](PAN_CLI.md)。
+
 如果 Pan 启动时发现某些 Session 仍记录为 running，但没有活 Worker，Dashboard 会显示 **Continue previous Sessions?**，列出候选项并要求选择：
 
 1. **Restart these Sessions**：按正常 Session 消息路径向每个候选项发送“继续”。

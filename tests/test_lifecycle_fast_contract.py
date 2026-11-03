@@ -1,9 +1,4 @@
-"""Fast unit contracts; capability injection is not POSIX lifecycle support.
-
-Windows exercises the real declared capability. On POSIX these tests inject
-only that capability decision to cover shared logic; a separate test exercises
-the real host's explicit 501 boundary. No platform identity is changed.
-"""
+"""Fast contracts using real service declarations; explicit false negative controls remain."""
 import asyncio
 import json
 

@@ -115,7 +115,18 @@ def test_main_lifecycle_status_marks_unsupported(monkeypatch, tmp_path, status_f
     status = getattr(srv, status_fn)()
     assert status["available"] is False
     assert status["code"] == "unsupported_platform"
-    assert "Windows" in status["reason"]
+    assert "service.lifecycle" in status["reason"]
+
+
+@pytest.mark.parametrize("status_fn", ["_main_exit_status", "_main_restart_status"])
+def test_main_lifecycle_status_uses_capability_without_windows_gate(monkeypatch, tmp_path, status_fn):
+    monkeypatch.setattr(srv, "_PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(platform_layer, "is_windows", lambda *a: False)
+    actual = platform_layer.supports
+    monkeypatch.setattr(platform_layer, "supports", lambda name, *a: True if name == "service.lifecycle" else actual(name, *a))
+    status = getattr(srv, status_fn)()
+    assert status["available"] is True
+    assert "unsupported_platform" != status.get("code")
 
 
 def test_terminal_api_marks_non_windows_as_unsupported(monkeypatch):

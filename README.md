@@ -64,6 +64,8 @@ python main.py
 
 Windows 的 `scripts/setup.bat` 和 `scripts/start_pan.bat` 自动注册当前用户 `pan` 命令（只 clone 不触发；任意分支或无 Git 均可用；新终端生效，冲突警告不阻止启动）：start、exit、restart、debug、status、logs、doctor、show/hide console 及 help/version。隐藏启动确认 ready 后返回，合法退出使用 `pan exit`（主服务 Ctrl+C 不构成安全退出授权）。窗口控制和稳定安装的注册/卸载步骤见 [Pan CLI](docs/PAN_CLI.md)。
 
+Linux/macOS 也支持同用户、direct Python 的服务 start/exit/restart/status，启动终端及合成 Worker 退出后服务可继续。可在 checkout 中运行 `python -m packages.core.cli --root "$PWD" start`；完整范围和命令见 [Pan CLI](docs/PAN_CLI.md)。本功能不提供 sandbox 隔离、登出保持或开机自启，不注册 systemd/launchd；POSIX 异 PID interpreter handoff 明确 unsupported，weak debug 不增加杀权限，hiddenDesktop 仍关闭。
+
 ## 第一个 Session
 
 打开 Dashboard，点击侧栏 **New** 快速创建；点击旁边的设置按钮可指定 Adapter、Session Template、模型和 workdir。选中 Session 后点击 **Start**，或直接发送第一条消息。忙碌时追加的消息会进入发送队列。**Import** 可浏览并导入支持的 CLI 历史会话。
