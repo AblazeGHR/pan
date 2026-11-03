@@ -1,0 +1,2859 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/editor-system-open-20261104/packages/web/src[39m
+
+ [31m❯[39m components/editor/EditorFileTopBar.test.tsx [2m([22m[2m30 tests[22m[2m | [22m[31m6 failed[39m[2m)[22m[33m 551[2mms[22m[39m
+[31m   [31m×[31m EditorFileTopBar external open[2m > [22mopens the on-disk version of an unsaved buffer and says so[90m 19[2mms[22m[31m[39m
+[31m     → expected true to be false // Object.is equality[39m
+[31m   [31m×[31m EditorFileTopBar external open[2m > [22mkeeps both OS actions available for a failed read-only preview[90m 32[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"文件没有未保存修改"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mtitle[31m=[32m"用系统默认方式打开"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+      [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+    [36m>[31m
+      [36m<span[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+        [33mtitle[31m=[32m"D:\\project\\huge.bin"[31m
+      [36m>[31m
+        [0mD:\project\huge.bin[0m
+      [36m</span>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"保存文件"[31m
+        [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"文件没有未保存修改"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-save"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+        [36m>[31m
+          [0m保存[0m
+        [36m</span>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"复制完整路径"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"复制完整路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-copy"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<rect[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mrx[31m=[32m"2"[31m
+            [33mry[31m=[32m"2"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mx[31m=[32m"8"[31m
+            [33my[31m=[32m"8"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"用系统默认方式打开"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mtitle[31m=[32m"用系统默认方式打开"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-external-link"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15 3h6v6"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M10 14 21 3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"下载当前文件"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"下载当前文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-download"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M12 15V3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m7 10 5 5 5-5"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"加入聊天"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"加入聊天"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-message-square"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+[31m   [31m×[31m EditorFileTopBar reveal in file manager[2m > [22mreveals the current file in the system file manager[90m 30[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"文件没有未保存修改"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mtitle[31m=[32m"用系统默认方式打开"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+      [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+    [36m>[31m
+      [36m<span[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+        [33mtitle[31m=[32m"D:\\project\\src\\one.ts"[31m
+      [36m>[31m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"保存文件"[31m
+        [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"文件没有未保存修改"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-save"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+        [36m>[31m
+          [0m保存[0m
+        [36m</span>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"复制完整路径"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"复制完整路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-copy"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<rect[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mrx[31m=[32m"2"[31m
+            [33mry[31m=[32m"2"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mx[31m=[32m"8"[31m
+            [33my[31m=[32m"8"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"用系统默认方式打开"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mtitle[31m=[32m"用系统默认方式打开"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-external-link"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15 3h6v6"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M10 14 21 3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"下载当前文件"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"下载当前文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-download"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M12 15V3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m7 10 5 5 5-5"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"加入聊天"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"加入聊天"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-message-square"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+[31m   [31m×[31m EditorFileTopBar reveal in file manager[2m > [22mreveals the disk file even when the buffer has unsaved changes[90m 27[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mtitle[31m=[32m"保存文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"请先保存修改后再用系统默认方式打开"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+      [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+    [36m>[31m
+      [36m<span[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+        [33mtitle[31m=[32m"D:\\project\\src\\one.ts"[31m
+      [36m>[31m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"保存文件"[31m
+        [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mtitle[31m=[32m"保存文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-save"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+        [36m>[31m
+          [0m保存[0m
+        [36m</span>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"复制完整路径"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"复制完整路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-copy"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<rect[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mrx[31m=[32m"2"[31m
+            [33mry[31m=[32m"2"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mx[31m=[32m"8"[31m
+            [33my[31m=[32m"8"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"用系统默认方式打开"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"请先保存修改后再用系统默认方式打开"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-external-link"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15 3h6v6"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M10 14 21 3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"下载当前文件"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"下载当前文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-download"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M12 15V3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m7 10 5 5 5-5"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"加入聊天"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"加入聊天"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-message-square"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+[31m   [31m×[31m EditorFileTopBar reveal in file manager[2m > [22mdisables reveal for attachment previews without a real path[90m 21[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"文件没有未保存修改"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"该文件没有可用的本地路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+      [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+    [36m>[31m
+      [36m<span[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+        [33mtitle[31m=[32m"D:\\project\\attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"[31m
+      [36m>[31m
+        [0mD:\project\attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[0m
+      [36m</span>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"保存文件"[31m
+        [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"文件没有未保存修改"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-save"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+        [36m>[31m
+          [0m保存[0m
+        [36m</span>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"复制完整路径"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"复制完整路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-copy"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<rect[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mrx[31m=[32m"2"[31m
+            [33mry[31m=[32m"2"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mx[31m=[32m"8"[31m
+            [33my[31m=[32m"8"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"用系统默认方式打开"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"该文件没有可用的本地路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-external-link"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15 3h6v6"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M10 14 21 3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"下载当前文件"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"下载当前文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-download"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M12 15V3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m7 10 5 5 5-5"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"加入聊天"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"加入聊天"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-message-square"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+[31m   [31m×[31m EditorFileTopBar reveal in file manager[2m > [22mshows the server error in place when reveal fails[90m 24[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"文件没有未保存修改"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mtitle[31m=[32m"用系统默认方式打开"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+      [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+    [36m>[31m
+      [36m<span[31m
+        [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+        [33mtitle[31m=[32m"D:\\project\\src\\one.ts"[31m
+      [36m>[31m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"保存文件"[31m
+        [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mdisabled[31m=[32m""[31m
+        [33mtitle[31m=[32m"文件没有未保存修改"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-save"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+        [36m>[31m
+          [0m保存[0m
+        [36m</span>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"复制完整路径"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"复制完整路径"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-copy"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<rect[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mrx[31m=[32m"2"[31m
+            [33mry[31m=[32m"2"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mx[31m=[32m"8"[31m
+            [33my[31m=[32m"8"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"用系统默认方式打开"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+        [33mtitle[31m=[32m"用系统默认方式打开"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-external-link"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M15 3h6v6"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M10 14 21 3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"下载当前文件"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"下载当前文件"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-download"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M12 15V3"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+          [36m/>[31m
+          [36m<path[31m
+            [33md[31m=[32m"m7 10 5 5 5-5"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+      [36m<button[31m
+        [33maria-label[31m=[32m"加入聊天"[31m
+        [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+        [33mtitle[31m=[32m"加入聊天"[31m
+        [33mtype[31m=[32m"button"[31m
+      [36m>[31m
+        [36m<svg[31m
+          [33maria-hidden[31m=[32m"true"[31m
+          [33mclass[31m=[32m"lucide lucide-message-square"[31m
+          [33mfill[31m=[32m"none"[31m
+          [33mheight[31m=[32m"14"[31m
+          [33mstroke[31m=[32m"currentColor"[31m
+          [33mstroke-linecap[31m=[32m"round"[31m
+          [33mstroke-linejoin[31m=[32m"round"[31m
+          [33mstroke-width[31m=[32m"2"[31m
+          [33mviewBox[31m=[32m"0 0 24 24"[31m
+          [33mwidth[31m=[32m"14"[31m
+          [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+        [36m>[31m
+          [36m<path[31m
+            [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+          [36m/>[31m
+        [36m</svg>[31m
+      [36m</button>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+ [31m❯[39m components/editor/EditorPane.test.tsx [2m([22m[2m6 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 3070[2mms[22m[39m
+   [33m[2m✓[22m[39m EditorPane editor action wiring[2m > [22mloads Markdown preview on demand and retains preview/edit/split mode switching [33m1145[2mms[22m[39m
+[31m   [31m×[31m keeps both OS actions for a failed read-only preview[90m 54[2mms[22m[31m[39m
+[31m     → Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "关闭 binary.bin":
+  [36m<button[31m
+    [33maria-label[31m=[32m"关闭 binary.bin"[31m
+    [33mclass[31m=[32m"ml-0.5 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary flex-shrink-0 visible"[31m
+    [33mtitle[31m=[32m"Close"[31m
+  [36m/>[31m
+
+  Name "保存文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"保存文件"[31m
+    [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mdisabled[31m=[32m""[31m
+    [33mtitle[31m=[32m"文件没有未保存修改"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "复制完整路径":
+  [36m<button[31m
+    [33maria-label[31m=[32m"复制完整路径"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"复制完整路径"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "用系统默认方式打开":
+  [36m<button[31m
+    [33maria-label[31m=[32m"用系统默认方式打开"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+    [33mtitle[31m=[32m"用系统默认方式打开"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "下载当前文件":
+  [36m<button[31m
+    [33maria-label[31m=[32m"下载当前文件"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"下载当前文件"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  Name "加入聊天":
+  [36m<button[31m
+    [33maria-label[31m=[32m"加入聊天"[31m
+    [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+    [33mtitle[31m=[32m"加入聊天"[31m
+    [33mtype[31m=[32m"button"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+  alert:
+
+  Name "":
+  [36m<div[31m
+    [33mclass[31m=[32m"flex-1 p-4 text-sm text-text-secondary"[31m
+    [33mrole[31m=[32m"alert"[31m
+  [36m/>[31m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<div[31m
+      [33mclass[31m=[32m"flex flex-col flex-1 min-w-0 bg-bg-primary"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"flex items-stretch"[31m
+      [36m>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"flex-1 min-w-0"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"flex items-stretch h-8 bg-bg-secondary border-b border-border-default flex-shrink-0 overflow-x-auto"[31m
+          [36m>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"flex items-center gap-1.5 px-3 text-xs cursor-pointer border-r border-border-default flex-shrink-0 select-none group bg-bg-primary text-text-primary border-b-2 border-b-accent -mb-px"[31m
+              [33mdata-testid[31m=[32m"editor-tab"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33mclass[31m=[32m"w-1.5 h-1.5 rounded-full flex-shrink-0 bg-transparent"[31m
+              [36m/>[31m
+              [36m<span[31m
+                [33mclass[31m=[32m"truncate max-w-[120px]"[31m
+              [36m>[31m
+                [0mbinary.bin[0m
+              [36m</span>[31m
+              [36m<button[31m
+                [33maria-label[31m=[32m"关闭 binary.bin"[31m
+                [33mclass[31m=[32m"ml-0.5 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary flex-shrink-0 visible"[31m
+                [33mtitle[31m=[32m"Close"[31m
+              [36m>[31m
+                [0m✕[0m
+              [36m</button>[31m
+            [36m</div>[31m
+          [36m</div>[31m
+        [36m</div>[31m
+      [36m</div>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[31m
+        [33mdata-testid[31m=[32m"editor-file-topbar"[31m
+      [36m>[31m
+        [36m<span[31m
+          [33mclass[31m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[31m
+          [33mtitle[31m=[32m"D:\\project\\binary.bin"[31m
+        [36m>[31m
+          [0mD:\project\binary.bin[0m
+        [36m</span>[31m
+        [36m<button[31m
+          [33maria-label[31m=[32m"保存文件"[31m
+          [33mclass[31m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+          [33mdisabled[31m=[32m""[31m
+          [33mtitle[31m=[32m"文件没有未保存修改"[31m
+          [33mtype[31m=[32m"button"[31m
+        [36m>[31m
+          [36m<svg[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"lucide lucide-save"[31m
+            [33mfill[31m=[32m"none"[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mstroke[31m=[32m"currentColor"[31m
+            [33mstroke-linecap[31m=[32m"round"[31m
+            [33mstroke-linejoin[31m=[32m"round"[31m
+            [33mstroke-width[31m=[32m"2"[31m
+            [33mviewBox[31m=[32m"0 0 24 24"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+          [36m>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[31m
+            [36m/>[31m
+          [36m</svg>[31m
+          [36m<span[31m
+            [33mclass[31m=[32m"hidden sm:inline text-[11px]"[31m
+          [36m>[31m
+            [0m保存[0m
+          [36m</span>[31m
+        [36m</button>[31m
+        [36m<button[31m
+          [33maria-label[31m=[32m"复制完整路径"[31m
+          [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+          [33mtitle[31m=[32m"复制完整路径"[31m
+          [33mtype[31m=[32m"button"[31m
+        [36m>[31m
+          [36m<svg[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"lucide lucide-copy"[31m
+            [33mfill[31m=[32m"none"[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mstroke[31m=[32m"currentColor"[31m
+            [33mstroke-linecap[31m=[32m"round"[31m
+            [33mstroke-linejoin[31m=[32m"round"[31m
+            [33mstroke-width[31m=[32m"2"[31m
+            [33mviewBox[31m=[32m"0 0 24 24"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+          [36m>[31m
+            [36m<rect[31m
+              [33mheight[31m=[32m"14"[31m
+              [33mrx[31m=[32m"2"[31m
+              [33mry[31m=[32m"2"[31m
+              [33mwidth[31m=[32m"14"[31m
+              [33mx[31m=[32m"8"[31m
+              [33my[31m=[32m"8"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[31m
+            [36m/>[31m
+          [36m</svg>[31m
+        [36m</button>[31m
+        [36m<button[31m
+          [33maria-label[31m=[32m"用系统默认方式打开"[31m
+          [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[31m
+          [33mtitle[31m=[32m"用系统默认方式打开"[31m
+          [33mtype[31m=[32m"button"[31m
+        [36m>[31m
+          [36m<svg[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"lucide lucide-external-link"[31m
+            [33mfill[31m=[32m"none"[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mstroke[31m=[32m"currentColor"[31m
+            [33mstroke-linecap[31m=[32m"round"[31m
+            [33mstroke-linejoin[31m=[32m"round"[31m
+            [33mstroke-width[31m=[32m"2"[31m
+            [33mviewBox[31m=[32m"0 0 24 24"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+          [36m>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M15 3h6v6"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M10 14 21 3"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[31m
+            [36m/>[31m
+          [36m</svg>[31m
+        [36m</button>[31m
+        [36m<button[31m
+          [33maria-label[31m=[32m"下载当前文件"[31m
+          [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+          [33mtitle[31m=[32m"下载当前文件"[31m
+          [33mtype[31m=[32m"button"[31m
+        [36m>[31m
+          [36m<svg[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"lucide lucide-download"[31m
+            [33mfill[31m=[32m"none"[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mstroke[31m=[32m"currentColor"[31m
+            [33mstroke-linecap[31m=[32m"round"[31m
+            [33mstroke-linejoin[31m=[32m"round"[31m
+            [33mstroke-width[31m=[32m"2"[31m
+            [33mviewBox[31m=[32m"0 0 24 24"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+          [36m>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M12 15V3"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[31m
+            [36m/>[31m
+            [36m<path[31m
+              [33md[31m=[32m"m7 10 5 5 5-5"[31m
+            [36m/>[31m
+          [36m</svg>[31m
+        [36m</button>[31m
+        [36m<button[31m
+          [33maria-label[31m=[32m"加入聊天"[31m
+          [33mclass[31m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[31m
+          [33mtitle[31m=[32m"加入聊天"[31m
+          [33mtype[31m=[32m"button"[31m
+        [36m>[31m
+          [36m<svg[31m
+            [33maria-hidden[31m=[32m"true"[31m
+            [33mclass[31m=[32m"lucide lucide-message-square"[31m
+            [33mfill[31m=[32m"none"[31m
+            [33mheight[31m=[32m"14"[31m
+            [33mstroke[31m=[32m"currentColor"[31m
+            [33mstroke-linecap[31m=[32m"round"[31m
+            [33mstroke-linejoin[31m=[32m"round"[31m
+            [33mstroke-width[31m=[32m"2"[31m
+            [33mviewBox[31m=[32m"0 0 24 24"[31m
+            [33mwidth[31m=[32m"14"[31m
+            [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+          [36m>[31m
+            [36m<path[31m
+              [33md[31m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[31m
+            [36m/>[31m
+          [36m</svg>[31m
+        [36m</button>[31m
+      [36m</div>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"flex-1 p-4 text-sm text-text-secondary"[31m
+        [33mrole[31m=[32m"alert"[31m
+      [36m>[31m
+        [0m无法预览此文件：[0m
+        [0mCannot read binary file[0m
+        [0m。可使用“下载当前文件”获取原始文件。[0m
+      [36m</div>[31m
+    [36m</div>[31m
+  [36m</div>[31m
+[36m</body>[31m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 7 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar external open[2m > [22mopens the on-disk version of an unsaved buffer and says so
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m318:29[22m[39m
+    [90m316| [39m      name[33m:[39m [32m'用系统默认方式打开'[39m[33m,[39m
+    [90m317| [39m    }) [35mas[39m [33mHTMLButtonElement[39m[33m;[39m
+    [90m318| [39m    [34mexpect[39m(button[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m319| [39m    [34mexpect[39m(button[33m.[39mtitle)[33m.[39m[34mtoContain[39m([32m'磁盘上的版本'[39m)[33m;[39m
+    [90m320| [39m    fireEvent[33m.[39m[34mclick[39m(button)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar external open[2m > [22mkeeps both OS actions available for a failed read-only preview
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"文件没有未保存修改"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mtitle[39m=[32m"用系统默认方式打开"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+      [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+        [33mtitle[39m=[32m"D:\\project\\huge.bin"[39m
+      [36m>[39m
+        [0mD:\project\huge.bin[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"保存文件"[39m
+        [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"文件没有未保存修改"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-save"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+        [36m>[39m
+          [0m保存[0m
+        [36m</span>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"复制完整路径"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"复制完整路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-copy"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<rect[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mrx[39m=[32m"2"[39m
+            [33mry[39m=[32m"2"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mx[39m=[32m"8"[39m
+            [33my[39m=[32m"8"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"用系统默认方式打开"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mtitle[39m=[32m"用系统默认方式打开"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-external-link"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15 3h6v6"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M10 14 21 3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"下载当前文件"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"下载当前文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-download"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 15V3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m7 10 5 5 5-5"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"加入聊天"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"加入聊天"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-message-square"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m334:29[22m[39m
+    [90m332| [39m
+    [90m333| [39m    [35mfor[39m ([35mconst[39m name [35mof[39m [[32m'用系统默认方式打开'[39m[33m,[39m [32m'在系统资源管理器中定位'[39m…
+    [90m334| [39m      [35mconst[39m button [33m=[39m screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m { name }) [35mas[39m [33mHTMLButto[39m…
+    [90m   | [39m                            [31m^[39m
+    [90m335| [39m      [34mexpect[39m(button[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m336| [39m    }
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar reveal in file manager[2m > [22mreveals the current file in the system file manager
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"文件没有未保存修改"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mtitle[39m=[32m"用系统默认方式打开"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+      [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+        [33mtitle[39m=[32m"D:\\project\\src\\one.ts"[39m
+      [36m>[39m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"保存文件"[39m
+        [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"文件没有未保存修改"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-save"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+        [36m>[39m
+          [0m保存[0m
+        [36m</span>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"复制完整路径"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"复制完整路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-copy"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<rect[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mrx[39m=[32m"2"[39m
+            [33mry[39m=[32m"2"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mx[39m=[32m"8"[39m
+            [33my[39m=[32m"8"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"用系统默认方式打开"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mtitle[39m=[32m"用系统默认方式打开"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-external-link"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15 3h6v6"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M10 14 21 3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"下载当前文件"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"下载当前文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-download"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 15V3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m7 10 5 5 5-5"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"加入聊天"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"加入聊天"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-message-square"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m397:28[22m[39m
+    [90m395| [39m    [34mrenderBar[39m()[33m;[39m
+    [90m396| [39m
+    [90m397| [39m    fireEvent[33m.[39m[34mclick[39m(screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m { name[33m:[39m [32m'在系统资源管理[39m…
+    [90m   | [39m                           [31m^[39m
+    [90m398| [39m
+    [90m399| [39m    [35mawait[39m [34mwaitFor[39m(() [33m=>[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar reveal in file manager[2m > [22mreveals the disk file even when the buffer has unsaved changes
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mtitle[39m=[32m"保存文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"请先保存修改后再用系统默认方式打开"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+      [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+        [33mtitle[39m=[32m"D:\\project\\src\\one.ts"[39m
+      [36m>[39m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"保存文件"[39m
+        [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mtitle[39m=[32m"保存文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-save"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+        [36m>[39m
+          [0m保存[0m
+        [36m</span>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"复制完整路径"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"复制完整路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-copy"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<rect[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mrx[39m=[32m"2"[39m
+            [33mry[39m=[32m"2"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mx[39m=[32m"8"[39m
+            [33my[39m=[32m"8"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"用系统默认方式打开"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"请先保存修改后再用系统默认方式打开"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-external-link"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15 3h6v6"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M10 14 21 3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"下载当前文件"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"下载当前文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-download"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 15V3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m7 10 5 5 5-5"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"加入聊天"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"加入聊天"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-message-square"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m408:27[22m[39m
+    [90m406| [39m    [34mrenderBar[39m()[33m;[39m
+    [90m407| [39m
+    [90m408| [39m    [35mconst[39m button [33m=[39m screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m {
+    [90m   | [39m                          [31m^[39m
+    [90m409| [39m      name[33m:[39m [32m'在系统资源管理器中定位'[39m[33m,[39m
+    [90m410| [39m    }) [35mas[39m [33mHTMLButtonElement[39m[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar reveal in file manager[2m > [22mdisables reveal for attachment previews without a real path
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"文件没有未保存修改"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"该文件没有可用的本地路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+      [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+        [33mtitle[39m=[32m"D:\\project\\attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"[39m
+      [36m>[39m
+        [0mD:\project\attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"保存文件"[39m
+        [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"文件没有未保存修改"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-save"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+        [36m>[39m
+          [0m保存[0m
+        [36m</span>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"复制完整路径"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"复制完整路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-copy"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<rect[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mrx[39m=[32m"2"[39m
+            [33mry[39m=[32m"2"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mx[39m=[32m"8"[39m
+            [33my[39m=[32m"8"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"用系统默认方式打开"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"该文件没有可用的本地路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-external-link"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15 3h6v6"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M10 14 21 3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"下载当前文件"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"下载当前文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-download"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 15V3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m7 10 5 5 5-5"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"加入聊天"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"加入聊天"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-message-square"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m422:27[22m[39m
+    [90m420| [39m    [34mrenderBar[39m([32m'attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'[39m)[33m;[39m
+    [90m421| [39m
+    [90m422| [39m    [35mconst[39m button [33m=[39m screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m {
+    [90m   | [39m                          [31m^[39m
+    [90m423| [39m      name[33m:[39m [32m'在系统资源管理器中定位'[39m[33m,[39m
+    [90m424| [39m    }) [35mas[39m [33mHTMLButtonElement[39m[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorFileTopBar.test.tsx[2m > [22mEditorFileTopBar reveal in file manager[2m > [22mshows the server error in place when reveal fails
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"文件没有未保存修改"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mtitle[39m=[32m"用系统默认方式打开"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+      [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+    [36m>[39m
+      [36m<span[39m
+        [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+        [33mtitle[39m=[32m"D:\\project\\src\\one.ts"[39m
+      [36m>[39m
+        [0mD:\project\src\one.ts[0m
+      [36m</span>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"保存文件"[39m
+        [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mdisabled[39m=[32m""[39m
+        [33mtitle[39m=[32m"文件没有未保存修改"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-save"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+        [36m>[39m
+          [0m保存[0m
+        [36m</span>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"复制完整路径"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"复制完整路径"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-copy"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<rect[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mrx[39m=[32m"2"[39m
+            [33mry[39m=[32m"2"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mx[39m=[32m"8"[39m
+            [33my[39m=[32m"8"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"用系统默认方式打开"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+        [33mtitle[39m=[32m"用系统默认方式打开"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-external-link"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M15 3h6v6"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M10 14 21 3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"下载当前文件"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"下载当前文件"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-download"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M12 15V3"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+          [36m/>[39m
+          [36m<path[39m
+            [33md[39m=[32m"m7 10 5 5 5-5"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+      [36m<button[39m
+        [33maria-label[39m=[32m"加入聊天"[39m
+        [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+        [33mtitle[39m=[32m"加入聊天"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m>[39m
+        [36m<svg[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"lucide lucide-message-square"[39m
+          [33mfill[39m=[32m"none"[39m
+          [33mheight[39m=[32m"14"[39m
+          [33mstroke[39m=[32m"currentColor"[39m
+          [33mstroke-linecap[39m=[32m"round"[39m
+          [33mstroke-linejoin[39m=[32m"round"[39m
+          [33mstroke-width[39m=[32m"2"[39m
+          [33mviewBox[39m=[32m"0 0 24 24"[39m
+          [33mwidth[39m=[32m"14"[39m
+          [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+        [36m>[39m
+          [36m<path[39m
+            [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+          [36m/>[39m
+        [36m</svg>[39m
+      [36m</button>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorFileTopBar.test.tsx:[2m437:28[22m[39m
+    [90m435| [39m    [34mrenderBar[39m()[33m;[39m
+    [90m436| [39m
+    [90m437| [39m    fireEvent[33m.[39m[34mclick[39m(screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m { name[33m:[39m [32m'在系统资源管理[39m…
+    [90m   | [39m                           [31m^[39m
+    [90m438| [39m
+    [90m439| [39m    [35mawait[39m [34mwaitFor[39m(() [33m=>[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m components/editor/EditorPane.test.tsx[2m > [22mkeeps both OS actions for a failed read-only preview
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an accessible element with the role "button" and name "在系统资源管理器中定位"
+
+Here are the accessible roles:
+
+  button:
+
+  Name "关闭 binary.bin":
+  [36m<button[39m
+    [33maria-label[39m=[32m"关闭 binary.bin"[39m
+    [33mclass[39m=[32m"ml-0.5 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary flex-shrink-0 visible"[39m
+    [33mtitle[39m=[32m"Close"[39m
+  [36m/>[39m
+
+  Name "保存文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"保存文件"[39m
+    [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mdisabled[39m=[32m""[39m
+    [33mtitle[39m=[32m"文件没有未保存修改"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "复制完整路径":
+  [36m<button[39m
+    [33maria-label[39m=[32m"复制完整路径"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"复制完整路径"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "用系统默认方式打开":
+  [36m<button[39m
+    [33maria-label[39m=[32m"用系统默认方式打开"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+    [33mtitle[39m=[32m"用系统默认方式打开"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "下载当前文件":
+  [36m<button[39m
+    [33maria-label[39m=[32m"下载当前文件"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"下载当前文件"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "加入聊天":
+  [36m<button[39m
+    [33maria-label[39m=[32m"加入聊天"[39m
+    [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+    [33mtitle[39m=[32m"加入聊天"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  alert:
+
+  Name "":
+  [36m<div[39m
+    [33mclass[39m=[32m"flex-1 p-4 text-sm text-text-secondary"[39m
+    [33mrole[39m=[32m"alert"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex flex-col flex-1 min-w-0 bg-bg-primary"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex items-stretch"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex-1 min-w-0"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-stretch h-8 bg-bg-secondary border-b border-border-default flex-shrink-0 overflow-x-auto"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-1.5 px-3 text-xs cursor-pointer border-r border-border-default flex-shrink-0 select-none group bg-bg-primary text-text-primary border-b-2 border-b-accent -mb-px"[39m
+              [33mdata-testid[39m=[32m"editor-tab"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"w-1.5 h-1.5 rounded-full flex-shrink-0 bg-transparent"[39m
+              [36m/>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"truncate max-w-[120px]"[39m
+              [36m>[39m
+                [0mbinary.bin[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33maria-label[39m=[32m"关闭 binary.bin"[39m
+                [33mclass[39m=[32m"ml-0.5 p-0.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-text-primary flex-shrink-0 visible"[39m
+                [33mtitle[39m=[32m"Close"[39m
+              [36m>[39m
+                [0m✕[0m
+              [36m</button>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex min-h-8 items-center gap-2 border-b border-border-default bg-bg-primary px-2 py-1"[39m
+        [33mdata-testid[39m=[32m"editor-file-topbar"[39m
+      [36m>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary"[39m
+          [33mtitle[39m=[32m"D:\\project\\binary.bin"[39m
+        [36m>[39m
+          [0mD:\project\binary.bin[0m
+        [36m</span>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"保存文件"[39m
+          [33mclass[39m=[32m"flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+          [33mdisabled[39m=[32m""[39m
+          [33mtitle[39m=[32m"文件没有未保存修改"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-save"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M7 3v4a1 1 0 0 0 1 1h7"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"hidden sm:inline text-[11px]"[39m
+          [36m>[39m
+            [0m保存[0m
+          [36m</span>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"复制完整路径"[39m
+          [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+          [33mtitle[39m=[32m"复制完整路径"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-copy"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<rect[39m
+              [33mheight[39m=[32m"14"[39m
+              [33mrx[39m=[32m"2"[39m
+              [33mry[39m=[32m"2"[39m
+              [33mwidth[39m=[32m"14"[39m
+              [33mx[39m=[32m"8"[39m
+              [33my[39m=[32m"8"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"用系统默认方式打开"[39m
+          [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"[39m
+          [33mtitle[39m=[32m"用系统默认方式打开"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-external-link"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M15 3h6v6"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M10 14 21 3"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"下载当前文件"[39m
+          [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+          [33mtitle[39m=[32m"下载当前文件"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-download"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M12 15V3"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"[39m
+            [36m/>[39m
+            [36m<path[39m
+              [33md[39m=[32m"m7 10 5 5 5-5"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"加入聊天"[39m
+          [33mclass[39m=[32m"flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary"[39m
+          [33mtitle[39m=[32m"加入聊天"[39m
+          [33mtype[39m=[32m"button"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"lucide lucide-message-square"[39m
+            [33mfill[39m=[32m"none"[39m
+            [33mheight[39m=[32m"14"[39m
+            [33mstroke[39m=[32m"currentColor"[39m
+            [33mstroke-linecap[39m=[32m"round"[39m
+            [33mstroke-linejoin[39m=[32m"round"[39m
+            [33mstroke-width[39m=[32m"2"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mwidth[39m=[32m"14"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+        [36m</button>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex-1 p-4 text-sm text-text-secondary"[39m
+        [33mrole[39m=[32m"alert"[39m
+      [36m>[39m
+        [0m无法预览此文件：[0m
+        [0mCannot read binary file[0m
+        [0m。可使用“下载当前文件”获取原始文件。[0m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+[90m [2m❯[22m Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:[2m37:19[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m76:38[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m52:17[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m95:19[22m[39m
+[36m [2m❯[22m components/editor/EditorPane.test.tsx:[2m213:26[22m[39m
+    [90m211| [39m   [34mexpect[39m(screen[33m.[39m[34mgetByRole[39m([32m'alert'[39m)[33m.[39mtextContent)[33m.[39m[34mtoContain[39m([32m'Cannot rea[39m…
+    [90m212| [39m   [35mconst[39m open [33m=[39m screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m {name[33m:[39m [32m'用系统默认方式打开'[39m…
+    [90m213| [39m   [35mconst[39m reveal [33m=[39m screen[33m.[39m[34mgetByRole[39m([32m'button'[39m[33m,[39m {name[33m:[39m [32m'在系统资源管理器[39m…
+    [90m   | [39m                         [31m^[39m
+    [90m214| [39m   [34mexpect[39m(open[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m215| [39m   [34mexpect[39m(reveal[33m.[39mdisabled)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m7 failed[39m[22m[2m | [22m[1m[32m29 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 01:11:56
+[2m   Duration [22m 6.09s[2m (transform 646ms, setup 28ms, collect 1.43s, tests 3.62s, environment 1.70s, prepare 307ms)[22m
+

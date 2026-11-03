@@ -15090,28 +15090,8 @@ def _reap_external_opener(process: "subprocess.Popen") -> None:
     threading.Thread(target=reap, name="external-open-reaper", daemon=True).start()
 
 
-def _opener_error_detail(exc: OSError) -> str:
-    """Readable opener failure without echoing the user's full path."""
-    code = getattr(exc, "winerror", None) or exc.errno
-    suffix = f" {code}" if code else ""
-    return f"system file opener failed ({type(exc).__name__}{suffix})"
-
-
-def _open_file_with_system_default(target: Path) -> None:
-    """Open one existing file with the OS default handler, never via a shell."""
-    if sys.platform == "win32":
-        startfile = getattr(os, "startfile", None)
-        if startfile is None:
-            raise ExternalOpenUnavailable("no system file opener is available")
-        try:
-            startfile(str(target))
-        except OSError as exc:
-            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
-        return
-
-    argv = _external_opener_argv(target)
-    if argv is None:
-        raise ExternalOpenUnavailable("no system file opener is available")
+def _launch_external_opener(argv: list[str], *, ignore_nonzero_exit: bool = False) -> None:
+    """Start a fixed opener argv without a shell and reap it if it stays open."""
     try:
         process = subprocess.Popen(
             argv,
@@ -15134,8 +15114,72 @@ def _open_file_with_system_default(target: Path) -> None:
         # out of band instead of holding the request open.
         _reap_external_opener(process)
         return
-    if returncode != 0:
+    if returncode != 0 and not ignore_nonzero_exit:
         raise ExternalOpenFailed(f"system file opener exited with status {returncode}")
+
+
+def _opener_error_detail(exc: OSError) -> str:
+    """Readable opener failure without echoing the user's full path."""
+    code = getattr(exc, "winerror", None) or exc.errno
+    suffix = f" {code}" if code else ""
+    return f"system file opener failed ({type(exc).__name__}{suffix})"
+
+
+def _open_file_with_system_default(target: Path) -> None:
+    """Open one existing file with the OS default handler, never via a shell."""
+    if sys.platform == "win32":
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise ExternalOpenUnavailable("no system file opener is available")
+        try:
+            startfile(str(target))
+        except OSError as exc:
+            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+        return
+
+    argv = _external_opener_argv(target)
+    if argv is None:
+        raise ExternalOpenUnavailable("no system file opener is available")
+    _launch_external_opener(argv)
+
+
+def _external_reveal_argv(target: Path, platform: str | None = None) -> list[str] | None:
+    """Return the fixed reveal argv for `platform`, or None when unavailable.
+
+    Windows has no argv form here; it uses Explorer's ``/select,`` switch, which
+    is handled separately so its nonzero exit status can be tolerated. Linux
+    has no portable "select this file" primitive, so xdg-open receives the
+    containing directory. A session without a desktop is explicitly
+    unsupported rather than launching a terminal-only helper.
+    """
+    selected = platform or sys.platform
+    if selected == "darwin":
+        return ["open", "-R", str(target)]
+    if selected.startswith("linux"):
+        if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+            return None
+        opener = shutil.which("xdg-open")
+        return [opener, str(target.parent)] if opener else None
+    return None
+
+
+def _reveal_file_in_file_manager(target: Path) -> None:
+    """Select one existing file in the platform's file manager, never via a shell."""
+    if sys.platform == "win32":
+        explorer = shutil.which("explorer.exe") or shutil.which("explorer")
+        if explorer is None:
+            raise ExternalOpenUnavailable("no system file manager is available")
+        # Explorer returns a nonzero exit status even when the window opens, so
+        # only a spawn failure is actionable here.
+        _launch_external_opener(
+            [explorer, "/select,", str(target)], ignore_nonzero_exit=True
+        )
+        return
+
+    argv = _external_reveal_argv(target)
+    if argv is None:
+        raise ExternalOpenUnavailable("no system file manager is available")
+    _launch_external_opener(argv)
 
 
 def _editor_open_allowed_roots(session_id: str) -> list[Path]:
@@ -15159,14 +15203,12 @@ def _editor_open_allowed_roots(session_id: str) -> list[Path]:
     return roots
 
 
-@app.post("/api/editor/open-external")
-async def api_editor_open_external(data: dict):
-    """Open one Editor file with the operating system's default application.
+def _resolve_editor_file_target(data: dict) -> Path:
+    """Resolve the one file an Editor OS action may touch.
 
-    The request carries a path, never a command. It is resolved with the same
-    containment rules as the Editor read path (``..``, absolute escapes and
-    symlink targets are resolved first) and must stay inside the Session
-    workdir or one of its Workspace dirs.
+    Shared by open and reveal so both keep the Editor containment rules:
+    ``..``, absolute escapes and symlink targets are resolved first, then the
+    result must stay inside the Session workdir or one of its Workspace dirs.
     """
     session_id = data.get("session_id")
     raw_path = data.get("path")
@@ -15194,10 +15236,41 @@ async def api_editor_open_external(data: dict):
         raise HTTPException(status_code=404, detail=f"File not found: {target.name}")
     if not target.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {target.name}")
+    return target
+
+
+@app.post("/api/editor/open-external")
+async def api_editor_open_external(data: dict):
+    """Open one Editor file with the operating system's default application.
+
+    The request carries a path, never a command. It is resolved with the same
+    containment rules as the Editor read path (``..``, absolute escapes and
+    symlink targets are resolved first) and must stay inside the Session
+    workdir or one of its Workspace dirs.
+    """
+    target = _resolve_editor_file_target(data)
 
     try:
         # Off the event loop: Popen/wait may block briefly on a slow handler.
         await asyncio.to_thread(_open_file_with_system_default, target)
+    except ExternalOpenUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except ExternalOpenFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "name": target.name}
+
+
+@app.post("/api/editor/reveal-external")
+async def api_editor_reveal_external(data: dict):
+    """Reveal one Editor file in the operating system's file manager.
+
+    The path rules are identical to ``/api/editor/open-external``; the request
+    still carries a path, never a command.
+    """
+    target = _resolve_editor_file_target(data)
+
+    try:
+        await asyncio.to_thread(_reveal_file_in_file_manager, target)
     except ExternalOpenUnavailable as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except ExternalOpenFailed as exc:

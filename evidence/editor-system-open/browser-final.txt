@@ -1,0 +1,5 @@
+PASS production HTTP Chromium: open+reveal notes, failed binary/large tabs, dirty disk-only open, 403/404/400 negative controls, 390px fit
+cleanup verified {
+  port: 57433,
+  runtime: 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\test-results\\system-open-1793726101398'
+}
