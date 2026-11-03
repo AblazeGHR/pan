@@ -971,6 +971,8 @@ class TerminalService:
             try:
                 return self._registry.create(record)
             except TerminalExistsError:
+                if self._local_posix:
+                    raise StartupFailed("existing-local-terminal-no-replay")
                 if terminal_id is not None:
                     # 调用方显式指定了已存在的 id：不覆盖既有记录/秘密，改用新 id。
                     replacement = TerminalRecord(
@@ -1107,7 +1109,12 @@ class TerminalService:
             if retained is not None:
                 state.client=retained
             pending_backend=getattr(error,"pty_backend",None)
-            if retained is not None or pending_backend is not None:
+            failed_owner=getattr(error,"owner",None)
+            if retained is None and (pending_backend is not None or failed_owner is not None):
+                from .local_host import LocalStartupResource
+                state.client=LocalStartupResource(failed_owner or pending_backend,backend=pending_backend)
+                state.local_resource=failed_owner or pending_backend
+            if (retained is not None and retained.backend is not None) or pending_backend is not None:
                 backend=retained.backend if retained is not None else pending_backend
                 state.local_resource=backend
                 state.process=backend.owned.popen
@@ -1156,7 +1163,7 @@ class TerminalService:
                 if finished and report is not None and not report.ok:
                     state.close_call=None
                 return {"status":"cleanup-failed","missing":"local-cleanup-unconfirmed","proven":False}
-            code=state.client.backend.exit_code()
+            code=state.client.backend.exit_code() if state.client.backend is not None else None
             state.record=self._registry.update(state.terminal_id,
                 lambda r:self._apply_exited(r,reason=reason,exit_code=code))
             state.attached=False

@@ -13,3 +13,9 @@ UI门禁：TerminalPanel/NativeTerminal使用terminalWs.ts，hello即请求snaps
 路径：本TA持有local_host.py、service.py薄装配分支、contracts.py local字段、专用测试/workflow；下一步emulator.py平台spawn/guard与local_host现有bridge接线，cap注册表/terminal_api gate仅在目标证据后串行开放。主服务已签收引用、main/practical均不动。
 
 R1 exact f60903afa9e1370f0a2308e884f146580a22162a / CI41677939734 三平台success：Win222/29、Linux201/50、macOS200/51（passed/skipped）。POSIX所有新增host及真实HTTPWS/宿主进程丢失测试实际执行通过。原工件见artifacts/cp-x5-pty-host/r1/ci。cap仍false，候选入口并非现有UI完整完成；下一片继续原emulator平台抽取。
+
+## R2 原emulator宿主平台抽取
+
+新增platform/emulator_process_posix.py薄ProcessOwner资源适配；emulator.py Windows挂起创建/Job原装配抽为独立方法，公共Node握手/有序feed/resize/snapshot/applied cursor未重写，POSIX强identity原组/已观察成员proof决定回收，unknown保owner，guard.close不产生信号权限。local_host经原RunnerEmulatorBridge供料，snapshot使用原引擎applied cursor及valid/reset/baseline约束；resize分别PTY和engine ack。没有自建ANSI parser。启动失败时保留原StartupCleanupOwner，可显式有界close重试。
+
+Windows安装原sidecar依赖后完整组合278 passed/23 skipped，含原emulator48项实际执行；追加启动owner负控3/7（passed/skipped）。代码未开放cap，目标真实host/HTTPWS含snapshot与原生引擎测试待CI。R1原始raw-host候选继续作为独立已验输入，不把其证据混入R2。

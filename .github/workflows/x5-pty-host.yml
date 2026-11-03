@@ -21,17 +21,23 @@ jobs:
           python-version: '3.12'
       - name: Install
         run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout websockets
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Original headless sidecar dependencies
+        working-directory: packages/core/terminal/emulator_sidecar
+        run: npm ci
       - name: Shared import and collection
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
-          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py
+          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py tests/test_terminal_emulator.py
           tests/test_terminal_service.py tests/test_terminal_service_rework.py tests/test_terminal_service_ma.py
           tests/test_terminal_runtime.py tests/test_terminal_ownership.py tests/test_terminal_api.py tests/test_terminal_ws.py
           --collect-only -q -o addopts=
       - name: Native owned host HTTP WS and Windows original regressions
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
-          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py
+          tests/test_x5_pty_host.py tests/test_x5_pty_backend.py tests/test_terminal_emulator.py
           tests/test_terminal_service.py tests/test_terminal_service_rework.py tests/test_terminal_service_ma.py
           tests/test_terminal_runtime.py tests/test_terminal_ownership.py tests/test_terminal_api.py tests/test_terminal_ws.py
           -q -ra -o addopts= --timeout=120 --junitxml=artifacts/x5-pty-host/contracts.xml

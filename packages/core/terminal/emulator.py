@@ -415,6 +415,10 @@ def _force_terminate_root(
     ``min(剩余总预算, kill_timeout)``。这是本层的等待参数，不是 OS 级
     ``TerminateProcess`` 硬时限承诺（进程终止完成时刻由内核调度决定）。
     """
+    # Thin platform resource seam; the framing/applied-cursor engine is shared.
+    cleanup=getattr(guard,"verified_cleanup",None)
+    if callable(cleanup):
+        return cleanup(proc,pid,identity,budget=budget)
     from . import identity as identity_module
 
     outcome: dict[str, Any] = {
@@ -754,7 +758,7 @@ class HeadlessEmulator:
         self._applier_thread: threading.Thread | None = None
 
         # --- platform gate ------------------------------------------------
-        if sys.platform != "win32":
+        if sys.platform not in {"win32", "linux", "darwin"}:
             raise EmulatorStartupError(
                 "HeadlessEmulator 生产宿主仅支持 Windows（Job Object 所有权）；"
                 f"sys.platform={sys.platform!r}",
@@ -799,6 +803,68 @@ class HeadlessEmulator:
     # ------------------------------------------------------------------
 
     def _spawn_and_handshake(self) -> None:
+        if sys.platform == "win32":
+            self._spawn_windows_sidecar()
+        else:
+            from packages.core.platform.emulator_process_posix import PosixEmulatorProcess
+            try:
+                self._guard=PosixEmulatorProcess([self._node_binary,str(self._sidecar_path)],
+                    cwd=str(self._sidecar_path.parent))
+                self._proc=self._guard.proc
+                self._sidecar_pid=self._proc.pid
+                self._sidecar_identity=self._guard.identity
+            except Exception as error:
+                self._fail_startup("POSIX sidecar ownership failed",cause=error)
+
+        self._stderr_thread = threading.Thread(
+            target=self._stderr_loop, name="emulator-stderr", daemon=True
+        )
+        self._stderr_thread.start()
+        self._reader_thread = threading.Thread(
+            target=self._reader_loop, name="emulator-reader", daemon=True
+        )
+        self._reader_thread.start()
+
+        hello = {
+            "v": PROTOCOL_VERSION,
+            "type": "hello",
+            "cols": self._cols,
+            "rows": self._rows,
+            "scrollback": self._scrollback,
+            "max_pending_tail": self._max_pending_tail_bytes,
+            "max_reasons": self._max_reasons,
+            "max_rejected_ranges": self._max_rejected_ranges,
+            "start_cursor": str(self._producer_frontier),
+        }
+        try:
+            assert self._proc.stdin is not None
+            self._proc.stdin.write(encode_frame(hello))
+            self._proc.stdin.flush()
+        except (OSError, ValueError, EmulatorProtocolError) as exc:
+            self._fail_startup(f"sidecar hello 写入失败（{type(exc).__name__}）", cause=exc)
+
+        if not self._ready_event.wait(self._startup_timeout):
+            self._fail_startup(
+                f"sidecar 启动握手超时（{self._startup_timeout}s）；"
+                f"stderr={self._stderr_digest()!r}"
+            )
+        if self._startup_failure is not None:
+            self._fail_startup(f"sidecar 不可用：{self._startup_failure}")
+        # F1（组合发现）：ready 事件也可能被 EOF/读异常提前唤醒（_note_engine_failure）；
+        # 无 ready_info 即握手从未成立 —— 与 fatal/timeout 走同一 _fail_startup
+        # （携带 owner/residual），绝不成功构造出 dead engine。
+        if self._ready_info is None:
+            note = self._engine_error_note or "handshake-aborted-before-ready"
+            self._fail_startup(
+                f"sidecar 握手前中止（{note}）；stderr={self._stderr_digest()!r}"
+            )
+
+        self._applier_thread = threading.Thread(
+            target=self._applier_loop, name="emulator-applier", daemon=True
+        )
+        self._applier_thread.start()
+
+    def _spawn_windows_sidecar(self) -> None:
         from . import guard as guard_module
         from . import identity as identity_module
 
@@ -850,53 +916,6 @@ class HeadlessEmulator:
         except Exception as exc:
             self._fail_startup(f"sidecar 门禁失败（{type(exc).__name__}: {exc}）", cause=exc)
 
-        self._stderr_thread = threading.Thread(
-            target=self._stderr_loop, name="emulator-stderr", daemon=True
-        )
-        self._stderr_thread.start()
-        self._reader_thread = threading.Thread(
-            target=self._reader_loop, name="emulator-reader", daemon=True
-        )
-        self._reader_thread.start()
-
-        hello = {
-            "v": PROTOCOL_VERSION,
-            "type": "hello",
-            "cols": self._cols,
-            "rows": self._rows,
-            "scrollback": self._scrollback,
-            "max_pending_tail": self._max_pending_tail_bytes,
-            "max_reasons": self._max_reasons,
-            "max_rejected_ranges": self._max_rejected_ranges,
-            "start_cursor": str(self._producer_frontier),
-        }
-        try:
-            assert self._proc.stdin is not None
-            self._proc.stdin.write(encode_frame(hello))
-            self._proc.stdin.flush()
-        except (OSError, ValueError, EmulatorProtocolError) as exc:
-            self._fail_startup(f"sidecar hello 写入失败（{type(exc).__name__}）", cause=exc)
-
-        if not self._ready_event.wait(self._startup_timeout):
-            self._fail_startup(
-                f"sidecar 启动握手超时（{self._startup_timeout}s）；"
-                f"stderr={self._stderr_digest()!r}"
-            )
-        if self._startup_failure is not None:
-            self._fail_startup(f"sidecar 不可用：{self._startup_failure}")
-        # F1（组合发现）：ready 事件也可能被 EOF/读异常提前唤醒（_note_engine_failure）；
-        # 无 ready_info 即握手从未成立 —— 与 fatal/timeout 走同一 _fail_startup
-        # （携带 owner/residual），绝不成功构造出 dead engine。
-        if self._ready_info is None:
-            note = self._engine_error_note or "handshake-aborted-before-ready"
-            self._fail_startup(
-                f"sidecar 握手前中止（{note}）；stderr={self._stderr_digest()!r}"
-            )
-
-        self._applier_thread = threading.Thread(
-            target=self._applier_loop, name="emulator-applier", daemon=True
-        )
-        self._applier_thread.start()
 
     def _fail_startup(self, reason: str, *, cause: BaseException | None = None) -> NoReturn:
         """构造失败统一出口：有界整 Job 清理 + 携带 owner/残留信息的异常。
@@ -933,7 +952,7 @@ class HeadlessEmulator:
             "pid": self._sidecar_pid,
             "identity_filetime": (
                 str(self._sidecar_identity.created_at_filetime)
-                if self._sidecar_identity is not None
+                if self._sidecar_identity is not None and self._sidecar_identity.created_at_filetime is not None
                 else None
             ),
             "process_exited": outcome["root_dead"],
@@ -1747,7 +1766,7 @@ class HeadlessEmulator:
                 "sidecar_pid": self._sidecar_pid,
                 "sidecar_filetime": (
                     str(self._sidecar_identity.created_at_filetime)
-                    if self._sidecar_identity
+                    if self._sidecar_identity is not None and self._sidecar_identity.created_at_filetime is not None
                     else None
                 ),
                 "node_binary": self._node_binary,

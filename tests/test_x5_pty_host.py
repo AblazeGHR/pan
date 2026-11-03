@@ -44,7 +44,8 @@ def test_original_service_registry_leases_disconnect_and_tail(tmp_path):
         assert s.input(tid,again,b'reconnected\n')['accepted']
         with pytest.raises(DetachRefused):s.detach(tid)
         snap=s.snapshot(tid)
-        assert snap['fidelity']=='unavailable' and snap['cursors_valid'] is False
+        assert snap['cursors_valid'] is True and snap['engine']
+        assert 'ECHO:你好' in snap['serialized_screen']
         assert s.registry.get(tid).process_identity['kind']
         assert not (tmp_path/'secrets').exists()
     finally:
@@ -134,6 +135,9 @@ def test_real_loopback_http_ws_original_router_permissions_and_reconnect(tmp_pat
                 await receive(ws,'hello')
                 async def send(op,**fields):
                     await ws.send(json.dumps(dict(v=1,type='command',terminal_id=tid,op=op,**fields)))
+                await send('snapshot')
+                snapshot=await receive(ws,'snapshot')
+                assert snapshot['cursors_valid'] is True and snapshot['cursor'] is not None
                 await send('resume',cursor='0');await receive(ws,'resume-result')
                 await send('input',generation='1',data_b64=base64.b64encode(b'FORBIDDEN\n').decode())
                 await receive(ws,'error')
@@ -202,3 +206,63 @@ os._exit(0)
     assert len(restored.registry.list())==1
     # The owned synthetic program has a finite lifetime; no recovery signal or
     # external PID killing is permitted after losing the original runtime.
+
+
+@native
+def test_original_headless_emulator_native_applied_cursor_and_cleanup():
+    from packages.core.terminal.emulator import HeadlessEmulator
+    from packages.core.terminal.contracts import Recovery
+    emu=HeadlessEmulator(rows=24,cols=80)
+    try:
+        payload='plain 你好\r\n\x1b[31mred\x1b[0m'.encode()
+        emu.feed_at(0,payload)
+        snap=emu.snapshot(timeout=3)
+        assert snap.cursor==len(payload) and '你好' in snap.serialized_screen
+        assert emu.cursors_valid and snap.recovery in (Recovery.FULL,Recovery.PARTIAL)
+        assert emu.resize_wait(31,101,timeout=3)
+        snap=emu.snapshot(timeout=3)
+        assert (snap.rows,snap.cols)==(31,101)
+        assert emu.diagnostics()['sidecar_filetime'] is None
+        guard=emu._guard
+        assert guard.owner.check(guard.owned.identity).verified_alive
+    finally:
+        report=emu.close(timeout=6)
+        assert report.closed and report.process_exited and report.job_verified,report.as_dict()
+
+
+@native
+def test_emulator_permission_unknown_keeps_original_resource(monkeypatch):
+    from packages.core.terminal.emulator import HeadlessEmulator
+    from packages.core.platform.process import OwnershipUnknownError
+    emu=HeadlessEmulator(rows=24,cols=80)
+    guard=emu._guard
+    original=guard.owner.kill_tree
+    def denied(*_,**kw):raise OwnershipUnknownError('injected permission/identity unknown')
+    monkeypatch.setattr(guard.owner,'kill_tree',denied)
+    try:
+        # Reap seam itself must never convert permission unknown to verified.
+        result=guard.verified_cleanup(guard.proc,guard.owned.pid,guard.identity,budget=.1)
+        assert result['job_verified'] is False and result['errors']
+        with pytest.raises(OwnershipUnknownError):guard.close()
+        assert guard.handle_open
+    finally:
+        monkeypatch.setattr(guard.owner,'kill_tree',original)
+        assert emu.close(timeout=6).closed
+
+
+def test_failed_emulator_start_retains_original_cleanup_owner(tmp_path,monkeypatch):
+    from packages.core.terminal import emulator
+    class Owner:
+        calls=0
+        def retry_cleanup(self,*,timeout):
+            self.calls+=1
+            return {'closed':True}
+    owner=Owner()
+    def fail(**kw):raise emulator.EmulatorStartupError('injected failure',owner=owner)
+    monkeypatch.setattr(emulator,'HeadlessEmulator',fail)
+    s=TerminalService(tmp_path);s._local_posix=True
+    with pytest.raises(StartupFailed):s.create()
+    record=s.registry.list()[0];state=s._states[record.terminal_id]
+    assert state.local_resource is owner and state.attached is False
+    assert s.close(record.terminal_id)['status']=='exited'
+    assert owner.calls==1
