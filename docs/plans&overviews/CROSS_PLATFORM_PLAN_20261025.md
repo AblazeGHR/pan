@@ -117,6 +117,14 @@ CP-X5 R2：停止前在原 process.json 持久化强身份成员快照；gracefu
 任意刻意逃逸的后代；独立 dispatch-only `x5-service.yml` 提供目标候选试验门禁，
 生产 capability 仍未开放。登出/开机自启按 MA 裁决留给后续安装分项。
 
+CP-X5 最终候选 `e6749bde978c8befd05ac0ce61b34e3f3ce21884`：独立 CI
+[41574960466](https://github.com/AblazeGHR/pan/actions/runs/41574960466) 三平台全绿，
+契约 Windows 92 passed/5 skipped、Ubuntu/macOS 各 95 passed/2 skipped，native
+main/CLI/HTTP 各 1 passed/0 skipped。测试以自有空 profile、动态端口和隔离副本能力
+注入验证候选；包含原 request 查询、真实 start_lock 竞争及 Worker 替身退出后存活。
+Linux/macOS 生产 capability 仍 false，安全对等/发布由 MA 决定；不是部署、真实用户 profile 或
+所有第三方 Worker 宿主约束验收。最终报告：`artifacts/cp-x5/FINAL_REPORT.md`。
+
 CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
 启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回

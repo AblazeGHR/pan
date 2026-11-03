@@ -1,0 +1,15 @@
+{
+  "run.json": "2ce65f96b992d1b2002759ff63d822a7a231bbedd9fbc1cb3015d72772c8cdfe",
+  "artifacts\\x5-service-macos-latest\\contracts.xml": "ee25a703aca81b3da30f599ae9cbdc7a52112a444f4237d0e7c50ac36a5595b7",
+  "artifacts\\x5-service-macos-latest\\native.xml": "031bbfd468351c1c856cdcb30d6295d9fbd894808d8d9e297c4b524cde78a84d",
+  "artifacts\\x5-service-ubuntu-latest\\contracts.xml": "ac76fbdbe10b47b5a0647dd8d1ee15a9e717af8ab454cbf7d50e1060fb662079",
+  "artifacts\\x5-service-ubuntu-latest\\native.xml": "ad3b9c60a47e60970a3365ba28e8b69e3e1813eaee78d173fbb2092f5e4e20f4",
+  "artifacts\\x5-service-windows-latest\\contracts.xml": "8bac275a45f1d947b203f8dfd1e7430782b843edd3436d9995581a291f3bd33d",
+  "artifacts\\x5-service-windows-latest\\native.xml": "a33868d03028492cbe96cbae21d399d26a1513d8eae52e2640808c8dfc1376e3",
+  "artifacts\\x5-service-windows-latest\\native\\cli-commands.txt": "910daf9c089f6ddd843b66e1167a92b40353a9fd40efe72dab3b27d9e3e6051d",
+  "artifacts\\x5-service-windows-latest\\native\\native-service.json": "27fd67a5a067f5b5c3c011539079fc2b4967e692c5e26516d3b6034b7b4588b7",
+  "artifacts\\x5-service-ubuntu-latest\\native\\cli-commands.txt": "784997d28c1acb0b7f949e352939790bdaa142de8b962a123f12365856de58ec",
+  "artifacts\\x5-service-ubuntu-latest\\native\\native-service.json": "91e74e701b5578f8bf13ee3b6cd9e741478840ca02339b54bfb9d0594a923e33",
+  "artifacts\\x5-service-macos-latest\\native\\cli-commands.txt": "784997d28c1acb0b7f949e352939790bdaa142de8b962a123f12365856de58ec",
+  "artifacts\\x5-service-macos-latest\\native\\native-service.json": "7b6cdd185b4a1e684fd53ad048873b067d7ddb97b7f6f93e0942a76b1feb52f0"
+}
