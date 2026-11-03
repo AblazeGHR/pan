@@ -94,6 +94,44 @@ def test_terminate_dead_leader_can_only_return_readonly_proof(monkeypatch, tmp_p
     assert launcher._terminate_record(record, tmp_path, log_path=None)["stopped"] is True
 
 
+def test_native_startup_timeout_cleans_owned_unready_main(tmp_path, monkeypatch):
+    import json
+    import socket
+    from packages.core import launcher
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    assert port not in {8767, 8768}
+    (tmp_path / "config.json").write_text(json.dumps({"port": port, "qq": {"enabled": False},
+        "mcp_remote": {"enabled": False}, "remote": {"enabled": False}}), encoding="utf-8")
+    (tmp_path / "main.py").write_text("import time; time.sleep(60)", encoding="utf-8")
+    original = launcher._start_main
+    records = []
+    def start(*a, **kw):
+        record = original(*a, **kw)
+        records.append(record)
+        return record
+    monkeypatch.setattr(launcher, "_start_main", start)
+    try:
+        with pytest.raises(launcher.LauncherError, match="did not become ready"):
+            launcher.start_service(tmp_path, timeout=.2, python_argv=[sys.executable], hidden=True)
+        assert len(records) == 1
+        assert not launcher.process_alive(records[0]["pid"], records[0]["createdAt"])
+        assert launcher.listener_owner(port) is None
+    finally:
+        for record in records:
+            if launcher.process_alive(record["pid"], record["createdAt"]):
+                assert launcher._terminate_record(record, tmp_path, log_path=None)["stopped"]
+
+
+def test_native_spawn_missing_executable_is_explicit(tmp_path):
+    from packages.core import launcher
+    (tmp_path / "main.py").write_text("raise SystemExit(0)", encoding="utf-8")
+    with pytest.raises(launcher.LauncherError, match="failed to launch Pan Core"):
+        launcher._start_main(tmp_path, 43129, [str(tmp_path / "missing-python")], True,
+                             tmp_path / "data/logs/launcher.log")
+
+
 @pytest.mark.skipif(os.name != "posix", reason="actual POSIX spawn-abort group proof requires target OS")
 def test_native_strong_identity_failure_aborts_own_group(monkeypatch, tmp_path):
     from packages.core.platform import process_posix as backend
@@ -177,3 +215,10 @@ def test_native_leader_exit_preserves_live_child_unknown_without_signal(tmp_path
     finally:
         parent_release.touch(); child_release.touch()
         parent.wait(timeout=5)
+        if child_pid.exists():
+            # The child exits through its own release barrier, never a stale
+            # group signal. A target which cannot reap it must report failure.
+            try:
+                psutil.Process(int(child_pid.read_text())).wait(timeout=5)
+            except psutil.NoSuchProcess:
+                pass

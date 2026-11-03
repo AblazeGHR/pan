@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.176" timestamp="2026-11-03T11:00:13.602256+08:00" hostname="ablaze"><testcase classname="tests.test_x5_service_evidence" name="test_absent_pid_and_port_cannot_erase_original_tree_unknown" time="0.011"><failure message="Failed: unknown tree must retain original evidence">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000188C23F8E90&gt;
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6895/test_absent_pid_and_port_canno0')
+
+    def test_absent_pid_and_port_cannot_erase_original_tree_unknown(monkeypatch, tmp_path):
+        from packages.core import launcher
+        _, record = fixture_record()
+        record.update(createdAt=10., processType="main")
+        monkeypatch.setattr(launcher, "os", SimpleNamespace(name="posix"))
+        monkeypatch.setattr(launcher, "checkout_root", lambda root: tmp_path)
+        monkeypatch.setattr(launcher, "load_state", lambda root: {"main": record})
+        monkeypatch.setattr(launcher, "refresh_qq_state", lambda *a: None)
+        monkeypatch.setattr(launcher, "process_identity", lambda *a, **kw: {"ok": False})
+        monkeypatch.setattr(launcher, "_same_record_alive", lambda record: False)
+        monkeypatch.setattr(launcher, "clear_state", lambda root: pytest.fail("unknown tree must retain original evidence"))
+        monkeypatch.setattr(service_process, "offline", lambda record: {"confirmed": False, "reason": "live child"})
+        with pytest.raises(launcher.LauncherError, match="tree exit unconfirmed"):
+&gt;           launcher.stop_service(tmp_path, 43129, 42, 10.)
+
+tests\test_x5_service_evidence.py:83:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+r1-original-stop:1089: in stop_service
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6895/test_absent_pid_and_port_canno0')
+
+&gt;   monkeypatch.setattr(launcher, "clear_state", lambda root: pytest.fail("unknown tree must retain original evidence"))
+                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: unknown tree must retain original evidence
+
+tests\test_x5_service_evidence.py:80: Failed</failure></testcase></testsuite></testsuites>

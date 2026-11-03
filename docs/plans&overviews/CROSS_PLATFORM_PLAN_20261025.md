@@ -111,6 +111,12 @@ launcher；Linux/macOS `service.lifecycle` 保持 false。完整对等矩阵、�
 Windows 合成 HTTP 证据边界和未完成证明链见
 [CP_X5_PARITY_20261103.md](CP_X5_PARITY_20261103.md)。进程组启动不等于服务生命周期验收。
 
+CP-X5 R2：停止前在原 process.json 持久化强身份成员快照；graceful leader 退出后
+要求原组与已观察成员的只读缺席证明，canonical offlineProof 附 serviceTreeProof。
+缺快照/残留/权限未知不清除原记录，也不按 stale PGID 发信号。该范围不能保证捕获
+任意刻意逃逸的后代；独立 dispatch-only `x5-service.yml` 提供目标候选试验门禁，
+生产 capability 仍未开放。登出/开机自启按 MA 裁决留给后续安装分项。
+
 CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
 启动、重启及 React 入口统一要求 `terminal.native=true`，明确 `false` 返回

@@ -40,7 +40,7 @@ def capture(record):
 
 def offline(record):
     from packages.core.platform.process import ProcessStatus
-    from packages.core.platform.process_posix import _group_exists, _pid_exists, PosixProcessOwner
+    from packages.core.platform.process_posix import _group_exists, _pid_exists, _strong_identity, PosixProcessOwner
     result = {"confirmed": False, "scope": "original_group_and_observed_members",
               "signalAuthorized": False}
     try:
@@ -51,7 +51,8 @@ def offline(record):
         members = tuple(ProcessIdentity.from_dict(m) for m in snapshot["members"])
         if not members or not any(m.matches(identity) for m in members):
             raise OwnershipUnknownError("original leader missing from snapshot")
-        if any(m.boot_id != identity.boot_id or m.pgid != identity.pgid for m in members):
+        if any(not _strong_identity(m) or m.platform != identity.platform
+               or m.boot_id != identity.boot_id or m.pgid != identity.pgid for m in members):
             raise OwnershipUnknownError("snapshot member identity/group mismatch")
         check = owner.check(identity)
         # PID absence is read-only exit evidence; a reused PID is never signalled.
