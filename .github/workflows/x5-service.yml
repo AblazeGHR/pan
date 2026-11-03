@@ -1,5 +1,7 @@
 name: X5 owned service lifecycle trial
 on:
+  push:
+    branches: ["validation/x5-service-20261103"]
   workflow_dispatch:
 permissions:
   contents: read
