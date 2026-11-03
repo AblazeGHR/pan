@@ -92,7 +92,7 @@ try {
   // Reset windows count down from now with the raw reset time still viewable; the
   // query age comes from the quota's own queriedAt (90s ago), not from mount time.
   await expect(page.getByText(/距现在剩余 1h 30min/)).toBeVisible();
-  await expect(page.getByText(/距现在剩余 96h 0min/)).toBeVisible();
+  await expect(page.getByText(/距现在剩余 4d 0h 0min/)).toBeVisible();
   await expect(page.getByText(/距现在已过去 1min/)).toBeVisible();
   await expect(page.getByText(/重置于 \d.*距现在剩余 1h 30min/)).toBeVisible();
   await page.screenshot({ path: path.join(evidence, 'desktop.png'), fullPage: true });

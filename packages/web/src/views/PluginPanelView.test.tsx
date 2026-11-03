@@ -384,12 +384,16 @@ describe('quota relative times on a controlled clock', () => {
     await flush();
   };
 
-  it('formats durations with hour and minute parts across boundaries', () => {
+  it('formats durations with day, hour and minute parts across boundaries', () => {
     expect(formatClockDuration(0)).toBe('0min');
     expect(formatClockDuration(59 * 60_000)).toBe('59min');
     expect(formatClockDuration(60 * 60_000)).toBe('1h 0min');
     expect(formatClockDuration(90 * 60_000)).toBe('1h 30min');
-    expect(formatClockDuration(96 * 3600_000)).toBe('96h 0min');
+    expect(formatClockDuration(23 * 3600_000 + 59 * 60_000)).toBe('23h 59min');
+    expect(formatClockDuration(24 * 3600_000)).toBe('1d 0h 0min');
+    expect(formatClockDuration(24 * 3600_000 + 60_000)).toBe('1d 0h 1min');
+    expect(formatClockDuration(96 * 3600_000)).toBe('4d 0h 0min');
+    expect(formatClockDuration(130 * 3600_000 + 41 * 60_000)).toBe('5d 10h 41min');
     expect(formatClockDuration(-1)).toBe(null);
     expect(formatClockDuration(Number.NaN)).toBe(null);
   });
@@ -398,15 +402,17 @@ describe('quota relative times on a controlled clock', () => {
     await showQuota(quota({ queriedAt: NOW - 15 * 60_000, tiers: [
       { name: 'five_hour', usedPercent: 70, resetsAt: new Date(NOW + 90 * 60_000).toISOString() },
       { name: 'weekly', usedPercent: 30, resetsAt: new Date(NOW + 96 * 3600_000).toISOString() },
-      { name: 'monthly', usedPercent: 10, resetsAt: new Date(NOW + 59 * 60_000).toISOString() }] }));
+      { name: 'monthly', usedPercent: 10, resetsAt: new Date(NOW + 59 * 60_000).toISOString() },
+      { name: 'long', usedPercent: 40, resetsAt: new Date(NOW + (130 * 3600_000 + 41 * 60_000)).toISOString() }] }));
     expect(screen.getByText(/距现在剩余 1h 30min/)).toBeTruthy();
-    expect(screen.getByText(/距现在剩余 96h 0min/)).toBeTruthy();
+    expect(screen.getByText(/距现在剩余 4d 0h 0min/)).toBeTruthy();
     expect(screen.getByText(/距现在剩余 59min/)).toBeTruthy();
+    expect(screen.getByText(/距现在剩余 5d 10h 41min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 15min/)).toBeTruthy();
     const article = screen.getByRole('heading', { name: 'Main' }).closest('article');
     expect(article).toBeTruthy();
     const raw = within(article as HTMLElement).getAllByText(/重置于 /);
-    expect(raw).toHaveLength(3);
+    expect(raw).toHaveLength(4);
     for (const line of raw) expect(line.textContent).toMatch(/重置于 \d/);
   });
 
@@ -419,6 +425,18 @@ describe('quota relative times on a controlled clock', () => {
     tick(90_000);
     expect(screen.getByText(/距现在剩余 1h 28min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 2h 16min/)).toBeTruthy();
+    expect(vi.mocked(invokePluginPanel).mock.calls.length).toBe(calls);
+  });
+
+  it('ticks across the day boundary without new requests', async () => {
+    await showQuota(quota({ queriedAt: NOW - 25 * 3600_000, tiers: [
+      { name: 'weekly', usedPercent: 70, resetsAt: new Date(NOW + 24 * 3600_000).toISOString() }] }));
+    expect(screen.getByText(/距现在剩余 1d 0h 0min/)).toBeTruthy();
+    expect(screen.getByText(/距现在已过去 1d 1h 0min/)).toBeTruthy();
+    const calls = vi.mocked(invokePluginPanel).mock.calls.length;
+    tick(60_000);
+    expect(screen.getByText(/距现在剩余 23h 59min/)).toBeTruthy();
+    expect(screen.getByText(/距现在已过去 1d 1h 1min/)).toBeTruthy();
     expect(vi.mocked(invokePluginPanel).mock.calls.length).toBe(calls);
   });
 
@@ -451,7 +469,7 @@ describe('quota relative times on a controlled clock', () => {
     expect(screen.getByText(/距现在已过去 3h 0min/)).toBeTruthy();
     expect(screen.getByText(/距现在已过去 25min/)).toBeTruthy();
     expect(screen.getByText(/距现在剩余 5h 0min/)).toBeTruthy();
-    expect(screen.getByText(/距现在剩余 100h 0min/)).toBeTruthy();
+    expect(screen.getByText(/距现在剩余 4d 4h 0min/)).toBeTruthy();
   });
 
   it('keeps the last quota visible and stays retryable when a refresh fails', async () => {
