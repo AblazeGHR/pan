@@ -1016,9 +1016,15 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
         root=root_path, port=port, expected_pid=record["pid"],
         expected_created_at=record["createdAt"], timeout=timeout, log_path=log_path,
     )
+    if (not service_process.supports_listener_handoff() and checks.get("ok") is True
+            and checks.get("listenerOwner") != record["pid"]):
+        # A listener child cannot replace the original group leader identity.
+        # Windows venv redirectors keep their established handling below;
+        # POSIX wrappers need an explicit ownership-transfer contract first.
+        checks = {**checks, "ok": False, "error": "unsupported_interpreter_handoff: POSIX listener differs from original strong owner"}
     if not checks.get("ok"):
         listener_pid = checks.get("listenerOwner")
-        if (listener_pid and listener_pid != record["pid"]
+        if (service_process.supports_listener_handoff() and listener_pid and listener_pid != record["pid"]
                 and checks.get("verifiedDescendant") and checks.get("identity", {}).get("ok")):
             listener_record = _record(
                 listener_pid, root_path, "main", record["argv"],
@@ -1027,7 +1033,12 @@ def start_service(root: str | Path | None = None, *, timeout: float = READY_TIME
             _terminate_record(listener_record, root_path, log_path=log_path)
         qq_cleanup = _terminate_record(state.get("qq"), root_path, log_path=log_path)
         outcome = _terminate_record(record, root_path, log_path=log_path)
-        clear_state(root_path)
+        if outcome.get("stopped") is True and qq_cleanup.get("stopped") is True:
+            clear_state(root_path)
+        else:
+            # Keep the original strong owner record when cleanup is unknown;
+            # a thrown startup error does not prove absence of its resources.
+            save_state(root_path, state)
         raise LauncherError(
             f"Pan Core did not become ready on port {port} within {timeout:g} seconds: "
             f"{checks.get('error')}; cleanup={{'main': {outcome}, 'qq': {qq_cleanup}}}"

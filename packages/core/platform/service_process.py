@@ -18,6 +18,11 @@ def _key(identity):
     return tuple(identity.get(k) for k in ("pid", "kind", "birth", "boot_id"))
 
 
+def supports_listener_handoff():
+    """Only the existing Windows venv redirector listener adoption is defined."""
+    return os.name == "nt"
+
+
 def spawn(argv, *, cwd, env, stdin, stdout, stderr, creationflags=0):
     if os.name == "nt":
         return subprocess.Popen(argv, cwd=cwd, env=env, stdin=stdin,

@@ -15,6 +15,14 @@ import pytest
 from packages.core import launcher
 
 
+@pytest.fixture(autouse=True)
+def launcher_policy_network_prerequisite(monkeypatch):
+    # This file mocks listener_owner and never binds a test port. Native probe
+    # evidence (including Darwin no-root behavior) has its own owned tests.
+    from packages.core.platform import service_network
+    monkeypatch.setattr(service_network, "needs_local_probe", lambda: False)
+
+
 @pytest.fixture
 def verified_service_tree(monkeypatch):
     """These policy units already mock PID/HTTP: also supply explicit tree proof.
@@ -163,6 +171,9 @@ def test_stale_state_is_replaced_without_killing_reused_pid(tmp_path, monkeypatc
 
 
 def test_start_records_verified_listener_child_for_later_stop(tmp_path, monkeypatch):
+    # Existing Windows venv-redirector policy, exercised on every test host.
+    # POSIX refuses this transfer without a strong group-owner handoff contract.
+    monkeypatch.setattr(launcher.service_process, "supports_listener_handoff", lambda: True)
     root = tmp_path.resolve()
     monkeypatch.setattr(launcher, "configured_port", lambda root: 8767)
     monkeypatch.setattr(launcher, "listener_owner", lambda port: None)

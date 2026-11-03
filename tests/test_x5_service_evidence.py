@@ -134,6 +134,38 @@ def test_native_spawn_missing_executable_is_explicit(tmp_path):
                              tmp_path / "data/logs/launcher.log")
 
 
+@pytest.mark.parametrize("cleanup_confirmed", [False, True])
+def test_posix_listener_handoff_never_discards_original_owner(tmp_path, monkeypatch, cleanup_confirmed):
+    import json
+    from packages.core import launcher
+    from packages.core.platform import service_network
+    monkeypatch.setattr(service_network, "needs_local_probe", lambda: False)
+    owner = {"pid": 41, "createdAt": 10., "root": str(tmp_path), "processType": "main",
+             "processIdentity": {"pid": 41, "birth": "original", "pgid": 41}}
+    monkeypatch.setattr(service_process, "supports_listener_handoff", lambda: False)
+    monkeypatch.setattr(launcher, "configured_port", lambda root: 43129)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "process_identity", lambda *a, **kw: {"ok": False})
+    monkeypatch.setattr(launcher, "_start_main", lambda *a, **kw: owner)
+    monkeypatch.setattr(launcher, "wait_ready", lambda **kw: {
+        "ok": True, "listenerOwner": 52, "listenerOwnerCreatedAt": 10.1, "verifiedDescendant": True})
+    signals = []
+    def terminate(record, *a, **kw):
+        if record is None:
+            return {"stopped": True}
+        signals.append(record)
+        return {"stopped": cleanup_confirmed}
+    monkeypatch.setattr(launcher, "_terminate_record", terminate)
+    with pytest.raises(launcher.LauncherError, match="unsupported_interpreter_handoff"):
+        launcher.start_service(tmp_path, python_argv=[sys.executable])
+    assert [record["pid"] for record in signals] == [41]  # no child PID authority invented
+    path = tmp_path / "data/process.json"
+    if cleanup_confirmed:
+        assert not path.exists()
+    else:
+        assert json.loads(path.read_text())["main"]["processIdentity"] == owner["processIdentity"]
+
+
 @pytest.mark.skipif(os.name != "posix", reason="actual POSIX spawn-abort group proof requires target OS")
 def test_native_strong_identity_failure_aborts_own_group(monkeypatch, tmp_path):
     from packages.core.platform import process_posix as backend
