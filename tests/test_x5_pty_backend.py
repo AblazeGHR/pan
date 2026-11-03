@@ -337,14 +337,18 @@ def test_eio_without_slave_hangup_is_error_not_eof(monkeypatch):
     import errno
     import packages.core.terminal.backend_posix as backend
     b=spawn("import time;print('READABLE',flush=True);time.sleep(60)")
+    collect(b,b'READABLE')
     original=backend.os.read
-    def failed(fd,size):raise OSError(errno.EIO,'injected error, slave still open')
-    # Wait for readiness without consuming it, then inject the actual read failure.
-    import select
-    assert select.select([b._master],[],[],5)[0]
+    def failed(fd,size):
+        if fd==b._master:raise OSError(errno.EIO,'injected error, slave still open')
+        return original(fd,size)
     monkeypatch.setattr(backend.os,'read',failed)
     try:
-        with pytest.raises(OSError):b.read(100)
+        b.write(b'x')
+        until(lambda:b._pump_error,lambda x:x is not None)
+        with pytest.raises(backend.PosixPtyError) as error:
+            while b.read(100):pass
+        assert isinstance(error.value.__cause__,OSError)
     finally:
         monkeypatch.setattr(backend.os,'read',original)
         dispose(b)
@@ -372,3 +376,15 @@ def test_signal_error_only_readonly_retained_clearance_can_succeed(monkeypatch,r
     finally:
         monkeypatch.setattr(b.owner,'terminate',original)
         dispose(b)
+
+
+@NATIVE
+def test_backend_pump_drains_echo_before_runtime_or_caller_read():
+    b=spawn('import time;time.sleep(60)')
+    try:
+        assert b.write(b'echo-before-reader')==18
+        until(lambda:b.describe()['pump_buffer_bytes'],lambda n:n>=18)
+        assert b.read(18)==b'echo-before-reader'
+        assert b.describe()['pump_alive']
+    finally:dispose(b)
+    assert not b.describe()['pump_alive']

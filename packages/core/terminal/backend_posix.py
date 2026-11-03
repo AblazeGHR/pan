@@ -98,6 +98,18 @@ class PosixPtyBackend:
             assigned=True, atomic_with_spawn=True, identity=self.identity,
             handle_bound_for_cleanup=True, guard="posix-process-group",
             detail="setsid before fresh bootstrap; retained Popen/birth before exec admission; no containment"))
+        # Match the Windows backend: drain kernel output immediately, even
+        # before PtyRuntime starts. In particular, unread canonical echo must
+        # not hold Darwin's terminal exit path behind an idle caller.
+        self._cv = threading.Condition()
+        self._buffer = bytearray()
+        self._buffer_limit = 4 * 1024 * 1024
+        self._pump_stop = threading.Event()
+        self._pump_eof = False
+        self._pump_error = None
+        self._pump = threading.Thread(target=self._pump_output,
+            name=f"posix-pty-pump-{self.pid}", daemon=True)
+        self._pump.start()
 
     @classmethod
     def spawn(cls, argv, *, cwd=None, env=None, rows=24, cols=80, startup_timeout=5.):
@@ -172,7 +184,48 @@ class PosixPtyBackend:
             raise PosixPtyClosed("PTY handles closed")
         return self._master
 
+    def _pump_output(self):
+        try:
+            while not self._pump_stop.is_set():
+                with self._cv:
+                    while len(self._buffer) >= self._buffer_limit and not self._pump_stop.is_set():
+                        self._cv.wait(.05)
+                if self._pump_stop.is_set():
+                    return
+                data = self._read_master(65536)
+                if data:
+                    with self._cv:
+                        self._buffer.extend(data)
+                        self._cv.notify_all()
+        except EOFError:
+            with self._cv:
+                self._pump_eof = True
+                self._cv.notify_all()
+        except BaseException as exc:
+            with self._cv:
+                self._pump_error = exc
+                self._cv.notify_all()
+
     def read(self, size):
+        if size <= 0:
+            raise ValueError("PTY read size must be positive")
+        with self._cv:
+            if not self._buffer and not self._pump_eof and self._pump_error is None and not self._closed:
+                self._cv.wait(.05)
+            if self._closed:
+                raise PosixPtyClosed("PTY handles closed; cancellation is not peer EOF")
+            if self._buffer:
+                data = bytes(self._buffer[:size])
+                del self._buffer[:size]
+                self._cv.notify_all()
+                return data
+            if self._pump_error is not None:
+                raise PosixPtyError("PTY output pump failed") from self._pump_error
+            if self._pump_eof:
+                raise EOFError("PTY slave EOF after buffered tail")
+            return b""
+
+    def _read_master(self, size):
         if size <= 0:
             raise ValueError("PTY read size must be positive")
         with self._io_lock:
@@ -291,12 +344,24 @@ class PosixPtyBackend:
             settled = self.owner._exited_tree(self.owned)
             if settled is None or not settled.confirmed:
                 raise OwnershipUnknownError("PTY close refuses live/unknown original group")
+            self._pump_stop.set()
+            with self._cv:
+                self._cv.notify_all()
+            # The pump's select has a short deadline and holds no I/O lock.
+            # Converge it before releasing the FD, preventing FD reuse races.
+            self._pump.join(timeout=.5)
+            if self._pump.is_alive():
+                raise OwnershipUnknownError("PTY output pump did not converge; FD retained")
             with self._io_lock:
                 os.close(self._master)
                 self._closed = True
+            with self._cv:
+                self._cv.notify_all()
             self.owned.close()
 
     def describe(self):
         return {"backend": "PosixPtyBackend", "platform": sys.platform,
             "identity": self.identity.as_dict(), "guard": self.guard.describe(),
-            "durable_detach": False, "closed": self._closed}
+            "durable_detach": False, "closed": self._closed,
+            "pump_buffer_bytes": len(self._buffer), "pump_eof": self._pump_eof,
+            "pump_alive": self._pump.is_alive()}

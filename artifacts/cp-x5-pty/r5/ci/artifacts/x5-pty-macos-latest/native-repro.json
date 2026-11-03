@@ -1,0 +1,128 @@
+{
+  "platform": "darwin",
+  "python": "3.12.10",
+  "pan_imported": false,
+  "pytest_imported": false,
+  "cases": [
+    {
+      "wait_target_ready": false,
+      "canonical_input": false,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 1577,
+        "uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "caller_uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "image_basename": "Python"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": false,
+      "canonical_input": true,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 1578,
+        "uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "caller_uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "image_basename": "python3.12"
+      },
+      "probe_exception": "ProcessLookupError",
+      "probe_errno": 3,
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": false,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 1580,
+        "uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "caller_uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "image_basename": "Python"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": true,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 1581,
+        "uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "caller_uids": {
+          "real": 501,
+          "effective": 501,
+          "saved": 501
+        },
+        "image_basename": "Python"
+      },
+      "probe_exception": "ProcessLookupError",
+      "probe_errno": 3,
+      "cleanup": "retained-root-exited"
+    }
+  ]
+}
