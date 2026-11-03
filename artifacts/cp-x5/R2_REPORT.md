@@ -54,12 +54,16 @@ test_p5b_lifecycle_action.py. Original receipt/authorization/cancellation contro
 remain intact; startup timeout test uses a real owned unready main process and
 checks its termination and dynamic-port absence.
 
-## Native trial in progress
+## Native Windows trial completed
 
 Durable Job: `job_23960ea9e8f4fc2712308ef9`, targeting this TA Session
-`ses_319c647f585e2a85`; terminal result is pending at this report revision.
-Do not count it as passed. Evidence destination: r2-native.xml and r2-native/.
-No background polling/watcher or directnotify is installed.
+`ses_319c647f585e2a85`; received its built-in terminal notification and verified
+status=completed, exitCode=0, notificationState=delivered, snapshotCleanup=cleaned,
+processTreeEnded=true. No background polling/watcher or directnotify was installed.
+Result: **1 passed, 0 skipped**, 27.188 seconds. Evidence: r2-native.xml,
+r2-native/native-service.json and r2-native/cli-commands.txt (commands only).
+The tested archived product source SHA is
+`5c2219d5cdc8c1e884b4f42bb59006cd917c8459`.
 
 The harness archives a committed source into a temporary owned checkout, creates
 an empty synthetic config/data set, disables channels and providers, uses a dynamic
@@ -72,6 +76,14 @@ and ask rejection, HTTP canonical restart, original requestId/effectId lookup,
 CLI preserve restart/offline exit, and separate OS-process start_lock competition
 with CLI start and canonical restart. A lock failure must keep the original unknown
 receipt and cannot restart when queried after lock release.
+
+All native assertions passed on Windows: startup caller exited while service
+remained alive, original request lookup did not replay, CLI restart/exit/status
+completed, separate-process CLI/canonical start_lock competition preserved an
+unknown receipt without replay, and the owned port was released. The harness also
+confirmed original supervisor exit before listener cleanup. No Linux/macOS result
+is inferred from this run. Subsequent changes to the export format remove verbose
+CLI receipts from delivered logs; the original commands and boolean facts remain.
 
 ## MA target handoff
 

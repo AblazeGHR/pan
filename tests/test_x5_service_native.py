@@ -176,4 +176,8 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
         target = Path(os.environ.get("X5_EVIDENCE_ROOT", str(tmp_path)))
         target.mkdir(parents=True, exist_ok=True)
         (target / "native-service.json").write_text(json.dumps(observed, indent=2), encoding="utf-8")
-        (target / "cli.log").write_text((tmp_path / "cli.log").read_text(encoding="utf-8").replace(str(root), "<owned-root>"), encoding="utf-8")
+        # Export commands only. Full CLI receipts contain synthetic paths and
+        # argv which add no acceptance evidence beyond the asserted JSON facts.
+        (target / "cli-commands.txt").write_text("\n".join(line for line in
+            (tmp_path / "cli.log").read_text(encoding="utf-8").splitlines()
+            if line.startswith("COMMAND ")) + "\n", encoding="utf-8")
