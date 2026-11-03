@@ -99,7 +99,7 @@ def test_runtime_eof_tail_cleanup_and_detach_is_not_connection_attach():
     r = runtime(b)
     until(lambda:r.exit,lambda x:x.channel_eof)
     assert r.exit.output_complete
-    assert "TAIL-你好".encode() in r.log.read_from(0).data
+    assert "TAIL-你好".encode() in b"".join(chunk.data for chunk in r.log.read_from(0).chunks)
     report=r.close(interrupt=False)
     assert report.ok and not report.owner_retained and r.state is RuntimeState.EXITED
     assert b.exit_code() == 0
@@ -288,7 +288,8 @@ def test_startup_handshake_timeout_cleans_retained_child(monkeypatch):
 
 @NATIVE
 def test_backpressure_returns_partial_within_write_budget():
-    b=spawn('import time;time.sleep(60)')
+    b=spawn("import tty,time;tty.setraw(0);print('RAW-READY',flush=True);time.sleep(60)")
+    collect(b,b'RAW-READY')
     try:
         started=time.monotonic()
         written=b.write(b'x'*(8*1024*1024))
@@ -312,4 +313,28 @@ def test_eio_without_slave_hangup_is_error_not_eof(monkeypatch):
         with pytest.raises(OSError):b.read(100)
     finally:
         monkeypatch.setattr(backend.os,'read',original)
+        dispose(b)
+
+
+@NATIVE
+@pytest.mark.parametrize('root_exits',[False,True])
+def test_signal_error_only_readonly_retained_clearance_can_succeed(monkeypatch,root_exits):
+    code='import time;time.sleep(.15)' if root_exits else 'import time;time.sleep(60)'
+    b=spawn(code)
+    original=b.owner.terminate
+    def failure(handle,*,grace):
+        if root_exits:
+            assert b.owner.wait(handle,timeout=3).exited
+        raise PermissionError('injected signal race/permission boundary')
+    monkeypatch.setattr(b.owner,'terminate',failure)
+    try:
+        if root_exits:
+            b.terminate(True)
+            b.close()
+        else:
+            with pytest.raises(PermissionError):b.terminate(True)
+            assert b.alive()
+            with pytest.raises(OwnershipUnknownError):b.close()
+    finally:
+        monkeypatch.setattr(b.owner,'terminate',original)
         dispose(b)

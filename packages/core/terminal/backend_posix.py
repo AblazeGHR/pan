@@ -145,6 +145,9 @@ class PosixPtyBackend:
                 # Retained original ProcessOwner handles spawn-abort cleanup; never
                 # replace uncertain cleanup with a success or discard owner state.
                 try:
+                    # An exec failure normally self-exits. Reap through the
+                    # retained owner before deciding whether any signal is needed.
+                    owner.wait(owned, timeout=.25)
                     result = owner.kill_tree(owned, timeout=2.)
                     if not result.confirmed:
                         raise OwnershipUnknownError("PTY failed startup cleanup unconfirmed")
@@ -252,7 +255,19 @@ class PosixPtyBackend:
             self.write(b"\x03")
             return
         with self._process_lock:
-            result = self.owner.terminate(self.owned, grace=.25)
+            try:
+                result = self.owner.terminate(self.owned, grace=.25)
+            except (OSError, OwnershipUnknownError) as exc:
+                # The leader may exit between birth check and signal (Darwin can
+                # return EPERM for a group containing only an exiting zombie).
+                # No second signal: wait/reap the original handle, then require
+                # the original owner's read-only group AND member absence proof.
+                self.owner.wait(self.owned, timeout=.25)
+                settled = self.owner._exited_tree(self.owned)
+                if settled is None or not settled.confirmed:
+                    exc.add_note("PTY signal failed; original read-only clearance unconfirmed; owner retained")
+                    raise
+                return
             if not result.exited or result.remaining:
                 raise OwnershipUnknownError("PTY group/member cleanup unconfirmed")
 

@@ -1,0 +1,26 @@
+{
+  "x5-pty-macos-latest": {
+    "tests": 292,
+    "failed": [
+      "test_runtime_eof_tail_cleanup_and_detach_is_not_connection_attach",
+      "test_spawn_failure_does_not_publish_or_leak",
+      "test_close_live_process_refuses_fd_release",
+      "test_backpressure_returns_partial_within_write_budget"
+    ],
+    "skipped": 51
+  },
+  "x5-pty-ubuntu-latest": {
+    "tests": 292,
+    "failed": [
+      "test_runtime_eof_tail_cleanup_and_detach_is_not_connection_attach",
+      "test_spawn_failure_does_not_publish_or_leak",
+      "test_backpressure_returns_partial_within_write_budget"
+    ],
+    "skipped": 50
+  },
+  "x5-pty-windows-latest": {
+    "tests": 292,
+    "failed": [],
+    "skipped": 33
+  }
+}
