@@ -223,7 +223,9 @@ class ProcessIdentity:
     """进程身份 = PID + 创建时间。
 
     ``created_at_filetime`` 是 Windows 100ns FILETIME，精确相等比较（无容差）；
-    只有 ``created_at`` 时可给容差。两者都缺 -> ``matches`` 恒为 False
+    POSIX ``native_identity`` 保存 platform/kind/birth/boot 的原生强身份，
+    存在时必须精确匹配，不回退到弱时间。只有 ``created_at`` 时可给容差。
+    所有身份都缺 -> ``matches`` 恒为 False
     （fail-closed：不可验证即视为不匹配，拒绝对不可验证 PID 下手）。
     """
 
@@ -231,12 +233,17 @@ class ProcessIdentity:
     created_at_filetime: int | None = None
     created_at: float | None = None
     image: str | None = None
+    native_identity: tuple[str, ...] | None = None
 
     def matches(self, other: "ProcessIdentity | None", *, tolerance: float = 0.0) -> bool:
         if other is None or self.pid is None or other.pid is None:
             return False
         if self.pid != other.pid:
             return False
+        if self.native_identity is not None or other.native_identity is not None:
+            return (isinstance(self.native_identity, tuple) and len(self.native_identity) == 4
+                    and all(isinstance(part, str) and part for part in self.native_identity)
+                    and self.native_identity == other.native_identity)
         if self.created_at_filetime is not None and other.created_at_filetime is not None:
             return int(self.created_at_filetime) == int(other.created_at_filetime)
         if self.created_at is not None and other.created_at is not None:
@@ -249,6 +256,7 @@ class ProcessIdentity:
             "created_at_filetime": self.created_at_filetime,
             "created_at": self.created_at,
             "image": self.image,
+            **({"native_identity": list(self.native_identity)} if self.native_identity is not None else {}),
         }
 
 

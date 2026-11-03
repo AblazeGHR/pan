@@ -1,0 +1,274 @@
+"""Non-durable Linux/macOS PTY adapter for the existing PtyRuntime contract.
+
+openpty supplies terminal semantics; ProcessOwner supplies birth/group authority.
+No registry, recovery ledger, authentication substitute or durable detach host.
+Group absence is scoped evidence, not arbitrary descendant containment. Dead
+leaders never grant stale-PGID signal authority. Close retains resources on unknown.
+"""
+from __future__ import annotations
+
+import errno
+import os
+from pathlib import Path
+import select
+import socket
+import struct
+import sys
+import threading
+import time
+
+from packages.core.platform.process import OwnershipUnknownError, UnsupportedPlatformError
+from packages.core.platform.process_posix import PosixProcessOwner
+from .contracts import ProcessIdentity, ProcessProbe, ProcessStatus, ProcessOwnershipEvidence
+from .ownership import UnverifiedOwnershipGate
+
+
+class PosixPtyError(RuntimeError):
+    pass
+
+
+class PosixPtyClosed(PosixPtyError):
+    pass
+
+
+def _identity(value):
+    return ProcessIdentity(pid=value.pid, image=value.image,
+        native_identity=(value.platform, value.kind, value.birth, value.boot_id or ""))
+
+
+def _dimensions(rows, cols):
+    if (type(rows) is not int or type(cols) is not int
+            or not (1 <= rows <= 65535 and 1 <= cols <= 65535)):
+        raise ValueError("PTY rows/cols must be 1..65535")
+    return struct.pack("HHHH", rows, cols, 0, 0)
+
+
+class PosixPtyGuard:
+    """Adapt the original retained ProcessOwner to TreeGuard, without extra authority."""
+    def __init__(self, backend):
+        self.backend = backend
+
+    def describe(self):
+        return {"kind": "posix-process-group", "os_level_guard": True,
+            "containment": False, "durable_detach": False,
+            "scope": "original group and observed strong-identity members"}
+
+    def owned_pids(self, root_pid):
+        b = self.backend
+        if root_pid != b.pid:
+            raise OwnershipUnknownError("foreign PTY root")
+        with b._process_lock:
+            b.owner._observe_members(b.owned, strict=True)
+            return sorted(b.owned.members)
+
+    def remaining(self, pids):
+        b = self.backend
+        with b._process_lock:
+            # Unknown supplied identities are not silently treated as absent.
+            if any(pid not in b.owned.members for pid in pids):
+                raise OwnershipUnknownError("unobserved PTY member")
+            settled = b.owner._exited_tree(b.owned)
+            if settled is not None:
+                return list(settled.remaining)
+            b.owner._observe_members(b.owned, strict=True)
+            return list(b.owner._member_remaining(tuple(b.owned.members.values()),
+                b.owner._remaining(b.owned, b.owned.pgid)))
+
+    def terminate_tree(self, root_pid, *, timeout):
+        b = self.backend
+        if root_pid != b.pid:
+            raise OwnershipUnknownError("foreign PTY root")
+        with b._process_lock:
+            result = b.owner.kill_tree(b.owned, timeout=max(0., min(timeout, 30.)))
+            return list(result.owned), list(result.remaining)
+
+
+class PosixPtyBackend:
+    def __init__(self, master, owner, owned):
+        self._master = master
+        self.owner, self.owned = owner, owned
+        self.pid = owned.pid
+        self.identity = _identity(owned.identity)
+        self._io_lock = threading.RLock()
+        self._write_lock = threading.Lock()
+        self._process_lock = threading.RLock()
+        self._closed = False
+        self.guard = PosixPtyGuard(self)
+        self.gate = UnverifiedOwnershipGate(ProcessOwnershipEvidence(
+            assigned=True, atomic_with_spawn=True, identity=self.identity,
+            handle_bound_for_cleanup=True, guard="posix-process-group",
+            detail="setsid before fresh bootstrap; retained Popen/birth before exec admission; no containment"))
+
+    @classmethod
+    def spawn(cls, argv, *, cwd=None, env=None, rows=24, cols=80, startup_timeout=5.):
+        if sys.platform not in {"linux", "darwin"}:
+            raise UnsupportedPlatformError("POSIX PTY requires Linux/macOS")
+        import fcntl
+        import termios
+        size = _dimensions(rows, cols)
+        if not argv:
+            raise ValueError("PTY argv required")
+        owner = PosixProcessOwner()
+        master, slave = os.openpty()
+        parent = child = owned = None
+        try:
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, size)
+            os.set_blocking(master, False)
+            parent, child = socket.socketpair()
+            parent.settimeout(max(.05, min(float(startup_timeout), 30.)))
+            command = [sys.executable, str(Path(__file__).with_name("pty_bootstrap_posix.py")),
+                       str(child.fileno()), *[str(x) for x in argv]]
+            owned = owner.spawn(command, cwd=cwd, env=env, stdin=slave,
+                stdout=slave, stderr=slave, pass_fds=(child.fileno(),))
+            child.close()
+            os.close(slave)
+            slave = -1
+            ready = b""
+            while not ready.endswith(b"\n") and len(ready) < 128:
+                chunk = parent.recv(128)
+                if not chunk:
+                    break
+                ready += chunk
+            if ready != b"ready\n":
+                raise PosixPtyError("controlling PTY bootstrap failed")
+            if not owner.check(owned.identity).verified_alive:
+                raise OwnershipUnknownError("PTY birth unavailable before exec admission")
+            parent.sendall(b"G")
+            outcome = parent.recv(128)  # CLOEXEC EOF proves bootstrap exec, errors explicit.
+            if outcome:
+                if outcome == b"error:FileNotFoundError\n":
+                    raise FileNotFoundError("PTY executable unavailable")
+                raise PosixPtyError("PTY exec failed: " + outcome.decode("ascii", "replace").strip())
+            return cls(master, owner, owned)
+        except BaseException:
+            if owned is not None:
+                # Retained original ProcessOwner handles spawn-abort cleanup; never
+                # replace uncertain cleanup with a success or discard owner state.
+                try:
+                    result = owner.kill_tree(owned, timeout=2.)
+                    if not result.confirmed:
+                        raise OwnershipUnknownError("PTY failed startup cleanup unconfirmed")
+                except BaseException as cleanup_error:
+                    # Explicit resource owner is recoverable by the caller; no
+                    # closed/success result and no forgotten master on failure.
+                    cleanup_error.pty_backend = cls(master, owner, owned)
+                    raise
+                owned.close()
+            os.close(master)
+            raise
+        finally:
+            if slave >= 0:
+                os.close(slave)
+            if parent is not None:
+                parent.close()
+            if child is not None:
+                child.close()
+
+    def _fd(self):
+        if self._closed:
+            raise PosixPtyClosed("PTY handles closed")
+        return self._master
+
+    def read(self, size):
+        if size <= 0:
+            raise ValueError("PTY read size must be positive")
+        with self._io_lock:
+            fd = self._fd()
+        try:
+            readable, _, _ = select.select([fd], [], [], .05)
+        except (OSError, ValueError):
+            with self._io_lock:
+                self._fd()
+            raise
+        with self._io_lock:
+            self._fd()
+            if not readable:
+                return b""
+            try:
+                data = os.read(fd, size)
+            except BlockingIOError:
+                return b""
+            except OSError as exc:
+                # Linux PTY master reports EIO when its last slave closes.
+                if sys.platform.startswith("linux") and exc.errno == errno.EIO:
+                    probe = select.poll()
+                    probe.register(fd, select.POLLHUP)
+                    if any(events & select.POLLHUP for _, events in probe.poll(0)):
+                        raise EOFError("PTY slave hangup") from exc
+                raise
+            if not data:
+                raise EOFError("PTY slave EOF")
+            return data
+
+    def write(self, data):
+        deadline = time.monotonic() + 1.5
+        if not self._write_lock.acquire(timeout=1.5):
+            raise PosixPtyError("PTY writer busy")
+        try:
+            sent = 0
+            while sent < len(data) and time.monotonic() < deadline:
+                with self._io_lock:
+                    fd = self._fd()
+                    try:
+                        sent += os.write(fd, data[sent:sent+65536])
+                        continue
+                    except BlockingIOError:
+                        pass
+                select.select([], [fd], [], min(.05, max(0., deadline-time.monotonic())))
+            return sent
+        finally:
+            self._write_lock.release()
+
+    def resize(self, rows, cols):
+        import fcntl
+        import termios
+        size = _dimensions(rows, cols)
+        with self._io_lock:
+            fcntl.ioctl(self._fd(), termios.TIOCSWINSZ, size)
+
+    def probe(self, pid):
+        if pid != self.pid:
+            return ProcessProbe(ProcessStatus.UNKNOWN, detail="foreign PID")
+        with self._process_lock:
+            if self.owned.popen.poll() is not None:
+                return ProcessProbe(ProcessStatus.DEAD, self.identity, "retained Popen exit")
+            check = self.owner.check(self.owned.identity)
+            if check.verified_alive:
+                return ProcessProbe(ProcessStatus.ALIVE, _identity(check.observed))
+            return ProcessProbe(ProcessStatus.UNKNOWN, detail="PTY birth unavailable or mismatched")
+
+    def alive(self):
+        probe = self.probe(self.pid)
+        if probe.status is ProcessStatus.UNKNOWN:
+            raise OwnershipUnknownError(probe.detail)
+        return probe.status is ProcessStatus.ALIVE
+
+    def exit_code(self):
+        with self._process_lock:
+            return self.owned.popen.poll()
+
+    def terminate(self, force):
+        if not force:
+            self.write(b"\x03")
+            return
+        with self._process_lock:
+            result = self.owner.terminate(self.owned, grace=.25)
+            if not result.exited or result.remaining:
+                raise OwnershipUnknownError("PTY group/member cleanup unconfirmed")
+
+    def close(self):
+        with self._process_lock:
+            if self._closed:
+                return
+            settled = self.owner._exited_tree(self.owned)
+            if settled is None or not settled.confirmed:
+                raise OwnershipUnknownError("PTY close refuses live/unknown original group")
+            with self._io_lock:
+                os.close(self._master)
+                self._closed = True
+            self.owned.close()
+
+    def describe(self):
+        return {"backend": "PosixPtyBackend", "platform": sys.platform,
+            "identity": self.identity.as_dict(), "guard": self.guard.describe(),
+            "durable_detach": False, "closed": self._closed}

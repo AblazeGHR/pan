@@ -383,6 +383,7 @@ class PosixProcessOwner(ProcessOwner):
         stdout: Any = None,
         stderr: Any = None,
         hide_window: bool = True,  # POSIX 无窗口语义；保留参数以便同签名
+        pass_fds: Sequence[int] = (),  # private PTY bootstrap control; default behavior unchanged
     ) -> PosixOwnedProcess:
         _require_posix()
         if sys.platform.startswith("linux"):
@@ -407,6 +408,7 @@ class PosixProcessOwner(ProcessOwner):
             stderr=stderr,
             start_new_session=True,
             close_fds=True,
+            pass_fds=tuple(pass_fds),
         )
         identity, _state = read_posix_identity(popen.pid)
         if not _strong_identity(identity):

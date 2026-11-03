@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.286" timestamp="2026-11-04T00:02:31.810333+08:00" hostname="ablaze"><testcase classname="" name="tests.test_x5_pty_backend" time="0.000"><error message="collection failure">ImportError while importing test module 'D:\project\pan-worktrees\cp-x5-posix-20261103\tests\test_x5_pty_backend.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_x5_pty_backend.py:12: in &lt;module&gt;
+    from packages.core.terminal.backend_posix import PosixPtyBackend
+E   ModuleNotFoundError: No module named 'packages.core.terminal.backend_posix'</error></testcase></testsuite></testsuites>

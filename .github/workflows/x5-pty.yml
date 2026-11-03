@@ -1,0 +1,50 @@
+name: X5 POSIX PTY backend contracts
+on:
+  push:
+    branches: ["validation/x5-pty-20261104"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pty:
+    name: pty (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install contract dependencies
+        run: python -m pip install -r minimal-requirements.txt -r packages/qq/requirements.txt pytest pytest-timeout
+      - name: Shared server import
+        run: python scripts/run_tests_isolated.py -- python -c "import packages.web.server"
+      - name: Collect contracts
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_x5_pty_backend.py tests/test_terminal_windows_backend.py
+          tests/test_terminal_runtime.py tests/test_terminal_ownership.py
+          tests/test_platform_process_posix_unit.py tests/test_platform_process_contract.py
+          tests/test_terminal_api.py tests/test_service_process_backend.py
+          --collect-only -q -o addopts=
+      - name: Actual PTY and original runtime, authorization and owner contracts
+        run: >-
+          python scripts/run_tests_isolated.py -- python -m pytest
+          tests/test_x5_pty_backend.py tests/test_terminal_windows_backend.py
+          tests/test_terminal_runtime.py tests/test_terminal_ownership.py
+          tests/test_platform_process_posix_unit.py tests/test_platform_process_contract.py
+          tests/test_terminal_api.py tests/test_service_process_backend.py
+          -q -ra -o addopts= --timeout=90 --junitxml=artifacts/x5-pty/contracts.xml
+      - name: Preserve target provenance
+        if: always()
+        run: python -c "import json,platform,pathlib,subprocess; p=pathlib.Path('artifacts/x5-pty'); p.mkdir(parents=True,exist_ok=True); (p/'target.json').write_text(json.dumps(dict(sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),platform=platform.platform(),python=platform.python_version(),capabilityInjection=False)),encoding='utf-8')"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: x5-pty-${{ matrix.os }}
+          path: artifacts/x5-pty/
+          if-no-files-found: error
