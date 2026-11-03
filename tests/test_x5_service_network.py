@@ -39,3 +39,29 @@ def test_probe_permission_failure_stays_unknown(monkeypatch):
         raise PermissionError("synthetic denied")
     monkeypatch.setattr(socket, "socket", denied)
     assert service_network.loopback_listener(43210)["status"] == "unknown"
+
+
+@pytest.mark.parametrize("network_status", ["unknown", "listening"])
+def test_status_without_pid_cannot_turn_network_unknown_into_stopped(monkeypatch, tmp_path, network_status):
+    from packages.core import cli, launcher
+    def unavailable(root):
+        raise launcher.LauncherError("no recorded instance")
+    monkeypatch.setattr(cli, "verified", unavailable)
+    monkeypatch.setattr(launcher, "configured_port", lambda *a, **kw: 43210)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "load_state", lambda root: {})
+    monkeypatch.setattr(service_network, "needs_local_probe", lambda: True)
+    monkeypatch.setattr(service_network, "loopback_listener", lambda port: {"status": network_status, "owner": None})
+    assert cli.status(tmp_path)["state"] == "unknown"
+
+
+def test_stop_without_pid_cannot_claim_unknown_listener_is_offline(monkeypatch, tmp_path):
+    from packages.core import launcher
+    monkeypatch.setattr(launcher, "load_state", lambda root: {})
+    monkeypatch.setattr(launcher, "refresh_qq_state", lambda *a: None)
+    monkeypatch.setattr(launcher, "listener_owner", lambda port: None)
+    monkeypatch.setattr(launcher, "_cleanup_stale_children", lambda *a: pytest.fail("unknown is not offline authority"))
+    monkeypatch.setattr(service_network, "needs_local_probe", lambda: True)
+    monkeypatch.setattr(service_network, "loopback_listener", lambda port: {"status": "unknown", "owner": None})
+    with pytest.raises(launcher.LauncherError, match="refusing offline success"):
+        launcher.stop_service(tmp_path, 43210)

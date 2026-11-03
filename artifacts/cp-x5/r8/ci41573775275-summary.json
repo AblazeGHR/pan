@@ -1,0 +1,136 @@
+{
+  "run": 41573775275,
+  "url": "https://github.com/AblazeGHR/pan/actions/runs/41573775275",
+  "sourceSha": "7b447d91d7a4b615d1e8e6e88a1ef140a320f225",
+  "conclusion": "success",
+  "suites": [
+    {
+      "file": "artifacts\\x5-service-macos-latest\\contracts.xml",
+      "tests": 94,
+      "passed": 92,
+      "skipped": 2,
+      "failures": 0,
+      "skips": [
+        {
+          "name": "test_public_scheduled_response_precedes_real_detached_runner_completion[exit]",
+          "reason": "real detached lifecycle supervisor requires host service.lifecycle capability"
+        },
+        {
+          "name": "test_public_scheduled_response_precedes_real_detached_runner_completion[restart]",
+          "reason": "real detached lifecycle supervisor requires host service.lifecycle capability"
+        }
+      ]
+    },
+    {
+      "file": "artifacts\\x5-service-macos-latest\\native.xml",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0,
+      "failures": 0,
+      "skips": []
+    },
+    {
+      "file": "artifacts\\x5-service-ubuntu-latest\\contracts.xml",
+      "tests": 94,
+      "passed": 92,
+      "skipped": 2,
+      "failures": 0,
+      "skips": [
+        {
+          "name": "test_public_scheduled_response_precedes_real_detached_runner_completion[exit]",
+          "reason": "real detached lifecycle supervisor requires host service.lifecycle capability"
+        },
+        {
+          "name": "test_public_scheduled_response_precedes_real_detached_runner_completion[restart]",
+          "reason": "real detached lifecycle supervisor requires host service.lifecycle capability"
+        }
+      ]
+    },
+    {
+      "file": "artifacts\\x5-service-ubuntu-latest\\native.xml",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0,
+      "failures": 0,
+      "skips": []
+    },
+    {
+      "file": "artifacts\\x5-service-windows-latest\\contracts.xml",
+      "tests": 94,
+      "passed": 89,
+      "skipped": 5,
+      "failures": 0,
+      "skips": [
+        {
+          "name": "test_native_strong_identity_failure_aborts_own_group",
+          "reason": "actual POSIX spawn-abort group proof requires target OS"
+        },
+        {
+          "name": "test_native_original_group_absence_after_graceful_exit",
+          "reason": "actual POSIX read-only group proof requires target OS"
+        },
+        {
+          "name": "test_native_leader_exit_preserves_live_child_unknown_without_signal",
+          "reason": "actual leader-exit/live-child group requires target OS"
+        },
+        {
+          "name": "test_fast_real_host_reports_lifecycle_unsupported_without_effect[exit]",
+          "reason": "real unsupported lifecycle boundary applies only on hosts without capability"
+        },
+        {
+          "name": "test_fast_real_host_reports_lifecycle_unsupported_without_effect[restart]",
+          "reason": "real unsupported lifecycle boundary applies only on hosts without capability"
+        }
+      ]
+    },
+    {
+      "file": "artifacts\\x5-service-windows-latest\\native.xml",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0,
+      "failures": 0,
+      "skips": []
+    }
+  ],
+  "native": {
+    "artifacts\\x5-service-windows-latest\\native\\native-service.json": {
+      "sourceSha": "7b447d91d7a4b615d1e8e6e88a1ef140a320f225",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "win32",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "startupWorkerSurrogateExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    },
+    "artifacts\\x5-service-ubuntu-latest\\native\\native-service.json": {
+      "sourceSha": "7b447d91d7a4b615d1e8e6e88a1ef140a320f225",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "linux",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "startupWorkerSurrogateExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    },
+    "artifacts\\x5-service-macos-latest\\native\\native-service.json": {
+      "sourceSha": "7b447d91d7a4b615d1e8e6e88a1ef140a320f225",
+      "trialCapabilityInjection": true,
+      "protectedPortAvoided": true,
+      "platform": "darwin",
+      "declaredCapabilityUnchanged": true,
+      "startupCallerExitedServiceAlive": true,
+      "startupWorkerSurrogateExitedServiceAlive": true,
+      "originalRequestLookupNoReplay": true,
+      "cliRestartExitStatus": true,
+      "realCliCanonicalLockConflictUnknownNoReplay": true,
+      "portReleased": true
+    }
+  }
+}

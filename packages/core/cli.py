@@ -93,7 +93,10 @@ def status(root):
         tree_unknown = False
         if os.name != "nt" and record.get("pid") and not alive:
             tree_unknown = not launcher.service_process.offline(record)["confirmed"]
-        return {**base, "state": "unknown" if owner or alive or tree_unknown else "stopped",
+        from packages.core.platform import service_network
+        network_unknown = (service_network.needs_local_probe()
+                           and service_network.loopback_listener(port)["status"] != "offline")
+        return {**base, "state": "unknown" if owner or alive or tree_unknown or network_unknown else "stopped",
                 "listenerOwner": owner, "error": str(exc)}
 
 

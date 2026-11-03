@@ -1103,6 +1103,11 @@ def stop_service(root: str | Path, port: int, old_pid: int | None = None,
     if pid is None:
         pid = listener_owner(port)
     if pid is None:
+        from packages.core.platform import service_network
+        if service_network.needs_local_probe():
+            probe = service_network.loopback_listener(port)
+            if probe["status"] != "offline":
+                raise LauncherError(f"Pan listener ownership unknown; refusing offline success: {probe}")
         _cleanup_stale_children(root_path, state, log_path)
         clear_state(root_path)
         return {"stopped": True, "fallback": False, "reason": "Pan was already offline"}
