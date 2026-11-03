@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 import socket
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -100,6 +102,18 @@ def test_native_launcher_http_identity_and_offline(tmp_path):
     try:
         ready = launcher.wait_ready(root=tmp_path, port=port, expected_pid=record["pid"],
             expected_created_at=record["createdAt"], timeout=10)
+        if not ready.get("ok"):
+            from packages.core.platform import service_network
+            from packages.core.platform.process import default_process_owner
+            diagnostic = {"ready": ready, "record": record,
+                "network": service_network.loopback_listener(port),
+                "strongCheck": default_process_owner().verify(record.get("processIdentity", {})).as_dict(),
+                "logs": {p.name: p.read_text(encoding="utf-8", errors="replace")[-5000:]
+                         for p in (tmp_path / "data/logs").glob("pan-console.*.log")}}
+            target = Path(os.environ.get("X5_CONTRACT_EVIDENCE_ROOT", str(tmp_path)))
+            target.mkdir(parents=True, exist_ok=True)
+            (target / "launcher-readiness-failure.json").write_text(
+                json.dumps(diagnostic, indent=2).replace(str(tmp_path), "<owned-root>"), encoding="utf-8")
         assert ready["ok"] is True and ready["http"] is True, ready
         assert ready["identity"]["ok"] is True
         stopped = launcher._terminate_record(record, tmp_path, log_path=None)

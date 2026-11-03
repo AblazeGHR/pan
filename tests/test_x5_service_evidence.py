@@ -110,6 +110,8 @@ def test_native_startup_timeout_cleans_owned_unready_main(tmp_path, monkeypatch)
     def start(*a, **kw):
         record = original(*a, **kw)
         records.append(record)
+        import gc
+        gc.collect()  # Returning only a record must not lose the original handle.
         return record
     monkeypatch.setattr(launcher, "_start_main", start)
     try:

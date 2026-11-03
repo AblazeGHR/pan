@@ -30,6 +30,8 @@ jobs:
           tests/test_lifecycle_strict_successors.py tests/test_p5b_lifecycle_action.py
           --collect-only -q -o addopts=
       - name: Platform backend, cancellation, receipt and failure contracts
+        env:
+          X5_CONTRACT_EVIDENCE_ROOT: ${{ runner.temp }}/x5-service/contract-diagnostics
         run: >-
           python scripts/run_tests_isolated.py -- python -m pytest
           tests/test_service_process_backend.py tests/test_x5_service_evidence.py tests/test_x5_service_network.py
@@ -39,6 +41,7 @@ jobs:
           -q -ra -o addopts= --timeout=90
           --junitxml=${{ runner.temp }}/x5-service/contracts.xml
       - name: Native owned main, independent CLI exit, HTTP restart and lock competition
+        if: ${{ !cancelled() }}
         env:
           X5_RUN_NATIVE_SERVICE: '1'
           X5_EVIDENCE_ROOT: ${{ runner.temp }}/x5-service/native

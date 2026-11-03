@@ -8,6 +8,15 @@ from __future__ import annotations
 import os
 import subprocess
 
+# Original live handles, not a second receipt store. A reference cycle between
+# Popen and OwnedProcess is collectible; the launcher must retain these handles
+# explicitly until cleanup or its own process exit so direct children are reaped.
+_handles = {}
+
+
+def _key(identity):
+    return tuple(identity.get(k) for k in ("pid", "kind", "birth", "boot_id"))
+
 
 def spawn(argv, *, cwd, env, stdin, stdout, stderr, creationflags=0):
     if os.name == "nt":
@@ -32,6 +41,7 @@ def spawn(argv, *, cwd, env, stdin, stdout, stderr, creationflags=0):
             from packages.core.platform.process import OwnershipUnknownError
             raise OwnershipUnknownError(f"service spawn identity failed; cleanup unconfirmed: {cleanup}")
         raise
+    _handles[_key(process.pan_process_identity)] = owned
     return process
 
 
@@ -42,7 +52,15 @@ def capture(record):
 
 def offline(record):
     from packages.core.platform.service_process_posix import offline as observe
-    return observe(record)
+    identity = record.get("processIdentity")
+    if isinstance(identity, dict):
+        owned = _handles.get(_key(identity))
+        if owned is not None:
+            owned.popen.poll()  # Only the original Popen can reap our child.
+    proof = observe(record)
+    if proof["confirmed"] and isinstance(identity, dict):
+        _handles.pop(_key(identity), None)
+    return proof
 
 
 def terminate(record):
@@ -55,5 +73,7 @@ def terminate(record):
     result = default_process_owner().recover(identity, terminate=True)
     stopped = (result.verified and not result.remaining
                and result.action in {"terminated", "already_dead"})
+    if stopped:
+        _handles.pop(_key(identity), None)
     return {"stopped": stopped, "fallback": False, "reason": result.detail,
             "processOwnerReceipt": result.as_dict()}

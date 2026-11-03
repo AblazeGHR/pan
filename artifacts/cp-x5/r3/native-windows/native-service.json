@@ -1,0 +1,12 @@
+{
+  "sourceSha": "44ca027f4710c445138de751f33c3253e5f60c86",
+  "trialCapabilityInjection": true,
+  "protectedPortAvoided": true,
+  "platform": "win32",
+  "declaredCapabilityUnchanged": true,
+  "startupCallerExitedServiceAlive": true,
+  "originalRequestLookupNoReplay": true,
+  "cliRestartExitStatus": true,
+  "realCliCanonicalLockConflictUnknownNoReplay": true,
+  "portReleased": true
+}
