@@ -131,6 +131,7 @@ from packages.core import launcher
 from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
 from packages.core import platform as platform_layer
+from packages.core.platform import file_manager
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
 from packages.scheduler import engine as scheduler_engine
@@ -15143,45 +15144,6 @@ def _open_file_with_system_default(target: Path) -> None:
     _launch_external_opener(argv)
 
 
-def _external_reveal_argv(target: Path, platform: str | None = None) -> list[str] | None:
-    """Return the fixed reveal argv for `platform`, or None when unavailable.
-
-    Windows has no argv form here; it uses Explorer's ``/select,`` switch, which
-    is handled separately so its nonzero exit status can be tolerated. Linux
-    has no portable "select this file" primitive, so xdg-open receives the
-    containing directory. A session without a desktop is explicitly
-    unsupported rather than launching a terminal-only helper.
-    """
-    selected = platform or sys.platform
-    if selected == "darwin":
-        return ["open", "-R", str(target)]
-    if selected.startswith("linux"):
-        if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
-            return None
-        opener = shutil.which("xdg-open")
-        return [opener, str(target.parent)] if opener else None
-    return None
-
-
-def _reveal_file_in_file_manager(target: Path) -> None:
-    """Select one existing file in the platform's file manager, never via a shell."""
-    if sys.platform == "win32":
-        explorer = shutil.which("explorer.exe") or shutil.which("explorer")
-        if explorer is None:
-            raise ExternalOpenUnavailable("no system file manager is available")
-        # Explorer returns a nonzero exit status even when the window opens, so
-        # only a spawn failure is actionable here.
-        _launch_external_opener(
-            [explorer, "/select,", str(target)], ignore_nonzero_exit=True
-        )
-        return
-
-    argv = _external_reveal_argv(target)
-    if argv is None:
-        raise ExternalOpenUnavailable("no system file manager is available")
-    _launch_external_opener(argv)
-
-
 def _editor_open_allowed_roots(session_id: str) -> list[Path]:
     """Filesystem roots a Session may hand to the system opener.
 
@@ -15270,10 +15232,10 @@ async def api_editor_reveal_external(data: dict):
     target = _resolve_editor_file_target(data)
 
     try:
-        await asyncio.to_thread(_reveal_file_in_file_manager, target)
-    except ExternalOpenUnavailable as exc:
+        await asyncio.to_thread(file_manager.reveal_file_in_file_manager, target)
+    except file_manager.RevealUnavailable as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
-    except ExternalOpenFailed as exc:
+    except file_manager.RevealFailed as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "name": target.name}
 

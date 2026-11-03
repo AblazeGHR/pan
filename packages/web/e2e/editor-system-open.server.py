@@ -42,9 +42,30 @@ def seed():
     fixture.session_store.create("Alpha Session", adapter="cbc", workdir=str(fixture.WORKDIR))
 
     import packages.web.server as server_module
+    from fastapi import Body
 
     server_module._open_file_with_system_default = lambda target: _record("open", target)
-    server_module._reveal_file_in_file_manager = lambda target: _record("reveal", target)
+
+    original_available = server_module.file_manager.reveal_available
+    forced = {"available": True}
+
+    def reveal_available(platform=None):
+        return forced["available"] and original_available(platform)
+
+    def reveal_file(target):
+        if not reveal_available():
+            raise server_module.file_manager.RevealUnavailable(
+                "no system file manager is available"
+            )
+        _record("reveal", target)
+
+    server_module.file_manager.reveal_available = reveal_available
+    server_module.file_manager.reveal_file_in_file_manager = reveal_file
+
+    @server_module.app.post("/__e2e/reveal-capability")
+    async def e2e_reveal_capability(payload: dict = Body(...)):
+        forced["available"] = bool(payload.get("available"))
+        return {"ok": True, "available": forced["available"]}
 
 
 fixture._seed_sessions = seed

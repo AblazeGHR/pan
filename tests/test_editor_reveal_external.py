@@ -15,6 +15,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
+from packages.core.platform import file_manager
+
 
 def reveal_external(server, session_id="ses_editor", path="file.txt"):
     return asyncio.run(
@@ -47,7 +49,9 @@ def revealed(monkeypatch):
 
     calls: list[Path] = []
     monkeypatch.setattr(
-        server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        server.file_manager,
+        "reveal_file_in_file_manager",
+        lambda target: calls.append(target),
     )
     return calls
 
@@ -232,33 +236,31 @@ def test_requires_a_session_and_a_path(revealed):
 
 
 def test_reveal_argv_selection_per_platform(monkeypatch, tmp_path):
-    import packages.web.server as server
-
     target = tmp_path / "file.txt"
     target.write_text("hello", encoding="utf-8")
 
-    assert server._external_reveal_argv(target, "darwin") == [
+    assert file_manager.reveal_argv(target, "darwin") == [
         "open",
         "-R",
         str(target),
     ]
-    assert server._external_reveal_argv(target, "win32") is None
-    assert server._external_reveal_argv(target, "freebsd") is None
+    assert file_manager.reveal_argv(target, "win32") is None
+    assert file_manager.reveal_argv(target, "freebsd") is None
 
     monkeypatch.setenv("DISPLAY", ":0")
-    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open")
-    assert server._external_reveal_argv(target, "linux") == [
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/xdg-open")
+    assert file_manager.reveal_argv(target, "linux") == [
         "/usr/bin/xdg-open",
         str(target.parent),
     ]
 
     monkeypatch.delenv("DISPLAY")
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
-    assert server._external_reveal_argv(target, "linux") is None
+    assert file_manager.reveal_argv(target, "linux") is None
 
     monkeypatch.setenv("DISPLAY", ":0")
-    monkeypatch.setattr(server.shutil, "which", lambda name: None)
-    assert server._external_reveal_argv(target, "linux") is None
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: None)
+    assert file_manager.reveal_argv(target, "linux") is None
 
 
 def test_windows_uses_explorer_select_without_a_shell(monkeypatch, workdir):
@@ -267,9 +269,9 @@ def test_windows_uses_explorer_select_without_a_shell(monkeypatch, workdir):
     session_with_workdir(monkeypatch, server, workdir)
     target = workdir / "file.txt"
     target.write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "win32")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "windows")
     monkeypatch.setattr(
-        server.shutil, "which", lambda name: r"C:\Windows\explorer.exe"
+        file_manager, "_explorer_path", lambda: r"C:\Windows\explorer.exe"
     )
 
     launched: list[tuple[list[str], dict]] = []
@@ -283,7 +285,7 @@ def test_windows_uses_explorer_select_without_a_shell(monkeypatch, workdir):
         launched.append((list(argv), kwargs))
         return Process()
 
-    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(file_manager.subprocess, "Popen", fake_popen)
 
     result = reveal_external(server)
 
@@ -292,9 +294,9 @@ def test_windows_uses_explorer_select_without_a_shell(monkeypatch, workdir):
         (
             [r"C:\Windows\explorer.exe", "/select,", str(target.resolve())],
             {
-                "stdin": server.subprocess.DEVNULL,
-                "stdout": server.subprocess.DEVNULL,
-                "stderr": server.subprocess.DEVNULL,
+                "stdin": file_manager.subprocess.DEVNULL,
+                "stdout": file_manager.subprocess.DEVNULL,
+                "stderr": file_manager.subprocess.DEVNULL,
                 "close_fds": True,
                 "start_new_session": True,
             },
@@ -308,10 +310,10 @@ def test_windows_requires_explorer(monkeypatch, workdir):
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "win32")
-    monkeypatch.setattr(server.shutil, "which", lambda name: None)
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "windows")
+    monkeypatch.setattr(file_manager, "_explorer_path", lambda: None)
     monkeypatch.setattr(
-        server.subprocess,
+        file_manager.subprocess,
         "Popen",
         lambda *a, **k: pytest.fail("must not launch without Explorer"),
     )
@@ -329,7 +331,8 @@ def test_macos_reveals_with_open_select(monkeypatch, workdir):
     session_with_workdir(monkeypatch, server, workdir)
     target = workdir / "file.txt"
     target.write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "darwin")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "darwin")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/open")
 
     launched: list[list[str]] = []
 
@@ -341,7 +344,7 @@ def test_macos_reveals_with_open_select(monkeypatch, workdir):
         launched.append(list(argv))
         return Process()
 
-    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(file_manager.subprocess, "Popen", fake_popen)
 
     result = reveal_external(server)
 
@@ -355,9 +358,9 @@ def test_linux_reveals_the_parent_directory(monkeypatch, workdir):
     session_with_workdir(monkeypatch, server, workdir)
     target = workdir / "file.txt"
     target.write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "linux")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "linux")
     monkeypatch.setenv("DISPLAY", ":0")
-    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/xdg-open")
 
     launched: list[list[str]] = []
 
@@ -369,7 +372,7 @@ def test_linux_reveals_the_parent_directory(monkeypatch, workdir):
         launched.append(list(argv))
         return Process()
 
-    monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(file_manager.subprocess, "Popen", fake_popen)
 
     result = reveal_external(server)
 
@@ -382,10 +385,10 @@ def test_returns_501_without_an_opener_or_desktop(monkeypatch, workdir):
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "linux")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "linux")
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
-    monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/xdg-open")
 
     with pytest.raises(HTTPException) as error:
         reveal_external(server)
@@ -394,7 +397,7 @@ def test_returns_501_without_an_opener_or_desktop(monkeypatch, workdir):
     assert "file manager" in error.value.detail
 
     monkeypatch.setenv("DISPLAY", ":0")
-    monkeypatch.setattr(server.shutil, "which", lambda name: None)
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: None)
     with pytest.raises(HTTPException) as missing:
         reveal_external(server)
 
@@ -406,7 +409,7 @@ def test_returns_501_on_an_unsupported_platform(monkeypatch, workdir):
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "freebsd")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "freebsd")
 
     with pytest.raises(HTTPException) as error:
         reveal_external(server)
@@ -419,13 +422,14 @@ def test_returns_500_when_the_reveal_opener_fails(monkeypatch, workdir):
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "darwin")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "darwin")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/open")
 
     class Process:
         def wait(self, timeout=None):
             return 3
 
-    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: Process())
+    monkeypatch.setattr(file_manager.subprocess, "Popen", lambda *a, **k: Process())
 
     with pytest.raises(HTTPException) as error:
         reveal_external(server)
@@ -439,12 +443,13 @@ def test_reports_a_missing_opener_binary(monkeypatch, workdir):
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "darwin")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "darwin")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/open")
 
     def missing_binary(*_args, **_kwargs):
         raise FileNotFoundError("open")
 
-    monkeypatch.setattr(server.subprocess, "Popen", missing_binary)
+    monkeypatch.setattr(file_manager.subprocess, "Popen", missing_binary)
 
     with pytest.raises(HTTPException) as error:
         reveal_external(server)
@@ -457,22 +462,47 @@ def test_a_still_running_reveal_opener_is_not_treated_as_failure(monkeypatch, wo
 
     session_with_workdir(monkeypatch, server, workdir)
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
-    monkeypatch.setattr(server.sys, "platform", "darwin")
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "darwin")
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: "/usr/bin/open")
 
     class Process:
         def wait(self, timeout=None):
             if timeout is not None:
-                raise server.subprocess.TimeoutExpired(cmd="open", timeout=timeout)
+                raise file_manager.subprocess.TimeoutExpired(cmd="open", timeout=timeout)
             return 0
 
     reapers: list[object] = []
-    monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: Process())
-    monkeypatch.setattr(server, "_reap_external_opener", reapers.append)
+    monkeypatch.setattr(file_manager.subprocess, "Popen", lambda *a, **k: Process())
+    monkeypatch.setattr(file_manager, "_reap", reapers.append)
 
     result = reveal_external(server)
 
     assert result["ok"] is True
     assert len(reapers) == 1
+
+
+def test_route_returns_501_when_the_capability_probe_has_no_opener(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import packages.web.server as server
+    from packages.core import session as sess
+
+    workdir = tmp_path / "workdir"
+    workdir.mkdir()
+    (workdir / "file.txt").write_text("hello", encoding="utf-8")
+    session = sess.create(name="editor-reveal-missing-explorer", adapter="cbc", workdir=str(workdir))
+    monkeypatch.setattr(server.file_manager, "platform_name", lambda value=None: "windows")
+    monkeypatch.setattr(server.file_manager, "_explorer_path", lambda: None)
+
+    with TestClient(server.app) as client:
+        response = client.post(
+            "/api/editor/reveal-external",
+            json={"session_id": session.id, "path": "file.txt"},
+        )
+
+    assert response.status_code == 501
+    assert "file manager" in response.json()["detail"]
+    assert server.platform_layer.capabilities()["fileManager.reveal"] is False
 
 
 def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
@@ -487,7 +517,9 @@ def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
     session = sess.create(name="editor-reveal-external", adapter="cbc", workdir=str(workdir))
     revealed: list[Path] = []
     monkeypatch.setattr(
-        server, "_reveal_file_in_file_manager", lambda target: revealed.append(target)
+        server.file_manager,
+        "reveal_file_in_file_manager",
+        lambda target: revealed.append(target),
     )
 
     with TestClient(server.app) as client:

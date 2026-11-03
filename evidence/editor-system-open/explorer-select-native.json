@@ -1,0 +1,34 @@
+{
+  "platform": "win32",
+  "folder": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文",
+  "results": [
+    {
+      "file": "普通 空格.txt",
+      "target": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\普通 空格.txt",
+      "selected": [
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\普通 空格.txt"
+      ],
+      "matched": true,
+      "windowClosed": true
+    },
+    {
+      "file": "带,逗号 中文.txt",
+      "target": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\带,逗号 中文.txt",
+      "selected": [
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\带,逗号 中文.txt"
+      ],
+      "matched": true,
+      "windowClosed": true
+    },
+    {
+      "file": "plain.txt",
+      "target": "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\plain.txt",
+      "selected": [
+        "C:\\Users\\14709\\AppData\\Local\\Temp\\pan-select-z1csh0re\\目录 space,中文\\plain.txt"
+      ],
+      "matched": true,
+      "windowClosed": true
+    }
+  ],
+  "pass": true
+}

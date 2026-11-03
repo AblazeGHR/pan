@@ -4,6 +4,7 @@ import { Check, Copy, Download, ExternalLink, FolderOpen, MessageSquare, Save as
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useCurrentSession } from '@/stores/sessionStore';
 import { useEditorStore } from '@/stores/editorStore';
+import { useCapability, usePlatformStore } from '@/stores/platformStore';
 import { useUIStore } from '@/stores/uiStore';
 import { copyText } from '@/utils/clipboard';
 import { openFileExternally, revealFileExternally } from '@/services/api';
@@ -67,6 +68,19 @@ export function getDisplayPath(workdir: string | null | undefined, operationPath
   return `${normalizedWorkdir}${separator}${normalizedPath}`;
 }
 
+function revealUnavailableReason(platform: string | null): string {
+  switch (platform) {
+    case 'windows':
+      return '当前环境没有可用的资源管理器';
+    case 'darwin':
+      return '当前环境没有可用的 Finder';
+    case 'linux':
+      return '当前环境没有可用的桌面文件管理器';
+    default:
+      return '当前平台不支持在系统资源管理器中定位';
+  }
+}
+
 export function EditorFileTopBar({
   operationPath,
   imagePreview = false,
@@ -79,6 +93,8 @@ export function EditorFileTopBar({
   const downloadFile = useEditorStore((s) => s.downloadFile);
   const requestSave = useEditorStore((s) => s.requestSave);
   const isDirty = useEditorStore((s) => s.dirty.has(operationPath));
+  const platform = usePlatformStore((s) => s.platform);
+  const revealAvailable = useCapability('fileManager.reveal');
   const requestChatAttachment = useUIStore((s) => s.requestChatAttachment);
   const showToast = useUIStore((s) => s.showToast);
   const navigate = useNavigate();
@@ -172,6 +188,14 @@ export function EditorFileTopBar({
     : !hasRealPath
       ? '该文件没有可用的本地路径'
       : null;
+  // The reveal action additionally needs a runtime desktop file manager. A
+  // failed/absent capability probe stays available (Windows baseline) and the
+  // server's 501 is surfaced as a toast.
+  const revealDisabledReason =
+    externalActionDisabledReason ??
+    (revealAvailable
+      ? null
+      : `无法在系统资源管理器中定位：${revealUnavailableReason(platform)}`);
   // OS actions always hand the on-disk file to the platform. Unsaved edits are
   // never written implicitly; say so instead of hiding the action.
   const externalOpenTitle = isDirty
@@ -197,7 +221,7 @@ export function EditorFileTopBar({
 
   const handleRevealExternal = async () => {
     const sessionId = currentSession?.id;
-    if (!sessionId || externalActionDisabledReason) return;
+    if (!sessionId || revealDisabledReason) return;
     setRevealingExternal(true);
     try {
       await revealFileExternally(sessionId, operationPath);
@@ -255,8 +279,8 @@ export function EditorFileTopBar({
       <button
         type="button"
         aria-label="在系统资源管理器中定位"
-        title={externalActionDisabledReason ?? '在系统资源管理器中定位'}
-        disabled={Boolean(externalActionDisabledReason) || revealingExternal}
+        title={revealDisabledReason ?? '在系统资源管理器中定位'}
+        disabled={Boolean(revealDisabledReason) || revealingExternal}
         onClick={() => void handleRevealExternal()}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
       >

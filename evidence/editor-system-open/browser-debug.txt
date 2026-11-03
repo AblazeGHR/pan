@@ -1,0 +1,84 @@
+platform capabilities {
+  platform: 'windows',
+  capabilities: {
+    'terminal.native': true,
+    'terminal.detach': true,
+    rewind: true,
+    'service.lifecycle': true,
+    processOwner: true,
+    secretStore: true,
+    'fileManager.reveal': true
+  }
+}
+reveal state { enabled: true, title: '在系统资源管理器中定位' }
+Pan
+Chat
+Editor
+Jobs
+Terminal
+Locker
+Actions
+Automation
+DIRECTORIES
+添加目录
+CWD
+D:/project/pan-worktrees/editor-system-open-20261104/packages/web/test-results/system-open-1793726623766/session-workdir
+binary.bin
+dirty.txt
+large.bin
+linked.ts
+notes.md
+工作区
+全部
+2
+无工作区
+2
+新建工作区
+全部
+Chat Stream
+D:\project\pan-worktrees\editor-system-open-20261104\packages\web\test-results\system-open-1793726623766\session-workdir
+D:\project\pan-worktrees\editor-system-open-20261104\packages\web\test-results\system-open-1793726623766\session-workdir\notes.md
+✕
+D:\project\pan-worktrees\editor-system-open-20261104\packages\web\test-results\system-open-1793726623766\session-workdir\notes.md
+保存
+
+notes line 1 notes line 2 notes line 3 notes line 4 notes line 5 notes line 6 notes line 7 notes line 8 notes line 9 notes line 10 notes line 11 notes line 12 notes line 13 notes line 14 notes line 15 notes line 16 notes line 17 notes line 18 notes line 19 notes line 20 notes line 21 notes line 22 notes line 23 notes line 24 notes line 25 notes line 26 notes line 27 notes line 28 notes line 29 notes line 30 notes line 31 notes line 32 notes line 33 notes line 34 notes line 35 notes line 36 notes line 37 notes line 38 notes line 39 notes line 40 notes line 41 notes line 42 notes line 43 notes line 44 notes line 45 notes line 46 notes line 47 notes line 48 notes line 49 notes line 50 notes line 51 notes line 52 notes line 53 notes line 54 notes line 55 notes line 56 notes line 57 notes line 58 notes line 59 notes line 60 notes line 61 notes line 62 notes line 63 notes line 64 notes line 65 notes line 66 notes line 67 notes line 68 notes line 69 notes line 70 notes line 71 notes line 72 notes line 73 notes line 74 notes line 75 notes line 76 notes line 77 notes line 78 notes line 79 notes line 80
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: missing reveal call for notes.md: [{"kind":"open","path":"D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\test-results\\system-open-1793726623766\\session-workdir\\notes.md"}]
+    at waitForCall (file:///D:/project/pan-worktrees/editor-system-open-20261104/packages/web/e2e/editor-system-open.e2e.mjs:47:10)
+    at async file:///D:/project/pan-worktrees/editor-system-open-20261104/packages/web/e2e/editor-system-open.e2e.mjs:102:3 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: undefined,
+  operator: 'fail',
+  diff: 'simple'
+}
+
+Node.js v24.22.1
+cleanup verified {
+  port: 65327,
+  runtime: 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\test-results\\system-open-1793726623766'
+}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1 !== 0
+
+    at file:///D:/project/pan-worktrees/editor-system-open-20261104/packages/web/e2e/editor-system-open-runner.mjs:93:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.1

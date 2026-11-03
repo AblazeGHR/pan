@@ -6,6 +6,7 @@ import { EditorFileTopBar, getDisplayPath } from './EditorFileTopBar';
 import { EditorConfirmationModal } from './EditorConfirmationModal';
 import { useEditorStore } from '@/stores/editorStore';
 import { useSessionStore } from '@/stores/sessionStore';
+import { resetPlatformStoreForTests, usePlatformStore } from '@/stores/platformStore';
 import { useUIStore } from '@/stores/uiStore';
 import { writeFile, openFileExternally, revealFileExternally } from '@/services/api';
 
@@ -37,6 +38,7 @@ function mockMatchMedia(matches: boolean) {
 
 beforeEach(() => {
   mockMatchMedia(true);
+  resetPlatformStoreForTests();
   useEditorStore.setState({
     sessionId: 's1',
     openPaths: ['src/one.ts', 'src/two.ts'],
@@ -417,6 +419,77 @@ describe('EditorFileTopBar reveal in file manager', () => {
     );
   });
 
+  it('disables reveal when the runtime file-manager capability is false', () => {
+    usePlatformStore.setState({
+      platform: 'windows',
+      capabilities: { 'fileManager.reveal': false },
+      loaded: true,
+    });
+    renderBar();
+
+    const reveal = screen.getByRole('button', {
+      name: '在系统资源管理器中定位',
+    }) as HTMLButtonElement;
+    const open = screen.getByRole('button', {
+      name: '用系统默认方式打开',
+    }) as HTMLButtonElement;
+    expect(reveal.disabled).toBe(true);
+    expect(reveal.title).toBe(
+      '无法在系统资源管理器中定位：当前环境没有可用的资源管理器',
+    );
+    expect(open.disabled).toBe(false);
+    fireEvent.click(reveal);
+    expect(revealFileExternally).not.toHaveBeenCalled();
+  });
+
+  it('uses the desktop-file-manager reason on Linux', () => {
+    usePlatformStore.setState({
+      platform: 'linux',
+      capabilities: { 'fileManager.reveal': false },
+      loaded: true,
+    });
+    renderBar();
+
+    const reveal = screen.getByRole('button', {
+      name: '在系统资源管理器中定位',
+    }) as HTMLButtonElement;
+    expect(reveal.disabled).toBe(true);
+    expect(reveal.title).toBe(
+      '无法在系统资源管理器中定位：当前环境没有可用的桌面文件管理器',
+    );
+  });
+
+  it('uses a platform-specific reason for an unknown platform', () => {
+    usePlatformStore.setState({
+      platform: 'freebsd',
+      capabilities: { 'fileManager.reveal': false },
+      loaded: true,
+    });
+    renderBar();
+
+    const reveal = screen.getByRole('button', {
+      name: '在系统资源管理器中定位',
+    }) as HTMLButtonElement;
+    expect(reveal.disabled).toBe(true);
+    expect(reveal.title).toBe(
+      '无法在系统资源管理器中定位：当前平台不支持在系统资源管理器中定位',
+    );
+  });
+
+  it('keeps reveal available when the capability probe is unavailable', async () => {
+    usePlatformStore.setState({ platform: null, capabilities: null, loaded: true });
+    renderBar();
+
+    const reveal = screen.getByRole('button', {
+      name: '在系统资源管理器中定位',
+    }) as HTMLButtonElement;
+    expect(reveal.disabled).toBe(false);
+    fireEvent.click(reveal);
+    await waitFor(() =>
+      expect(revealFileExternally).toHaveBeenCalledWith('s1', 'src/one.ts'),
+    );
+  });
+
   it('disables reveal for attachment previews without a real path', () => {
     renderBar('attachment:s1:att_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
@@ -431,15 +504,19 @@ describe('EditorFileTopBar reveal in file manager', () => {
 
   it('shows the server error in place when reveal fails', async () => {
     vi.mocked(revealFileExternally).mockRejectedValueOnce(
-      new Error('no system file manager is available'),
+      new Error('501: no system file manager is available'),
     );
     renderBar();
 
-    fireEvent.click(screen.getByRole('button', { name: '在系统资源管理器中定位' }));
+    const reveal = screen.getByRole('button', {
+      name: '在系统资源管理器中定位',
+    }) as HTMLButtonElement;
+    expect(reveal.disabled).toBe(false);
+    fireEvent.click(reveal);
 
     await waitFor(() =>
       expect(useUIStore.getState().toastQueue.at(-1)).toMatchObject({
-        message: '定位失败：no system file manager is available',
+        message: '定位失败：501: no system file manager is available',
         type: 'error',
       }),
     );

@@ -87,6 +87,13 @@ try {
 
   await openEditor('notes');
   const notes = await osActions();
+  const platformInfo = await page.evaluate(async () => (await fetch('/api/platform')).json());
+  console.log('platform capabilities', platformInfo);
+  console.log('reveal state', {
+    enabled: await notes.reveal.isEnabled(),
+    title: await notes.reveal.getAttribute('title'),
+  });
+  assert.equal(platformInfo.capabilities['fileManager.reveal'], true);
   assert.equal(await notes.open.isEnabled(), true);
   assert.equal(await notes.reveal.isEnabled(), true);
   await clickAndWait('/api/editor/open-external', notes.open);
@@ -152,9 +159,52 @@ try {
   await waitForCall('reveal', 'dirty.txt', 1);
   assert.equal((await readCalls()).length, beforeOpen + 2);
 
+  const callsBeforeDisabled = (await readCalls()).length;
+  const disabled = await post('/__e2e/reveal-capability', { available: false });
+  assert.equal(disabled.status, 200);
+  await openEditor('notes');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('button[aria-label="在系统资源管理器中定位"]')?.disabled ===
+      true,
+  );
+  const disabledReveal = page.getByRole('button', {
+    name: '在系统资源管理器中定位',
+    exact: true,
+  });
+  assert.equal(await disabledReveal.isDisabled(), true);
+  assert.equal(
+    await disabledReveal.getAttribute('title'),
+    '无法在系统资源管理器中定位：当前环境没有可用的资源管理器',
+  );
+  assert.equal(
+    await page.getByRole('button', { name: '用系统默认方式打开', exact: true }).isEnabled(),
+    true,
+  );
+  const apiDisabled = await post('/api/editor/reveal-external', {
+    session_id: id,
+    path: 'notes.md',
+  });
+  assert.equal(apiDisabled.status, 501);
+  assert.equal((await readCalls()).length, callsBeforeDisabled);
+
+  const enabled = await post('/__e2e/reveal-capability', { available: true });
+  assert.equal(enabled.status, 200);
+  await openEditor('notes');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('button[aria-label="在系统资源管理器中定位"]')?.disabled ===
+      false,
+  );
+  const enabledReveal = page.getByRole('button', {
+    name: '在系统资源管理器中定位',
+    exact: true,
+  });
+  assert.equal(await enabledReveal.isEnabled(), true);
+
   await page.setViewportSize({ width: 390, height: 900 });
-  assert.equal(await dirtyActions.open.isVisible(), true);
-  assert.equal(await dirtyActions.reveal.isVisible(), true);
+  assert.equal(await page.getByRole('button', { name: '用系统默认方式打开', exact: true }).isVisible(), true);
+  assert.equal(await enabledReveal.isVisible(), true);
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     true,
@@ -163,7 +213,7 @@ try {
 
   assert.deepEqual(errors, []);
   console.log(
-    'PASS production HTTP Chromium: open+reveal notes, failed binary/large tabs, dirty disk-only open, 403/404/400 negative controls, 390px fit',
+    'PASS production HTTP Chromium: open+reveal notes, failed binary/large tabs, dirty disk-only open, capability false disables+501, 403/404/400 negative controls, 390px fit',
   );
 } catch (error) {
   await page.screenshot({ path: path.join(runtime, 'failure.png') });

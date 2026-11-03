@@ -98,6 +98,7 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 | `service.lifecycle` | 可用 | 不可用 | 不可用 | UI Exit/Restart 依赖 main_lifecycle supervisor |
 | `processOwner` | 可用 | 不可用 | 不可用 | POSIX `ProcessOwner` 由 Phase B/C 实现后改表 |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
+| `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
 
 不支持平台的 API 契约（稳定、可判定，不 500、不半启动）：
 
@@ -111,20 +112,27 @@ POSIX 实现（`setsid`/进程组、SIGTERM→SIGKILL、`ps`/`libproc` 身份）
 “可用”只表示**已声明**且 Windows 有实现；macOS/Linux 的**运行**证据来自
 `posix-fast` CI（import + collect + 平台单元子集），在 CI 实际跑绿前不得当作已验证。
 
-### Editor 的 OS 打开 / 定位（不进入静态能力矩阵）
+### Editor 的 OS 打开 / 定位
 
-Editor 顶栏的“用系统默认方式打开”（`POST /api/editor/open-external`）与
-“在系统资源管理器中定位”（`POST /api/editor/reveal-external`）依赖**运行时桌面和
-系统 opener**，静态能力表无法在启动时判定，因此不登记 `CAPABILITIES`：两者都
-按请求探测，缺 opener / 无桌面返回 `501`，启动或退出失败返回 `500`，UI 以 toast
-显示失败而不是预先隐藏入口。两个端点共用同一套 Session workdir / effective
-Workspace containment 与 `..`、符号链接解析，请求只携带路径、不携带命令。
+Editor 顶栏的“用系统默认方式打开”（`POST /api/editor/open-external`）保留原行为，
+不新增能力门；新增的“在系统资源管理器中定位”（`POST /api/editor/reveal-external`）
+登记 `fileManager.reveal`。两者共用同一套 Session workdir / effective Workspace
+containment 与 `..`、符号链接解析，请求只携带路径、不携带命令。
+
+`fileManager.reveal` 与静态 Phase A 能力不同：除声明 `supported_on` 外，每次
+`GET /api/platform` 都由平台层探针计算可用性——Windows 需要 Explorer 路径，
+macOS 需要 `open`，Linux 需要 `xdg-open` 且存在 `DISPLAY`/`WAYLAND_DISPLAY`；
+未知平台直接 false。探针为 false 时请求返回 `501`，前端 `platformStore` 读取
+同一布尔值并禁用按钮、在 title 显示明确原因；探针失败（旧服务/网络错误）仍按
+后端 501 显示 toast，不静默隐藏。启动或退出失败返回 `500`。
 
 - Windows：默认打开走 `os.startfile`；定位走 Explorer 固定 argv
   `explorer.exe /select, <file>`（Explorer 成功时也可能返回非零，按已交付处理）。
 - macOS：默认打开 `open <file>`；定位 `open -R <file>`。
 - Linux：默认打开 `xdg-open <file>`；定位打开父目录（`xdg-open <dir>`），没有
-  可移植的“选中该文件”原语。无 `DISPLAY` / `WAYLAND_DISPLAY` 按不支持处理。
+  可移植的“选中该文件”原语。无桌面会话或 opener 按不支持处理。
 
-本机 Windows 候选证据见 `evidence/editor-system-open/`；macOS/Linux 仅有 argv
-构建的单元测试，尚无目标平台运行证据，不得当成已验收。
+平台差异与命令构造集中在 `packages/core/platform/file_manager.py`，`server.py`
+只负责解析路径、映射状态码并调用。本机 Windows 候选证据见
+`evidence/editor-system-open/`；macOS/Linux 仅有 argv 构建与探针单元测试，尚无
+目标平台运行证据，不得当成已验收。
