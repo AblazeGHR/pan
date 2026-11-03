@@ -1,0 +1,353 @@
+{
+  "conclusion": "success",
+  "headSha": "40402dc797af857fc7bbb318e27e4fc27cb7e997",
+  "jobs": [
+    {
+      "completedAt": "2026-11-03T16:37:37Z",
+      "conclusion": "success",
+      "databaseId": 126055799232,
+      "name": "pty (ubuntu-latest)",
+      "startedAt": "2026-11-03T16:35:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T16:35:40Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T16:35:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:27Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T16:35:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:28Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T16:36:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:01Z",
+          "conclusion": "success",
+          "name": "Install contract dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T16:36:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:06Z",
+          "conclusion": "success",
+          "name": "Shared server import",
+          "number": 5,
+          "startedAt": "2026-11-03T16:37:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:11Z",
+          "conclusion": "success",
+          "name": "Collect contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T16:37:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:29Z",
+          "conclusion": "success",
+          "name": "Actual PTY and original runtime, authorization and owner contracts",
+          "number": 7,
+          "startedAt": "2026-11-03T16:37:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:29Z",
+          "conclusion": "success",
+          "name": "Independent native PTY exec and signal diagnostic",
+          "number": 8,
+          "startedAt": "2026-11-03T16:37:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:29Z",
+          "conclusion": "success",
+          "name": "Preserve target provenance",
+          "number": 9,
+          "startedAt": "2026-11-03T16:37:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:34Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 10,
+          "startedAt": "2026-11-03T16:37:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:34Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 19,
+          "startedAt": "2026-11-03T16:37:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:35Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 20,
+          "startedAt": "2026-11-03T16:37:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:35Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-11-03T16:37:35Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41675759502/job/126055799232"
+    },
+    {
+      "completedAt": "2026-11-03T16:37:10Z",
+      "conclusion": "success",
+      "databaseId": 126055799290,
+      "name": "pty (windows-latest)",
+      "startedAt": "2026-11-03T16:35:35Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T16:35:36Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T16:35:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:51Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T16:35:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:51Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T16:35:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:22Z",
+          "conclusion": "success",
+          "name": "Install contract dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T16:35:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:25Z",
+          "conclusion": "success",
+          "name": "Shared server import",
+          "number": 5,
+          "startedAt": "2026-11-03T16:36:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:30Z",
+          "conclusion": "success",
+          "name": "Collect contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T16:36:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:05Z",
+          "conclusion": "success",
+          "name": "Actual PTY and original runtime, authorization and owner contracts",
+          "number": 7,
+          "startedAt": "2026-11-03T16:36:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:05Z",
+          "conclusion": "skipped",
+          "name": "Independent native PTY exec and signal diagnostic",
+          "number": 8,
+          "startedAt": "2026-11-03T16:37:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:05Z",
+          "conclusion": "success",
+          "name": "Preserve target provenance",
+          "number": 9,
+          "startedAt": "2026-11-03T16:37:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:06Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 10,
+          "startedAt": "2026-11-03T16:37:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:07Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 19,
+          "startedAt": "2026-11-03T16:37:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:09Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 20,
+          "startedAt": "2026-11-03T16:37:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:37:09Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-11-03T16:37:09Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41675759502/job/126055799290"
+    },
+    {
+      "completedAt": "2026-11-03T16:36:23Z",
+      "conclusion": "success",
+      "databaseId": 126055799685,
+      "name": "pty (macos-latest)",
+      "startedAt": "2026-11-03T16:35:34Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-11-03T16:35:35Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-11-03T16:35:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:42Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "startedAt": "2026-11-03T16:35:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:43Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@v5",
+          "number": 3,
+          "startedAt": "2026-11-03T16:35:42Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:51Z",
+          "conclusion": "success",
+          "name": "Install contract dependencies",
+          "number": 4,
+          "startedAt": "2026-11-03T16:35:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:52Z",
+          "conclusion": "success",
+          "name": "Shared server import",
+          "number": 5,
+          "startedAt": "2026-11-03T16:35:51Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:35:53Z",
+          "conclusion": "success",
+          "name": "Collect contracts",
+          "number": 6,
+          "startedAt": "2026-11-03T16:35:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:14Z",
+          "conclusion": "success",
+          "name": "Actual PTY and original runtime, authorization and owner contracts",
+          "number": 7,
+          "startedAt": "2026-11-03T16:35:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:15Z",
+          "conclusion": "success",
+          "name": "Independent native PTY exec and signal diagnostic",
+          "number": 8,
+          "startedAt": "2026-11-03T16:36:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:15Z",
+          "conclusion": "success",
+          "name": "Preserve target provenance",
+          "number": 9,
+          "startedAt": "2026-11-03T16:36:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:17Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@v4",
+          "number": 10,
+          "startedAt": "2026-11-03T16:36:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:17Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@v5",
+          "number": 19,
+          "startedAt": "2026-11-03T16:36:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:17Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@v4",
+          "number": 20,
+          "startedAt": "2026-11-03T16:36:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-11-03T16:36:18Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-11-03T16:36:17Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/AblazeGHR/pan/actions/runs/41675759502/job/126055799685"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/AblazeGHR/pan/actions/runs/41675759502"
+}

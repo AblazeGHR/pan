@@ -1,0 +1,11 @@
+{
+  "artifacts/x5-pty-macos-latest/contracts.xml": "65d0d5315acbd957f645b4190e6dfd7ec215f9ff92846ba42971a05a8aebc556",
+  "artifacts/x5-pty-macos-latest/native-repro.json": "59752cc6c24799b3660198553f620d5c25b622409abc5a0da761fd0fb04a2cd4",
+  "artifacts/x5-pty-macos-latest/target.json": "41b1442b6901dcc1e0710d27b5690d5cefbc25b374966bcc71e956fa6b4fd395",
+  "artifacts/x5-pty-ubuntu-latest/contracts.xml": "ef39c6af2e51ad720cf9c29d4077cc4c51e9f3c6b444c2e2df3e6b27e6f3e993",
+  "artifacts/x5-pty-ubuntu-latest/native-repro.json": "bf60dccdd6490019620b82fadb0363f60030b879c9ac2bc62d5a38c710afb13f",
+  "artifacts/x5-pty-ubuntu-latest/target.json": "23f1182b8a717fce4cbf510b0b8d04b730b5abf0daf1758c5ad1165e7ad6434c",
+  "artifacts/x5-pty-windows-latest/contracts.xml": "49c04456eddb88e355c7d04ab0aab92fb3d34904386ae09447def4e2ece657f5",
+  "artifacts/x5-pty-windows-latest/target.json": "daecf42c08ad10d7cb87447417c50c5b7c18c2716546c18ffd951b6654bb7325",
+  "run.json": "cf3178190ee9f2bcd78cc18e1312b70bfaf3b7389393d780062b1be0d7aba36f"
+}

@@ -1,0 +1,272 @@
+{
+  "platform": "linux",
+  "python": "3.12.16",
+  "pan_imported": false,
+  "pytest_imported": false,
+  "cases": [
+    {
+      "wait_target_ready": false,
+      "canonical_input": false,
+      "continuous_drain": false,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 2808,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": false,
+      "canonical_input": false,
+      "continuous_drain": true,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "running",
+        "pgid": 2809,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": false,
+      "canonical_input": true,
+      "continuous_drain": false,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "running",
+        "pgid": 2811,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": false,
+      "canonical_input": true,
+      "continuous_drain": true,
+      "drained_bytes": 1,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "running",
+        "pgid": 2812,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": false,
+      "continuous_drain": false,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 2814,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": false,
+      "continuous_drain": true,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 2815,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": true,
+      "continuous_drain": false,
+      "drained_bytes": 0,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 2817,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    },
+    {
+      "wait_target_ready": true,
+      "canonical_input": true,
+      "continuous_drain": true,
+      "drained_bytes": 1,
+      "signals": [
+        {
+          "signal": 15,
+          "result": "returned"
+        }
+      ],
+      "before_signal": {
+        "retained_code": null,
+        "status": "sleeping",
+        "pgid": 2818,
+        "uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "caller_uids": {
+          "real": 1001,
+          "effective": 1001,
+          "saved": 1001
+        },
+        "image_basename": "python3.12"
+      },
+      "after_signal": {
+        "retained_code": -15,
+        "probe_error": "NoSuchProcess"
+      },
+      "cleanup": "retained-root-exited"
+    }
+  ]
+}

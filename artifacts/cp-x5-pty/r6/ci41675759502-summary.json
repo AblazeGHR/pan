@@ -1,0 +1,42 @@
+{
+  "x5-pty-macos-latest": {
+    "tests": 295,
+    "skipped": 51,
+    "failed": 0,
+    "passed": 244,
+    "skip_reasons": [
+      "ConPtyBackend \u4ec5 Windows\uff08\u751f\u4ea7\u8def\u5f84\uff09",
+      "Linux EIO/HUP distinction",
+      "Windows Job Object / FILETIME \u5951\u7ea6\u9700\u8981\u771f\u5b9e Windows\uff08\u672c\u673a\u76f8\u5173\u5b9e\u73b0\uff09",
+      "sidecar \u4f9d\u8d56\u672a\u5b89\u88c5\uff08\u9700\u5728 emulator_sidecar/ \u6267\u884c npm ci\uff09",
+      "unsupported-platform negative applies on Windows",
+      "\u4ec5\u5728\u975e POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1\u663e\u5f0f\u4e0d\u652f\u6301"
+    ]
+  },
+  "x5-pty-ubuntu-latest": {
+    "tests": 295,
+    "skipped": 50,
+    "failed": 0,
+    "passed": 245,
+    "skip_reasons": [
+      "ConPtyBackend \u4ec5 Windows\uff08\u751f\u4ea7\u8def\u5f84\uff09",
+      "Windows Job Object / FILETIME \u5951\u7ea6\u9700\u8981\u771f\u5b9e Windows\uff08\u672c\u673a\u76f8\u5173\u5b9e\u73b0\uff09",
+      "sidecar \u4f9d\u8d56\u672a\u5b89\u88c5\uff08\u9700\u5728 emulator_sidecar/ \u6267\u884c npm ci\uff09",
+      "unsupported-platform negative applies on Windows",
+      "\u4ec5\u5728\u975e POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1\u663e\u5f0f\u4e0d\u652f\u6301"
+    ]
+  },
+  "x5-pty-windows-latest": {
+    "tests": 295,
+    "skipped": 36,
+    "failed": 0,
+    "passed": 259,
+    "skip_reasons": [
+      "Linux EIO/HUP distinction",
+      "POSIX \u5951\u7ea6\u6d4b\u8bd5\u9700\u8981\u771f\u5b9e POSIX \u4e3b\u673a\uff08ubuntu/macos CI\uff09\uff1astart_new_session/killpg//proc/ps \u8bed\u4e49\u65e0\u6cd5\u5728 Windows \u4e0a\u9a8c\u8bc1\uff1b\u672c\u673a\u4e3a Windows\uff0c\u663e\u5f0f\u8df3\u8fc7\u800c\u4e0d\u662f\u9759\u9ed8\u901a\u8fc7",
+      "real POSIX PTY requires Linux/macOS",
+      "sidecar \u4f9d\u8d56\u672a\u5b89\u88c5\uff08\u9700\u5728 emulator_sidecar/ \u6267\u884c npm ci\uff09",
+      "\u4ec5\u5728 POSIX \u4e3b\u673a\u4e0a\u9a8c\u8bc1 Windows \u5b9e\u73b0\u95e8\u7981"
+    ]
+  }
+}
