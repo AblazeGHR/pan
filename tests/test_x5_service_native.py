@@ -62,8 +62,14 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
     holder = None
     release = root / "release-lock"
 
-    def cli(*args, success=True):
-        result = subprocess.run([sys.executable, "-m", "packages.core.cli", "--root", str(root), *args],
+    def cli(*args, success=True, via_worker=False):
+        command = [sys.executable, "-m", "packages.core.cli", "--root", str(root), *args]
+        if via_worker:
+            # Disposable OS-process Worker surrogate: both it AND its CLI child
+            # must have exited before the outer observer checks service liveness.
+            # No actual provider/managed Session is invoked by this fixture.
+            command = [sys.executable, "-c", "import subprocess,sys; raise SystemExit(subprocess.run(sys.argv[1:]).returncode)", *command]
+        result = subprocess.run(command,
             cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             encoding="utf-8", errors="replace", timeout=120)
         with (tmp_path / "cli.log").open("a", encoding="utf-8") as output:
@@ -94,11 +100,12 @@ def test_owned_cli_http_service_and_lock_competition(tmp_path):
     try:
         # This CLI subprocess is the startup caller/Worker surrogate. It must
         # exit before independently surviving main is queried below.
-        cli("start", "--timeout", "25")
+        cli("start", "--timeout", "25", via_worker=True)
         old = http("GET", "/api/main/identity").json()
         assert Path(old["root"]).resolve() == root
         assert json.loads(cli("status").stdout)["state"] == "running"
         observed["startupCallerExitedServiceAlive"] = True
+        observed["startupWorkerSurrogateExitedServiceAlive"] = True
         stale = http("POST", lifecycle_action.ACTION_ROUTE, json={"operation": "restart",
             "pid": old["pid"], "createdAt": old["createdAt"] + 2,
             "options": {"markRunningSessionsOffline": True}})
