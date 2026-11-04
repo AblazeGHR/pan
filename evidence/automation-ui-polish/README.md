@@ -38,8 +38,15 @@
 ```text
 npx tsc -b --noEmit                  # exit 0
 pnpm build                           # exit 0, 88 compressed assets
-npx vitest run <automation suites>    # 10 files / 85 tests passed
+npx vitest run src/views/AutomationView.test.tsx src/views/AutomationWorkspace.test.tsx \
+  src/views/CanonicalJobsView.test.tsx src/views/CanonicalJobsView.retirement-r13.test.tsx \
+  src/views/CanonicalJobsView.retirement-r14.test.tsx src/components/automation/CanonicalForms.test.tsx \
+  src/components/automation/fields.test.tsx src/components/automation/RetirementRuntimeFields.test.tsx \
+  src/components/automation/SchedulerInstantInput.test.tsx src/components/automation/display.test.tsx
+# 10 files / 85 tests passed
 ```
+
+`git commit` 触发 `scripts/pre-commit`（`tsc -b --noEmit`），通过后生成候选提交。
 
 覆盖的 Vitest：`AutomationView.test.tsx`、`AutomationWorkspace.test.tsx`、`CanonicalJobsView.test.tsx`、`CanonicalJobsView.retirement-r13/14.test.tsx`、`CanonicalForms.test.tsx`、`fields.test.tsx`、`RetirementRuntimeFields.test.tsx`、`SchedulerInstantInput.test.tsx`、新增 `display.test.tsx`（状态 badge 原文/未知状态保留、页头导航、alert/空态）。运行日志中保留既有 React duplicate-key 提示（来自保留数据面板的测试替身），不影响通过。
 
