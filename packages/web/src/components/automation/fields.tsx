@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import type { Argument, Condition } from '@/types/automation';
 import { comparison } from '@/types/automation';
 
-export const fieldClass = 'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary p-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-50';
+export const fieldClass = 'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50';
 export const cardClass = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4';
 // UI identity never enters the persisted condition. Immutable edits retain the
 // edited row's key; deletion retains the surviving node's key, not its index.
@@ -16,7 +16,7 @@ function conditionKey(value: Condition) {
   return key;
 }
 export function JsonDetail({ label, value }: { label: string; value: unknown }) {
-  return <details className="min-w-0 text-sm"><summary className="cursor-pointer break-all">{label}</summary><pre className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded bg-bg-primary p-3 text-xs">{JSON.stringify(value ?? null, null, 2)}</pre></details>;
+  return <details className="min-w-0 text-sm"><summary className="cursor-pointer break-words py-0.5 font-medium text-text-secondary hover:text-text-primary">{label}</summary><pre className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap break-all rounded-lg border border-border-muted bg-bg-primary p-3 text-xs text-text-secondary">{JSON.stringify(value ?? null, null, 2)}</pre></details>;
 }
 export function ConditionEditor({ value, onChange, depth = 0, customFields = false, valueEditor }: { value: Condition; onChange: (value: Condition) => void; depth?: number; customFields?: boolean; valueEditor?: (value: unknown, onChange: (value: unknown) => void) => ReactNode }) {
   const kind = 'and' in value ? 'and' : 'or' in value ? 'or' : 'not' in value ? 'not' : 'comparison';

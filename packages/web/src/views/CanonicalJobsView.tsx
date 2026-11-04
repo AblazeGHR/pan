@@ -1,6 +1,5 @@
 import { wsClient } from '@/services/ws';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ApiRequestError } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import { JobUserAuthorization } from '@/components/automation/JobUserAuthorization';
@@ -31,6 +30,14 @@ import {
 import { TimeTemplateFields } from '@/components/automation/TimeTemplateFields';
 import { SimpleTemplateForm } from '@/components/automation/SimpleTemplateForm';
 import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
+import {
+  EmptyState,
+  HeaderLink,
+  Notice,
+  PageHeader,
+  PageShell,
+  StateBadge,
+} from '@/components/automation/display';
 
 const kinds: CanonicalKind[] = ['jobs', 'triggers', 'event-creators', 'job-templates'];
 const labels: Record<CanonicalKind, string> = {
@@ -39,9 +46,18 @@ const labels: Record<CanonicalKind, string> = {
   'event-creators': 'EventCreators',
   'job-templates': 'JobTemplates',
 };
+const hints: Record<CanonicalKind, string> = {
+  jobs: '可执行步骤、保留策略与运行历史',
+  triggers: '事件订阅与目标 Job',
+  'event-creators': '时间来源、规则与游标',
+  'job-templates': '可实例化的 Job 组合',
+};
 const field =
-  'mt-1 block w-full min-w-0 rounded border border-border-default bg-bg-primary p-2 text-sm';
-const card = 'min-w-0 rounded-lg border border-border-default bg-bg-secondary p-3';
+  'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50';
+const card = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4';
+const detailsClass =
+  'rounded-lg border border-border-muted bg-bg-primary/40 px-3 py-2 text-sm';
+const summaryClass = 'cursor-pointer font-medium text-text-secondary hover:text-text-primary';
 const examples: Record<CanonicalKind, JsonObject> = {
   jobs: {
     name: '',
@@ -104,41 +120,53 @@ export default function CanonicalJobsView() {
   const token = useAutomationAuth((s) => s.token);
   // Changing authorization remounts the workspace: late responses cannot expose an earlier user's data.
   return (
-    <section
-      aria-label="Canonical management"
-      className="h-full min-w-0 overflow-y-auto p-3 pt-12 text-text-primary sm:p-6"
-    >
-      <div className="mx-auto min-w-0 max-w-6xl space-y-4">
-        <header className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Canonical Jobs</h1>
-            <p className="text-sm text-text-secondary">统一定义与 Run 管理</p>
-          </div>
-          <nav className="flex flex-wrap gap-3 text-sm">
-            <Link to="/automation">Automation</Link>
-          </nav>
-        </header>
+    <PageShell label="Canonical management">
+      <div className="space-y-5">
+        <PageHeader
+          eyebrow="Pan / Automation"
+          title="Canonical Jobs"
+          description="统一定义与 Run 管理"
+          actions={<HeaderLink to="/automation">Automation</HeaderLink>}
+        />
         <JobUserAuthorization />
-        {token && <PreservedDataPanel key={token} authorization={token} />}
-        {token ? <Workspace key={token} /> : <p role="status">请登录以加载 canonical 数据。</p>}
+        {token ? (
+          <Workspace key={token} />
+        ) : (
+          <Notice role="status" label="Canonical login required">
+            <p>请登录以加载 canonical 数据。</p>
+          </Notice>
+        )}
+        {token && (
+          <div className="rounded-xl border border-border-muted bg-bg-secondary/40 p-4 text-sm [&_article]:rounded-lg [&_article]:border-border-muted [&_article]:p-3 [&_h2]:text-base [&_h2]:font-semibold">
+            <PreservedDataPanel key={token} authorization={token} />
+          </div>
+        )}
       </div>
-    </section>
+    </PageShell>
   );
 }
 function Workspace() {
   const [kind, setKind] = useState<CanonicalKind>('jobs');
   return (
     <>
-      <nav aria-label="Canonical sections" className="flex min-w-0 flex-wrap gap-2">
+      <nav
+        aria-label="Canonical sections"
+        className="flex w-fit max-w-full min-w-0 flex-wrap gap-1 rounded-xl border border-border-default bg-bg-secondary p-1"
+      >
         {kinds.map((value) => (
-          <Button
+          <button
             type="button"
             key={value}
             aria-pressed={kind === value}
             onClick={() => setKind(value)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 ${
+              kind === value
+                ? 'bg-bg-tertiary text-text-primary shadow-card'
+                : 'text-text-secondary hover:bg-bg-tertiary/60 hover:text-text-primary'
+            }`}
           >
             {labels[value]}
-          </Button>
+          </button>
         ))}
       </nav>
       <Collection key={kind} kind={kind} />
@@ -257,42 +285,64 @@ export function CanonicalCollection({
   }
   return (
     <div className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-auto text-lg font-semibold">Canonical {labels[kind]}</h2>
-        <Button type="button" disabled={loading || busy} onClick={() => void load()}>
-          刷新列表
-        </Button>
-        <Button
-          type="button"
-          disabled={busy || !!editor || !!enabling || !!simpleKind}
-          onClick={() => {
-            const definition = { ...examples[kind] };
-            delete definition.name;
-            setAdvancedEditing(false);
-            setStructuredEdited(false);
-            setConflict(false);
-            setCreatorRevisions({});
-            setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
-          }}
-        >
-          创建 {labels[kind]}
-        </Button>
-        {kind === 'job-templates' &&
-          (['assign', 'shell'] as const).map((value) => (
-            <Button
-              key={value}
-              disabled={busy || !!editor || !!simpleKind}
-              onClick={() => setSimpleKind(value)}
-            >
-              {value === 'assign' ? 'New assign Template' : 'New shell Template'}
-            </Button>
-          ))}
+      <div className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 sm:mr-auto">
+          <h2 className="text-lg font-semibold">Canonical {labels[kind]}</h2>
+          <p className="mt-0.5 text-sm text-text-secondary">{hints[kind]}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load()}>
+            刷新列表
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            disabled={busy || !!editor || !!enabling || !!simpleKind}
+            onClick={() => {
+              const definition = { ...examples[kind] };
+              delete definition.name;
+              setAdvancedEditing(false);
+              setStructuredEdited(false);
+              setConflict(false);
+              setCreatorRevisions({});
+              setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
+            }}
+          >
+            创建 {labels[kind]}
+          </Button>
+          {kind === 'job-templates' &&
+            (['assign', 'shell'] as const).map((value) => (
+              <Button
+                key={value}
+                size="sm"
+                disabled={busy || !!editor || !!simpleKind}
+                onClick={() => setSimpleKind(value)}
+              >
+                {value === 'assign' ? 'New assign Template' : 'New shell Template'}
+              </Button>
+            ))}
+        </div>
       </div>
-      {loading && <p role="status">加载中…</p>}
+      {loading && (
+        <div role="status" className="space-y-3">
+          <p className="text-sm text-text-secondary">加载中…</p>
+          {!items.length && (
+            <div aria-hidden className="grid gap-3 lg:grid-cols-2">
+              {[0, 1].map((index) => (
+                <div
+                  key={index}
+                  className="h-32 animate-pulse rounded-xl border border-border-muted bg-bg-secondary"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {error && (
-        <p role="alert" className="break-words text-danger">
-          {error}
-        </p>
+        <Notice tone="danger" role="alert">
+          <p className="break-words">{error}</p>
+        </Notice>
       )}
       {pending && (
         <OperationStatus
@@ -348,6 +398,14 @@ export function CanonicalCollection({
             }
           }}
         >
+          <div className="border-b border-border-muted pb-3">
+            <h3 className="text-base font-semibold">
+              {editor.item ? `编辑 ${labels[kind]}` : `创建 ${labels[kind]}`}
+            </h3>
+            <p className="mt-0.5 text-xs text-text-secondary">
+              保存使用打开时的定义版本 {editor.item ? revisionOf(editor.item) : 0}。
+            </p>
+          </div>
           <label className="block text-sm">
             名称
             <input
@@ -401,9 +459,9 @@ export function CanonicalCollection({
                 />
               </fieldset>
             )}
-          <details>
-            <summary>Advanced definition JSON</summary>
-            <label className="block text-sm">
+          <details className={detailsClass}>
+            <summary className={summaryClass}>Advanced definition JSON</summary>
+            <label className="mt-2 block text-sm">
               定义 JSON（名称单独填写）
               <textarea
                 disabled={busy}
@@ -434,17 +492,17 @@ export function CanonicalCollection({
               </Button>
             )}
           </details>
-          <p className="text-xs text-text-secondary">
-            保存使用打开时的定义版本 {editor.item ? revisionOf(editor.item) : 0}。
-          </p>
-          <details>
-            <summary>定义字段与约束</summary>
-            <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+          <details className={detailsClass}>
+            <summary className={summaryClass}>定义字段与约束</summary>
+            <pre className="mt-2 max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
               {JSON.stringify(definitionSchemas[kind], null, 2)}
             </pre>
           </details>
           {conflict && editor.item && (
-            <section aria-label="Compare canonical configuration" className="space-y-2">
+            <section
+              aria-label="Compare canonical configuration"
+              className="space-y-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning"
+            >
               <p>
                 The draft is retained. Compare the current server definition before explicitly
                 rebasing.
@@ -465,7 +523,7 @@ export function CanonicalCollection({
               >
                 Compare server definition
               </Button>
-              <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+              <pre className="max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
                 {JSON.stringify(
                   items.find((item) => item.id === editor.item?.id),
                   null,
@@ -510,7 +568,11 @@ export function CanonicalCollection({
           )}
           {kind === 'jobs' && <ActionCatalog />}
           {kind === 'triggers' && (
-            <fieldset disabled={busy} className="min-w-0 space-y-3">
+            <fieldset
+              disabled={busy}
+              className="min-w-0 space-y-3 rounded-xl border border-border-muted p-4"
+            >
+              <legend className="px-1 text-sm font-semibold text-text-secondary">订阅目标</legend>
               <label className="block">
                 Target canonical Job
                 <select
@@ -676,9 +738,10 @@ export function CanonicalCollection({
               )}
             </fieldset>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-border-muted pt-3">
             <Button
               type="submit"
+              variant="primary"
               disabled={
                 busy ||
                 (structuredEdited &&
@@ -703,22 +766,29 @@ export function CanonicalCollection({
         </form>
       )}
       {enabling && (
-        <section aria-label="Review before enabling" className={`${card} space-y-3`}>
-          <h3>Review {enabling.name} before enabling</h3>
-          <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+        <section
+          aria-label="Review before enabling"
+          className={`${card} space-y-3 border-warning/40 bg-warning/10`}
+        >
+          <h3 className="text-base font-semibold text-warning">
+            Review {enabling.name} before enabling
+          </h3>
+          <pre className="max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
             {JSON.stringify(definitionOf(kind, enabling), null, 2)}
           </pre>
-          <label>
+          <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
+              className="mt-1"
               disabled={busy}
               checked={enableReviewed}
               onChange={(event) => setEnableReviewed(event.target.checked)}
             />
             I reviewed this definition, Actions, parameters and source references.
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
+              variant="primary"
               disabled={busy || !enableReviewed}
               onClick={() =>
                 void mutate('enable', (key) =>
@@ -735,13 +805,17 @@ export function CanonicalCollection({
         </section>
       )}
       {retiring && (
-        <section aria-label="确认 retire" className={`${card} space-y-2`}>
-          <p className="break-all">
+        <section
+          aria-label="确认 retire"
+          className={`${card} space-y-3 border-danger/40 bg-danger/10`}
+        >
+          <p className="break-all text-sm">
             退休 {retiring.name}（{retiring.id}）？
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
+              variant="danger"
               disabled={busy}
               onClick={() =>
                 void mutate('retire', (key) => canonicalJobs.retire(kind, retiring, key))
@@ -756,54 +830,76 @@ export function CanonicalCollection({
         </section>
       )}
       {instantiating && (
-        <section aria-label="Instantiate Template" className={`${card} space-y-3`}>
-          <p>
+        <section
+          aria-label="Instantiate Template"
+          className={`${card} space-y-3 border-accent/40 bg-accent/10`}
+        >
+          <p className="text-sm">
             Create a new Job and any configured Scheduler/subscriptions from {instantiating.name}.
             The Job is not run immediately.
           </p>
-          <label>
+          <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
+              className="mt-1"
               checked={activateTemplate}
               disabled={busy}
               onChange={(e) => setActivateTemplate(e.target.checked)}
             />
             Enable Job and configured subscriptions
           </label>
-          <Button
-            disabled={busy}
-            onClick={() =>
-              void mutate('instantiate-template', (key) =>
-                canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate),
-              )
-            }
-          >
-            Create from Template
-          </Button>
-          <Button disabled={busy} onClick={() => setInstantiating(null)}>
-            Cancel instantiation
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() =>
+                void mutate('instantiate-template', (key) =>
+                  canonicalJobs.instantiateTimeTemplate(instantiating, key, activateTemplate),
+                )
+              }
+            >
+              Create from Template
+            </Button>
+            <Button disabled={busy} onClick={() => setInstantiating(null)}>
+              Cancel instantiation
+            </Button>
+          </div>
         </section>
       )}
-      {!loading && !items.length && <p>暂无 canonical {labels[kind]}。</p>}
-      <div className="grid min-w-0 gap-3 md:grid-cols-2">
+      {!loading && !items.length && (
+        <EmptyState
+          title={`暂无 canonical ${labels[kind]}。`}
+          hint={`创建 ${labels[kind]} 或刷新列表以查看服务端定义。`}
+        />
+      )}
+      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2">
         {items.map((item) => (
           <article
             key={item.id}
             id={item.id}
             aria-label={`${labels[kind]} ${item.name}`}
-            className={`${card} space-y-2 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
+            className={`${card} flex flex-col gap-3 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
           >
-            <h3 className="break-words font-medium">{item.name}</h3>
-            <p className="break-all text-xs">{item.id}</p>
-            <p className="break-words text-sm">
-              {item.state} · 定义版本 {revisionOf(item)} · 状态版本 {item.stateRevision}
-            </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+              <h3 className="min-w-0 break-words text-base font-semibold">{item.name}</h3>
+              <StateBadge state={item.state} />
+            </div>
+            <div className="min-w-0 space-y-1 text-xs text-text-secondary">
+              <p className="break-all font-mono text-text-tertiary">{item.id}</p>
+              <p>
+                定义版本{' '}
+                <span className="font-mono text-text-secondary">{revisionOf(item)}</span>
+                <span aria-hidden> · </span>
+                状态版本 <span className="font-mono text-text-secondary">{item.stateRevision}</span>
+              </p>
+            </div>
+            <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
               {kind === 'job-templates' && (
                 <>
                   {item.state === 'draft' && (
                     <Button
+                      size="sm"
+                      variant="primary"
                       disabled={busy || !!editor}
                       onClick={() =>
                         void mutate('publish', (key) =>
@@ -816,6 +912,8 @@ export function CanonicalCollection({
                   )}
                   {item.state === 'published' && (
                     <Button
+                      size="sm"
+                      variant="primary"
                       disabled={busy || !!editor || !!instantiating}
                       onClick={() => {
                         setActivateTemplate(false);
@@ -831,6 +929,8 @@ export function CanonicalCollection({
                 <>
                   {(item.state === 'draft' || item.state === 'disabled') && (
                     <Button
+                      size="sm"
+                      variant="primary"
                       disabled={busy || !!editor || !!enabling}
                       onClick={() => {
                         setEnableReviewed(false);
@@ -842,6 +942,7 @@ export function CanonicalCollection({
                   )}
                   {item.state === 'enabled' && (
                     <Button
+                      size="sm"
                       disabled={busy || !!editor || !!enabling}
                       onClick={() =>
                         void mutate('pause', (key) =>
@@ -854,6 +955,8 @@ export function CanonicalCollection({
                   )}
                   {item.state === 'paused' && (
                     <Button
+                      size="sm"
+                      variant="primary"
                       disabled={busy || !!editor || !!enabling}
                       onClick={() =>
                         void mutate('resume', (key) =>
@@ -866,6 +969,7 @@ export function CanonicalCollection({
                   )}
                   {(item.state === 'enabled' || item.state === 'paused') && (
                     <Button
+                      size="sm"
                       disabled={busy || !!editor || !!enabling}
                       onClick={() =>
                         void mutate('disable', (key) =>
@@ -880,6 +984,7 @@ export function CanonicalCollection({
               )}
               <Button
                 type="button"
+                size="sm"
                 aria-label={`编辑 ${item.name}`}
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling}
@@ -903,16 +1008,19 @@ export function CanonicalCollection({
               </Button>
               <Button
                 type="button"
+                size="sm"
                 aria-label={`retire ${item.name}`}
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling || item.state === 'retired'}
                 onClick={() => setRetiring(item)}
               >
-                retire
+                <span className="text-danger">retire</span>
               </Button>
               {kind === 'jobs' && (
                 <Button
                   type="button"
+                  size="sm"
+                  variant="ghost"
                   aria-label={`Runs ${item.name}`}
                   className="max-w-full break-all"
                   disabled={busy}
@@ -926,9 +1034,11 @@ export function CanonicalCollection({
         ))}
       </div>
       {cursor && (
-        <Button type="button" disabled={loading || busy} onClick={() => void load(cursor)}>
-          加载更多
-        </Button>
+        <div className="flex justify-center">
+          <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load(cursor)}>
+            加载更多
+          </Button>
+        </div>
       )}
       {selectedJob && (
         <RunList key={selectedJob.id} job={selectedJob} onClose={() => setSelectedJob(null)} />
@@ -948,24 +1058,40 @@ function OperationStatus({
   const [busy, setBusy] = useState(false);
   const receipt = pending.receipt;
   return (
-    <section aria-label="操作回执" className={`${card} space-y-2 break-all text-sm`}>
-      <p role="status">
-        {receipt
-          ? `操作状态：${receipt.status}`
-          : pending.rejected
-            ? '请求已拒绝；请修正问题后重新提交。'
-            : '请求结果未确认，请按原身份查询。'}
-        {receipt && ['accepted', 'pending', 'unknown'].includes(receipt.status)
-          ? '；尚未确认效果成功。'
-          : ''}
-      </p>
-      <p>requestKey: {pending.requestKey}</p>
-      {receipt && <p>operationId: {receipt.operationId}</p>}
+    <section aria-label="操作回执" className={`${card} space-y-3 text-sm`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p role="status" className="min-w-0 break-words">
+          {receipt
+            ? `操作状态：${receipt.status}`
+            : pending.rejected
+              ? '请求已拒绝；请修正问题后重新提交。'
+              : '请求结果未确认，请按原身份查询。'}
+          {receipt && ['accepted', 'pending', 'unknown'].includes(receipt.status)
+            ? '；尚未确认效果成功。'
+            : ''}
+        </p>
+        {receipt && <StateBadge state={receipt.status} />}
+      </div>
+      <dl className="space-y-1 text-xs text-text-secondary">
+        <div className="flex flex-wrap gap-1">
+          <dt>requestKey:</dt>
+          <dd className="break-all font-mono">{pending.requestKey}</dd>
+        </div>
+        {receipt && (
+          <div className="flex flex-wrap gap-1">
+            <dt>operationId:</dt>
+            <dd className="break-all font-mono">{receipt.operationId}</dd>
+          </div>
+        )}
+      </dl>
       {receipt?.error && (
-        <p role="alert">{canonicalErrorMessages[receipt.error.code] ?? receipt.error.code}</p>
+        <p role="alert" className="break-words text-danger">
+          {canonicalErrorMessages[receipt.error.code] ?? receipt.error.code}
+        </p>
       )}
       <Button
         type="button"
+        size="sm"
         disabled={busy}
         onClick={() => {
           setBusy(true);
@@ -979,7 +1105,11 @@ function OperationStatus({
       >
         查询原操作
       </Button>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" className="break-words text-danger">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
@@ -988,6 +1118,7 @@ function ActionCatalog() {
   const [error, setError] = useState('');
   return (
     <details
+      className={detailsClass}
       onToggle={(e) => {
         if (e.currentTarget.open && !items.length)
           void canonicalJobs
@@ -996,9 +1127,9 @@ function ActionCatalog() {
             .catch((failure: unknown) => setError(canonicalError(failure)));
       }}
     >
-      <summary>可引用的 published Actions</summary>
+      <summary className={summaryClass}>可引用的 published Actions</summary>
       {error && <p role="alert">{error}</p>}
-      <pre className="max-w-full whitespace-pre-wrap break-all text-xs">
+      <pre className="mt-2 max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
         {JSON.stringify(items, null, 2)}
       </pre>
     </details>
@@ -1089,50 +1220,73 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
   }
   return (
     <section aria-label="Job runs" className={`${card} space-y-3`}>
-      <div className="flex flex-wrap gap-2">
-        <h2 className="mr-auto break-all font-semibold">Runs · {job.name}</h2>
-        <Button type="button" disabled={busy || loading} onClick={() => void load()}>
-          刷新 Runs
-        </Button>
-        <Button type="button" disabled={busy} onClick={onClose}>
-          关闭 Runs
-        </Button>
+      <div className="flex flex-col gap-3 border-b border-border-muted pb-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="min-w-0 sm:mr-auto">
+          <h2 className="break-words text-lg font-semibold">Runs · {job.name}</h2>
+          <p className="mt-0.5 text-xs text-text-secondary">
+            不可确认的结果必须按原身份查询，不能自动重试。
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" disabled={busy || loading} onClick={() => void load()}>
+            刷新 Runs
+          </Button>
+          <Button type="button" size="sm" disabled={busy} onClick={onClose}>
+            关闭 Runs
+          </Button>
+        </div>
       </div>
-      {loading && <p role="status">加载 Runs…</p>}
-      {error && (
-        <p role="alert" className="break-words text-danger">
-          {error}
+      {loading && (
+        <p role="status" className="text-sm text-text-secondary">
+          加载 Runs…
         </p>
       )}
+      {error && (
+        <Notice tone="danger" role="alert">
+          <p className="break-words">{error}</p>
+        </Notice>
+      )}
       {pending && <OperationStatus pending={pending} onChange={setPending} />}
-      {!loading && !runs.length && <p>暂无 Runs。</p>}
+      {!loading && !runs.length && <EmptyState title="暂无 Runs。" />}
       {runs.map((run) => (
-        <article key={run.runId} className={`${card} space-y-2`}>
-          <p className="break-all">
-            {run.runId} · {run.state} · 状态版本 {run.stateRevision}
-          </p>
+        <article
+          key={run.runId}
+          className="min-w-0 space-y-3 rounded-xl border border-border-muted bg-bg-primary/40 p-4"
+        >
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 break-all font-mono text-sm">{run.runId}</p>
+            <StateBadge state={run.state} />
+          </div>
+          <p className="text-xs text-text-secondary">状态版本 {run.stateRevision}</p>
           {!!run.deliveryRuntime && (
-            <details aria-label={`Delivery receipts ${run.runId}`}>
-              <summary>Delivery Manager · runtime reservation receipts</summary>
-              <pre>{JSON.stringify(run.deliveryRuntime, null, 2)}</pre>
+            <details className={detailsClass} aria-label={`Delivery receipts ${run.runId}`}>
+              <summary className={summaryClass}>
+                Delivery Manager · runtime reservation receipts
+              </summary>
+              <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs">
+                {JSON.stringify(run.deliveryRuntime, null, 2)}
+              </pre>
             </details>
           )}
           {Array.isArray(run.notifications) && run.notifications.length > 0 && (
-            <details aria-label={`Notification receipts ${run.runId}`}>
-              <summary>Notification Manager · original delivery receipts</summary>
-              <p>
+            <details className={detailsClass} aria-label={`Notification receipts ${run.runId}`}>
+              <summary className={summaryClass}>
+                Notification Manager · original delivery receipts
+              </summary>
+              <p className="mt-2 text-xs leading-5 text-text-secondary">
                 Only proven unsent pending notices may select a current target. Accepted and unknown
                 notices keep the original identity.
               </p>
-              <pre className="whitespace-pre-wrap break-all text-xs">
+              <pre className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs">
                 {JSON.stringify(run.notifications, null, 2)}
               </pre>
             </details>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-border-muted pt-3">
             {runOperations.map((operation) => (
               <Button
                 type="button"
+                size="sm"
                 key={operation}
                 disabled={busy}
                 onClick={() => {
@@ -1148,20 +1302,22 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
         </article>
       ))}
       {cursor && (
-        <Button type="button" disabled={loading || busy} onClick={() => void load(cursor)}>
-          更多 Runs
-        </Button>
+        <div className="flex justify-center">
+          <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load(cursor)}>
+            更多 Runs
+          </Button>
+        </div>
       )}
       {selected && (
         <form
           aria-label="Run operation"
-          className="min-w-0 space-y-2"
+          className="min-w-0 space-y-3 rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm"
           onSubmit={(e) => {
             e.preventDefault();
             void execute();
           }}
         >
-          <p className="break-all">
+          <p className="break-all font-medium">
             确认 {selected.operation} · {selected.run.runId}？
           </p>
           {selected.operation === 'retry' && (
@@ -1180,8 +1336,8 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
               />
             </label>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button disabled={busy} type="submit">
+          <div className="flex flex-wrap gap-2 border-t border-accent/30 pt-3">
+            <Button variant="primary" disabled={busy} type="submit">
               确认操作
             </Button>
             <Button type="button" disabled={busy} onClick={() => setSelected(null)}>
