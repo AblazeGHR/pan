@@ -66,6 +66,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--data-root", type=Path, required=True)
+    parser.add_argument("--graceful-timeout", type=float, default=None)
     args = parser.parse_args()
     allowed_ephemeral_port = (
         1024 <= args.port <= 65535 and args.port not in {8767, 8768})
@@ -172,7 +173,8 @@ def main() -> None:
 
     from packages.core.host_server import PanServer
     host = PanServer(uvicorn.Config(server.app, host="127.0.0.1", port=args.port,
-                                    log_level="warning", access_log=False))
+                                    log_level="warning", access_log=False,
+                                    timeout_graceful_shutdown=args.graceful_timeout))
     server.app.state.pan_uvicorn_server = host
     @server.app.post('/__test/stop-owned-runtime')
     async def stop_owned_runtime():

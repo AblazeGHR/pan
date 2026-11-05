@@ -37,6 +37,35 @@ direct 在调用前提交 prepared intent，随后记录 calling、逐条输出�
 
 direct coroutine 取消和 timeout 都要求 ProcessOwner 整树清理证明；无法确认则 uncertain。Job 的原 cancel intent 由本地 command owner 观察，待原 Attempt 的所有命令清理已确认后完成原取消 operation；不将 command 身份误投给独立 process store。宿主崩溃后没有回执时保持 unknown，不假定资源已清，也不增加无人值守恢复承诺。
 
+### 独立审查补证：TCP 断开不等于执行取消
+
+`tests/test_action_invocation_tcp.py` 启动独立的真实 `PanServer` + 生产 FastAPI 路由/完整 lifespan，使用临时 profile、动态 loopback 端口（拒绝 8767/8768）与 retained ProcessOwner handle；不使用 TestClient、ASGITransport 或替代 invoke handler。
+
+长命令先创建 started 标记与真实子进程，再等待文件门闩。测试在门闩释放前从第二条 TCP 连接取得原 requestKey/operationId，再关闭原 socket；另一用例取消客户端 httpx task。两种客户端断开均未取消服务端执行：重复同键返回原 calling 回执，释放门闩后效果计数恰为 1、stdout/exitCode 与清理回执完成；关闭并重启独立服务后，以原 operationId/requestKey 冷查询及重复调用仍返回原身份，未创建 Job、未再次执行效果。
+
+当前本机实际生产 auto HTTP protocol 为 Uvicorn 0.49.0 / h11；源码 `connection_lost` 设置 disconnected 与唤醒 receive，不调用请求 task.cancel。这一行为由上述真实 TCP 效果验证，不用协程取消单测替代断开证据。
+
+服务关闭另有两项真实 TCP 负控：默认 graceful shutdown 在门闩未释放时仍等待原请求，随后命令完成并冷查询成功；测试 launcher 显式设置 `timeout_graceful_shutdown=0.1` 时，Uvicorn 记录 deadline 超时并取消服务端 task，原命令及子树结束、效果计数为 0，取消回执可冷查询、同键不重放。该参数只增加到 test launcher，默认 None 与生产默认一致。
+
+因此本次不修改执行行为；保留 `CancelledError` 的整树清理路径及原协程取消、timeout、owner 失效、unknown/no-replay 断言。调用者取消 HTTP client task属于连接断开；显式取消 service invocation task或 host shutdown deadline属于执行任务取消，语义分别验证。该证据不宣称进程崩溃或强杀后的完成保证。
+
+隔离 fixture 实测身份（均为临时 profile 中的测试记录，不含真实用户数据）：
+
+| 场景 | requestKey | 原调用及重启后相同的 operationId | 终态 | 最终效果计数 |
+|---|---|---|---|---|
+| 关闭 TCP socket | tcp-disconnect | op_121e1420d44c4483841fff7b | completed / exitCode=0 | 1 |
+| 取消 HTTP client task | tcp-disconnect | op_d1e77f5fc841481b8b17f1a3 | completed / exitCode=0 | 1 |
+| graceful shutdown 排空 | tcp-shutdown | op_d8e63c00656f433a8b6e6b08 | completed / exitCode=0 | 1 |
+| shutdown deadline 取消执行 task | tcp-shutdown | op_471e3e4678074c148f92410b | cancelled / Windows exitCode=57005 | 0 |
+
+四项均断言原身份冷查询与同键查询一致、无隐藏 Job，cleanupConfirmed=true、remaining=[]；客户端断开用例另断言真实 stdout 与零退出。所有 server/命令子进程通过保留的 ProcessOwner handle 清理；未操作任何其他进程或真实监听端口。
+
+复核命令均前缀 `python scripts/run_tests_isolated.py --`：
+
+- `python -m pytest tests/test_action_invocation_tcp.py -q -s -o addopts=''` → 4 passed，87.31s；首次复现 4 passed，82.41s。
+- `python -m pytest tests/test_action_unification_p1.py tests/test_action_unification_p2.py tests/test_job_final_http_service.py tests/test_job_final_contracts.py tests/test_platform_process_contract.py tests/test_platform_process_posix_unit.py -q -o addopts=''` → 305 passed、19 skipped、1 项原 Starlette 弃用 warning，49.61s。POSIX unit 是本机单元证据，不能计为 Linux/macOS 实机通过。
+- 隔离导入 `packages.web.server`、`packages.actions.command_execution`、`packages.actions.invocation` 通过；共享执行与新 TCP 测试无新增 Windows-only 顶层导入、盘符或 `/proc` 假设。React 源码及产物未改，本次未重复前端构建。
+
 ## 验证入口与边界
 
 `tests/test_action_unification_p2.py` 使用隔离临时目录/真实 Git 和 Python 子进程，覆盖 Git 部分成功、shell/argv、旧 descriptor、环境/窗口参数、外部脚本变化、输出上限、timeout/取消/树清理、同键并发/冲突、prepare/调用/回执崩溃窗口、owner 前后失效、Job 原身份及失败阻断。

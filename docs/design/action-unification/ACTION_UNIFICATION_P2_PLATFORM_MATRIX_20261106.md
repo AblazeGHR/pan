@@ -12,3 +12,5 @@
 | 三平台导入/收集/CI | 本地导入与聚焦测试 | 未运行 | 未运行 | 不将 Windows 结果计为三平台验收 |
 
 direct 与 Job adapter 共用结果与清理规则。未知/不完整 cleanup proof 不能转成成功或重试许可；原 IndependentExecutor 的 `process` 路径继续保留。
+
+审查补证：新增真实 TCP 测试复用跨平台 ProcessOwner、Python socket 与 httpx；没有新增 Windows-only 顶层导入、盘符、`/proc` 或业务层 OS 分支。Windows/Python 3.14 上已验证 socket 断开、HTTP client task 取消、完整 PanServer graceful drain 与 shutdown deadline 取消后原回执冷查询；Linux/macOS 实机与远端 CI 仍未验证，不把静态边界检查计为三平台运行通过。

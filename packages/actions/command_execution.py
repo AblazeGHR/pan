@@ -197,6 +197,9 @@ async def execute(commands, context: CommandContext, *, process_owner=None):
         except BaseException as exc:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                 raise
+            # This cancels the execution task (including a host shutdown
+            # deadline), not the TCP peer. PanServer keeps the request running
+            # after peer disconnect; owned TCP tests cover that distinction.
             cancelled = isinstance(exc, asyncio.CancelledError)
             row["code"] = "cancelled" if cancelled else getattr(exc, "code", "command_interrupted")
             row["error"] = str(exc)
