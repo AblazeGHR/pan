@@ -1477,6 +1477,12 @@ class FinalService:
                 for aid, key in keys.items() if state["attempts"][aid]["state"] in {"running", "uncertain"}
                 and (run_id is None or state["attempts"][aid]["runId"] == run_id)]
 
+    def _command_target(self, job, target):
+        from packages.actions.command_execution import OPERATIONS
+        state = aggregate(job, self.root)
+        frozen = state["plans"][target["attempt"]["runId"]]["frozen"]
+        return frozen["actions"][target["effectKey"]["targetId"]]["execution"]["operation"] in OPERATIONS
+
     async def control_run_postcommit(self, run_id, body, *, actor):
         self._permit(actor, "job", "execute")
         if body["operation"] == "cancel":
@@ -1497,6 +1503,12 @@ class FinalService:
         adapter = self._external_adapter(job_id)
         failure = None
         for target in targets:
+            if self._command_target(job, target):
+                # The original local owner observes cancelling at its next
+                # boundary and supplies proof after terminating its own tree.
+                # Do not send this identity to the independent process store.
+                failure = "command_cleanup_pending"
+                continue
             try:
                 cleanup = getattr(adapter, "cleanup_execution", None)
                 if cleanup is None:
@@ -1556,6 +1568,10 @@ class FinalService:
             self._permit(actor, record["kind"], "read")
             return copy.deepcopy(record["response"])
 
+    async def invoke_action(self, action_id, body, *, actor):
+        from packages.actions.invocation import invoke
+        return await invoke(self, action_id, body, actor=actor)
+
     def operation_for_key(self, operation, request_key, *, actor):
         with self.transaction(readonly=True) as db:
             row = db.execute("SELECT id FROM final_operations WHERE scope=? AND requestKey=?", (self._scope(actor, operation), request_key)).fetchone()
@@ -1608,7 +1624,7 @@ class FinalService:
     def cancel(self, operation):
         self.activate(operation, operation.get("activationToken"), False)
 
-    def publish_action(self, action_id, value):
+    def publish_action(self, action_id, value, *, enabled=True):
         """Trusted product/provider publication into the canonical directory.
 
         Product registration is intentionally separate from the user draft
@@ -1635,19 +1651,22 @@ class FinalService:
                                (action_id, old["revision"], int(old.get("enabled", True)), old["state"], old["stateRevision"], now()))
                 return old
             item = self._envelope("action", value, {"type": "system", "id": "product"}, object_id=action_id, state="published")
-            item["enabled"] = True
+            item["enabled"] = enabled
             item = fc.validate_object("action", item)
             digest = fc.digest(value)
             db.execute("INSERT INTO final_action_versions(actionId,revision,digest,state,definition,createdAt,publishedAt) VALUES(?,?,?,?,?,?,?)",
                        (action_id, item["revision"], digest, "published", fc.canonical_json(value), item["createdAt"], item["updatedAt"]))
             db.execute("INSERT INTO final_action_lifecycle(actionId,revision,enabled,state,stateRevision,updatedAt) VALUES(?,?,?,?,?,?)",
-                       (action_id, item["revision"], 1, "published", item["stateRevision"], now()))
+                       (action_id, item["revision"], int(enabled), "published", item["stateRevision"], now()))
             self._save(db, "action", action_id, item)
             db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
                        ("action", action_id, fc.canonical_json({"type": "system", "id": "product"})))
             return item
 
     def _install_product_actions(self):
+        from packages.actions.command_execution import OPERATIONS, product_definition
+        for operation in sorted(OPERATIONS):
+            self.publish_action(operation, product_definition(operation), enabled=False)
         from packages.automation.quota_native import ACTION, action_definition
         self.publish_action(ACTION, action_definition())
         products = [("process", "write_local", "process-exit"),
@@ -2236,6 +2255,12 @@ class FinalService:
                         args = copy.deepcopy(runtime["arguments"])
                     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(args):
                         error("invalid_schema", "Action input schema rejected mapping")
+                    from packages.actions.command_execution import OPERATIONS as COMMAND_OPERATIONS, prepare as prepare_command, argument_defaults
+                    if action["execution"]["operation"] in COMMAND_OPERATIONS:
+                        from packages.actions.invocation import check_capabilities
+                        check_capabilities(action)
+                        args = argument_defaults(action["inputSchema"], args)
+                        prepare_command(action["execution"]["operation"], action["execution"]["config"], args)
                     if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
                         args = self._session_source(args, frozen["authority"])
                     if action["execution"]["operation"] == "resume-legal-running.v1":
@@ -2287,8 +2312,13 @@ class FinalService:
                 executable["_runtimeDelivery"] = delivery
             try:
                 executor = self._external_adapter(job_id) if executable["operation"] == "process" and self.executor is self._product_executor else self.executor
-                receipt = await executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
-                                                      retry=attempt["generation"] > 1)
+                from packages.actions.command_execution import OPERATIONS as COMMAND_OPERATIONS
+                if executable["operation"] in COMMAND_OPERATIONS:
+                    from packages.actions.invocation import job_execute
+                    receipt = await job_execute(self, job_id, run_id, attempt, effect_key, executable)
+                else:
+                    receipt = await executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
+                                                          retry=attempt["generation"] > 1)
             except BaseException as exc:
                 if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                     raise
@@ -2338,6 +2368,15 @@ class FinalService:
                 self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
                 state = aggregate(job, self.root)
                 if run_id in state.get("cancellations", {}):
+                    if executable["operation"] in COMMAND_OPERATIONS:
+                        intent = state["cancellations"][run_id]
+                        rows = receipt.get("receipt", {}).get("commands", [])
+                        if (rows and all(row.get("cleanupProof", {}).get("confirmed") is True for row in rows)
+                                and all(t["attempt"]["attemptId"] == attempt["attemptId"] for t in intent["targets"])):
+                            intent["status"] = "confirmed"
+                            self.final.ledger.transition_run(job, self.root, run_id, "cancelled", operation="cancel")
+                            self._cancel_status(db, job, run_id, "completed")
+                            self._settle(db, job, run_id)
                     self._save(db, "job", job_id, job)
                     return  # Only the explicit cleanup proof path settles cancel.
                 if mapped == "completed":
@@ -2520,8 +2559,12 @@ class FinalService:
                 cancelled = state.get("cancellations", {})
                 for rid, intent in cancelled.items():
                     if intent["status"] != "confirmed" and intent["targets"]:
-                        pending.append((job["jobId"], rid, copy.deepcopy(intent), copy.deepcopy(intent["targets"])))
+                        external = [t for t in intent["targets"] if not self._command_target(job, t)]
+                        if external:
+                            pending.append((job["jobId"], rid, copy.deepcopy(intent), copy.deepcopy(external)))
                 for target in self._external_targets(job):
+                    if self._command_target(job, target):
+                        continue  # Original aggregate receipt only; never resubmit or query another host.
                     rid = target["attempt"]["runId"]
                     if self.executor is self._product_executor:
                         frozen = state["plans"][rid]["frozen"]

@@ -119,6 +119,7 @@ OPERATION_STATES = ("accepted", "pending", "completed", "rejected", "unknown")
 
 #: Every operation name the canonical service may accept (§10.4).
 OPERATIONS = (
+    "invoke",
     "create",
     "update",
     "publish",

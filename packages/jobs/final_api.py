@@ -91,6 +91,7 @@ class CanonicalService(Protocol):
     def operation(self, operation_id: str, *, actor: Mapping[str, Any]): ...
     def operation_for_key(self, operation: str, request_key: str, *, actor: Mapping[str, Any]): ...
     def actions(self, *, actor: Mapping[str, Any]): ...
+    async def invoke_action(self, action_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def action_versions(self, action_id: str, *, actor: Mapping[str, Any]): ...
     def action_ref(self, action_id: str, *, actor: Mapping[str, Any], revision: int | None = None,
                    digest: str | None = None, latest: bool = False): ...
@@ -399,6 +400,17 @@ async def action_create(request: Request):
 async def action_alias(legacy_id: str, request: Request):
     who = await actor(request, "action", "read")
     return await invoke(request, "action_alias", legacy_id, actor=who)
+
+
+@router.post("/jobs/actions/{action_id}/invocations")
+async def action_invoke(action_id: str, request: Request):
+    who = await actor(request, "action", "invoke")
+    value = await body(request)
+    fields(value, {"actionRef", "arguments", "requestKey"}, {"actionRef", "arguments", "requestKey"})
+    contracts.check_request_key(value["requestKey"])
+    if not isinstance(value["arguments"], dict):
+        reject("invalid_schema", "arguments must be an object")
+    return await invoke(request, "invoke_action", action_id, value, actor=who)
 
 
 @router.get("/jobs/actions/{action_id}/versions")

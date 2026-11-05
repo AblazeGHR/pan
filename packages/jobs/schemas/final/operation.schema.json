@@ -24,6 +24,7 @@
     },
     "operation": {
       "enum": [
+        "invoke",
         "create",
         "update",
         "publish",

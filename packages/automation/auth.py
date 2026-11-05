@@ -116,7 +116,7 @@ class UserAuth:
     # fail-closed: a missing/unknown bit never grants a write or effect.
     PERMISSION_SCHEMA = {
         'trigger': ('read', 'create', 'updateConfig', 'lifecycle', 'delete'),
-        'action': ('read', 'create', 'updateConfig', 'lifecycle', 'delete'),
+        'action': ('read', 'create', 'updateConfig', 'lifecycle', 'delete', 'invoke'),
         'jobTemplate': ('read', 'create', 'updateConfig', 'use', 'delete'),
         'job': ('read', 'create', 'updateConfig', 'lifecycle', 'execute', 'delete'),
     }
@@ -135,6 +135,9 @@ class UserAuth:
         result = {}
         for kind, names in cls.PERMISSION_SCHEMA.items():
             item = value[kind]
+            # Existing files retain their grants and revision; new invoke is denied.
+            if kind == 'action' and isinstance(item, dict) and 'invoke' not in item:
+                item = {**item, 'invoke': False}
             expected = set(names) | ({'manageSystemActions'} if kind == 'action' else set())
             if not isinstance(item, dict) or set(item) != expected or any(type(item[k]) is not bool for k in expected):
                 raise ValueError('Invalid authorization permission fields for ' + kind)

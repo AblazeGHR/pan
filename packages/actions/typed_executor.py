@@ -339,6 +339,17 @@ class TypedExecutor:
             return copy.deepcopy(value) if value is not None else None
         return store.get(key)
 
+    async def execute_commands(self, *, context, frozen_plan, prepared_commands=None):
+        """Identity-neutral command port; durable intent belongs to the host.
+
+        Job callers keep the original Attempt/effect; direct callers use an
+        operation receipt. Neither path synthesizes the other's identity.
+        """
+        from .command_execution import execute, prepare
+        commands = prepared_commands if prepared_commands is not None else prepare(
+            frozen_plan["operation"], frozen_plan, frozen_plan["arguments"])
+        return await execute(commands, context, process_owner=self.process_owner)
+
     def _store(self, key: Mapping[str, Any], value: Mapping[str, Any]) -> None:
         store = self.receipt_store
         if isinstance(store, MutableMapping):
