@@ -15144,33 +15144,14 @@ def _open_file_with_system_default(target: Path) -> None:
     _launch_external_opener(argv)
 
 
-def _editor_open_allowed_roots(session_id: str) -> list[Path]:
-    """Filesystem roots a Session may hand to the system opener.
-
-    Mirrors the roots the server can verify: the Session workdir and the dirs
-    of the Session's effective Workspace. Browser-only Temp roots are excluded
-    on purpose — the client cannot grant itself filesystem access.
-    """
-    roots: list[Path] = []
-    session = _summary_session_get(session_id)
-    if session is not None and getattr(session, "workdir", None):
-        roots.append(Path(session.workdir))
-    for workspace_id in sess.effective_workspace_ids(session_id):
-        workspace = workspaces.get(workspace_id)
-        if workspace is None:
-            continue
-        for raw in workspace.dirs:
-            if isinstance(raw, str) and raw.strip():
-                roots.append(Path(raw))
-    return roots
-
-
 def _resolve_editor_file_target(data: dict) -> Path:
     """Resolve the one file an Editor OS action may touch.
 
     Shared by open and reveal so both keep the Editor containment rules:
-    ``..``, absolute escapes and symlink targets are resolved first, then the
-    result must stay inside the Session workdir or one of its Workspace dirs.
+    ``..``, absolute paths and symlink targets are resolved first. Relative
+    paths remain Session-workdir relative; absolute paths use the same scope
+    as the existing editor read/download endpoints and may address any file
+    the running Pan process can access.
     """
     session_id = data.get("session_id")
     raw_path = data.get("path")
@@ -15186,14 +15167,6 @@ def _resolve_editor_file_target(data: dict) -> Path:
         # Unresolvable syntax (for example a drive-relative Windows name) and
         # symlink loops are client errors, not server failures.
         raise HTTPException(status_code=400, detail="Invalid path") from exc
-    # Check containment before existence so traversal never distinguishes
-    # existing from missing files outside the allowed roots.
-    roots = _editor_open_allowed_roots(session_id)
-    if not roots or not _path_is_allowed(target, roots):
-        raise HTTPException(
-            status_code=403,
-            detail="Path is outside the allowed workspace roots",
-        )
     if not target.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {target.name}")
     if not target.is_file():
@@ -15205,10 +15178,9 @@ def _resolve_editor_file_target(data: dict) -> Path:
 async def api_editor_open_external(data: dict):
     """Open one Editor file with the operating system's default application.
 
-    The request carries a path, never a command. It is resolved with the same
-    containment rules as the Editor read path (``..``, absolute escapes and
-    symlink targets are resolved first) and must stay inside the Session
-    workdir or one of its Workspace dirs.
+    The request carries a path, never a command. It uses the same path scope as
+    the Editor read/download endpoints: relative paths resolve from the Session
+    workdir, while absolute paths may address files accessible to Pan.
     """
     target = _resolve_editor_file_target(data)
 

@@ -111,32 +111,29 @@ def test_rejects_a_missing_file(monkeypatch, workdir, revealed):
     assert revealed == []
 
 
-def test_rejects_relative_traversal(monkeypatch, workdir, tmp_path, revealed):
+def test_allows_relative_path_outside_workdir(monkeypatch, workdir, tmp_path, revealed):
     import packages.web.server as server
 
     session_with_workdir(monkeypatch, server, workdir)
     (tmp_path / "outside.txt").write_text("secret", encoding="utf-8")
 
-    with pytest.raises(HTTPException) as error:
-        reveal_external(server, path="../outside.txt")
+    result = reveal_external(server, path="../outside.txt")
 
-    assert error.value.status_code == 403
-    assert revealed == []
+    assert result == {"ok": True, "name": "outside.txt"}
+    assert revealed == [(tmp_path / "outside.txt").resolve()]
 
 
-def test_rejects_an_absolute_path_outside_the_allowed_roots(monkeypatch, workdir, tmp_path, revealed):
+def test_allows_an_absolute_path_outside_editor_roots(monkeypatch, workdir, tmp_path, revealed):
     import packages.web.server as server
 
     session_with_workdir(monkeypatch, server, workdir)
     outside = tmp_path / "outside.txt"
     outside.write_text("secret", encoding="utf-8")
 
-    with pytest.raises(HTTPException) as error:
-        reveal_external(server, path=str(outside))
+    result = reveal_external(server, path=str(outside))
 
-    assert error.value.status_code == 403
-    assert "workspace roots" in error.value.detail
-    assert revealed == []
+    assert result == {"ok": True, "name": "outside.txt"}
+    assert revealed == [outside.resolve()]
 
 
 def make_dir_link(link: Path, target: Path) -> None:
@@ -155,7 +152,7 @@ def make_dir_link(link: Path, target: Path) -> None:
         pytest.skip("this host cannot create directory junctions")
 
 
-def test_rejects_a_link_that_escapes_the_workdir(monkeypatch, tmp_path, workdir, revealed):
+def test_allows_a_link_that_escapes_the_workdir(monkeypatch, tmp_path, workdir, revealed):
     import packages.web.server as server
 
     session_with_workdir(monkeypatch, server, workdir)
@@ -165,11 +162,10 @@ def test_rejects_a_link_that_escapes_the_workdir(monkeypatch, tmp_path, workdir,
     secret.write_text("secret", encoding="utf-8")
     make_dir_link(workdir / "link", outside)
 
-    with pytest.raises(HTTPException) as error:
-        reveal_external(server, path="link/secret.txt")
+    result = reveal_external(server, path="link/secret.txt")
 
-    assert error.value.status_code == 403
-    assert revealed == []
+    assert result == {"ok": True, "name": "secret.txt"}
+    assert revealed == [secret.resolve()]
 
 
 def test_allows_a_link_that_stays_inside_the_workdir(monkeypatch, workdir, revealed):
@@ -207,18 +203,17 @@ def test_allows_a_file_inside_a_workspace_dir(monkeypatch, workdir, tmp_path, re
     assert revealed == [target.resolve()]
 
 
-def test_rejects_every_path_when_the_session_has_no_roots(monkeypatch, tmp_path, revealed):
+def test_allows_absolute_path_when_session_has_no_workdir(monkeypatch, tmp_path, revealed):
     import packages.web.server as server
 
     target = tmp_path / "file.txt"
     target.write_text("hello", encoding="utf-8")
     session_with_workdir(monkeypatch, server, None)
 
-    with pytest.raises(HTTPException) as error:
-        reveal_external(server, path=str(target))
+    result = reveal_external(server, path=str(target))
 
-    assert error.value.status_code == 403
-    assert revealed == []
+    assert result == {"ok": True, "name": "file.txt"}
+    assert revealed == [target.resolve()]
 
 
 def test_requires_a_session_and_a_path(revealed):
@@ -514,6 +509,8 @@ def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
     workdir = tmp_path / "workdir"
     workdir.mkdir()
     (workdir / "file.txt").write_text("hello", encoding="utf-8")
+    outside_path = tmp_path / "outside.txt"
+    outside_path.write_text("outside", encoding="utf-8")
     session = sess.create(name="editor-reveal-external", adapter="cbc", workdir=str(workdir))
     revealed: list[Path] = []
     monkeypatch.setattr(
@@ -529,10 +526,11 @@ def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
         )
         outside = client.post(
             "/api/editor/reveal-external",
-            json={"session_id": session.id, "path": str(tmp_path / "outside.txt")},
+            json={"session_id": session.id, "path": str(outside_path)},
         )
 
     assert success.status_code == 200
     assert success.json() == {"ok": True, "name": "file.txt"}
-    assert outside.status_code == 403
-    assert revealed == [(workdir / "file.txt").resolve()]
+    assert outside.status_code == 200
+    assert outside.json() == {"ok": True, "name": "outside.txt"}
+    assert revealed == [(workdir / "file.txt").resolve(), outside_path.resolve()]
