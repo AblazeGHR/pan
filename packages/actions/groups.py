@@ -297,4 +297,5 @@ class Groups:
             fail("reference_conflict", "Tool is absent from bound Group release")
         ref = tool["actionRef"]
         return await self.service.invoke_action(ref["id"], {"actionRef": ref,
-            "arguments": arguments, "requestKey": key}, actor=actor)
+            "arguments": arguments, "requestKey": key}, actor=actor,
+            source={"groupRelease": release["version"]})
