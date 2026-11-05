@@ -236,3 +236,62 @@ finite retry/scheduling contract is
 [Run retries](../design/Event-Trigger-Action-v0.3-retry-scheduling.md). It freezes
 retry eligibility at first start and refuses changed Action digests on later
 attempts; increasing a later declaration cannot promote an already-started Run.
+
+## Canonical fixed-reference Groups (P3 candidate, 2026-11-06)
+
+Canonical Groups use the existing plugin IDs (`action-group-<id>`), capability
+documents, three projection modes, Worker pins and idle/deferred restart protocol.
+Their authoritative drafts and immutable releases live in the existing canonical
+`final_documents` transaction store. They resolve the P1 Action directory and call
+the P2 `FinalService.invoke_action` adapter; no Group command executor is added.
+
+The HTTP adapter is `/api/action-groups`:
+
+| Method / suffix | Payload / result |
+| --- | --- |
+| GET | `items` containing Group drafts and their current release pointer |
+| PUT `/{id}` | `{group:{id,name,tools:[{alias,actionRef}]},expectedRevision,requestKey}`; creation expects revision 0 |
+| POST `/{id}/build` | `{expectedRevision,requestKey}`; explicitly publish fixed refs and schemas |
+| POST `/{id}/unbuild` | Same CAS envelope; running enabled Session blocks; idle bindings are detached; release history remains |
+| DELETE `/{id}` | Same CAS envelope; requires unbuild first; immutable releases remain readable |
+| GET `/releases/{version}` | Original immutable release, including fixed ActionRefs and input/output schemas |
+| POST `/preview-reference-update` | `{scope:"action",actionRef}` for all Groups using that Action, or `{scope:"group",groupId}` for latest versions of all tools |
+| POST `/apply-reference-update` | `{selection,previewDigest,targets:[{groupId,expectedRevision}],requestKey}` |
+
+An ActionRef is exactly `{id,revision,digest}`. One logical Action and one stable
+tool alias per Group are allowed. `latest` resolves on the server to a published,
+enabled, non-retired version. A preview is bound to the principal, profile,
+authorization revision, complete target list, draft revisions and contract diff.
+Apply recomputes it in the original owner-fenced transaction and changes drafts
+only. It never publishes or changes a loaded Worker pin. A changed schema,
+capability, effect, provider or completion/cancel/reconcile/retry contract is an
+explicit blocker; edit the complete draft to confirm such a change. Executable
+configuration differences are shown but do not by themselves block an explicit
+version upgrade.
+
+The batch limit is 100 Groups with at most 100 tools each. Above that limit the
+caller must make explicit batches using `groupIds` in the Action selection;
+there is no silent truncation or cross-batch atomicity promise. A stale preview,
+concurrent edit, retired target, permission change or failed write rejects the
+whole canonical batch. Existing JSON Groups are reported as excluded,
+`legacy_json_preview_only`; apply does not perform a temporary multi-file
+transaction or silently migrate them. Their old APIs and releases remain intact.
+An existing canonical Group ID cannot be shadowed through the JSON draft writer.
+Canonical writer adoption of old JSON Groups belongs to the controlled migration
+phase, and has not been performed on a real profile.
+
+Group read/create/edit/build/delete map to the existing Action
+`read/create/updateConfig/lifecycle/delete` grants. Protected definitions retain
+`manageSystemActions`; every invocation still checks Action `invoke`, current
+lifecycle, platform capabilities and the P2 effect boundary. Grants are not
+inherited from Group membership. No new permission row or private grant system
+is introduced.
+
+Canonical MCP tools use the fixed release's input schema inside the envelope
+`{arguments:<Action arguments>,requestKey:<original key>}`. The envelope is identical
+across standalone, native and gateway projections; it keeps recovery identity
+outside business arguments. The host resolves the ActionRef from the trusted
+bound release, never from tool arguments. Results include the original
+`operationId` and canonical receipt. Use the existing operation query by ID or
+`operation=invoke` plus the original requestKey after a disconnect or uncertain
+result; never replay effects with a fresh key automatically.

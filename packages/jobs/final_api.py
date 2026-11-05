@@ -774,6 +774,8 @@ def install(app, *legacy_routers):
                 _copy_legacy_route(retained, route, route.path)
     app.include_router(retained)
     app.include_router(router, prefix=API_PREFIX)
+    from packages.actions.group_api import router as group_router
+    app.include_router(group_router, prefix=API_PREFIX)
     # The catalog cannot replace the existing /api/actions legacy registry.
     # Keep its original URL while sharing the new /api/jobs/actions handler.
     aliases = APIRouter(route_class=ContractRoute)

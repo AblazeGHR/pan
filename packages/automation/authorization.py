@@ -17,6 +17,8 @@ def canonical_path(path):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
+    if re.fullmatch(r'/api/action-groups(?:/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)?)?', parsed.path):
+        return True
     if (re.fullmatch(r'/api/jobs/actions(?:/[A-Za-z0-9_-]+(?:/(?:versions(?:/[0-9]+)?|operations|aliases))?)?', parsed.path)
             or re.fullmatch(r'/api/jobs/actions/aliases/[A-Za-z0-9_-]+', parsed.path)):
         return True
@@ -128,6 +130,9 @@ async def authority(request):
 def bind_objects(runtime, app):
     """Only called by the host; reused routes retain their normal business gates."""
     import httpx
+    # Production binds IPC before canonical startup; resolve at request time so
+    # failed startup/shutdown cannot leave an executable stale service pointer.
+    runtime.group_service = lambda: getattr(app.state, 'job_final_service', None)
     async def call(method, path, body):
         if method not in {'GET','POST','PUT','DELETE','PATCH'} or not object_path(path, method):
             return {'ok': False, 'error': {'code': 403, 'message': 'Outside four-object MCP boundary'}}

@@ -314,6 +314,9 @@ class Store:
         if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'action_ids'}:
             raise ValueError('Unknown Group fields')
         gid = identifier(raw.get('id'))
+        from .group_catalog import owns
+        if owns(gid):
+            raise ValueError('Group is canonical-owned; use the canonical Group API')
         if not isinstance(raw.get('name'), str) or not raw['name'].strip():
             raise ValueError('Group name is required')
         ids = raw.get('action_ids')
@@ -384,6 +387,8 @@ class Store:
 def extend_catalog(catalog):
     """Built Groups are ordinary API plugins, using all three generic projections."""
     from packages.plugins.catalog import Plugin
+    from .group_catalog import extend
+    extend(catalog)
     for group in Store().read()['groups'].values():
         build = group.get('build')
         if not build:
