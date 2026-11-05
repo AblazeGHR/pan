@@ -30,7 +30,7 @@ COOKIE_NAME = "pan_user"
 KINDS = {"jobs": "job", "triggers": "trigger", "event-creators": "event_creator",
          "job-templates": "template"}
 GRANT_KINDS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator",
-               "template": "jobTemplate"}
+               "template": "jobTemplate", "action": "action"}
 
 
 class CanonicalUserAuth(UserAuth):
@@ -90,6 +90,11 @@ class CanonicalService(Protocol):
     async def control_run_postcommit(self, run_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def operation(self, operation_id: str, *, actor: Mapping[str, Any]): ...
     def operation_for_key(self, operation: str, request_key: str, *, actor: Mapping[str, Any]): ...
+    def actions(self, *, actor: Mapping[str, Any]): ...
+    def action_versions(self, action_id: str, *, actor: Mapping[str, Any]): ...
+    def action_ref(self, action_id: str, *, actor: Mapping[str, Any], revision: int | None = None,
+                   digest: str | None = None, latest: bool = False): ...
+    def action_alias(self, legacy_id: str, *, actor: Mapping[str, Any]): ...
 
 
 def reject(code, message, *, path=None):
@@ -367,8 +372,117 @@ def definition_routes(base, kind):
 
 @router.get("/jobs/actions")
 async def action_catalog(request: Request):
-    who = await actor(request)
+    who = await actor(request, "action", "read")
     return await invoke(request, "actions", actor=who)
+
+
+async def _action_write_body(request, *, create=False):
+    value = await body(request)
+    fields(value, {"definition", "expectedRevision", "requestKey", "requestDigest"},
+           {"definition", "expectedRevision", "requestKey"})
+    revision(value["expectedRevision"], "expectedRevision") if not create else (
+        None if type(value["expectedRevision"]) is int and value["expectedRevision"] == 0
+        else reject("invalid_schema", "Create expectedRevision must be zero", path="expectedRevision")
+    )
+    contracts.check_request_key(value["requestKey"])
+    return value
+
+
+@router.post("/jobs/actions")
+async def action_create(request: Request):
+    who = await actor(request, "action", "create")
+    value = await _action_write_body(request, create=True)
+    return write_result(await invoke(request, "write", "action", None, value, actor=who), created=True)
+
+
+@router.get("/jobs/actions/aliases/{legacy_id}")
+async def action_alias(legacy_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_alias", legacy_id, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/versions")
+async def action_versions(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_versions", action_id, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/versions/{revision_value}")
+async def action_version(action_id: str, revision_value: str, request: Request):
+    who = await actor(request, "action", "read")
+    try:
+        revision_value = int(revision_value)
+    except ValueError:
+        reject("invalid_schema", "Invalid Action revision")
+    if revision_value < 1:
+        reject("invalid_schema", "Invalid Action revision")
+    digest = request.query_params.get("digest")
+    value = await invoke(request, "action_ref", action_id, actor=who, revision=revision_value, digest=digest)
+    versions = await invoke(request, "action_versions", action_id, actor=who)
+    item = next((item for item in versions["items"] if item["revision"] == revision_value), None)
+    if item is None:
+        reject("not_found", "Action version not found")
+    if digest is not None and digest != item["digest"]:
+        reject("reference_conflict", "Action digest does not match the fixed reference")
+    return {**item, "ref": value}
+
+
+@router.get("/jobs/actions/{action_id}")
+async def action_detail(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return contracts.validate_object("action", await invoke(request, "get", "action", action_id, actor=who))
+
+
+@router.put("/jobs/actions/{action_id}")
+async def action_update(action_id: str, request: Request):
+    who = await actor(request, "action", "updateConfig")
+    value = await _action_write_body(request)
+    return write_result(await invoke(request, "write", "action", action_id, value, actor=who))
+
+
+@router.post("/jobs/actions/{action_id}/operations")
+async def action_control(action_id: str, request: Request):
+    who = await actor(request)
+    value = await body(request)
+    fields(value, {"operation", "expectedRevision", "expectedStateRevision", "requestKey", "parameters"},
+           {"operation", "expectedRevision", "expectedStateRevision", "requestKey", "parameters"})
+    contracts.check_operation("action", value["operation"])
+    revision(value["expectedRevision"])
+    revision(value["expectedStateRevision"], "expectedStateRevision")
+    contracts.check_request_key(value["requestKey"])
+    if not isinstance(value["parameters"], dict):
+        reject("invalid_schema", "parameters must be an object")
+    who = await actor(request, "action", "lifecycle")
+    return write_result(await invoke(request, "control", "action", action_id, value, actor=who))
+
+
+@router.delete("/jobs/actions/{action_id}")
+async def action_retire(action_id: str, request: Request):
+    who = await actor(request, "action", "lifecycle")
+    value = await body(request)
+    fields(value, {"expectedRevision", "expectedStateRevision", "requestKey", "parameters"},
+           {"expectedRevision", "expectedStateRevision", "requestKey"})
+    revision(value["expectedRevision"])
+    revision(value["expectedStateRevision"], "expectedStateRevision")
+    contracts.check_request_key(value["requestKey"])
+    parameters = value.get("parameters", {})
+    if not isinstance(parameters, dict):
+        reject("invalid_schema", "parameters must be an object")
+    control = {**value, "operation": "retire", "parameters": parameters}
+    return write_result(await invoke(request, "control", "action", action_id, control, actor=who))
+
+
+@router.post("/jobs/actions/{action_id}/aliases")
+async def action_alias_create(action_id: str, request: Request):
+    who = await actor(request, "action", "updateConfig")
+    value = await body(request)
+    fields(value, {"legacyId", "revision", "digest", "source", "requestKey"},
+           {"legacyId", "revision", "digest", "source", "requestKey"})
+    revision(value["revision"])
+    contracts.check_request_key(value["requestKey"])
+    return write_result(await invoke(request, "register_action_alias", value["legacyId"], action_id,
+                                     value["revision"], value["digest"], source=value["source"],
+                                     actor=who, request_key=value["requestKey"]))
 
 
 @router.post("/job-templates/{template_id}/instantiate")

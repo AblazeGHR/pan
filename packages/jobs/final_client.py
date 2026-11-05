@@ -115,6 +115,12 @@ class CanonicalClient:
             if body["operation"] not in {*contracts.OPERATIONS, "run-again"}:
                 raise contracts.ContractError("unsupported_operation", "Unknown operation")
             return self.transport("GET", path + "?" + urlencode(body))
+        if resource == "actions" and operation in {"create", "update"}:
+            if (operation == "create") != (object_id is None):
+                raise contracts.ContractError("invalid_schema", "Invalid Action write identity")
+            value = contracts.validate_write("action", body, create=operation == "create")
+            value.pop("requestDigest", None)
+            return self.transport("POST" if operation == "create" else "PUT", path, value)
         if resource in RESOURCES and operation in {"create", "update"}:
             if (operation == "create") != (object_id is None):
                 raise contracts.ContractError("invalid_schema", "Invalid write identity")
@@ -123,6 +129,20 @@ class CanonicalClient:
             return self.transport("POST" if operation == "create" else "PUT", path, value)
         if object_id is None:
             raise contracts.ContractError("invalid_schema", "Identity required")
+        if resource == "actions" and operation in {"retire", "control"}:
+            required = {"expectedRevision", "expectedStateRevision", "requestKey"}
+            if operation == "control":
+                required |= {"operation", "parameters"}
+            fields(body, required, required)
+            revision(body["expectedRevision"])
+            revision(body["expectedStateRevision"], state=True)
+            contracts.check_request_key(body["requestKey"])
+            if operation == "control":
+                contracts.check_operation("action", body["operation"])
+                if not isinstance(body["parameters"], dict):
+                    raise contracts.ContractError("invalid_schema", "parameters must be an object")
+            return self.transport("DELETE" if operation == "retire" else "POST",
+                                  path + ("/operations" if operation == "control" else ""), body)
         if resource in RESOURCES and operation in {"retire", "control"}:
             required = {"expectedRevision", "expectedStateRevision", "requestKey"}
             if operation == "control":

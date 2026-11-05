@@ -17,7 +17,8 @@ def canonical_path(path):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
-    if parsed.path == '/api/jobs/actions':
+    if (re.fullmatch(r'/api/jobs/actions(?:/[A-Za-z0-9_-]+(?:/(?:versions(?:/[0-9]+)?|operations|aliases))?)?', parsed.path)
+            or re.fullmatch(r'/api/jobs/actions/aliases/[A-Za-z0-9_-]+', parsed.path)):
         return True
     if re.fullmatch(r'/api/event-creators/[A-Za-z0-9_-]+/references', parsed.path):
         return True

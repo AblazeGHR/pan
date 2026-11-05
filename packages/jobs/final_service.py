@@ -12,6 +12,7 @@ import copy
 import json
 import os
 import re
+import sqlite3
 import threading
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
@@ -32,7 +33,8 @@ from packages.jobs.runtime_owner import OwnerFence
 
 
 PREFIX = "/api"
-GRANTS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator", "template": "jobTemplate"}
+GRANTS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator", "template": "jobTemplate",
+          "action": "action"}
 ACTIVE = {"queued", "running", "retry_wait", "paused_at_boundary", "cancelling", "settling", "uncertain"}
 
 
@@ -215,6 +217,46 @@ class FinalService:
             db.execute("CREATE TABLE IF NOT EXISTS final_authorities(kind TEXT,id TEXT,document TEXT NOT NULL,PRIMARY KEY(kind,id))")
             db.execute("CREATE TABLE IF NOT EXISTS final_event_receipts(eventId TEXT,triggerId TEXT,status TEXT,PRIMARY KEY(eventId,triggerId))")
             db.execute("CREATE TABLE IF NOT EXISTS final_event_operations(eventId TEXT,triggerId TEXT,operationId TEXT,factDigest TEXT,PRIMARY KEY(eventId,triggerId))")
+            self._ensure_action_schema(db)
+
+    @staticmethod
+    def _ensure_action_schema(db):
+        """Create the Action version side tables in the existing document store.
+
+        ``final_documents`` remains the logical Action head used by the Job
+        service.  Definitions are copied into the version table once and are
+        never rewritten; mutable lifecycle state lives in its own table.
+        This keeps old frozen Job plans readable while allowing a head to carry
+        an unrelated draft revision.
+        """
+        db.execute("""CREATE TABLE IF NOT EXISTS final_action_versions(
+            actionId TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            digest TEXT NOT NULL,
+            state TEXT NOT NULL,
+            definition TEXT NOT NULL,
+            createdAt TEXT NOT NULL,
+            publishedAt TEXT,
+            PRIMARY KEY(actionId, revision)
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS final_action_lifecycle(
+            actionId TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            enabled INTEGER NOT NULL,
+            state TEXT NOT NULL,
+            stateRevision INTEGER NOT NULL DEFAULT 0,
+            updatedAt TEXT NOT NULL,
+            PRIMARY KEY(actionId, revision)
+        )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS final_action_aliases(
+            legacyId TEXT PRIMARY KEY,
+            actionId TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            digest TEXT NOT NULL,
+            source TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            createdAt TEXT NOT NULL
+        )""")
 
     @contextmanager
     def transaction(self, *, readonly=False):
@@ -308,15 +350,85 @@ class FinalService:
             raise KeyError(object_id)
         return self._public(kind, item)
 
+    @staticmethod
+    def _action_definition_record(action_id, revision, digest, definition_value, *, state, enabled):
+        """Return the resolver shape consumed by final_contracts and Runtime."""
+        definition_value = copy.deepcopy(definition_value)
+        return {
+            **definition_value,
+            "id": action_id,
+            "revision": revision,
+            "digest": digest,
+            "state": state,
+            "enabled": bool(enabled),
+            "definition": definition_value,
+        }
+
+    def _action_version_record(self, db, action_id, revision, *, digest=None, for_ref=False):
+        try:
+            self._ensure_action_schema(db)
+        except sqlite3.OperationalError:
+            # A profile created before P1 may not have side tables yet.  Its
+            # one logical head remains a readable compatibility version until
+            # the next owner-fenced write creates the tables.
+            item = self._get(db, "action", action_id)
+            if item["revision"] != revision:
+                raise KeyError(action_id)
+            definition_value = definition("action", item)
+            current_digest = fc.digest(definition_value)
+            if digest is not None and digest != current_digest:
+                error("reference_conflict", "Action digest does not match the fixed reference")
+            return self._action_definition_record(action_id, revision, current_digest, definition_value,
+                                                  state=item["state"], enabled=item.get("enabled", False))
+        query = "SELECT revision,digest,state,definition FROM final_action_versions WHERE actionId=? AND revision=?"
+        row = db.execute(query, (action_id, revision)).fetchone()
+        if row is None:
+            raise KeyError(action_id)
+        if digest is not None and row[1] != digest:
+            error("reference_conflict", "Action digest does not match the fixed reference")
+        life = db.execute(
+            "SELECT enabled,state FROM final_action_lifecycle WHERE actionId=? AND revision=?",
+            (action_id, revision),
+        ).fetchone()
+        state = life[1] if life is not None else row[2]
+        enabled = bool(life[0]) if life is not None else False
+        if for_ref:
+            try:
+                head = self._get(db, "action", action_id)
+            except KeyError:
+                head = None
+            if head is not None and head.get("state") == "retired":
+                state = "retired"
+                enabled = False
+        definition_value = json.loads(row[3])
+        return self._action_definition_record(action_id, int(row[0]), row[1], definition_value,
+                                              state=state, enabled=enabled)
+
+    def _action_head_record(self, db, action_id):
+        item = self._get(db, "action", action_id)
+        digest = fc.digest(definition("action", item))
+        return self._action_definition_record(action_id, item["revision"], digest,
+                                              definition("action", item), state=item["state"],
+                                              enabled=item.get("enabled", False))
+
     def _resolver(self, db):
         def resolve(kind, object_id):
             try:
                 if kind == "action":
-                    item = self._get(db, kind, object_id)
-                    return {**item, "definition": definition(kind, item), "digest": fc.digest(definition(kind, item))}
+                    return self._action_head_record(db, object_id)
                 return self._object(db, kind, object_id)
             except KeyError:
                 return None
+        def resolve_ref(kind, ref):
+            try:
+                if kind == "action":
+                    return self._action_version_record(db, ref["id"], ref["revision"], digest=ref.get("digest"), for_ref=True)
+                return resolve(kind, ref["id"])
+            except KeyError:
+                return None
+        # final_contracts uses this optional capability to resolve an older
+        # published revision while the logical head is carrying a newer draft.
+        resolve.resolve_ref = resolve_ref
         return resolve
 
     def _references(self, db, kind, value, *, object_id=None, enabled=False):
@@ -709,7 +821,147 @@ class FinalService:
         self._references(db, "job", job)
         return {**{key: val for key, val in body.items() if key != "form"}, "definition": value}
 
+    def _require_action_management(self, actor, action=None, *, capability="lifecycle"):
+        """Apply the existing Action matrix plus the system Action fence."""
+        self._permit(actor, "action", capability)
+        if action is not None and action.get("system"):
+            if actor.get("type") not in {"system", "plugin"}:
+                allowed, revision = self.auth.permission_allowed("action", "manageSystemActions")
+                if actor.get("type") != "agent" or not allowed or actor.get("revision") != revision:
+                    error("authorization_denied", "System Actions require manageSystemActions")
+
+    def _action_write(self, object_id, body, *, actor):
+        """Create or edit a draft without rewriting a published version."""
+        self._permit(actor, "action", "create" if object_id is None else "updateConfig")
+        allowed = {"definition", "expectedRevision", "requestKey", "requestDigest"}
+        if not isinstance(body, dict) or set(body) - allowed:
+            error("invalid_schema", "Unknown Action write fields")
+        value = fc.validate_write_input(
+            "action", {key: body[key] for key in ("definition", "expectedRevision", "requestKey")},
+            create=object_id is None,
+        )
+        requested = copy.deepcopy(value["definition"])
+        with self.transaction() as db:
+            self._ensure_action_schema(db)
+
+            def mutate(operation_id):
+                old = None
+                if object_id is not None:
+                    try:
+                        old = self._get(db, "action", object_id)
+                    except KeyError:
+                        raise
+                    fc.check_revision(old["revision"], value["expectedRevision"])
+                    if old["state"] == "retired":
+                        error("reference_conflict", "Retired Action cannot be edited")
+                    if old.get("system"):
+                        if requested.get("system") is not True:
+                            error("authorization_denied", "System Action ownership cannot be changed")
+                        self._require_action_management(actor, old, capability="updateConfig")
+                if requested.get("system") and actor.get("type") not in {"system", "plugin"}:
+                    self._require_action_management(actor, {"system": True}, capability="create" if old is None else "updateConfig")
+
+                action_id = object_id or new_id("action_")
+                revision = (old["revision"] + 1) if old is not None else 1
+                item = self._envelope("action", requested, actor, object_id=action_id, state="draft")
+                if old is not None:
+                    item.update({key: copy.deepcopy(old[key]) for key in fc.SERVER_FIELDS if key in old})
+                    item.update(id=action_id, revision=revision, state="draft", stateRevision=old["stateRevision"] + 1,
+                                updatedAt=now(), enabled=old.get("enabled", False))
+                else:
+                    item.update(id=action_id, revision=revision, state="draft", enabled=False)
+                item = fc.validate_object("action", item)
+                digest = fc.digest(requested)
+                previous = db.execute(
+                    "SELECT digest FROM final_action_versions WHERE actionId=? AND revision=?",
+                    (action_id, revision),
+                ).fetchone()
+                if previous is not None and previous[0] != digest:
+                    error("revision_conflict", "Action draft revision already contains different content")
+                if old is not None:
+                    db.execute(
+                        "UPDATE final_action_versions SET state='superseded' WHERE actionId=? AND state='draft' AND revision<>?",
+                        (action_id, revision),
+                    )
+                db.execute(
+                    "INSERT OR IGNORE INTO final_action_versions(actionId,revision,digest,state,definition,createdAt,publishedAt) VALUES(?,?,?,?,?,?,NULL)",
+                    (action_id, revision, digest, "draft", fc.canonical_json(requested), now()),
+                )
+                db.execute(
+                    "INSERT OR REPLACE INTO final_action_lifecycle(actionId,revision,enabled,state,stateRevision,updatedAt) VALUES(?,?,?,?,?,?)",
+                    (action_id, revision, int(item.get("enabled", False)), "draft", item["stateRevision"], now()),
+                )
+                self._save(db, "action", action_id, item)
+                db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
+                           ("action", action_id, fc.canonical_json(actor)))
+                return (
+                    {"object": item, "version": {"revision": revision, "digest": digest, "state": "draft"}},
+                    [object_ref("action", item)],
+                    False,
+                )
+
+            return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
+                                   {"kind": "action", "objectId": object_id, **value}, "action", mutate)
+
+    def _action_control(self, object_id, body, *, actor):
+        op = body["operation"]
+        with self.transaction() as db:
+            self._ensure_action_schema(db)
+
+            def mutate(operation_id):
+                item = self._get(db, "action", object_id)
+                self._require_action_management(actor, item)
+                fc.check_revision(item["revision"], body["expectedRevision"])
+                fc.check_revision(item["stateRevision"], body["expectedStateRevision"])
+                parameters = copy.deepcopy(body.get("parameters") or {})
+                target_revision = parameters.pop("revision", item["revision"])
+                if type(target_revision) is not int or target_revision < 1:
+                    error("invalid_schema", "Action version revision must be a positive integer")
+                if parameters:
+                    error("invalid_schema", "Unsupported Action operation parameters")
+                version = self._action_version_record(db, object_id, target_revision)
+                if op == "publish":
+                    if item["state"] != "draft" or target_revision != item["revision"]:
+                        error("reference_conflict", "Only the current draft can be published")
+                    db.execute("UPDATE final_action_versions SET state='published',publishedAt=? WHERE actionId=? AND revision=?",
+                               (now(), object_id, target_revision))
+                    db.execute("UPDATE final_action_lifecycle SET state='published',enabled=1,stateRevision=stateRevision+1,updatedAt=? WHERE actionId=? AND revision=?",
+                               (now(), object_id, target_revision))
+                    item.update(state="published", enabled=True, stateRevision=item["stateRevision"] + 1, updatedAt=now())
+                elif op in {"enable", "disable"}:
+                    if version["state"] != "published":
+                        error("reference_conflict", "Only a published Action version can be enabled or disabled")
+                    enabled = op == "enable"
+                    db.execute("UPDATE final_action_lifecycle SET enabled=?,stateRevision=stateRevision+1,updatedAt=? WHERE actionId=? AND revision=?",
+                               (int(enabled), now(), object_id, target_revision))
+                    if target_revision == item["revision"]:
+                        item.update(enabled=enabled, stateRevision=item["stateRevision"] + 1, updatedAt=now())
+                elif op == "retire":
+                    if target_revision == item["revision"] and item["state"] in {"draft", "published"}:
+                        item.update(state="retired", enabled=False, stateRevision=item["stateRevision"] + 1, updatedAt=now())
+                    db.execute("UPDATE final_action_lifecycle SET state='retired',enabled=0,stateRevision=stateRevision+1,updatedAt=? WHERE actionId=? AND revision=?",
+                               (now(), object_id, target_revision))
+                elif op == "transfer-owner":
+                    error("unsupported_operation", "Action owner transfer needs its explicit composition contract")
+                else:
+                    error("unsupported_operation", "Unsupported Action operation")
+                item = fc.validate_object("action", item)
+                self._save(db, "action", object_id, item)
+                db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
+                           ("action", object_id, fc.canonical_json(actor)))
+                return (
+                    {"object": item, "version": {"revision": target_revision,
+                        "digest": version["digest"], "state": ("retired" if op == "retire" else version["state"])}},
+                    [object_ref("action", item)],
+                    False,
+                )
+
+            return self._operation(db, actor, op, body["requestKey"],
+                                   {"kind": "action", "id": object_id, **body}, "action", mutate)
+
     def write(self, kind, object_id, body, *, actor):
+        if kind == "action":
+            return self._action_write(object_id, body, actor=actor)
         self._permit(actor, kind, "create" if object_id is None else "updateConfig")
         if "form" in body:
             if kind != "template" or object_id is not None:
@@ -818,6 +1070,8 @@ class FinalService:
                                    {"kind": kind, "objectId": object_id, **value}, kind, mutate)
 
     def control(self, kind, object_id, body, *, actor, capability=None):
+        if kind == "action":
+            return self._action_control(object_id, body, actor=actor)
         self._permit(actor, kind, capability or ("updateConfig" if kind == "template" else "lifecycle"))
         op = body["operation"]
         with self.transaction() as db:
@@ -1355,9 +1609,15 @@ class FinalService:
         self.activate(operation, operation.get("activationToken"), False)
 
     def publish_action(self, action_id, value):
-        """Trusted product/provider publication; deliberately not a public route."""
+        """Trusted product/provider publication into the canonical directory.
+
+        Product registration is intentionally separate from the user draft
+        route.  It may register protected system Actions, but never rewrites a
+        published definition or an existing digest.
+        """
         value = fc.validate_definition("action", value)
         with self.transaction() as db:
+            self._ensure_action_schema(db)
             try:
                 old = self._get(db, "action", action_id)
             except KeyError:
@@ -1365,10 +1625,26 @@ class FinalService:
             if old is not None:
                 if definition("action", old) != value:
                     error("reference_conflict", "Published Action content is immutable")
+                digest = fc.digest(value)
+                if db.execute("SELECT 1 FROM final_action_versions WHERE actionId=? AND revision=?",
+                              (action_id, old["revision"])).fetchone() is None:
+                    db.execute("INSERT INTO final_action_versions(actionId,revision,digest,state,definition,createdAt,publishedAt) VALUES(?,?,?,?,?,?,?)",
+                               (action_id, old["revision"], digest, "published", fc.canonical_json(value),
+                                old["createdAt"], old.get("updatedAt", now())))
+                    db.execute("INSERT OR REPLACE INTO final_action_lifecycle(actionId,revision,enabled,state,stateRevision,updatedAt) VALUES(?,?,?,?,?,?)",
+                               (action_id, old["revision"], int(old.get("enabled", True)), old["state"], old["stateRevision"], now()))
                 return old
-            item = self._envelope("action", value, {"type": "user", "id": "local"}, object_id=action_id, state="published")
+            item = self._envelope("action", value, {"type": "system", "id": "product"}, object_id=action_id, state="published")
             item["enabled"] = True
-            self._save(db, "action", action_id, fc.validate_object("action", item))
+            item = fc.validate_object("action", item)
+            digest = fc.digest(value)
+            db.execute("INSERT INTO final_action_versions(actionId,revision,digest,state,definition,createdAt,publishedAt) VALUES(?,?,?,?,?,?,?)",
+                       (action_id, item["revision"], digest, "published", fc.canonical_json(value), item["createdAt"], item["updatedAt"]))
+            db.execute("INSERT INTO final_action_lifecycle(actionId,revision,enabled,state,stateRevision,updatedAt) VALUES(?,?,?,?,?,?)",
+                       (action_id, item["revision"], 1, "published", item["stateRevision"], now()))
+            self._save(db, "action", action_id, item)
+            db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
+                       ("action", action_id, fc.canonical_json({"type": "system", "id": "product"})))
             return item
 
     def _install_product_actions(self):
@@ -1486,8 +1762,119 @@ class FinalService:
         self._permit(actor, "action", "read")
         with self.transaction(readonly=True) as db:
             items = self._all(db, "action")
+            try:
+                self._ensure_action_schema(db)
+            except sqlite3.OperationalError:
+                # An old profile can still expose the logical heads while it
+                # waits for its next owner-fenced write to create side tables.
+                pass
+            versions = {}
+            references = {}
+            draft_references = {}
+            for item in items:
+                try:
+                    rows = db.execute("SELECT revision,digest,state FROM final_action_versions WHERE actionId=? ORDER BY revision",
+                                      (item["id"],)).fetchall()
+                except sqlite3.OperationalError:
+                    rows = []
+                versions[item["id"]] = {
+                    "count": len(rows),
+                    "latest": next(({"id": item["id"], "revision": int(row[0]), "digest": row[1]}
+                                     for row in reversed(rows) if row[2] == "published"), None),
+                }
+                draft_references[item["id"]] = object_ref("action", item)
+                references[item["id"]] = versions[item["id"]]["latest"] or draft_references[item["id"]]
             return {"items": items, "nextCursor": None,
-                    "references": {item["id"]: object_ref("action", item) for item in items}}
+                    "references": references,
+                    "draftReferences": draft_references,
+                    "versions": versions}
+
+    def action_versions(self, action_id, *, actor):
+        self._permit(actor, "action", "read")
+        with self.transaction(readonly=True) as db:
+            try:
+                rows = db.execute("SELECT revision,digest,state,definition,createdAt,publishedAt FROM final_action_versions WHERE actionId=? ORDER BY revision",
+                                  (action_id,)).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+            if not rows:
+                # Product/legacy rows created before P1 still have a stable
+                # digest and are represented as one published version.
+                item = self._get(db, "action", action_id)
+                digest = fc.digest(definition("action", item))
+                return {"actionId": action_id, "items": [{"ref": {"id": action_id, "revision": item["revision"], "digest": digest},
+                    "revision": item["revision"], "digest": digest, "state": item["state"],
+                    "enabled": item.get("enabled", False), "definition": definition("action", item)}]}
+            items = []
+            for row in rows:
+                version = self._action_version_record(db, action_id, int(row[0]), digest=row[1])
+                items.append({"ref": {"id": action_id, "revision": int(row[0]), "digest": row[1]},
+                              "revision": int(row[0]), "digest": row[1], "state": version["state"],
+                              "enabled": version["enabled"], "definition": version["definition"],
+                              "createdAt": row[4], "publishedAt": row[5]})
+            return {"actionId": action_id, "items": items}
+
+    def action_ref(self, action_id, *, actor, revision=None, digest=None, latest=False):
+        self._permit(actor, "action", "read")
+        with self.transaction(readonly=True) as db:
+            head = self._get(db, "action", action_id)
+            resolving_latest = latest or revision is None
+            if resolving_latest:
+                if head.get("state") == "retired":
+                    error("reference_conflict", "Retired Action has no invokable latest version")
+                try:
+                    row = db.execute("SELECT revision,digest FROM final_action_versions WHERE actionId=? AND state='published' ORDER BY revision DESC LIMIT 1",
+                                     (action_id,)).fetchone()
+                except sqlite3.OperationalError:
+                    row = None
+                    if head.get("state") == "published":
+                        row = (head["revision"], fc.digest(definition("action", head)))
+                if row is None:
+                    error("reference_conflict", "No published Action version is available")
+                revision, digest = int(row[0]), row[1]
+            version = self._action_version_record(db, action_id, revision, digest=digest)
+            if resolving_latest and version["state"] != "published":
+                error("reference_conflict", "Action version is not published")
+            return {"id": action_id, "revision": int(revision), "digest": version["digest"]}
+
+    def register_action_alias(self, legacy_id, action_id, revision, digest, *, source="legacy-file",
+                              actor=None, request_key=None):
+        actor = actor or {"type": "system", "id": "migration"}
+        self._permit(actor, "action", "updateConfig")
+        if not isinstance(legacy_id, str) or not legacy_id.strip() or not isinstance(source, str) or not source.strip():
+            error("invalid_schema", "legacyId and source are required")
+        payload = {"legacyId": legacy_id, "actionId": action_id, "revision": revision, "digest": digest, "source": source}
+        with self.transaction() as db:
+            self._ensure_action_schema(db)
+            def mutate(operation_id):
+                version = self._action_version_record(db, action_id, revision, digest=digest)
+                if version["state"] == "retired":
+                    error("reference_conflict", "Cannot map a legacy ID to a retired Action version")
+                owner = principal(actor)
+                existing = db.execute("SELECT actionId,revision,digest,source FROM final_action_aliases WHERE legacyId=?",
+                                      (legacy_id,)).fetchone()
+                if existing is not None:
+                    if tuple(existing) != (action_id, revision, digest, source):
+                        error("idempotency_conflict", "Legacy Action ID already maps to different content")
+                else:
+                    db.execute("INSERT INTO final_action_aliases VALUES(?,?,?,?,?,?,?)",
+                               (legacy_id, action_id, revision, digest, source, fc.canonical_json(owner), now()))
+                result = {"legacyId": legacy_id, "actionRef": {"id": action_id, "revision": revision, "digest": digest},
+                          "source": source, "owner": owner}
+                return result, [], False
+            if request_key is None:
+                return mutate(new_id("op_"))[0]
+            return self._operation(db, actor, "update", request_key, payload, "action", mutate)
+
+    def action_alias(self, legacy_id, *, actor):
+        self._permit(actor, "action", "read")
+        with self.transaction(readonly=True) as db:
+            row = db.execute("SELECT legacyId,actionId,revision,digest,source,owner,createdAt FROM final_action_aliases WHERE legacyId=?",
+                             (legacy_id,)).fetchone()
+            if row is None:
+                raise KeyError(legacy_id)
+            return {"legacyId": row[0], "actionRef": {"id": row[1], "revision": int(row[2]), "digest": row[3]},
+                    "source": row[4], "owner": json.loads(row[5]), "createdAt": row[6]}
 
     def _guard_effect(self, db, job, run_id, frozen, action):
         self._permit(frozen["authority"], "job", "execute", execution=True)

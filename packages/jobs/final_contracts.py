@@ -859,6 +859,11 @@ class ReferenceResolver(Protocol):
 
     def __call__(self, kind: str, object_id: str) -> Mapping[str, Any] | None: ...
 
+    # Optional resolver extension used by the versioned Action directory.
+    # Older callers may provide only ``__call__`` and continue to resolve the
+    # current logical head.
+    def resolve_ref(self, kind: str, ref: Mapping[str, Any]) -> Mapping[str, Any] | None: ...
+
 
 # ── JSON Schema generation ─────────────────────────────────────────────────
 
@@ -2713,7 +2718,10 @@ def _check_action_ref(
     resolver: ReferenceResolver,
     require_enabled: bool,
 ) -> Mapping[str, Any]:
-    record = _resolve(resolver, "action", ref["id"], path=f"{path}.id")
+    resolve_ref = getattr(resolver, "resolve_ref", None)
+    record = (resolve_ref("action", ref) if callable(resolve_ref) else None)
+    if record is None:
+        record = _resolve(resolver, "action", ref["id"], path=f"{path}.id")
     if record.get("state") != "published":
         raise ContractError(
             "reference_conflict",
