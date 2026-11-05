@@ -188,11 +188,23 @@ class Groups:
             fail("capacity_exceeded", "Group batch exceeds 100; select explicit bounded batches")
         if selection['scope'] == 'action':
             action_id = selection['actionRef']['id']
-            aliases = {r[0] for r in db.execute('SELECT legacyId FROM final_action_aliases WHERE actionId=?', (action_id,))}
-            aliases.add(action_id)
-            excluded = [{'groupId': g['id'], 'reason': 'legacy_json_preview_only'}
-                        for g in legacy.values() if aliases.intersection(g.get('action_ids', []))
-                        and ('groupIds' not in selection or g['id'] in selection['groupIds'])]
+            # Similar IDs/names are not migration evidence. A legacy reference
+            # without an explicit alias could point at this Action: never call
+            # the remaining canonical subset "all Groups" in that case.
+            aliases = dict(db.execute('SELECT legacyId,actionId FROM final_action_aliases'))
+            for group in legacy.values():
+                if 'groupIds' in selection and group['id'] not in selection['groupIds']:
+                    continue
+                ids = group.get('action_ids', [])
+                if any(aliases.get(i) == action_id for i in ids):
+                    reason = 'legacy_json_preview_only'
+                elif any(i not in aliases for i in ids):
+                    reason = 'legacy_action_identity_unresolved'
+                else:
+                    continue  # Explicit mappings prove this Group is unrelated.
+                excluded.append({'groupId': group['id'], 'reason': reason})
+                if len(excluded) > LIMIT:
+                    fail('capacity_exceeded', 'Legacy Group exclusions exceed the bounded preview')
         items = []
         for group in groups:
             changes, tools, blockers = [], [], []

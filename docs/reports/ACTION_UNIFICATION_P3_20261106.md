@@ -1,5 +1,11 @@
 # ACTION-UNIFICATION-20261104-P3 candidate
 
+MA follow-up: “all Groups” acceptance remains blocked for legacy JSON Groups.
+See [writer/schema handoff review](ACTION_UNIFICATION_P3_MA_REVIEW_20261106.md)
+for the exact missing adoption port, candidate whitelist, P6 gates, and actual
+direct MCP schema verification. The original 17/164 counts below describe the
+first candidate, not closure of that acceptance item.
+
 基线：`e27fa8a850da4bc9d27a321deb36f8034730103a`。隔离分支：
 `implement/action-unification-p3-20261106`。开工时 worktree clean。
 本报告与源码一起提交；最终候选 SHA 以交付消息和该提交为准。

@@ -279,6 +279,11 @@ transaction or silently migrate them. Their old APIs and releases remain intact.
 An existing canonical Group ID cannot be shadowed through the JSON draft writer.
 Canonical writer adoption of old JSON Groups belongs to the controlled migration
 phase, and has not been performed on a real profile.
+Legacy IDs without an explicit P1 alias are reported as
+`legacy_action_identity_unresolved`: an unqualified all-Groups apply remains
+blocked because those Groups cannot be proved unrelated. The whitelist,
+writer/release handoff gaps and mandatory P6 acceptance gates are recorded in
+[P3 MA review](../reports/ACTION_UNIFICATION_P3_MA_REVIEW_20261106.md).
 
 Group read/create/edit/build/delete map to the existing Action
 `read/create/updateConfig/lifecycle/delete` grants. Protected definitions retain
@@ -295,3 +300,7 @@ bound release, never from tool arguments. Results include the original
 `operationId` and canonical receipt. Use the existing operation query by ID or
 `operation=invoke` plus the original requestKey after a disconnect or uncertain
 result; never replay effects with a fresh key automatically.
+Original JSON Group tools retain their original flat schema and invocation
+payload; the canonical envelope is not an in-place wire-compatible replacement.
+P6 must supply a versioned compatibility adapter before claiming successful
+adoption of an old direct Group tool.
