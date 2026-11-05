@@ -153,7 +153,7 @@ def activate_bundle(service, *, path, expected_hash, expected_plan_digest, activ
             service._references(db, kind, definition(kind, obj), object_id=obj["id"])
             if kind == "trigger" and obj["creatorSelector"]["mode"] == "ids":
                 for cid in obj["creatorSelector"]["ids"]:
-                    service.creators.bind_link(cid, obj["id"], obj["targetJobId"])
+                    service.creators.bind_link(cid, obj["id"], obj.get("targetJobId", obj.get("target", {}).get("jobId", "action:" + obj.get("target", {}).get("actionRef", {}).get("id", ""))))
         # Mark every requested state before checking enabled dependencies.
         for object_id in active_ids:
             kind = by_id[object_id]["kind"]

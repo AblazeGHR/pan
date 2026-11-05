@@ -92,6 +92,10 @@ class CanonicalService(Protocol):
     def operation_for_key(self, operation: str, request_key: str, *, actor: Mapping[str, Any]): ...
     def actions(self, *, actor: Mapping[str, Any]): ...
     async def invoke_action(self, action_id: str, body: dict, *, actor: Mapping[str, Any]): ...
+    def action_job_references(self, action_id: str, *, actor, cursor=None, limit=100): ...
+    def preview_action_references(self, body: dict, *, actor): ...
+    def apply_action_references(self, body: dict, *, actor): ...
+    def job_provenance(self, job_id: str, *, actor): ...
     def action_versions(self, action_id: str, *, actor: Mapping[str, Any]): ...
     def action_ref(self, action_id: str, *, actor: Mapping[str, Any], revision: int | None = None,
                    digest: str | None = None, latest: bool = False): ...
@@ -400,6 +404,30 @@ async def action_create(request: Request):
 async def action_alias(legacy_id: str, request: Request):
     who = await actor(request, "action", "read")
     return await invoke(request, "action_alias", legacy_id, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/job-references")
+async def action_job_references(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_job_references", action_id, actor=who, **page(request))
+
+
+@router.post("/jobs/action-references/preview")
+async def preview_action_references(request: Request):
+    who = await actor(request, "job", "updateConfig")
+    return await invoke(request, "preview_action_references", await body(request), actor=who)
+
+
+@router.post("/jobs/action-references/apply")
+async def apply_action_references(request: Request):
+    who = await actor(request, "job", "updateConfig")
+    return await invoke(request, "apply_action_references", await body(request), actor=who)
+
+
+@router.get("/jobs/{job_id}/provenance")
+async def job_provenance(job_id: str, request: Request):
+    who = await actor(request, "job", "read")
+    return await invoke(request, "job_provenance", job_id, actor=who)
 
 
 @router.post("/jobs/actions/{action_id}/invocations")

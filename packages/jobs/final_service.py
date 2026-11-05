@@ -42,6 +42,11 @@ def error(code, message):
     raise fc.ContractError(code, message)
 
 
+def frozen_action(frozen, step_id, action_id):
+    """Read the exact Step version; old frozen plans keep their original map."""
+    return frozen.get("stepActions", {}).get(step_id) or frozen["actions"][action_id]
+
+
 def definition(kind, item):
     names = fc.schema_artifacts()[kind + "_definition.schema.json"]["properties"]
     return {key: copy.deepcopy(value) for key, value in item.items() if key in names}
@@ -736,7 +741,8 @@ class FinalService:
                 bool(set(trigger["eventTypes"]) & set(creator["eventTypes"])))
             if not selected or trigger["state"] == "retired":
                 continue
-            job = self._get(db, "job", trigger["targetJobId"])["canonical"]
+            target_id = trigger.get("targetJobId", trigger.get("target", {}).get("jobId"))
+            job = self._get(db, "job", target_id)["canonical"] if target_id else {"id": None, "name": "Direct Action", "configRevision": None}
             references.append({"triggerId": trigger["id"], "name": trigger["name"],
                 "revision": trigger["revision"], "stateRevision": trigger["stateRevision"],
                 "jobId": job["id"], "jobName": job["name"], "jobRevision": job["configRevision"],
@@ -1063,7 +1069,7 @@ class FinalService:
                     db.execute("DELETE FROM creator_links WHERE triggerId=?", (item["id"],))
                     if item["creatorSelector"]["mode"] == "ids":
                         for cid in item["creatorSelector"]["ids"]:
-                            self.creators.bind_link(cid, item["id"], item["targetJobId"])
+                            self.creators.bind_link(cid, item["id"], item.get("targetJobId", item.get("target", {}).get("jobId", "action:" + item.get("target", {}).get("actionRef", {}).get("id", ""))))
                 db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)", (kind, item["id"], fc.canonical_json(actor)))
                 return {"object": item, **({"runtimeAudit": runtime_audit} if runtime_audit else {})}, [object_ref(kind, item)], False
             return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
@@ -1146,6 +1152,7 @@ class FinalService:
         if rerun:
             self.final.ledger.run(job, self.root, rerun)
         frozen = {"steps": copy.deepcopy(cfg["steps"]), "actions": {a["id"]: a for a in actions if a.get("definition")},
+                  "stepActions": {step["stepId"]: copy.deepcopy(actions[index]) for index, step in enumerate(cfg["steps"])},
                   "input": input_value, "event": copy.deepcopy(value.get("event", {})),
                   "recovery": copy.deepcopy(cfg["recovery"]),
                   "authority": copy.deepcopy(actor), "configRevision": item["configRevision"]}
@@ -1158,7 +1165,7 @@ class FinalService:
                 arguments = resolve_bindings(step["arguments"], input_value, frozen["event"], {})
             except ValueError:
                 error("invalid_schema", "Step input mapping cannot be resolved")
-            action = frozen["actions"][step["actionRef"]["id"]]
+            action = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])
             if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(arguments):
                 error("invalid_schema", "Step input does not match Action schema")
             if action["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
@@ -1321,7 +1328,7 @@ class FinalService:
         """Only an original trusted QQ pre-send receipt replaces cleanup proof."""
         from packages.actions.qq_channel_provider import is_pre_send_phase
         try:
-            action = frozen["actions"][step["actionRef"]["id"]]
+            action = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])
             config = action["definition"]
             if (action["id"] != "product_channel" or config.get("system") is not True
                     or config.get("execution") != {"operation": "channel", "config": {}}
@@ -1366,7 +1373,7 @@ class FinalService:
         frozen = state["plans"][run_id]["frozen"]
         failed_id = failed[0]["stepId"]
         step = next(s for s in frozen["steps"] if s["stepId"] == failed_id)
-        policy = frozen["actions"][step["actionRef"]["id"]]["retry"]
+        policy = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])["retry"]
         prior = [e for e in state["effects"] if e["effectKey"]["runId"] == run_id and e["effectKey"]["stepId"] == failed_id]
         if any(e["outcome"] == "succeeded" for e in prior):
             error("not_retryable", "Successful effect cannot be repeated")
@@ -1481,7 +1488,7 @@ class FinalService:
         from packages.actions.command_execution import OPERATIONS
         state = aggregate(job, self.root)
         frozen = state["plans"][target["attempt"]["runId"]]["frozen"]
-        return frozen["actions"][target["effectKey"]["targetId"]]["execution"]["operation"] in OPERATIONS
+        return frozen_action(frozen, target["effectKey"]["stepId"], target["effectKey"]["targetId"])["execution"]["operation"] in OPERATIONS
 
     async def control_run_postcommit(self, run_id, body, *, actor):
         self._permit(actor, "job", "execute")
@@ -1568,9 +1575,26 @@ class FinalService:
             self._permit(actor, record["kind"], "read")
             return copy.deepcopy(record["response"])
 
-    async def invoke_action(self, action_id, body, *, actor):
+    async def invoke_action(self, action_id, body, *, actor, source=None):
         from packages.actions.invocation import invoke
-        return await invoke(self, action_id, body, actor=actor)
+        return await invoke(self, action_id, body, actor=actor, source=source)
+
+    def action_job_references(self, action_id, *, actor, cursor=None, limit=100):
+        from packages.jobs.action_references import references
+        return references(self, action_id, actor=actor, cursor=cursor, limit=limit)
+
+    def preview_action_references(self, body, *, actor):
+        from packages.jobs.action_references import preview
+        return preview(self, body, actor=actor)
+
+    def apply_action_references(self, body, *, actor):
+        from packages.jobs.action_references import apply
+        return apply(self, body, actor=actor)
+
+    def job_provenance(self, job_id, *, actor):
+        self._permit(actor, "job", "read")
+        with self.transaction(readonly=True) as db:
+            return copy.deepcopy(self._get(db, "job", job_id).get("provenance"))
 
     def operation_for_key(self, operation, request_key, *, actor):
         with self.transaction(readonly=True) as db:
@@ -1667,6 +1691,8 @@ class FinalService:
         from packages.actions.command_execution import OPERATIONS, product_definition
         for operation in sorted(OPERATIONS):
             self.publish_action(operation, product_definition(operation), enabled=False)
+        from packages.actions.job_creation import product_definition as job_creation_definition
+        self.publish_action("job.create", job_creation_definition(), enabled=False)
         from packages.automation.quota_native import ACTION, action_definition
         self.publish_action(ACTION, action_definition())
         products = [("process", "write_local", "process-exit"),
@@ -1901,8 +1927,10 @@ class FinalService:
             self._permit(frozen["authority"], "action", "manageSystemActions", execution=True)
         # Definition retirement/disable blocks new admission. Already frozen
         # Runs remain valid; pause is checked at each boundary by the driver.
-        current = self._get(db, "action", action["id"])
-        if not current["enabled"] or current["state"] != "published":
+        current = self._action_version_record(db, action["id"], action["revision"], digest=action["digest"], for_ref=True)
+        head = self._get(db, "action", action["id"])
+        if (not current["enabled"] or current["state"] != "published"
+                or head["revision"] == action["revision"] and not head["enabled"]):
             error("authorization_denied", "Action unavailable before effect")
         if action.get("effectClass") == "high_risk":
             # The product-owned lifecycle Action is the sole high-risk
@@ -1947,7 +1975,7 @@ class FinalService:
         plan = state["plans"][current["runId"]]
         frozen = plan["frozen"]
         step = next(s for s in frozen["steps"] if s["stepId"] == current["stepId"])
-        action = frozen["actions"][step["actionRef"]["id"]]
+        action = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])
         executable = {**copy.deepcopy(action["execution"]["config"]), "operation": action["execution"]["operation"],
                       "effect": action["effectClass"], "arguments": resolve_bindings(
                           step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))}
@@ -2065,7 +2093,7 @@ class FinalService:
         elapsed = self._stable_execution_seconds(doc) if reset > 0 else None
         if reset > 0 and elapsed is None:
             return False  # Old/malformed receipts cannot assert a stable interval.
-        action = plan["frozen"]["actions"][step["actionRef"]["id"]]
+        action = frozen_action(plan["frozen"], step["stepId"], step["actionRef"]["id"])
         if job["canonical"]["state"] not in {"enabled", "paused"}:
             return False
         try:
@@ -2126,7 +2154,7 @@ class FinalService:
                 or not self._cleanup_complete(doc) or doc["result"] != prior[-1]["receipt"]
                 or self._process_retry_reason(doc) != marker["reason"] or marker["reason"] not in policy["retryIf"]):
             return False
-        action = plan["frozen"]["actions"][step["actionRef"]["id"]]
+        action = frozen_action(plan["frozen"], step["stepId"], step["actionRef"]["id"])
         try:
             if job["canonical"]["state"] != "enabled" or used >= policy["maxAttempts"]:
                 error("authorization_denied", "Automatic retry unavailable")
@@ -2199,7 +2227,7 @@ class FinalService:
             if pending_step and frozen.get("deliveryRuntime", {}).get("phase") == "before-reservation":
                 from packages.jobs.session_delivery_runtime import effective
                 try:
-                    action = frozen["actions"][pending_step["actionRef"]["id"]]
+                    action = frozen_action(frozen, pending_step["stepId"], pending_step["actionRef"]["id"])
                     self._guard_effect(db, job, run_id, frozen, action)
                     runtime = effective(job, state, run_id, pending_step, action)
                 except (fc.ContractError, ValueError):
@@ -2240,7 +2268,7 @@ class FinalService:
                     self.final.ledger.transition_run(job, self.root, run_id, "completed")
                     self._settle(db, job, run_id)
                     return
-                action = frozen["actions"][step["actionRef"]["id"]]
+                action = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])
                 try:
                     self._guard_effect(db, job, run_id, frozen, action)
                     args = resolve_bindings(step["arguments"], frozen["input"], frozen["event"], plan.get("outputs", {}))
@@ -2313,7 +2341,10 @@ class FinalService:
             try:
                 executor = self._external_adapter(job_id) if executable["operation"] == "process" and self.executor is self._product_executor else self.executor
                 from packages.actions.command_execution import OPERATIONS as COMMAND_OPERATIONS
-                if executable["operation"] in COMMAND_OPERATIONS:
+                if executable["operation"] == "job.create":
+                    from packages.actions.job_creation import job_execute
+                    receipt = await job_execute(self, job_id, run_id, attempt, effect_key, executable)
+                elif executable["operation"] in COMMAND_OPERATIONS:
                     from packages.actions.invocation import job_execute
                     receipt = await job_execute(self, job_id, run_id, attempt, effect_key, executable)
                 else:
@@ -2569,7 +2600,7 @@ class FinalService:
                     if self.executor is self._product_executor:
                         frozen = state["plans"][rid]["frozen"]
                         step = next(s for s in frozen["steps"] if s["stepId"] == target["attempt"]["stepId"])
-                        if frozen["actions"][step["actionRef"]["id"]]["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
+                        if frozen_action(frozen, step["stepId"], step["actionRef"]["id"])["execution"]["operation"] in {"session-message", "session-broadcast", "assign"}:
                             continue  # Original local queue lookup owns Session reconciliation.
                     if rid not in cancelled:
                         pending.append((job["jobId"], rid, None, [target]))
@@ -2770,7 +2801,7 @@ class FinalService:
                     plan = state["plans"][attempt["runId"]]
                     frozen = plan["frozen"]
                     step = next(s for s in frozen["steps"] if s["stepId"] == attempt["stepId"])
-                    action = frozen["actions"][step["actionRef"]["id"]]
+                    action = frozen_action(frozen, step["stepId"], step["actionRef"]["id"])
                     op = action["execution"]["operation"]
                     if op not in {"session-message", "session-broadcast", "assign", "resume-legal-running.v1"}:
                         continue
@@ -2871,6 +2902,18 @@ class FinalService:
 
     def admit_event(self, event, target, *, condition_result=None):
         """WP03 admission only: no Action or provider effect is invoked here."""
+        # A repeated fact is a query, including on a cold/non-owner host.
+        with self.transaction(readonly=True) as db:
+            prior = db.execute("SELECT operationId,factDigest FROM final_event_operations WHERE eventId=? AND triggerId=?",
+                (event.get("eventId", event.get("id")), target["id"])).fetchone()
+            if prior:
+                if prior["factDigest"] != fc.digest(event):
+                    error("idempotency_conflict", "Event fact changed")
+                record = json.loads(db.execute("SELECT document FROM final_operations WHERE id=?", (prior["operationId"],)).fetchone()[0])
+                result = {**copy.deepcopy(record["response"]), "replayed": True}
+                if self.automation_ledger is not None and self.owner.token is None and self.owner.status() is None:
+                    self.automation_ledger.record_final_admission(event.get("eventId", event.get("id")), target["id"], result)
+                return result
         result = self._admit_event(event, target, condition_result=condition_result)
         if self.automation_ledger is not None and self.owner.token is None and "operationId" in result:
             self.automation_ledger.record_final_admission(event.get("eventId", event.get("id")), target["id"], result)
@@ -2922,7 +2965,18 @@ class FinalService:
                 error("provider_unavailable", "State condition requires the host State reader")
             if condition_result is False:
                 return {"status": "skipped"}
-            job = self._get(db, "job", trigger["targetJobId"])
+            self._permit(actor, "trigger", "lifecycle", execution=True)
+            if trigger.get("target", {}).get("type") == "action":
+                from packages.jobs.action_trigger import admit
+                result = admit(self, db, trigger, legacy_event, actor, key, fact_digest)
+                if result["status"] != "deferred":
+                    db.execute("INSERT INTO final_event_operations VALUES(?,?,?,?)",
+                        (eid, trigger["id"], result["operationId"], fact_digest))
+                return result
+            target_job = trigger.get("target", {})
+            job = self._get(db, "job", trigger.get("targetJobId", target_job.get("jobId")))
+            if target_job and target_job["configRevision"] != job["configRevision"]:
+                error("reference_conflict", "Trigger fixed Job revision changed")
             args = resolve_bindings(trigger.get("arguments", {}), {}, legacy_event, {}) if trigger.get("arguments") else definition("job", job["canonical"])["arguments"]
             def mutate(operation_id):
                 result = self._admit(db, job, {"input": args, "event": legacy_event,
@@ -2979,6 +3033,8 @@ class FinalService:
                     continue
                 with self.transaction() as db:
                     db.execute("INSERT OR IGNORE INTO final_event_receipts VALUES(?,?,?)", (event["eventId"], target["id"], result["status"]))
+        from packages.jobs.action_trigger import deliver
+        await deliver(self)
         await self.dispatch_once()
         await self.deliver_outbox()
 

@@ -34,7 +34,7 @@ def validate_successors(service, item):
             if (trigger["revision"] != binding["triggerRevision"]
                     or job["configRevision"] != binding["jobRevision"]
                     or trigger["state"] == "retired" or job["state"] == "retired"
-                    or trigger["targetJobId"] != job["id"]
+                    or trigger.get("targetJobId", trigger.get("target", {}).get("jobId")) != job["id"]
                     or trigger["creatorSelector"].get("mode") != "ids"
                     or item["id"] not in trigger["creatorSelector"]["ids"]):
                 raise fc.ContractError("reference_conflict", "Reviewed source successors changed")
@@ -103,7 +103,7 @@ class SourceMigration:
             for link in links:
                 trigger = self.service._get(db, "trigger", trigger_map[link["triggerId"]])
                 job = self.service._get(db, "job", job_map[link["jobId"]])["canonical"]
-                if (trigger["targetJobId"] != job["id"]
+                if (trigger.get("targetJobId", trigger.get("target", {}).get("jobId")) != job["id"]
                         or trigger["creatorSelector"].get("mode") != "ids"
                         or creator_id not in trigger["creatorSelector"]["ids"]
                         or not {adoption["envelope"]["eventType"], *item["eventTypes"]} <= set(trigger["eventTypes"])):

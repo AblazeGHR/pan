@@ -35,7 +35,7 @@ def guard(service, db, ref, actor):
     return definition
 
 
-async def invoke(service, action_id, body, *, actor):
+async def invoke(service, action_id, body, *, actor, source=None):
     ref = body["actionRef"]
     fc.check_request_key(body["requestKey"])
     if (not isinstance(ref, dict) or set(ref) != {"id", "revision", "digest"} or ref["id"] != action_id
@@ -43,6 +43,8 @@ async def invoke(service, action_id, body, *, actor):
             or not isinstance(ref["digest"], str) or len(ref["digest"]) != 64):
         raise fc.ContractError("invalid_schema", "A fixed ActionRef is required")
     payload = {"actionRef": ref, "arguments": body["arguments"]}
+    if source is not None:
+        payload["source"] = copy.deepcopy(source)
     service._permit(actor, "action", "read")
     scope = service._scope(actor, "invoke")
 
@@ -71,6 +73,9 @@ async def invoke(service, action_id, body, *, actor):
         if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(body["arguments"]):
             raise fc.ContractError("invalid_schema", "Action input schema rejected arguments")
         operation = action["execution"]["operation"]
+        if operation == "job.create":
+            from .job_creation import invoke as create_job
+            return create_job(service, action_id, body, actor=actor, source=source)
         if operation == "process":
             operation = "process.command"  # Original Job adapter remains IndependentExecutor.
         if operation not in OPERATIONS:
@@ -86,12 +91,20 @@ async def invoke(service, action_id, body, *, actor):
         identity = response["operationId"]
         epoch = service.owner.token
 
+    return await execute_prepared(service, identity, ref, actor, commands, epoch, operation)
+
+
+async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None):
     @contextmanager
     def boundary():
         with service.transaction() as db:
             if service.owner.token != epoch:
                 raise fc.ContractError("revision_conflict", "Invocation owner changed")
             guard(service, db, ref, actor)
+            if trigger_id is not None:
+                service._permit(actor, "trigger", "lifecycle", execution=True)
+                if service._get(db, "trigger", trigger_id)["state"] != "enabled":
+                    raise fc.ContractError("authorization_denied", "Trigger disabled before effect")
             yield
 
     def persist(result, *, terminal=False):
@@ -131,7 +144,8 @@ async def job_execute(service, job_id, run_id, attempt, effect_key, plan):
                     or not service.owner.token or service.owner.token[0] != attempt["ownerEpoch"]):
                 raise fc.ContractError("revision_conflict", "Original Attempt is no longer executable")
             frozen = state["plans"][run_id]["frozen"]
-            action = frozen["actions"][effect_key["targetId"]]
+            from packages.jobs.final_service import frozen_action
+            action = frozen_action(frozen, attempt["stepId"], effect_key["targetId"])
             service._guard_effect(db, job, run_id, frozen, action)
             check_capabilities(action)
             yield
