@@ -173,9 +173,94 @@ def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_pa
                 ran = unpack(await c.call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-sync-original'}))
                 assert ran['run']['status'] == 'dispatched', ran
                 assert unpack(await c.call_tool('scheduler_runs', {'task_id': tid}))['total'] == 1
+                multi = unpack(await c.call_tool('scheduler_create', {
+                    'target_session_id': session.id, 'text': 'stdio multi', 'kind': 'interval',
+                    'schedule_entries': [
+                        {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00',
+                         'misfirePolicy': 'fire_now', 'graceSec': 1},
+                        {'kind': 'interval', 'intervalSec': 120, 'anchor': '2030-01-01T00:00:00',
+                         'misfirePolicy': 'skip', 'graceSec': 7},
+                    ], 'request_key': 'stdio-multi-create'}))
+                assert multi['ok'] and len(multi['task']['schedule']) == 2, multi
+                assert [(e['misfirePolicy'], e['graceSec']) for e in multi['task']['schedule']] == [('fire_now', 1), ('skip', 7)]
+                entry = multi['task']['schedule'][1]
+                edited = unpack(await c.call_tool('scheduler_update', {'task_id': multi['task']['id'],
+                    'entry_id': entry['id'], 'expected_entry_revision': 1,
+                    'entry_paused': True, 'request_key': 'stdio-multi-pause'}))
+                assert edited['ok'] and next(item for item in edited['task']['schedule']
+                    if item['id'] == entry['id'])['nextFireAt'] is None, edited
         finally:
             await bridge.close()
     asyncio.run(scenario())
+
+
+def test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas(h, tcp):
+    payload = {'targetSessionId': h.source['targetSessionId'], 'text': 'http multi',
+        'schedule': [
+            {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00',
+             'misfirePolicy': 'fire_now', 'graceSec': 1},
+            {'kind': 'interval', 'intervalSec': 120, 'anchor': '2030-01-01T00:00:00',
+             'misfirePolicy': 'skip', 'graceSec': 7},
+        ], 'requestKey': 'http-multi-create'}
+    with client(h, tcp) as c:
+        created = c.post('/api/scheduler/tasks', json=payload)
+        assert created.status_code == 200, created.text
+        task = created.json()['task']
+        assert len(task['schedule']) == 2
+        assert [(e['misfirePolicy'], e['graceSec']) for e in task['schedule']] == [('fire_now', 1), ('skip', 7)]
+        entry = task['schedule'][1]
+        updated = c.patch('/api/scheduler/tasks/' + task['id'], json={
+            'entryId': entry['id'], 'expectedEntryRevision': 1, 'entryPaused': True,
+            'expectedRevision': 1, 'requestKey': 'http-multi-pause'})
+        assert updated.status_code == 200, updated.text
+        assert next(item for item in updated.json()['task']['schedule']
+                    if item['id'] == entry['id'])['nextFireAt'] is None
+        stale = c.patch('/api/scheduler/tasks/' + task['id'], json={
+            'entryId': entry['id'], 'expectedEntryRevision': 1, 'entryPaused': False,
+            'expectedRevision': 2, 'requestKey': 'http-multi-stale'})
+        assert stale.status_code == 409
+        body = {'entryId': entry['id'], 'expectedEntryRevision': 2, 'entryPaused': False,
+                'entryMisfirePolicy': 'fire_now', 'entryGraceSec': 3,
+                'expectedRevision': 2, 'requestKey': 'http-multi-resume'}
+        resumed = c.patch('/api/scheduler/tasks/' + task['id'], json=body)
+        assert resumed.status_code == 200, resumed.text
+        assert c.patch('/api/scheduler/tasks/' + task['id'], json=body).json()['operation']['replayed']
+        current = next(e for e in resumed.json()['task']['schedule'] if e['id'] == entry['id'])
+        assert current['revision'] == 3 and not current['paused']
+        assert current['nextFireAt'] == entry['nextFireAt']
+        assert (current['misfirePolicy'], current['graceSec']) == ('fire_now', 3)
+        denied = httpx.get(tcp + '/api/scheduler/tasks/' + task['id'], trust_env=False)
+        assert denied.status_code in (401, 403)
+        removed = c.patch('/api/scheduler/tasks/' + task['id'], json={
+            'entryId': entry['id'], 'expectedEntryRevision': 3, 'deleteEntry': True,
+            'expectedRevision': 3, 'requestKey': 'http-multi-delete'})
+        assert removed.status_code == 200, removed.text
+        remaining = removed.json()['task']['schedule'][0]
+        # Entry CAS remains routed after a multi-entry task has only one rule left.
+        changed = c.patch('/api/scheduler/tasks/' + task['id'], json={
+            'entryId': remaining['id'], 'expectedEntryRevision': 1, 'entryPaused': True,
+            'expectedRevision': 4, 'requestKey': 'http-last-entry-pause'})
+        assert changed.status_code == 200, changed.text
+        assert changed.json()['task']['schedule'][0]['revision'] == 2
+    cold = FinalService(h.service.root, h.service.auth)
+    try:
+        value = project(cold, task['id'], actor=USER)['task']
+        assert value['schedule'][0]['paused'] and value['nextFireAt'] is None
+        assert value['runCount'] == 0
+    finally:
+        asyncio.run(cold.close())
+
+
+@pytest.mark.parametrize('schedule', [[], [[]], [{'kind': 'interval', 'intervalSec': 60, 'graceSec': -1}],
+    [{'kind': 'interval', 'intervalSec': 60, 'enabled': 'false'}],
+    [{'kind': 'interval', 'intervalSec': 60, 'misfirePolicy': 'retry'}]])
+def test_P6_CONFIG_05C_invalid_entry_fields_do_not_create(h, tcp, schedule):
+    with client(h, tcp) as c:
+        before = c.get('/api/scheduler/tasks').json()['tasks']
+        result = c.post('/api/scheduler/tasks', json={'targetSessionId': h.source['targetSessionId'],
+            'text': 'invalid', 'schedule': schedule, 'requestKey': 'invalid-entry'})
+        assert result.json()['ok'] is False, result.text
+        assert c.get('/api/scheduler/tasks').json()['tasks'] == before
 
 
 @pytest.mark.parametrize('active', [False, True])
@@ -338,6 +423,16 @@ def test_P6_CONFIG_08_multi_entry_heterogeneous_policy_rule_override_and_cas(jso
     rules = {rule['ruleId']: rule for rule in creator['config']['rules']}
     assert rules['entry-policy']['misfirePolicy'] == 'skip'
     assert rules['entry-policy']['graceSeconds'] == '7'
+    from packages.scheduler.providers import TimeProvider, instant, timestamp
+    due = creator['cursor']['rules']['entry-policy']['nextFireAt']
+    provider = TimeProvider()
+    within = provider.prepare(creator, 'time:entry-policy:' + due,
+        timestamp(instant(due) + 2), 'drive-within-entry-grace', 1)
+    assert within['payload']['driveReason'] == 'scheduled'
+    assert 'disposition' not in within
+    missed = provider.prepare(creator, 'time:entry-policy:' + due,
+        timestamp(instant(due) + 8), 'drive-outside-entry-grace', 2)
+    assert missed['disposition'] == 'skipped'
     updated = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-policy',
         'expected_entry_revision': 1, 'entry_misfire_policy': 'fire_now',
         'entry_grace_seconds': 2}, actor=USER, request_key='heterogeneous-policy-edit', expected_revision=1)
@@ -350,3 +445,28 @@ def test_P6_CONFIG_08_multi_entry_heterogeneous_policy_rule_override_and_cas(jso
         canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-policy',
             'expected_entry_revision': 1, 'entry_misfire_policy': 'skip'}, actor=USER,
             request_key='heterogeneous-policy-stale', expected_revision=2)
+
+
+def test_P6_CONFIG_09_entry_lifecycle_permission_fence(h):
+    before = project(h.service, h.source['taskId'], actor=USER)['task']
+    permissions = h.service.auth._default_permissions()
+    permissions['job']['updateConfig'] = True
+    permissions['eventCreator']['updateConfig'] = True
+    permissions['eventCreator']['lifecycle'] = False
+    h.service.auth.change_permissions(permissions, h.service.auth.permissions_status()['revision'])
+    actor = {'type': 'agent', 'id': h.source['targetSessionId'],
+             'revision': h.service.auth.permissions_status()['revision']}
+    with pytest.raises(fc.ContractError, match='Authorization revoked or capability denied'):
+        canonical_tasks.update(h.service, h.source['taskId'], {
+            'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
+            'entry_paused': True}, actor=actor, request_key='entry-lifecycle-denied')
+    assert project(h.service, h.source['taskId'], actor=USER)['task'] == before
+
+
+def test_P6_CONFIG_10_mixed_entry_patch_does_not_silently_drop_task_fields(h):
+    before = project(h.service, h.source['taskId'], actor=USER)['task']
+    with pytest.raises(fc.ContractError, match='Mixed task and entry'):
+        canonical_tasks.update(h.service, h.source['taskId'], {
+            'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
+            'entry_paused': True, 'text': 'must not be ignored'}, actor=USER, request_key='mixed-edit')
+    assert project(h.service, h.source['taskId'], actor=USER)['task'] == before

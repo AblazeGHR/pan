@@ -431,7 +431,9 @@ def project(service, task_id, *, actor, capability='read'):
         cursor = next(iter(cursors.values()))
         if len(binding.get('originalEntryIds', [])) > 1:
             projected = copy.deepcopy(binding.get('currentSource', binding['source']))
-            projected['schedule'] = [dict(item, nextFireAt=cursors[item['id']]['nextFireAt'])
+            projected['schedule'] = [dict(item, nextFireAt=cursors[item['id']]['nextFireAt'],
+                revision=binding.get('entryRevisions', {}).get(item['id'], 1),
+                paused=binding.get('entryPaused', {}).get(item['id'], False))
                                     for item in projected['schedule']]
             task['schedule'] = projected['schedule']
             task['nextFireAt'] = min((item['nextFireAt'] for item in projected['schedule']

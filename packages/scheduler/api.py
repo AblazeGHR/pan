@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import math
 import sqlite3
 from datetime import datetime, timezone
 
@@ -116,14 +117,18 @@ def _public(task: dict | None) -> dict | None:
     for key, value in task.items():
         out[_FIELD_RENAMES.get(key, key)] = value
     schedule = out.get("schedule")
-    if isinstance(schedule, dict):
-        sch = dict(schedule)
-        # 内核可能回 snake 的 interval_sec，统一收敛到 intervalSec
-        if "interval_sec" in sch:
-            sch.setdefault("intervalSec", sch.pop("interval_sec"))
-        else:
-            sch.pop("interval_sec", None)
-        out["schedule"] = sch
+    schedules = schedule if isinstance(schedule, list) else [schedule] if isinstance(schedule, dict) else []
+    if schedules:
+        normalized = []
+        for schedule_item in schedules:
+            sch = dict(schedule_item)
+            # 内核可能回 snake 的 interval_sec，统一收敛到 intervalSec
+            if "interval_sec" in sch:
+                sch.setdefault("intervalSec", sch.pop("interval_sec"))
+            else:
+                sch.pop("interval_sec", None)
+            normalized.append(sch)
+        out["schedule"] = normalized if isinstance(schedule, list) else normalized[0]
     # PLAN §4.1 用 nextRunAt/lastRunAt 描述列表字段，§4.4 用 nextFireAt/lastFireAt；
     # 两处都发，避免下游按其中任意一份契约取字段时取空。
     out.setdefault("nextRunAt", out.get("nextFireAt"))
@@ -169,8 +174,31 @@ def _as_bool(value, default=False) -> bool:
     return default
 
 
-def _validate_schedule(raw) -> tuple[dict | None, str | None]:
+def _validate_schedule(raw) -> tuple[dict | list[dict] | None, str | None]:
     """校验 schedule；返回 (spec, None) 或 (None, 原因)。"""
+    if isinstance(raw, list):
+        if not raw or len(raw) > 64:
+            return None, "schedule must be a non-empty list of at most 64 entries"
+        values = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                return None, f"schedule[{index}] must be an object"
+            value, why = _validate_schedule(item)
+            if why:
+                return None, f"schedule[{index}]: {why}"
+            for key in ('misfirePolicy', 'enabled', 'graceSec'):
+                if key in item:
+                    value[key] = item[key]
+            if value.get('misfirePolicy', 'fire_now') not in _MISFIRE_POLICIES:
+                return None, f"schedule[{index}].misfirePolicy must be fire_now or skip"
+            if type(value.get('enabled', True)) is not bool:
+                return None, f"schedule[{index}].enabled must be boolean"
+            if 'graceSec' in value:
+                grace = value['graceSec']
+                if type(grace) not in (int, float) or not math.isfinite(grace) or not 0 <= grace <= 86400:
+                    return None, f"schedule[{index}].graceSec must be between 0 and 86400"
+            values.append(value)
+        return values, None
     if not isinstance(raw, dict):
         return None, "schedule must be an object"
     kind = raw.get("kind")
@@ -573,7 +601,7 @@ async def update_task(task_id: str, data: dict, request: Request = None):
             grace = float(data["entryGraceSec"])
         except (TypeError, ValueError):
             return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
-        if grace < 0:
+        if isinstance(data["entryGraceSec"], bool) or not math.isfinite(grace) or not 0 <= grace <= 86400:
             return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
         patch["entry_grace_seconds"] = grace
     if "deleteEntry" in data:

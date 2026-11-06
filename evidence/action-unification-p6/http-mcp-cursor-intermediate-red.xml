@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="7" time="33.429" timestamp="2026-11-07T07:25:36.124627+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync" time="17.646" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas" time="2.719"><failure message="AssertionError: assert '2030-01-01T00:00:00' == '2029-12-31T16:00:00Z'&#10;  &#10;  - 2029-12-31T16:00:00Z&#10;  + 2030-01-01T00:00:00">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x0000028B749C5940&gt;, service=&lt;packages.jobs.final_service.FinalS...[], 'recipients': []}, 'retention': {'policyRef': 'owned-test'}}}, token='[REDACTED-SYNTHETIC]')
+tcp = 'http://127.0.0.1:64047'
+
+    def test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas(h, tcp):
+        payload = {'targetSessionId': h.source['targetSessionId'], 'text': 'http multi',
+            'schedule': [
+                {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00',
+                 'misfirePolicy': 'fire_now', 'graceSec': 1},
+                {'kind': 'interval', 'intervalSec': 120, 'anchor': '2030-01-01T00:00:00',
+                 'misfirePolicy': 'skip', 'graceSec': 7},
+            ], 'requestKey': 'http-multi-create'}
+        with client(h, tcp) as c:
+            created = c.post('/api/scheduler/tasks', json=payload)
+            assert created.status_code == 200, created.text
+            task = created.json()['task']
+            assert len(task['schedule']) == 2
+            assert [(e['misfirePolicy'], e['graceSec']) for e in task['schedule']] == [('fire_now', 1), ('skip', 7)]
+            entry = task['schedule'][1]
+            updated = c.patch('/api/scheduler/tasks/' + task['id'], json={
+                'entryId': entry['id'], 'expectedEntryRevision': 1, 'entryPaused': True,
+                'expectedRevision': 1, 'requestKey': 'http-multi-pause'})
+            assert updated.status_code == 200, updated.text
+            assert next(item for item in updated.json()['task']['schedule']
+                        if item['id'] == entry['id'])['nextFireAt'] is None
+            stale = c.patch('/api/scheduler/tasks/' + task['id'], json={
+                'entryId': entry['id'], 'expectedEntryRevision': 1, 'entryPaused': False,
+                'expectedRevision': 2, 'requestKey': 'http-multi-stale'})
+            assert stale.status_code == 409
+            body = {'entryId': entry['id'], 'expectedEntryRevision': 2, 'entryPaused': False,
+                    'entryMisfirePolicy': 'fire_now', 'entryGraceSec': 3,
+                    'expectedRevision': 2, 'requestKey': 'http-multi-resume'}
+            resumed = c.patch('/api/scheduler/tasks/' + task['id'], json=body)
+            assert resumed.status_code == 200, resumed.text
+            assert c.patch('/api/scheduler/tasks/' + task['id'], json=body).json()['operation']['replayed']
+            current = next(e for e in resumed.json()['task']['schedule'] if e['id'] == entry['id'])
+            assert current['revision'] == 3 and not current['paused']
+&gt;           assert current['nextFireAt'] == entry['nextFireAt']
+E           AssertionError: assert '2030-01-01T00:00:00' == '2029-12-31T16:00:00Z'
+E
+E             - 2029-12-31T16:00:00Z
+E             + 2030-01-01T00:00:00
+
+tests\test_action_unification_p6_task_config.py:230: AssertionError</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule0]" time="2.310" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule1]" time="2.307" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule2]" time="2.302" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule3]" time="2.279" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule4]" time="2.625" /></testsuite></testsuites>

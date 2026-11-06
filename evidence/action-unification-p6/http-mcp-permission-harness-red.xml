@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.376" timestamp="2026-11-07T07:28:10.270811+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_09_entry_lifecycle_permission_fence" time="0.478"><failure message="ValueError: Unknown contract error code: permission_denied">tests\test_action_unification_p6_task_config.py:459: in test_P6_CONFIG_09_entry_lifecycle_permission_fence
+    canonical_tasks.update(h.service, h.source['taskId'], {
+packages\scheduler\canonical_tasks.py:200: in update
+    return service._operation(db, actor, 'update', request_key,
+packages\jobs\final_service.py:552: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\canonical_tasks.py:86: in mutate
+    service._permit(actor, 'event_creator', 'lifecycle', execution=True)
+tests\test_action_unification_p6_task_config.py:455: in fenced
+    raise fc.ContractError('permission_denied', 'entry lifecycle denied')
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\final_contracts.py:273: in __init__
+    raise ValueError(f"Unknown contract error code: {code}")
+E   ValueError: Unknown contract error code: permission_denied</failure></testcase></testsuite></testsuites>

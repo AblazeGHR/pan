@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.568" timestamp="2026-11-07T07:24:49.463331+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas" time="1.625"><failure message="KeyError: 'graceSec'">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x00000277DB830050&gt;, service=&lt;packages.jobs.final_service.FinalS...[], 'recipients': []}, 'retention': {'policyRef': 'owned-test'}}}, token='[REDACTED-SYNTHETIC]')
+tcp = 'http://127.0.0.1:60514'
+
+    def test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas(h, tcp):
+        payload = {'targetSessionId': h.source['targetSessionId'], 'text': 'http multi',
+            'schedule': [
+                {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00',
+                 'misfirePolicy': 'fire_now', 'graceSec': 1},
+                {'kind': 'interval', 'intervalSec': 120, 'anchor': '2030-01-01T00:00:00',
+                 'misfirePolicy': 'skip', 'graceSec': 7},
+            ], 'requestKey': 'http-multi-create'}
+        with client(h, tcp) as c:
+            created = c.post('/api/scheduler/tasks', json=payload)
+            assert created.status_code == 200, created.text
+            task = created.json()['task']
+            assert len(task['schedule']) == 2
+&gt;           assert [(e['misfirePolicy'], e['graceSec']) for e in task['schedule']] == [('fire_now', 1), ('skip', 7)]
+                                         ^^^^^^^^^^^^^
+E           KeyError: 'graceSec'
+
+tests\test_action_unification_p6_task_config.py:210: KeyError</failure></testcase></testsuite></testsuites>

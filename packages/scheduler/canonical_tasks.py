@@ -68,13 +68,26 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
             require(not creator.get('pendingPublication'), 'Original publication must settle before clock configuration changes')
             source = copy.deepcopy(binding.get('currentSource', binding['source']))
             entry_id = patch.get('entry_id')
-            if len(source.get('schedule', [])) > 1 and entry_id is not None:
+            if entry_id is not None:
+                require(not (set(patch) - {'entry_id', 'expected_entry_revision', 'schedule',
+                    'entry_enabled', 'entry_paused', 'entry_misfire_policy', 'entry_grace_seconds',
+                    'delete_entry'}), 'Mixed task and entry edits require separate reviewed operations; no fields were applied')
                 require(isinstance(entry_id, str) and entry_id in {item['id'] for item in source['schedule']},
                         'Per-entry update requires an existing entry identity')
+                # Freeze the live canonical cursor before editing; the adoption
+                # snapshot is not an authority for a later pause/resume.
+                for item in source['schedule']:
+                    live = creator['cursor']['rules'][item['id']]['nextFireAt']
+                    item['nextFireAt'] = live
+                    if live is not None:
+                        binding.setdefault('entryCursors', {})[item['id']] = live
                 expected_entry = patch.get('expected_entry_revision')
                 current_entry_revision = binding.get('entryRevisions', {}).get(entry_id, 1)
                 require(type(expected_entry) is int and expected_entry == current_entry_revision,
                         'Per-entry schedule revision changed; query the original entry')
+                if any(key in patch for key in ('entry_paused', 'entry_enabled', 'delete_entry')):
+                    service._permit(actor, 'event_creator', 'lifecycle', execution=True)
+                require(not isinstance(patch.get('schedule'), list), 'Per-entry schedule must be one object')
                 target = next(item for item in source['schedule'] if item['id'] == entry_id)
                 if patch.get('delete_entry'):
                     require(len(source['schedule']) > 1, 'The final schedule entry requires task lifecycle delete')
@@ -119,8 +132,10 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
                     paused = binding.get('entryPaused', {}).get(item['id'], False)
                     if paused or not item.get('enabled', True):
                         cursor.update(nextFireAt=None, nextOccurrence=None)
-                    elif item.get('nextFireAt'):
-                        cursor['nextFireAt'] = item['nextFireAt']
+                    else:
+                        occurrence = mapped['occurrences'].get(item['id'])
+                        cursor.update(nextFireAt=occurrence['at'] if occurrence else None,
+                                      nextOccurrence=occurrence)
                 service.creators._write(db, creator)
                 binding.setdefault('entryRevisions', {})[entry_id] = current_entry_revision + 1
                 retained = binding.setdefault('entryCursors', {})

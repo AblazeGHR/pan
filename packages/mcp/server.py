@@ -2540,26 +2540,27 @@ def scheduler_create(
     max_runs: int | None = None,
     misfire_policy: str | None = None,
     request_key: str | None = None,
+    schedule_entries: list[dict] | None = None,
 ) -> dict:
     """Create via the canonical owner, preserving original flat arguments."""
     denied = _scheduler_auth(target_session_id, claim=True)
     if denied:
         return denied
-    schedule: dict = {"kind": kind}
-    if at:
-        schedule["at"] = at
-    if interval_sec is not None:
-        schedule["intervalSec"] = interval_sec
-    if cron:
-        schedule["cron"] = cron
-    if timezone:
-        schedule["timezone"] = timezone
-    body: dict = {
-        "targetSessionId": target_session_id,
-        "text": text,
-        "schedule": schedule,
-        "enabled": enabled,
-    }
+    if schedule_entries is not None:
+        body: dict = {"targetSessionId": target_session_id, "text": text,
+                      "schedule": schedule_entries, "enabled": enabled}
+    else:
+        schedule: dict = {"kind": kind}
+        if at:
+            schedule["at"] = at
+        if interval_sec is not None:
+            schedule["intervalSec"] = interval_sec
+        if cron:
+            schedule["cron"] = cron
+        if timezone:
+            schedule["timezone"] = timezone
+        body = {"targetSessionId": target_session_id, "text": text,
+                "schedule": schedule, "enabled": enabled}
     if name:
         body["name"] = name
     if max_runs is not None:

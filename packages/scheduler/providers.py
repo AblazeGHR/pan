@@ -429,7 +429,7 @@ class TimeProvider:
             rule = next(rule for rule in item["config"]["rules"] if rule["ruleId"] == rule_id)
             basis = timestamp(max(instant(at), instant(scheduled)))
             following = self.next_after(rule, basis)
-            late = instant(at) - instant(scheduled) > Decimal(item["config"]["graceSeconds"])
+            late = instant(at) - instant(scheduled) > Decimal(rule.get("graceSeconds", item["config"]["graceSeconds"]))
             policy = rule.get("misfirePolicy", item["config"]["misfirePolicy"])
             grace = Decimal(rule.get("graceSeconds", item["config"]["graceSeconds"]))
             outcome = misfire_outcome(rule["type"], policy,
