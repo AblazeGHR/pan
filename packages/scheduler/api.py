@@ -428,10 +428,19 @@ async def _json_lifecycle(task_id, operation, request):
             return await retired_legacy_write(request)
         # Original no-body aliases remain valid. CAS/key are additive controls.
         value = await body(request) if request.headers.get('content-length', '0') != '0' else {}
-        if set(value) - {'expectedRevision', 'requestKey'}:
+        if set(value) - ({'expectedRevision', 'requestKey', 'waitForDispatch'} if operation == 'run-now' else {'expectedRevision', 'requestKey'}):
             raise fc.ContractError('invalid_schema', 'Only original revision/key controls are accepted')
+        if 'waitForDispatch' in value and type(value['waitForDispatch']) is not bool:
+            raise fc.ContractError('invalid_schema', 'waitForDispatch must be boolean')
         result = await io(control, service, task_id, operation, actor=who,
                           request_key=value.get('requestKey'), expected_revision=value.get('expectedRevision'))
+        if operation == 'run-now' and value.get('waitForDispatch') and not result.get('replayed') and result.get('runId'):
+            # Drive only this newly admitted original Run through the existing
+            # engine. A replay is query-only, including an unknown prior call.
+            with service.transaction(readonly=True) as db:
+                owned, _ = service._find_run(db, result['runId'])
+            async with service._dispatch_lock:
+                await service._drive_run(owned['jobId'], result['runId'])
         current = await io(project, service, task_id, actor=who,
                            capability='execute' if operation == 'run-now' else 'delete' if operation == 'delete' else 'lifecycle')
         task = _public(current['task'])
@@ -446,6 +455,9 @@ async def _json_lifecycle(task_id, operation, request):
                 'dispatch_key': result['result'].get('dispatchKey'), 'status': status,
                 'session_id': task.get('targetSessionId'), 'worker_id': None, 'error': None,
                 'result': {'operationId': result['operationId'], 'status': result['status']}}}
+            if value.get('waitForDispatch'):
+                from packages.scheduler.json_handoff import manual_result
+                payload['run'] = await io(manual_result, service, task_id, result, actor=who)
         _emit_task('scheduler.task.deleted' if operation == 'delete' else
                    'scheduler.task.fired' if operation == 'run-now' else 'scheduler.task.updated', task,
                    **({'run': payload['run']} if operation == 'run-now' else {}))

@@ -2637,7 +2637,7 @@ def scheduler_cancel(task_id: str, job_id: str, run_id: str, expected_revision: 
         'expectedStateRevision': expected_state_revision, 'requestKey': request_key})
 
 
-def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, expected_revision):
+def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, expected_revision, wait_for_dispatch=False):
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
         return denied
@@ -2655,6 +2655,8 @@ def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, exp
         payload['requestKey'] = request_key
     if expected_revision is not None:
         payload['expectedRevision'] = expected_revision
+    if operation == 'run-now' and wait_for_dispatch:
+        payload['waitForDispatch'] = True
     return _api('DELETE' if operation == 'delete' else 'POST',
         _scheduler_task_path(task_id, '' if operation == 'delete' else '/' + operation), payload)
 
@@ -2675,12 +2677,13 @@ def scheduler_resume(task_id: str, target_session_id: str | None = None,
 
 @mcp.tool()
 def scheduler_run_now(task_id: str, target_session_id: str | None = None,
-                      request_key: str | None = None, expected_revision: int | None = None) -> dict:
+                      request_key: str | None = None, expected_revision: int | None = None,
+                      wait_for_dispatch: bool = False) -> dict:
     """Admit manual intent through the original Job; no scheduled cursor advance.
 
     Accepted is not provider completion. Query original Run on unknown response.
     """
-    return _scheduler_lifecycle(task_id, 'run-now', target_session_id, request_key, expected_revision)
+    return _scheduler_lifecycle(task_id, 'run-now', target_session_id, request_key, expected_revision, wait_for_dispatch)
 
 
 @mcp.tool()
