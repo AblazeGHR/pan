@@ -127,13 +127,8 @@ def get_task(task_id: str) -> dict | None:
     return _task_from_job(job) if job else None
 
 
-@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
-def create_task(payload: dict) -> dict:
-    """创建任务：校验 → job 记录 → 注册表原子落盘。
-
-    Raises:
-        ValueError: 目标 session、任务文本、schedule 或 misfire_policy 非法。
-    """
+def prepare_task(payload: dict, *, root=None) -> dict:
+    """Validate/build an unpersisted legacy definition; never reserve a writer."""
     if not isinstance(payload, dict):
         raise ValueError("payload 必须是对象")
 
@@ -234,7 +229,19 @@ def create_task(payload: dict) -> dict:
             raise ValueError(
                 "resume_legal_running does not accept a fixed target Session")
         prepared["text"] = background_jobs.RESUME_LEGAL_RUNNING_TEXT
-    job = _job_from_payload(prepared)
+    from packages.jobs.scheduled_records import build_record
+    job = build_record(prepared, root=root if root is not None else data_root())
+    return job
+
+
+@legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)
+def create_task(payload: dict) -> dict:
+    """创建任务：校验 → job 记录 → 注册表原子落盘。
+
+    Raises:
+        ValueError: 目标 session、任务文本、schedule 或 misfire_policy 非法。
+    """
+    job = prepare_task(payload, root=data_root())
     background_jobs._create(job, registry_root=data_root())
     return _task_from_job(job)
 
@@ -259,6 +266,13 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     if not isinstance(patch, dict):
         return _task_from_job(job)
 
+    changes = plan_update(job, patch, root=data_root())
+    updated = background_jobs._update(job['jobId'], changes, registry_root=data_root()) if changes else job
+    return _task_from_job(updated)
+
+
+def plan_update(job, patch, *, root):
+    """Pure original patch/cursor calculation shared with canonical adapters."""
     entries = list(job.get("schedule") or [])
     entry = dict(entries[0]) if entries else {}
     entry_id = entry.get("id") or "entry0"
@@ -270,7 +284,7 @@ def update_task(task_id: str, patch: dict) -> dict | None:
     if "name" in patch:
         job_changes["name"] = (
             background_jobs.normalize_name(patch.get("name"))
-            or background_jobs.default_job_name(data_root()))
+            or background_jobs.default_job_name(root))
     if "description" in patch:
         job_changes["description"] = background_jobs.normalize_description(
             patch.get("description"))
@@ -370,9 +384,8 @@ def update_task(task_id: str, patch: dict) -> dict | None:
         elif patch.get("enabled") is True and entry_changes.get("nextFireAt"):
             job_changes["status"] = "scheduled"
     if not job_changes and not entry_changes:
-        return _task_from_job(job)
-    updated = background_jobs._update(job["jobId"], job_changes, registry_root=data_root())
-    return _task_from_job(updated)
+        return {}
+    return job_changes
 
 
 @legacy_writer(lambda *a, **kw: data_root().resolve().parent, reservation=True)

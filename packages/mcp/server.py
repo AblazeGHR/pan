@@ -2527,6 +2527,73 @@ def _scheduler_task_path(task_id: str, suffix: str = "") -> str:
 
 
 @mcp.tool()
+def scheduler_create(
+    target_session_id: str,
+    text: str,
+    kind: str,
+    name: str | None = None,
+    at: str | None = None,
+    interval_sec: int | None = None,
+    cron: str | None = None,
+    timezone: str | None = None,
+    enabled: bool = True,
+    max_runs: int | None = None,
+    misfire_policy: str | None = None,
+    request_key: str | None = None,
+) -> dict:
+    """Create via the canonical owner, preserving original flat arguments."""
+    denied = _scheduler_auth(target_session_id, claim=True)
+    if denied:
+        return denied
+    schedule: dict = {"kind": kind}
+    if at:
+        schedule["at"] = at
+    if interval_sec is not None:
+        schedule["intervalSec"] = interval_sec
+    if cron:
+        schedule["cron"] = cron
+    if timezone:
+        schedule["timezone"] = timezone
+    body: dict = {
+        "targetSessionId": target_session_id,
+        "text": text,
+        "schedule": schedule,
+        "enabled": enabled,
+    }
+    if name:
+        body["name"] = name
+    if max_runs is not None:
+        body["maxRuns"] = max_runs
+    if misfire_policy:
+        body["misfirePolicy"] = misfire_policy
+    if request_key is not None:
+        body["requestKey"] = request_key
+    return _api("POST", _SCHEDULER_TASKS_PATH, body)
+
+
+@mcp.tool()
+def scheduler_update(task_id: str, target_session_id: str | None = None,
+                     name: str | None = None, text: str | None = None,
+                     schedule: dict | None = None, enabled: bool | None = None,
+                     max_runs: int | None = None, misfire_policy: str | None = None,
+                     description: str | None = None, paused: bool | None = None,
+                     request_key: str | None = None, expected_revision: int | None = None) -> dict:
+    """Patch provided legacy configuration fields through the original graph."""
+    denied = _scheduler_auth(target_session_id, claim=True)
+    if denied:
+        return denied
+    original = _api('GET', _scheduler_task_path(task_id))
+    denied = _scheduler_auth(_scheduler_target_of(original), claim=True)
+    if denied:
+        return denied
+    body = {key: value for key, value in {'name': name, 'text': text, 'schedule': schedule,
+        'enabled': enabled, 'maxRuns': max_runs, 'misfirePolicy': misfire_policy,
+        'description': description, 'paused': paused, 'requestKey': request_key,
+        'expectedRevision': expected_revision}.items() if value is not None}
+    return _api('PATCH', _scheduler_task_path(task_id), body)
+
+
+@mcp.tool()
 def scheduler_list(target_session_id: str | None = None, limit: int | None = None, offset: int = 0) -> dict:
     """List read-only scheduled-task history with original status (never executable).
 
@@ -2637,7 +2704,7 @@ def scheduler_cancel(task_id: str, job_id: str, run_id: str, expected_revision: 
         'expectedStateRevision': expected_state_revision, 'requestKey': request_key})
 
 
-def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, expected_revision, wait_for_dispatch=False):
+def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, expected_revision, wait_for_dispatch=True):
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
         return denied
@@ -2655,8 +2722,8 @@ def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, exp
         payload['requestKey'] = request_key
     if expected_revision is not None:
         payload['expectedRevision'] = expected_revision
-    if operation == 'run-now' and wait_for_dispatch:
-        payload['waitForDispatch'] = True
+    if operation == 'run-now':
+        payload['waitForDispatch'] = wait_for_dispatch
     return _api('DELETE' if operation == 'delete' else 'POST',
         _scheduler_task_path(task_id, '' if operation == 'delete' else '/' + operation), payload)
 
@@ -2678,10 +2745,10 @@ def scheduler_resume(task_id: str, target_session_id: str | None = None,
 @mcp.tool()
 def scheduler_run_now(task_id: str, target_session_id: str | None = None,
                       request_key: str | None = None, expected_revision: int | None = None,
-                      wait_for_dispatch: bool = False) -> dict:
+                      wait_for_dispatch: bool = True) -> dict:
     """Admit manual intent through the original Job; no scheduled cursor advance.
 
-    Accepted is not provider completion. Query original Run on unknown response.
+    Wait for the original dispatch receipt by default. Query original Run on unknown response.
     """
     return _scheduler_lifecycle(task_id, 'run-now', target_session_id, request_key, expected_revision, wait_for_dispatch)
 
@@ -3337,10 +3404,7 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
 # Job that still owns a Runner process must remain inspectable and cancellable
 # until its owner is drained; an orphaned process is worse than a stale read.
 # R6-C source tombstones: never registered, even temporarily.
-REMOVED_SCHEDULER_MCP_TOOLS = (
-    "scheduler_create",
-    "scheduler_update",
-)
+REMOVED_SCHEDULER_MCP_TOOLS = ()
 
 RETIRED_MCP_TOOLS = (
     "agent_background_start",
@@ -3362,15 +3426,13 @@ RETAINED_LEGACY_MCP_TOOLS = (
 )
 
 # P6 successors retain original names/shapes after an actual owner handoff.
-P6_COMPAT_MCP_TOOLS = ("scheduler_cancel", "scheduler_pause", "scheduler_resume", "scheduler_run_now", "scheduler_delete")
+P6_COMPAT_MCP_TOOLS = ("scheduler_create", "scheduler_update", "scheduler_cancel", "scheduler_pause", "scheduler_resume", "scheduler_run_now", "scheduler_delete")
 
 LEGACY_MCP_COMPATIBILITY = {
     "agent_background_start": "old Runner owner/argv lifecycle has no lossless canonical Job admission mapping",
     "agent_background_retry": "old retry creates a legacy Job identity; canonical retry requires an original Run/Step/effect and owner fence",
     "agent_message_job_create": "old message backlog/schedule envelope lacks a canonical Creator/Trigger reference and source admission envelope",
     "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
-    "scheduler_create": "old scheduler fields lack a canonical Event Creator definition and explicit Trigger/Job composition",
-    "scheduler_update": "old scheduler mutation lacks Creator revision and Trigger reference CAS",
 }
 
 LEGACY_MCP_GUIDANCE = {
@@ -3378,8 +3440,6 @@ LEGACY_MCP_GUIDANCE = {
     "agent_background_retry": "job_run_get(original run_id) -> job_run_retry(original run_id, expected_state_revision, request_key); unknown/partial: query original, do not replay",
     "agent_message_job_create": "job_create(definition, request_key) with immutable Session Action ref; event_creator_create + trigger_create for scheduling, or job_template_create for a complete composition",
     "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
-    "scheduler_create": "event_creator_create(definition, request_key) -> event_creator_control(enable); trigger_create binds the Creator to a canonical Job",
-    "scheduler_update": "event_creator_get -> event_creator_update(object_id, definition, expected_revision, request_key)",
 }
 
 

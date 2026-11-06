@@ -323,13 +323,14 @@ def test_P6_JSON_07_real_standalone_stdio_lifecycle_aliases(http_json, tmp_path)
                 assert resume['ok'] and not resume['task']['paused'], resume
                 manual = unpack(await client.call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-manual'}))
                 assert manual['ok'] and manual['operation']['status'] == 'accepted', manual
+                assert manual['run']['status'] == 'dispatched', manual
                 again = unpack(await client.call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-manual'}))
                 assert again['operation']['operationId'] == manual['operation']['operationId']
         finally:
             await bridge.close()
     asyncio.run(scenario())
     assert len(h.service.final.get(h.source['jobId'])['runs']) == 1
-    assert not h.provider.calls
+    assert len(h.provider.calls) == 1
 
 
 def test_P6_JSON_08_paused_grid_event_original_dispatch_limit_and_cold_query(json_task):

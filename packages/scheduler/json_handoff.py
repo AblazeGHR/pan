@@ -68,7 +68,7 @@ def cohort(service, mappings):
     return hashes
 
 
-def _checkpoint(service, source, *, reconciled=None):
+def _checkpoint(service, source, *, reconciled=None, verified_active=()):
     runtime = source.get('finalRuntime') if reconciled is None else reconciled
     touched = (source.get('runCount', 0) != 0 or source.get('dispatchKey') or source.get('runId')
                or source.get('runStartedAt') or source.get('lastFireAt'))
@@ -82,7 +82,8 @@ def _checkpoint(service, source, *, reconciled=None):
     for rid, run in runtime['runs'].items():
         fc.validate_record('run', run)
         require(run['runId'] == rid and run['jobId'] == source['jobId'], 'Original Run/Job identity differs')
-        require(run['state'] not in {'running', 'settling'}, 'Active original resource requires complete process/Worker handoff proof')
+        require(run['state'] not in {'running', 'settling'} or rid in verified_active,
+                'Active original resource requires complete process/Worker handoff proof')
         plan = runtime['plans'].get(rid, {}).get('frozen', {})
         require(fc.digest(plan) == run['planDigest'] and plan.get('steps') and plan.get('authority'),
                 'Original frozen execution plan lacks canonical identity; legacy-plan adapter remains required')
@@ -114,11 +115,55 @@ def _checkpoint(service, source, *, reconciled=None):
     return copy.deepcopy(runtime)
 
 
+def install_graph(service, db, source, mapped, actor, operation_id, binding):
+    """Install through the existing canonical graph ports and owner transaction."""
+    jid, tid = source['jobId'], source['taskId']
+    exists = db.execute("SELECT 1 FROM final_documents WHERE kind='job' AND id=?", (jid,)).fetchone()
+    obj = service._envelope('job', mapped['job'], actor, object_id=jid,
+        state='enabled' if source['enabled'] else 'disabled')
+    obj['configRevision'] = source.get('configRevision', 1)
+    fc.validate_object('job', obj)
+    job = {'jobId': jid, 'canonical': obj, 'config': definition('job', obj), 'configRevision': obj['configRevision']}
+    if mapped['runtime'] is not None:
+        job['finalRuntime'] = copy.deepcopy(mapped['runtime'])
+    else:
+        aggregate(job, service.root)['profileId'] = service.profile_id
+    if exists:
+        job = service._get(db, 'job', jid)  # original aggregate and authority remain untouched.
+        require(job['finalRuntime'] == mapped['runtime'], 'Original runtime changed after receipt review')
+    else:
+        service._save(db, 'job', jid, job)
+    cid = 'creator_' + fc.digest(['json-task', tid])[:24]
+    creator = service.creators.create(mapped['creator'], request_key=operation_id + ':' + tid,
+        creator_id=cid, state='disabled', created_by=principal(actor), owner=principal(actor))
+    cursor = creator['cursor']['rules'][source['schedule'][0]['id']]
+    cursor.update(nextFireAt=mapped['occurrence']['at'] if mapped['occurrence'] else None,
+                  nextOccurrence=mapped['occurrence'])
+    creator['state'] = ('paused' if source['paused'] else 'enabled') if source['enabled'] else 'disabled'
+    service.creators._write(db, creator)
+    trigger_id = 'trg_' + fc.digest(['json-task', tid])[:24]
+    trigger = service._envelope('trigger', {'name': source['name'] + ' tick',
+        'creatorSelector': {'mode': 'ids', 'ids': [cid]}, 'eventTypes': ['scheduler.time.v2'],
+        'targetJobId': jid}, actor, object_id=trigger_id, state='enabled')
+    service._save(db, 'trigger', trigger_id, trigger)
+    service.creators.bind_link(cid, trigger_id, jid)
+    for kind, oid in [('job', jid), ('trigger', trigger_id), ('event_creator', cid)]:
+        if not exists or kind != 'job':
+            db.execute('INSERT INTO final_authorities VALUES(?,?,?)', (kind, oid, fc.canonical_json(actor)))
+    binding.update(source=source, jobId=jid, creatorId=cid, triggerId=trigger_id,
+        operationId=operation_id, revision=source.get('revision', 1), generation=source.get('generation', 1),
+        paused=source['paused'], originalRunIds=list(job['finalRuntime']['runs']),
+        originalReturnedRunIds=sorted({effect['effectKey']['runId'] for effect in job['finalRuntime']['effects']}
+            | {rid for rid, plan in job['finalRuntime']['plans'].items() if plan.get('pendingProcessAttempt')}))
+    service._save(db, 'json_scheduler_handoff', tid, binding)
+    return {'taskId': tid, 'jobId': jid, 'creatorId': cid, 'triggerId': trigger_id}
+
+
 class JsonTaskHandoff:
     def __init__(self, service):
         self.service = service
 
-    def _map(self, db, source, mapping):
+    def _map(self, db, source, mapping, *, definition_only=False):
         allowed = SCHEDULED_FIELDS | {'finalRuntime', 'dispatchKey', 'revision', 'generation'}
         require(not set(source) - allowed and source.get('kind') == 'scheduled-task',
                 'Unknown JSON task fields; preserve source: ' + ','.join(sorted(set(source) - allowed)))
@@ -128,7 +173,8 @@ class JsonTaskHandoff:
                 and type(source.get('runCount')) is int and source['runCount'] >= 0, 'Original lifecycle/count schema is incomplete')
         require(all(key not in source or type(source[key]) is int and source[key] >= 1
                     for key in ('revision', 'generation', 'configRevision')), 'Original revision/generation is invalid')
-        require(source.get('status') not in {'unknown', 'running', 'cleaning', 'restarting'},
+        require(source.get('status') not in {'unknown', 'cleaning', 'restarting'}
+                and (source.get('status') != 'running' or mapping.get('reconcileDispatches') is True),
                 'Original dispatch/resource outcome unresolved; preserve source')
         require(source.get('status') != 'uncertain' or source.get('finalRuntime') is not None,
                 'Original uncertain dispatch lacks its complete checkpoint; preserve source')
@@ -140,13 +186,15 @@ class JsonTaskHandoff:
                 and not source.get('nextAttemptAt'), 'Original execution/recovery intent needs its original resource proof')
         receipt_review = None
         existing = None
-        if mapping.get('reconcileDispatches') is True:
+        if not definition_only and mapping.get('reconcileDispatches') is True:
             from packages.scheduler.json_dispatch_receipts import review
             receipt_review = review(self.service, db, source, mapping['sourceFile'])
             existing = self.service._get(db, 'job', source['jobId'])
             require(source.get('finalRuntime') is None or source['finalRuntime'] == existing['finalRuntime'],
                     'Original source checkpoint differs from retained canonical runtime; preserve both')
-        runtime = _checkpoint(self.service, source, reconciled=existing['finalRuntime'] if existing else None)
+        active = {row['runId'] for row in (receipt_review or {}).get('matches', []) if row['kind'] == 'active-process'}
+        runtime = None if definition_only else _checkpoint(self.service, source,
+            reconciled=existing['finalRuntime'] if existing else None, verified_active=active)
         entries = source.get('schedule')
         require(isinstance(entries, list) and len(entries) == 1 and isinstance(entries[0], dict),
                 'Multiple-entry cursor/count handoff is not yet connected; preserve all entries')
@@ -154,21 +202,37 @@ class JsonTaskHandoff:
         require(not set(entry) - SCHEDULE_ENTRY_FIELDS and entry.get('enabled', True), 'Unknown/disabled entry mapping requires review')
         require(entry.get('nextFireAt') == source.get('nextFireAt'), 'Original task and entry cursors disagree')
         action = source.get('action', {})
-        key = {'send_session': 'session.send', 'assign': 'session.assign', 'send_qq': 'qq.send', 'shell': 'process.shell'}.get(action.get('api'))
+        key = {'send_session': 'session.send', 'assign': 'session.assign', 'send_qq': 'qq.send',
+               'shell': 'process.shell', 'resume_legal_running': 'resume-legal-running'}.get(action.get('api'))
         require(key is not None and not set(action) - {'api', 'args'}, 'Original Action family needs its reviewed pinned mapping')
         ref = mapping['actionRef']
         pinned = self.service._action_version_record(db, ref['id'], ref['revision'], digest=ref['digest'], for_ref=True)
         args = copy.deepcopy(action.get('args', {}))
         action_head = self.service._get(db, 'action', ref['id'])
         require(object_ref('action', action_head) == ref, 'Reviewed runtime product pin differs')
-        if key == 'process.shell':
+        if key == 'resume-legal-running':
+            require(ref['id'] == 'product_resume_legal_running_v1' and not args
+                    and source['text'] == '继续' and source.get('targetSessionId') is None,
+                    'Original resume selector must keep its fixed text, dynamic targets and protected product')
+            bindings, extra = {}, {}
+        elif key == 'process.shell':
             require(ref['id'] == 'product_process_logs_v1', 'Legacy shell requires the existing process/log/cleanup release')
             require(isinstance(args, dict) and not set(args) - {'command', 'cwd', 'hideWindow'},
                     'Unknown legacy shell fields; preserve original command')
             from packages.core.background_jobs import validate_shell_action
             from packages.core.platform.worker_runtime import shell_command_argv
-            require(isinstance(args.get('cwd'), str) and Path(args['cwd']).expanduser().is_absolute(),
-                    'Relative shell cwd needs proof of its original working-directory base; preserve command')
+            cwd = args.get('cwd')
+            require(isinstance(cwd, str) and cwd, 'Original shell omitted cwd; old validator required it')
+            if not Path(cwd).expanduser().is_absolute():
+                # The original durable executable proves the effective cwd,
+                # not today's agent/server process working directory. Every
+                # counted dispatch must agree on that exact original endpoint.
+                facts = [row.get('effectiveArguments') for row in (receipt_review or {}).get('matches', [])]
+                require(facts and all(fact and fact.get('argv') == shell_command_argv(args.get('command'))
+                    and isinstance(fact.get('cwd'), str) and Path(fact['cwd']).is_absolute() for fact in facts)
+                    and len({fact['cwd'] for fact in facts}) == 1,
+                    'Relative shell cwd lacks a consistent original executable receipt; preserve command')
+                args['cwd'] = facts[0]['cwd']
             command, cwd = validate_shell_action(args.get('command'), args.get('cwd'))
             hide = args.get('hideWindow', True)
             require(type(hide) is bool, 'Legacy shell hideWindow must be boolean')
@@ -218,7 +282,7 @@ class JsonTaskHandoff:
         creator['eventTypes'] = ['scheduler.time.v2']
         maximum = source.get('maxRuns')
         if maximum is not None:
-            require(type(maximum) is int and maximum > source['runCount'], 'Original max-run limit is exhausted or invalid')
+            require(type(maximum) is int and maximum > (0 if definition_only else source['runCount']), 'Original max-run limit is exhausted or invalid')
         # Old runCount increments after the provider returns, including manual
         # runs. Creator.producedCount counts Events before Job execution. Never
         # substitute one for the other; the existing effect receipts own count.
@@ -290,48 +354,11 @@ class JsonTaskHandoff:
                     exists = db.execute("SELECT 1 FROM final_documents WHERE kind='job' AND id=?", (jid,)).fetchone()
                     require(not exists or mapped['receiptReview'] is not None,
                             'Original Job identity already exists without verified dispatch receipts')
-                    obj = self.service._envelope('job', mapped['job'], actor, object_id=jid,
-                        state='enabled' if source['enabled'] else 'disabled')
-                    obj['configRevision'] = source.get('configRevision', 1)
-                    fc.validate_object('job', obj)
-                    job = {'jobId': jid, 'canonical': obj, 'config': definition('job', obj), 'configRevision': obj['configRevision']}
-                    if mapped['runtime'] is not None:
-                        job['finalRuntime'] = copy.deepcopy(mapped['runtime'])
-                    else:
-                        aggregate(job, self.service.root)['profileId'] = self.service.profile_id
-                    if exists:
-                        job = self.service._get(db, 'job', jid)  # original aggregate and authority remain untouched.
-                        require(job['finalRuntime'] == mapped['runtime'], 'Original runtime changed after receipt review')
-                    else:
-                        self.service._save(db, 'job', jid, job)
-                    cid = 'creator_' + fc.digest(['json-task', tid])[:24]
-                    creator = self.service.creators.create(mapped['creator'], request_key=operation_id + ':' + tid,
-                        creator_id=cid, state='disabled', created_by=principal(actor), owner=principal(actor))
-                    cursor = creator['cursor']['rules'][source['schedule'][0]['id']]
-                    cursor.update(nextFireAt=mapped['occurrence']['at'] if mapped['occurrence'] else None,
-                                  nextOccurrence=mapped['occurrence'])
-                    creator['state'] = ('paused' if source['paused'] else 'enabled') if source['enabled'] else 'disabled'
-                    self.service.creators._write(db, creator)
-                    trigger_id = 'trg_' + fc.digest(['json-task', tid])[:24]
-                    trigger = self.service._envelope('trigger', {'name': source['name'] + ' tick',
-                        'creatorSelector': {'mode': 'ids', 'ids': [cid]}, 'eventTypes': ['scheduler.time.v2'],
-                        'targetJobId': jid}, actor, object_id=trigger_id, state='enabled')
-                    self.service._save(db, 'trigger', trigger_id, trigger)
-                    self.service.creators.bind_link(cid, trigger_id, jid)
-                    for kind, oid in [('job', jid), ('trigger', trigger_id), ('event_creator', cid)]:
-                        if not exists or kind != 'job':
-                            db.execute('INSERT INTO final_authorities VALUES(?,?,?)', (kind, oid, fc.canonical_json(actor)))
-                    self.service._save(db, 'json_scheduler_handoff', tid, {'sourceFile': entry['mapping']['sourceFile'],
-                        'sourceSha256': entry['sha256'], 'rawBytesBase64': base64.b64encode(raw).decode(),
-                        'source': source, 'jobId': jid, 'creatorId': cid, 'triggerId': trigger_id,
-                        'operationId': operation_id, 'planDigest': digest, 'intentKey': intent_key,
-                        'revision': source.get('revision', 1), 'generation': source.get('generation', 1),
-                        'timezone': entry['mapping']['timezone'],
-                        'receiptReview': mapped['receiptReview'],
-                        'paused': source['paused'],
-                        'originalRunIds': list(job['finalRuntime']['runs']),
-                        'originalReturnedRunIds': sorted({effect['effectKey']['runId'] for effect in job['finalRuntime']['effects']})})
-                    ids.append({'taskId': tid, 'jobId': jid, 'creatorId': cid, 'triggerId': trigger_id})
+                    installed = install_graph(self.service, db, source, mapped, actor, operation_id, {
+                        'sourceFile': entry['mapping']['sourceFile'], 'sourceSha256': entry['sha256'],
+                        'rawBytesBase64': base64.b64encode(raw).decode(), 'planDigest': digest, 'intentKey': intent_key,
+                        'timezone': entry['mapping']['timezone'], 'receiptReview': mapped['receiptReview']})
+                    ids.append(installed)
                 return {'tasks': ids}, [object_ref('job', self.service._object(db, 'job', i['jobId'])) for i in ids], False
             result = self.service._operation(db, actor, 'create', request_key, {'jsonTaskHandoff': plan}, 'job', transfer)
         owner.set_state('active')
@@ -349,6 +376,9 @@ def resolve(service, db, task_id):
     require(len(rows) == 1, 'Original JSON task has no unique handoff receipt')
     identity, raw = rows[0]
     binding = fc.loads(raw)
+    if binding.get('origin') == 'canonical-create':
+        require(db.execute('SELECT 1 FROM final_operations WHERE id=?', (binding['operationId'],)).fetchone(), 'Canonical creation receipt missing')
+        return identity, binding
     source_raw, _ = read_source(service, binding['sourceFile'])
     require(hashlib.sha256(source_raw).hexdigest() == binding['sourceSha256'], 'Original JSON task bytes changed after handoff')
     # A read projection must not acquire the owner write transaction while it
@@ -369,7 +399,7 @@ def project(service, task_id, *, actor, capability='read'):
         creator = service.creators.get(binding['creatorId'])
         require(creator is not None, 'Original task clock missing')
         from packages.scheduler.history import project as historical
-        task = historical(binding['source'], tid)
+        task = historical(binding.get('currentSource', binding['source']), tid)
         cursor = next(iter(creator['cursor']['rules'].values()))
         task.update(enabled=creator['state'] in {'enabled', 'paused'},
                     paused=creator['state'] == 'paused' if creator['state'] != 'disabled' else binding['paused'],
@@ -412,10 +442,31 @@ def manual_result(service, task_id, operation, *, actor):
         effects = [row for row in job['finalRuntime']['effects'] if row['effectKey']['runId'] == rid]
         plan = job['finalRuntime']['plans'].get(rid, {})
         result = copy.deepcopy(effects[-1]['receipt'].get('receipt', {})) if effects else {}
-        process = binding['source'].get('action', {}).get('api') == 'shell'
+        api = binding['source'].get('action', {}).get('api')
+        process = api == 'shell'
         state = run['state'] if run else 'skipped'
-        status = ('accepted' if state == 'queued' else 'dispatched' if state == 'completed' and not process
+        status = ('accepted' if state == 'queued' else 'dispatched' if state == 'completed' and api in {'assign', 'send_session'}
                   else 'unknown' if state == 'uncertain' else 'error' if state == 'failed' else state)
+        if api == 'send_qq':
+            raw = copy.deepcopy(result)
+            args = binding.get('currentSource', binding['source'])['action']['args']
+            result.update(status=status, dispatchKey=plan.get('dispatchKey'),
+                targetType=args['targetType'], targetId=args['targetId'], botUin=args.get('botUin'), providerReceipt=raw)
+            if raw.get('message_id', raw.get('messageId')) is not None:
+                result['messageId'] = raw.get('message_id', raw.get('messageId'))
+            error = raw.get('error')
+            if error:
+                result['error'] = str(error.get('message') or error.get('code') or 'QQ send failed') if isinstance(error, dict) else str(error)
+                if isinstance(error, dict) and error.get('code') is not None:
+                    result['qqErrorCode'] = error['code']
+        if api == 'resume_legal_running':
+            rows = result.get('results', [])
+            projected = [{**row.get('receipt', {}), 'sessionId': row.get('targetSelection', {}).get('sessionIds', [None])[0]}
+                         for row in rows]
+            if state == 'completed':
+                status = 'dispatched' if result.get('matchedCount') else 'completed'
+            result.update(status=status, dispatchKey=plan.get('dispatchKey'), results=projected,
+                          canonicalReceipts=rows)
         if process:
             from packages.jobs.independent_executor import effect_id
             aid = effects[-1]['attemptId'] if effects else plan.get('pendingProcessAttempt')
@@ -449,7 +500,11 @@ def control(service, task_id, operation, *, actor, request_key=None, expected_re
                 # Original send/assign API used taskId + wall-second as the
                 # manual dedup key. Keep that scope; explicit keys are additive.
                 from datetime import datetime
-                request_key = tid + ':' + str(int(datetime.now().timestamp()))
+                if binding['source']['action']['api'] in {'shell', 'send_qq'}:
+                    import uuid
+                    request_key = tid + ':manual:' + uuid.uuid4().hex
+                else:
+                    request_key = tid + ':' + str(int(datetime.now().timestamp()))
             else:
                 request_key = 'scheduler:' + fc.digest([binding['operationId'], operation, binding['revision']])
         fc.check_request_key(request_key)
@@ -544,7 +599,7 @@ def run_count(job, binding):
 def guard_effect(service, db, job, run_id):
     binding = binding_for_job(service, db, job['jobId'])
     if binding:
-        maximum = binding['source'].get('maxRuns')
+        maximum = binding.get('currentSource', binding['source']).get('maxRuns')
         if maximum is not None and run_id not in returned_runs(job, binding) and run_count(job, binding) >= maximum:
             raise fc.ContractError('capacity_exceeded', 'Original task maxRuns exhausted; no further effect')
 
@@ -571,7 +626,7 @@ def guard_clock(service, item):
         require(len(rows) == 1, 'Ambiguous original clock identity')
         binding = fc.loads(rows[0][0])
         job = service._get(db, 'job', binding['jobId'])
-        maximum = binding['source'].get('maxRuns')
+        maximum = binding.get('currentSource', binding['source']).get('maxRuns')
         if maximum is not None and run_count(job, binding) >= maximum and not item.get('pendingPublication'):
             current = service.creators._read_db(db, item['id'])
             current.update(state='disabled', stateRevision=current['stateRevision'] + 1)

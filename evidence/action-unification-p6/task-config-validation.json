@@ -1,0 +1,81 @@
+{
+  "baseline": "1118134cfe7e9dfa5a24d8eec55e6cd6234072b1",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSha256": {
+    "packages/automation/authorization.py": "bf5cf9300d1492815f97d8727d105b7fe51d836cedc4f04064e29ec406b8e00e",
+    "packages/mcp/server.py": "58eba911731116a60c526af54320a93f7b82ecea74943a7dd345e2b8e63dac2c",
+    "packages/scheduler/api.py": "7569a6a4a9a7ca929ab5e4e877a871ce22e2a00e47a890b61332fad10838745c",
+    "packages/scheduler/canonical_tasks.py": "12b65dd8e6585eabf02316380d20a97a8e4ffcb586af2b240861d04864a30639",
+    "packages/scheduler/json_dispatch_receipts.py": "e7e66bb2acf8760adc2c2b0312f94c542aafc6c9546c7233eb85286ef35abfd4",
+    "packages/scheduler/json_handoff.py": "bbe824d3258179211f1b3251b6f5f24c309d8de5a46369e5e481d144ac9dd94b",
+    "packages/scheduler/store.py": "b6d69e4acd5074f236cd88dd275ce6743f983c747d5b6a417c68f7d73f3fbe6e",
+    "tests/test_action_unification_p6_json_scheduler.py": "e94aed5a88b76214e9746d4f057448af6cb8478fec7bfda140a8eb378d2e1a38",
+    "tests/test_action_unification_p6_task_config.py": "d86958b530c26ac688ac787318a45b267a4a3c67f48bd9628e11905c6abf2ddc"
+  },
+  "junit": [
+    {
+      "artifact": "evidence/action-unification-p6/task-config-final-combination.xml",
+      "tests": 75,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "0c308cf2bad633f7e951a3a538b39497306c4c32f068903c02c0687c7a634ba5"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/task-config-store.xml",
+      "tests": 37,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e9f2fb629c1d9f6f1f5abbee3e95af3ada2d2ab7d83d5866bb60299b8a74d5dd"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/task-config-scheduler-api.xml",
+      "tests": 27,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "14707960dcecb6ff4e5162611b7741c91bb429b204642043948dc518c35b762f"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/task-config-original-red.xml",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "1ebc809ec3a4e76c36237dd967f11fdf3abab206882580fbe91f9fb20c5ee2cd"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/task-config-providers-old.xml.gz",
+      "tests": 67,
+      "failures": 2,
+      "errors": 3,
+      "skipped": 0,
+      "sha256": "55e3229320d9dee873da459c2e37881efcc527afc5bd85da6707dfe204698a03"
+    }
+  ],
+  "checks": {
+    "ast": "passed",
+    "final_contracts": "passed",
+    "git_diff_check": "passed"
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "environment": {
+    "python": "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+    "isolated": "scripts/run_tests_isolated.py",
+    "loopback": "NO_PROXY only in owned tests",
+    "qqDependency": "owned .tmp/p6-env; no global install"
+  },
+  "claims": {
+    "productionBuild": "not run",
+    "chromium": "not run",
+    "remoteCI": "not run",
+    "linuxMacOS": "not run",
+    "realDataMigration": "not run",
+    "deployment": "not run",
+    "manualAcceptance": "pending MA"
+  }
+}

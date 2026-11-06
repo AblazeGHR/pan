@@ -85,6 +85,10 @@ def object_path(path, method=None):
     silently granting a write.
     """
     parsed = urlsplit(path)
+    if (method is not None and not parsed.scheme and not parsed.netloc and not parsed.fragment
+            and ((parsed.path == '/api/scheduler/tasks' and method.upper() == 'POST')
+                 or (re.fullmatch(r'/api/scheduler/tasks/[A-Za-z0-9_-]+', parsed.path) and method.upper() == 'PATCH'))):
+        return True  # Existing canonical graph adapter checks all original grants/CAS.
     if re.fullmatch(r'/api/scheduler/tasks/[A-Za-z0-9_-]+', parsed.path) and method == 'DELETE' and not parsed.scheme and not parsed.netloc and not parsed.fragment:
         return True  # Canonical handoff-only delete adapter enforces identity/grants.
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):

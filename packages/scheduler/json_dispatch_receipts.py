@@ -31,7 +31,7 @@ def journal(service, source_file):
     return raw, rows
 
 
-def process_receipt(service, job, run, effect, row):
+def process_receipt(service, job, run, effect, row, *, active=False):
     from packages.jobs.independent_executor import effect_id, fence
     key = effect['effectKey']
     path = service.root / 'executions' / 'executions.sqlite3'
@@ -56,6 +56,16 @@ def process_receipt(service, job, run, effect, row):
             'Original process receipt executable differs from the original frozen Step')
     require(row.get('result', {}).get('processJobId') == doc['effectId'], 'Original process locator differs from its durable receipt')
     receipt = doc.get('result')
+    if active:
+        from packages.core.platform.execution_host import supervisor_alive
+        require(receipt is None and doc['phase'] == 'running' and supervisor_alive(doc.get('supervisorIdentity'))
+                and supervisor_alive(doc.get('evidence', {}).get('processIdentity')),
+                'Original active supervisor identity/phase is unproven; preserve resource')
+        require(job['finalRuntime']['plans'][run['runId']].get('pendingProcessAttempt') == attempt['attemptId'],
+                'Original Run has no returned pending process receipt')
+        return {'kind': 'active-process', 'effectId': doc['effectId'], 'attemptId': attempt['attemptId'],
+                'effectKey': key, 'supervisorIdentity': doc['supervisorIdentity'], 'planDigest': doc['planDigest'],
+                'effectiveArguments': arguments}
     require(receipt is not None and receipt.get('effectKey') == key and receipt.get('outcome') == effect['outcome'],
             'Original process result is unknown or differs; no replay')
     from packages.core.platform.execution_host import supervisor_exit_evidence
@@ -63,7 +73,7 @@ def process_receipt(service, job, run, effect, row):
     require(service._cleanup_complete({**doc, 'supervisorExitProof': exit_proof}),
             'Original process cleanup/supervisor exit unproven; resource remains blocked')
     return {'kind': 'process', 'effectId': doc['effectId'], 'receiptDigest': fc.digest(receipt),
-            'attemptId': attempt['attemptId'], 'effectKey': key}
+            'attemptId': attempt['attemptId'], 'effectKey': key, 'effectiveArguments': arguments}
 
 
 def queue_receipt(service, job, run, effect, row):
@@ -113,24 +123,31 @@ def review(service, db, source, source_file):
         require(isinstance(old_id, str) and old_id and old_id not in old_ids,
                 'Original journal Run identity missing or reused across dispatches')
         old_ids.add(old_id)
-        require(row.get('status') in {'completed', 'dispatched', 'error'}, 'Original dispatch is active/unknown; query the same resource')
+        active = row.get('status') == 'running'
+        require(row.get('status') in {'completed', 'dispatched', 'error', 'running'}, 'Original dispatch is active/unknown; query the same resource')
         candidates = [rid for rid, plan in state['plans'].items() if plan.get('dispatchKey') == dispatch]
         require(len(candidates) == 1, 'No unique original frozen Run for dispatch; no new Run may impersonate it')
         run = state['runs'][candidates[0]]
-        require(run['state'] in {'completed', 'failed', 'cancelled'}, 'Original Run is active/uncertain; no automatic settlement')
+        require(run['state'] in ({'running'} if active else {'completed', 'failed', 'cancelled'}),
+                'Original Run is active/uncertain; no automatic settlement')
         require(run['jobId'] == source['jobId'] and fc.digest(state['plans'][run['runId']]['frozen']) == run['planDigest'],
                 'Original Job/Run frozen plan differs')
         effects = [effect for effect in state['effects'] if effect['effectKey']['runId'] == run['runId']]
-        require(len(effects) == 1 and effects[0]['outcome'] in {'succeeded', 'rejected'}, 'Original effect receipt is missing, unknown or multi-step')
+        if active:
+            require(not effects, 'Active journal disagrees with terminal effect; review original result')
+            effects = [effect for effect in state['effectAdmissions'].values() if effect['effectKey']['runId'] == run['runId']]
+            require(len(effects) == 1, 'Original pending process effect admission missing or multi-step')
+        else:
+            require(len(effects) == 1 and effects[0]['outcome'] in {'succeeded', 'rejected'}, 'Original effect receipt is missing, unknown or multi-step')
         effect = effects[0]
         step = state['plans'][run['runId']]['frozen']['steps'][0]
         frozen = state['plans'][run['runId']]['frozen']
         action = frozen.get('stepActions', {}).get(step['stepId']) or frozen['actions'][step['actionRef']['id']]
         operation = action['execution']['operation']
-        proof = (process_receipt(service, job, run, effect, row) if operation == 'process'
-                 else queue_receipt(service, job, run, effect, row) if operation in {'session-message', 'assign'} else None)
+        proof = (process_receipt(service, job, run, effect, row, active=active) if operation == 'process'
+                 else queue_receipt(service, job, run, effect, row) if not active and operation in {'session-message', 'assign'} else None)
         require(proof is not None, 'Original provider has no trusted receipt lookup; preserve unknown')
-        require((row['status'] in {'completed', 'dispatched'}) == (effect['outcome'] == 'succeeded'),
+        require(active or (row['status'] in {'completed', 'dispatched'}) == (effect['outcome'] == 'succeeded'),
                 'Original log status disagrees with actual effect receipt')
         matches.append({'originalLogRunId': row.get('run_id', row.get('runId')), 'dispatchKey': dispatch,
                         'runId': run['runId'], 'admissionId': run['admissionId'], **proof})
