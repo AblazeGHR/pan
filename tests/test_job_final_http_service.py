@@ -384,8 +384,7 @@ def test_ft03_old_facade_retires_writes_and_keeps_reads(h):
         # Old mutations are refused after authentication, not validated.
         for method, path in [("POST", "/api/jobs/templates"), ("PATCH", "/api/jobs/legacy_job"),
                              ("DELETE", "/api/jobs/legacy_job"), ("POST", "/api/jobs/legacy_job/run-now"),
-                             ("POST", "/api/jobs/action-jobs"),
-                             ("POST", "/api/jobs/job-templates/legacy_template/instantiate")]:
+                             ("POST", "/api/jobs/action-jobs")]:
             retired = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"),
                                 json={"kind": "unrecognized"}, headers=headers)
             assert retired.status_code == 410, (method, path, retired.text)
@@ -394,6 +393,14 @@ def test_ft03_old_facade_retires_writes_and_keeps_reads(h):
             anonymous = b.request(method, path.replace("/api/jobs", "/api/legacy/jobs"),
                                   json={"kind": "unrecognized"})
             assert anonymous.status_code == 401, (method, path, anonymous.text)
+        # P6 keeps Template instantiate as a canonical compatibility entry.
+        # An unbound host must refuse before inspecting payloads, with no old
+        # runtime fallback. Original retirement-only red is retained in evidence.
+        template_path = "/api/legacy/jobs/job-templates/legacy_template/instantiate"
+        missing = b.post(template_path, json={"kind": "unrecognized"}, headers=headers)
+        assert missing.status_code == 503, missing.text
+        assert missing.json()["error"]["code"] == "provider_unavailable"
+        assert b.post(template_path, json={}).status_code == 401
     assert "/api/legacy/jobs" in after.openapi()["paths"]
 
 

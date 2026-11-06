@@ -48,6 +48,61 @@ class SourceMigration:
         self.service = service
         self.port = PendingPublicationAdoption(service.creators, service.events, legacy_events)
 
+    def adopt_settled_source_graph(self, sources, *, expected_digest, desired_graph,
+                                  legacy_sources, request_key, actor):
+        """Continue an active, settled cooperative v1 clock through WP04.
+
+        Source ownership is profile-wide, not inferred from a copied snapshot.
+        This transfers clocks/links only; it never imports old Job executions.
+        Pending publications must use the existing same-identity adoption port.
+        """
+        from packages.jobs.runtime_owner import cooperative_profile
+        from packages.jobs.final_service import object_ref
+        user(self.service, actor, 'create')
+        user(self.service, actor, 'lifecycle')
+        owner = self.service.owner
+        if (sources.owner_fence.root != owner.root or not cooperative_profile(owner.root)
+                or owner.token is None):
+            raise fc.ContractError('reconciliation_required', 'Original cooperative writer/owner handoff is unproven')
+        if (not isinstance(desired_graph, dict) or not isinstance(legacy_sources, list) or not legacy_sources
+                or any(not isinstance(item, dict) or set(item) != {'creatorKey', 'sourceId', 'timezone', 'triggerKeys'}
+                       for item in legacy_sources)
+                or {item['creatorKey'] for item in legacy_sources}
+                    != {item['key'] for item in desired_graph.get('creators', [])}
+                or any(item.get('mode') != 'create' for item in desired_graph.get('creators', []))):
+            raise fc.ContractError('invalid_schema', 'Every owned clock requires an explicit original source mapping')
+        with self.service.transaction() as db:
+            def transfer(operation_id):
+                snapshot = sources.snapshot()
+                if fc.digest(snapshot) != expected_digest:
+                    raise fc.ContractError('revision_conflict', 'Original source graph/cursor changed')
+                self.service._permit(actor, 'job', 'create', execution=True)
+                self.service._permit(actor, 'job', 'lifecycle', execution=True)
+                if desired_graph.get('triggers'):
+                    self.service._permit(actor, 'trigger', 'create', execution=True)
+                    self.service._permit(actor, 'trigger', 'lifecycle', execution=True)
+                self.service._references(db, 'job', desired_graph['job'], enabled=True)
+                # Import/history, composition cursor adoption and activation
+                # join the same owner-fenced Creator transaction and receipts.
+                self.service.creators.import_legacy_sources(sources, request_key=operation_id,
+                                                           expected_digest=expected_digest)
+                mappings = [{**item, 'importKey': operation_id} for item in legacy_sources]
+                composed = self.service.compositions.compose(request_key=operation_id,
+                    desired_graph=copy.deepcopy(desired_graph), activate=True,
+                    authorization_evidence={'principal': copy.deepcopy(actor)}, legacy_sources=mappings)
+                ids = composed['objectIds']
+                objects = [('job', ids['job']), *[('trigger', tid) for tid in ids['triggers'].values()],
+                           *[('event_creator', cid) for cid in ids['creators'].values()]]
+                for kind, oid in objects:
+                    self.service._permit(actor, 'event_creator', 'lifecycle', execution=True)
+                    db.execute('INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)',
+                               (kind, oid, fc.canonical_json(actor)))
+                return {'objectIds': composed['objectIds'], 'sourceDigest': expected_digest}, [
+                    object_ref(kind, self.service._object(db, kind, oid)) for kind, oid in objects], False
+            return self.service._operation(db, actor, 'create', request_key,
+                {'settledSourceGraph': {'sourceDigest': expected_digest, 'desiredGraph': desired_graph,
+                                       'legacySources': legacy_sources}}, 'event_creator', transfer)
+
     def adopt(self, *, import_key, source_id, timezone_name, actor):
         user(self.service, actor, "create")
         user(self.service, actor, "lifecycle")

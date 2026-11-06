@@ -129,6 +129,66 @@ async def retired_legacy_write(request: Request):
 retired_legacy_write.retirement_boundary = True
 
 
+async def legacy_template_list(request: Request):
+    who = await actor(request, "template", "read")
+    return await invoke(request, "legacy_template_list", actor=who)
+
+
+async def _legacy_template_write(request, template_id=None):
+    who = await actor(request, "template", "create" if template_id is None else "updateConfig")
+    # Resolve the canonical port before validating old payloads. Never fall
+    # back to ActionRuntime/Templates when activation is missing or failed.
+    if not callable(getattr(getattr(request.app.state, "job_final_service", None), "legacy_template_write", None)):
+        reject("provider_unavailable", "Canonical Template service unavailable")
+    value = await body(request)
+    fields(value, {"item", "expectedRevision"}, {"item", "expectedRevision"})
+    if type(value["expectedRevision"]) is not int or value["expectedRevision"] < (0 if template_id is None else 1):
+        reject("invalid_schema", "Invalid expectedRevision")
+    if not isinstance(value["item"], dict):
+        reject("invalid_schema", "Template item must be an object")
+    item = dict(value["item"])
+    if template_id is not None:
+        if item.get("id", template_id) != template_id:
+            reject("reference_conflict", "Template path and payload identity differ")
+        item["id"] = template_id
+    key = "legacy-template-" + ("create:" if template_id is None else "update:")
+    key += str(item.get("id", "new")) + ":" + str(value["expectedRevision"])
+    return await invoke(request, "legacy_template_write", item, value["expectedRevision"], key, actor=who)
+
+
+async def legacy_template_create(request: Request):
+    return await _legacy_template_write(request)
+
+
+async def legacy_template_update(template_id: str, request: Request):
+    return await _legacy_template_write(request, template_id)
+
+
+async def legacy_template_delete(template_id: str, request: Request):
+    who = await actor(request, "template", "delete")
+    raw = request.query_params.get("expectedRevision", "")
+    if (set(request.query_params) != {"expectedRevision"}
+            or len(request.query_params.getlist("expectedRevision")) != 1
+            or not re.fullmatch(r"0|[1-9][0-9]{0,18}", raw)):
+        reject("invalid_schema", "One expectedRevision is required")
+    expected = int(raw)
+    return await invoke(request, "legacy_template_delete", template_id, expected,
+                        "legacy-template-delete:" + template_id + ":" + raw, actor=who)
+
+
+async def legacy_template_instantiate(template_id: str, request: Request):
+    who = await actor(request, "template", "use")
+    await actor(request, "job", "create")
+    if not callable(getattr(getattr(request.app.state, "job_final_service", None), "legacy_template_instantiate", None)):
+        reject("provider_unavailable", "Canonical Template service unavailable")
+    value = await body(request)
+    fields(value, {"expectedRevision", "idempotencyKey", "overrides"}, {"expectedRevision", "idempotencyKey"})
+    revision(value["expectedRevision"])
+    contracts.check_request_key(value["idempotencyKey"])
+    return await invoke(request, "legacy_template_instantiate", template_id, value["expectedRevision"],
+                        value["idempotencyKey"], value.get("overrides"), actor=who, activate=False)
+
+
 def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
     """Whether an old facade route was an effectful write.
 
@@ -137,7 +197,7 @@ def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
     remain inspectable and cancellable.  Every other old mutation is refused.
     """
     # P6 compatibility handoff: the old Template CRUD/instantiate shape is
-    # admitted only through the adapter in action_api, which calls the same
+    # admitted only through this canonical boundary, which calls the same
     # FinalService owner fence and operation receipt as /api/job-templates.
     if suffix.startswith("/job-templates"):
         return False
@@ -702,7 +762,7 @@ def _remount_legacy(facade, legacy_routers, facade_prefix):
 
 
 def _copy_legacy_route(target, route, path):
-    """Add a facade copy of a pre-canonical route: reads keep, writes refuse."""
+    """Retain reads and canonical Template adapters; refuse other old writes."""
     template_compat = "/job-templates" in route.path
     if route.methods <= {"GET", "HEAD", "OPTIONS"} or template_compat:
         target.add_api_route(
@@ -742,6 +802,8 @@ def install(app, *legacy_routers):
       and its effectful routes answer 410 after authenticating the caller.
     * old reads keep both addresses, because Job history/listing queries are
       retained until R6 and moving them would break audit reads for no gain.
+    * P6 Template CRUD/instantiate keeps its original shape at both addresses,
+      owned by this module with no legacy runtime fallback.
     * a canonical path always wins; an old write address that canonical does not
       serve answers 410 instead of a bare 404, so a stale client learns it is
       retired rather than that the path never existed.

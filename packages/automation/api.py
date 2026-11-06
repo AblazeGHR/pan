@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from packages.core.system_fields import public_schema
 from .store import Conflict
 from packages.jobs import chains
+from packages.jobs import final_contracts as fc
 from packages.jobs.final_api import actor as canonical_actor
 from .authorization import require as object_require, require_write, authority
 from .policy import SCHEDULING_SCHEMA, MAX_CONCURRENCY, MAX_ATTEMPTS, BACKOFF_SECONDS, BACKOFF_CAP_SECONDS
@@ -211,6 +212,14 @@ def install(server):
         await require_permission(request, 'trigger', 'read')
         svc = service()
         state = chains.public(await svc.engine.io(svc.ledger.read))
+        canonical = getattr(request.app.state, 'job_final_service', None)
+        if canonical is not None:
+            from .retained_handoff import project
+            try:
+                await svc.engine.io(project, canonical, svc.ledger.path.parent.parent,
+                                    state['runs'], actor=await canonical_actor(request))
+            except fc.ContractError as exc:
+                raise HTTPException(exc.status, {'code': exc.code}) from exc
         pending_jobs={op['jobId'] for op in state.get('linkOperations',{}).values() if op.get('jobId') and op['status'] not in {'complete','cancelled'}}
         for trigger in state['triggers'].values():
             if trigger.get('ownerJobId') in pending_jobs:trigger.update(enabled=False,setupPending=True)
@@ -367,6 +376,19 @@ def install(server):
         await require_permission(request, 'job', 'lifecycle')
         if set(data) != {'expectedRevision'}:
             raise HTTPException(400, 'Expected expectedRevision')
+        canonical = getattr(request.app.state, 'job_final_service', None)
+        if canonical is not None:
+            from .retained_handoff import TriggerReceiptHandoff
+            # No legacy writer fallback on an activated host. Missing original
+            # handoff evidence is a reconciliation gap, never permission to
+            # mutate an old ledger or invent a new Run.
+            try:
+                return await TriggerReceiptHandoff(canonical, service().ledger.path.parent.parent).cancel(
+                    rid, data['expectedRevision'], actor=await canonical_actor(request))
+            except KeyError as exc:
+                raise HTTPException(409, {'code': 'reconciliation_required'}) from exc
+            except fc.ContractError as exc:
+                raise HTTPException(exc.status, {'code': exc.code}) from exc
         try:
             svc = service()
             run = await svc.engine.io(svc.ledger.cancel, rid, data['expectedRevision'])

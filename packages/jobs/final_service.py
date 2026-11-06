@@ -759,66 +759,94 @@ class FinalService:
             return {"templates": result}
 
     def legacy_template_write(self, item, expected_revision, request_key, *, actor, generation=None):
+        self._permit(actor, 'template', 'create' if expected_revision == 0 else 'updateConfig')
         if not isinstance(item, dict):
             error("invalid_schema", "Legacy Template item must be an object")
         legacy_id = item.get("id")
         if legacy_id is not None and (not isinstance(legacy_id, str) or not legacy_id.startswith("jtpl_")):
             error("invalid_schema", "Invalid legacy Template ID")
-        with self.transaction(readonly=True) as db:
-            definition_value = self._legacy_template_definition(db, item)
-        canonical_id = legacy_id
-        with self.transaction(readonly=True) as db:
-            exists = False
-            current = None
-            alias = self._legacy_template_alias(db, canonical_id) if canonical_id else None
-            if canonical_id:
-                row = db.execute("SELECT document FROM final_documents WHERE kind='template' AND id=?", (canonical_id,)).fetchone()
-                exists = row is not None
-                current = json.loads(row[0]) if row is not None else None
-                if alias is not None and alias.get("raw", {}).get("revision") != expected_revision:
-                    error("revision_conflict", "Legacy Template revision changed")
-        body = {"definition": definition_value, "expectedRevision": expected_revision, "requestKey": request_key}
-        successor = bool(exists and current and current.get("state") == "published")
-        if exists and not successor:
-            result = self.write("template", canonical_id, body, actor=actor)
-        else:
-            body["legacyId"] = canonical_id or ("jtpl_" + fc.digest(definition_value)[:24])
-            body["expectedRevision"] = 0
-            result = self.write("template", None, body, actor=actor)
-        stored = result["result"]["object"] if "result" in result else result.get("object")
-        if successor:
-            stored = self.control("template", stored["id"], {"operation": "publish", "expectedRevision": stored["revision"],
-                "expectedStateRevision": stored["stateRevision"], "requestKey": request_key + ":publish", "parameters": {}}, actor=actor)["result"]["object"]
         with self.transaction() as db:
-            raw = copy.deepcopy(item)
-            raw["id"] = canonical_id or stored["id"]
-            raw["revision"] = (expected_revision + 1) if successor else stored["revision"]
-            raw["referenceGeneration"] = copy.deepcopy(generation or item.get("referenceGeneration", {}))
-            db.execute("INSERT OR REPLACE INTO final_documents(kind,id,document) VALUES(?,?,?)",
-                       ("legacy_template_alias", raw["id"], fc.canonical_json({"raw": raw, "canonicalRef": object_ref("template", stored), "canonicalId": stored["id"], "deleted": False})))
-        return {"item": raw, "canonical": stored}
+            def mutate(operation_id):
+                alias = self._legacy_template_alias(db, legacy_id) if legacy_id else None
+                canonical_id = alias['canonicalId'] if alias else legacy_id
+                current = None
+                if canonical_id:
+                    row = db.execute("SELECT document FROM final_documents WHERE kind='template' AND id=?", (canonical_id,)).fetchone()
+                    current = json.loads(row[0]) if row else None
+                if alias:
+                    if alias.get('deleted'):
+                        error('reference_conflict', 'Deleted legacy Template identity cannot be recreated')
+                    fc.check_revision(alias['raw']['revision'], expected_revision)
+                elif current:
+                    fc.check_revision(current['revision'], expected_revision)
+                elif expected_revision != 0:
+                    error('revision_conflict', 'New legacy Template requires revision zero')
+                definition_value = self._legacy_template_definition(db, item)
+                successor = current is not None and current['state'] == 'published'
+                body = {'definition': definition_value, 'expectedRevision': current['revision'] if current else 0,
+                        'requestKey': operation_id + ':write'}
+                if current and not successor:
+                    result = self.write('template', canonical_id, body, actor=actor)
+                elif successor:
+                    # A new immutable successor must never overwrite the old
+                    # published ID. Only the legacy alias advances atomically.
+                    successor_id = 'jtpl_' + fc.digest([legacy_id, expected_revision, definition_value])[:24]
+                    if db.execute("SELECT 1 FROM final_documents WHERE kind='template' AND id=?", (successor_id,)).fetchone():
+                        error('reference_conflict', 'Template successor identity already exists')
+                    self._references(db, 'template', definition_value)
+                    stored = self._envelope('template', definition_value, actor, object_id=successor_id)
+                    self._save(db, 'template', successor_id, stored)
+                    result = {'result': {'object': stored}}
+                else:
+                    body['legacyId'] = canonical_id or ('jtpl_' + fc.digest(definition_value)[:24])
+                    body['expectedRevision'] = 0
+                    result = self.write('template', None, body, actor=actor)
+                stored = result['result']['object']
+                if successor:
+                    stored = self.control('template', stored['id'], {'operation': 'publish',
+                        'expectedRevision': stored['revision'], 'expectedStateRevision': stored['stateRevision'],
+                        'requestKey': operation_id + ':publish', 'parameters': {}}, actor=actor)['result']['object']
+                raw = copy.deepcopy(item)
+                raw.update(id=legacy_id or stored['id'], revision=expected_revision + 1,
+                           referenceGeneration=copy.deepcopy(generation or item.get('referenceGeneration', {})))
+                self._save(db, 'legacy_template_alias', raw['id'], {'raw': raw,
+                    'canonicalRef': object_ref('template', stored), 'canonicalId': stored['id'], 'deleted': False})
+                return {'item': raw, 'canonical': stored}, [object_ref('template', stored)], False
+            response = self._operation(db, actor, 'create' if expected_revision == 0 else 'update', request_key,
+                {'legacyTemplateWrite': item, 'expectedRevision': expected_revision, 'generation': generation},
+                'template', mutate)
+            return response['result']
 
     def legacy_template_delete(self, template_id, expected_revision, request_key, *, actor):
-        item = self.get("template", template_id, actor=actor)
-        result = self.retire("template", template_id,
-            {"expectedRevision": expected_revision, "expectedStateRevision": item["stateRevision"],
-             "requestKey": request_key, "parameters": {}}, actor=actor)
+        self._permit(actor, 'template', 'delete')
         with self.transaction() as db:
-            alias = self._legacy_template_alias(db, template_id)
-            if alias:
-                alias["deleted"] = True
-                db.execute("INSERT OR REPLACE INTO final_documents(kind,id,document) VALUES(?,?,?)",
-                           ("legacy_template_alias", template_id, fc.canonical_json(alias)))
-        return {"deleted": True, "templateId": template_id, "result": result}
+            def mutate(operation_id):
+                alias = self._legacy_template_alias(db, template_id)
+                canonical_id = alias['canonicalId'] if alias else template_id
+                item = self._object(db, 'template', canonical_id)
+                fc.check_revision(alias['raw']['revision'] if alias else item['revision'], expected_revision)
+                result = self.retire('template', canonical_id, {'expectedRevision': item['revision'],
+                    'expectedStateRevision': item['stateRevision'], 'requestKey': operation_id + ':retire',
+                    'parameters': {}}, actor=actor)
+                if alias:
+                    alias['deleted'] = True
+                    self._save(db, 'legacy_template_alias', template_id, alias)
+                return {'deleted': True, 'templateId': template_id, 'result': result}, result['objectRefs'], False
+            return self._operation(db, actor, 'retire', request_key,
+                {'legacyTemplateDelete': template_id, 'expectedRevision': expected_revision}, 'template', mutate)['result']
 
     def legacy_template_instantiate(self, template_id, expected_revision, request_key, overrides=None, *, actor, activate=False):
-        canonical_revision = expected_revision
+        canonical_id, canonical_revision = template_id, expected_revision
         with self.transaction(readonly=True) as db:
             alias = self._legacy_template_alias(db, template_id)
-            if alias and alias.get("raw", {}).get("revision") == expected_revision:
-                canonical_revision = self._get(db, "template", template_id).get("revision", expected_revision)
-        result = self.instantiate_template(template_id, {"expectedRevision": canonical_revision,
-            "requestKey": request_key, "activate": activate, "overrides": overrides or {}}, actor=actor)
+            if alias:
+                if alias.get('deleted'):
+                    error('reference_conflict', 'Legacy Template is deleted')
+                fc.check_revision(alias['raw']['revision'], expected_revision)
+                canonical_id = alias['canonicalId']
+                canonical_revision = alias['canonicalRef']['revision']
+        result = self.instantiate_template(canonical_id, {'expectedRevision': canonical_revision,
+            'requestKey': request_key, 'activate': activate, 'overrides': overrides or {}}, actor=actor)
         objects = result["result"]["objectIds"] if "result" in result else result.get("objectIds", {})
         return {"job": {"jobId": objects.get("job"), "templateId": template_id,
                          "templateRevision": expected_revision, "displayOverrides": copy.deepcopy(overrides or {})},
@@ -1593,7 +1621,20 @@ class FinalService:
         return step, policy, prior
 
     def control_run(self, run_id, body, *, actor):
-        self._permit(actor, "job", "execute")
+        return self._control_run(run_id, body, actor=actor, capability='execute')
+
+    def cancel_legacy_run(self, run_id, body, *, actor):
+        """Preserve the retained cancel entry's original lifecycle grant.
+
+        The trusted compatibility adapter supplies an already reconciled Run.
+        This port cannot resume/retry/admit work or borrow an execute grant.
+        """
+        if set(body) != {'expectedStateRevision', 'requestKey'}:
+            error('invalid_schema', 'Legacy cancellation only accepts its original CAS/key')
+        return self._control_run(run_id, {**body, 'operation': 'cancel'}, actor=actor, capability='lifecycle')
+
+    def _control_run(self, run_id, body, *, actor, capability):
+        self._permit(actor, "job", capability)
         operation = body["operation"]
         if operation == "clone-and-run":
             self._permit(actor, "job", "create")
@@ -1710,13 +1751,15 @@ class FinalService:
             return response
         return await self._cancel_postcommit(run_id, response, actor=actor)
 
-    async def _cancel_postcommit(self, run_id, response, *, actor):
+    async def _cancel_postcommit(self, run_id, response, *, actor, capability='execute'):
         """Finish the original cancel intent after a compatibility transaction.
 
         The caller already owns the persisted Run cancellation receipt. No new
         admission, resource identity, retry or ledger is allocated here.
         """
-        self._permit(actor, 'job', 'execute', execution=True)
+        if capability not in {'execute', 'lifecycle'}:
+            error('authorization_denied', 'Invalid cancellation capability')
+        self._permit(actor, 'job', capability, execution=True)
         with self.transaction() as db:
             job, _ = self._find_run(db, run_id)
             intent = aggregate(job, self.root)["cancellations"][run_id]

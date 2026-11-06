@@ -5,6 +5,7 @@ import pytest
 from packages.jobs import final_contracts as fc
 
 from tests.test_job_final_http_service import h
+from tests.test_job_final_clients import tcp
 
 
 def _legacy_item(action_id):
@@ -38,11 +39,18 @@ def test_old_template_http_crud_display_alias_and_cold_query(h):
         "operation": "publish", "expectedRevision": 1, "expectedStateRevision": 0,
         "requestKey": "publish-legacy-http", "parameters": {}})
     assert published.status_code == 200, published.text
+    frozen = published.json()['result']['object']
     updated = h.client.put("/api/jobs/job-templates/" + item["id"], json={"item": {
         **item, "name": "Legacy HTTP Template v2", "config": {**item["config"], "name": "Legacy HTTP Template v2"}},
         "expectedRevision": 1})
     assert updated.status_code == 200, updated.text
     assert updated.json()["item"]["id"] == item["id"] and updated.json()["item"]["revision"] == 2
+    assert updated.json()['canonical']['id'] != frozen['id']
+    assert h.client.get('/api/job-templates/' + frozen['id']).json() == frozen
+    replay_update = h.client.put('/api/jobs/job-templates/' + item['id'], json={'item': {
+        **item, 'name': 'Legacy HTTP Template v2', 'config': {**item['config'], 'name': 'Legacy HTTP Template v2'}},
+        'expectedRevision': 1})
+    assert replay_update.status_code == 200 and replay_update.json() == updated.json()
     instantiated = h.client.post("/api/jobs/job-templates/" + item["id"] + "/instantiate", json={
         "expectedRevision": 2, "idempotencyKey": "legacy-instance", "overrides": {"name": "Display override"}})
     assert instantiated.status_code in (200, 201), instantiated.text
@@ -88,3 +96,38 @@ def test_old_unknown_template_shape_is_blocked_without_canonical_row(h):
     with pytest.raises(fc.ContractError, match="creator selector"):
         h.service.legacy_template_write(item, 0, "unknown-template", actor={"type": "user", "id": "local"})
     assert h.client.get("/api/job-templates/" + item["id"]).status_code == 404
+
+
+def test_P6_TEMPLATE_boundary_real_tcp_no_legacy_fallback_and_auth_first(h, tcp):
+    import httpx
+    paths = [('GET', '/api/jobs/job-templates'), ('POST', '/api/jobs/job-templates'),
+             ('PUT', '/api/jobs/job-templates/jtpl_missing'),
+             ('DELETE', '/api/jobs/job-templates/jtpl_missing?expectedRevision=1'),
+             ('POST', '/api/legacy/jobs/job-templates/jtpl_missing/instantiate')]
+    del h.app.state.job_final_service
+    with httpx.Client(base_url=tcp, trust_env=False) as client:
+        for method, path in paths:
+            assert client.request(method, path, json={}).status_code == 401
+            response = client.request(method, path, json={}, headers={'Authorization': 'Bearer ' + h.token})
+            assert response.status_code == 503, (method, path, response.text)
+            assert response.json()['error']['code'] == 'provider_unavailable'
+        # Required query validation must not precede authentication.
+        assert client.delete('/api/jobs/job-templates/jtpl_missing').status_code == 401
+    assert not h.provider.calls
+
+
+def test_P6_TEMPLATE_alias_commit_failure_rolls_back_definition_and_receipts(h, monkeypatch):
+    item = _legacy_item(h.action['id'])
+    before = h.service.legacy_template_list(actor={'type': 'user', 'id': 'local'})
+    save = h.service._save
+    def fail_alias(db, kind, object_id, value):
+        if kind == 'legacy_template_alias':
+            raise OSError('owned alias commit failure')
+        return save(db, kind, object_id, value)
+    monkeypatch.setattr(h.service, '_save', fail_alias)
+    with pytest.raises(OSError, match='alias commit'):
+        h.service.legacy_template_write(item, 0, 'atomic-alias', actor={'type': 'user', 'id': 'local'})
+    assert h.service.legacy_template_list(actor={'type': 'user', 'id': 'local'}) == before
+    with h.service.transaction(readonly=True) as db:
+        assert db.execute('SELECT count(*) FROM final_operations WHERE requestKey=?', ('atomic-alias',)).fetchone()[0] == 0
+    assert h.client.get('/api/job-templates/' + item['id']).status_code == 404
