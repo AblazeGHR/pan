@@ -8,7 +8,8 @@ import {
   useActionRegistryStore,
   useActionSessionDetailStore,
 } from '@/stores/actionRegistryStore';
-import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
+import type { Action, ActionGroup, ActionRegistry, CanonicalLegacyAction } from '@/types/actions';
+import { CanonicalDefinitionEditor } from '@/components/actions/CanonicalDefinitionEditor';
 import {
   EFFECT_LABELS,
   actionEditorState,
@@ -85,6 +86,8 @@ export function LegacyActionsView() {
 
   const [tab, setTab] = useState<Tab>('actions');
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [canonicalEditor, setCanonicalEditor] = useState<(CanonicalLegacyAction & { legacyId: string }) | null>(null);
+  const [canonicalDirty, setCanonicalDirty] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [useGroupId, setUseGroupId] = useState<string | null>(null);
@@ -103,17 +106,17 @@ export function LegacyActionsView() {
   }, [authorizationToken]);
 
   useEffect(() => {
-    if (!editor || !isEditorDirty(editor)) return;
+    if (!canonicalDirty && (!editor || !isEditorDirty(editor))) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [editor]);
+  }, [editor, canonicalDirty]);
 
   useEffect(() => {
-    if (!editor || confirm || useGroupId) return;
+    if ((!editor && !canonicalEditor) || confirm || useGroupId) return;
     const handler = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
@@ -136,6 +139,13 @@ export function LegacyActionsView() {
 
   function openAction(action: Action) {
     if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
+    const mapped = registry.canonicalActions?.[action.id];
+    if (mapped) {
+      // Keep the observed revision while editing. A concurrent refresh must
+      // not silently attach an old draft body to a newer CAS revision.
+      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
+      return;
+    }
     setEditor(actionEditorState(action, 'edit'));
     setEditorError('');
   }
@@ -165,12 +175,19 @@ export function LegacyActionsView() {
   function closeEditor() {
     const kind = editor?.kind;
     setEditor(null);
+    setCanonicalEditor(null);
+    setCanonicalDirty(false);
     setEditorError('');
     if (kind === 'group') setTab('groups');
     if (kind === 'action') setTab('actions');
   }
 
   function requestCloseEditor() {
+    if (canonicalEditor) {
+      if (canonicalDirty) setConfirm({ kind: 'discard' });
+      else closeEditor();
+      return;
+    }
     if (!editor) return;
     if (isEditorDirty(editor)) {
       setConfirm({ kind: 'discard' });
@@ -479,7 +496,23 @@ export function LegacyActionsView() {
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
-      {editor ? (
+      {canonicalEditor ? (
+        <section aria-label="Mapped Action editor" className="min-h-0 overflow-auto p-4 sm:p-6">
+          <h2 className="text-lg font-semibold">{String(canonicalEditor.object.name)} · {canonicalEditor.legacyId}</h2>
+          <p className="my-3 text-sm">此 Action 已接管。完整定义保留全部命令及参数；保存为新草稿，发布和更新 Group 需分别执行。</p>
+          <CanonicalDefinitionEditor
+            key={String(canonicalEditor.object.id) + ':' + String(canonicalEditor.object.revision)}
+            item={canonicalEditor.object}
+            definition={canonicalEditor.definition}
+            onDirtyChange={setCanonicalDirty}
+            onChanged={async () => {
+              await useActionRegistryStore.getState().refreshRegistry();
+              closeEditor();
+            }}
+          />
+          <Button className="mt-4" onClick={requestCloseEditor}>返回旧目录</Button>
+        </section>
+      ) : editor ? (
         editor.kind === 'action' ? (
           <ActionEditorPage
             state={editor}

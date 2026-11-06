@@ -6,6 +6,7 @@ import jsonschema
 from packages.jobs import final_contracts as fc
 from packages.actions import invocation
 from packages.actions.command_execution import prepare, argument_defaults, OPERATIONS
+from packages.actions.family_execution import OPERATIONS_FAMILY, prepare_family
 
 
 def admit(service, db, trigger, event, actor, key, fact_digest):
@@ -20,9 +21,17 @@ def admit(service, db, trigger, event, actor, key, fact_digest):
     if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(arguments):
         raise fc.ContractError("invalid_schema", "Trigger Action mapping rejected")
     operation = action["execution"]["operation"]
-    if operation not in {*OPERATIONS, "process", "job.create"}:
+    if operation not in {*OPERATIONS, *OPERATIONS_FAMILY, "process", "job.create", 'template.instantiate'}:
         raise fc.ContractError("unsupported_operation", "Action has no shared direct adapter")
-    if operation != "job.create":
+    prepared = None
+    if operation in OPERATIONS_FAMILY:
+        if operation != 'api.get':
+            service._permit(actor, 'job', 'execute', execution=True)
+        prepared = prepare_family(action, arguments)
+    elif operation == 'template.instantiate':
+        from packages.actions.legacy_families import template_view
+        template_view(action, {'id': 'invocation', 'output_format': 'json'}, True)
+    elif operation != "job.create":
         prepare("process.command" if operation == "process" else operation, action["execution"]["config"],
                 argument_defaults(action["inputSchema"], arguments))
     limits = trigger.get("concurrency", {"maxActive": 1, "maxPending": 64})
@@ -42,7 +51,7 @@ def admit(service, db, trigger, event, actor, key, fact_digest):
     doc["delivery"] = {"triggerId": trigger["id"], "triggerRevision": trigger["revision"],
         "actionRef": copy.deepcopy(ref), "definition": copy.deepcopy(action), "arguments": arguments,
         "authority": copy.deepcopy(actor), "authorizationRevision": service.auth.permissions_status()["revision"],
-        "event": copy.deepcopy(event)}
+        "event": copy.deepcopy(event), **({'prepared': prepared} if prepared is not None else {})}
     db.execute("UPDATE final_operations SET document=? WHERE id=?", (fc.canonical_json(doc), identity))
     return response
 
@@ -87,9 +96,17 @@ async def _deliver_one(service, identity):
                     "triggerId": frozen["triggerId"], "triggerRevision": frozen["triggerRevision"]})
                 doc["response"]["result"].update(result)
                 doc["response"]["status"] = "completed"
+            elif operation == 'template.instantiate':
+                from packages.actions.legacy_templates import instantiate_action
+                result, _ = instantiate_action(service, db, action, ref, actor, identity,
+                    source={'eventId': frozen['event'].get('eventId', frozen['event'].get('id')),
+                            'triggerId': frozen['triggerId'], 'triggerRevision': frozen['triggerRevision']})
+                doc['response']['result'].update(result)
+                doc['response']['status'] = 'completed'
             else:
-                commands = prepare("process.command" if operation == "process" else operation,
-                    action["execution"]["config"], argument_defaults(action["inputSchema"], frozen["arguments"]))
+                commands = (frozen['prepared'] if operation in OPERATIONS_FAMILY else
+                    prepare("process.command" if operation == "process" else operation,
+                    action["execution"]["config"], argument_defaults(action["inputSchema"], frozen["arguments"])))
                 doc["response"]["result"].update(phase="calling", status="uncertain")
                 doc["response"]["status"] = "unknown"
         except (fc.ContractError, ValueError) as exc:
@@ -99,7 +116,8 @@ async def _deliver_one(service, identity):
         epoch = service.owner.token
     if doc["response"]["result"]["phase"] == "calling":
         try:
-            await invocation.execute_prepared(service, identity, ref, actor, commands, epoch, operation, trigger_id=frozen["triggerId"])
+            await invocation.execute_prepared(service, identity, ref, actor, commands, epoch, operation,
+                trigger_id=frozen["triggerId"], arguments=frozen['arguments'], event=frozen['event'])
         except fc.ContractError:
             # Calling remains uncertain if the owner/grant changed at the
             # effect boundary. Query evidence, never re-enter the effect.

@@ -662,7 +662,7 @@ class FinalService:
         """Compatibility name for the existing generic Template operation."""
         return self.instantiate_template(template_id, body, actor=actor)
 
-    def instantiate_template(self, template_id, body, *, actor):
+    def instantiate_template(self, template_id, body, *, actor, fixed_template=None):
         """Complete passive or time composition; no Run or second operation ledger.
 
         CreatorStore, FinalService operations and the composition callbacks join
@@ -676,9 +676,14 @@ class FinalService:
         self._permit(actor, "template", "use")
         activate = body.get("activate", False)
         request = {**body, "activate": activate}
+        if fixed_template is not None:
+            fixed_template = fc.validate_object('template', copy.deepcopy(fixed_template))
+            if fixed_template['id'] != template_id:
+                error('reference_conflict', 'Fixed Template identity differs')
+            request['fixedTemplateDigest'] = fc.digest(fixed_template)
         with self.transaction() as db:
             def mutate(operation_id):
-                template = self._object(db, "template", template_id)
+                template = fixed_template if fixed_template is not None else self._object(db, "template", template_id)
                 fc.check_revision(template["revision"], body["expectedRevision"])
                 if template["state"] != "published":
                     error("reference_conflict", "Only a published Template can be instantiated")
@@ -2364,12 +2369,19 @@ class FinalService:
             try:
                 executor = self._external_adapter(job_id) if executable["operation"] == "process" and self.executor is self._product_executor else self.executor
                 from packages.actions.command_execution import OPERATIONS as COMMAND_OPERATIONS
+                from packages.actions.family_execution import OPERATIONS_FAMILY
                 if executable["operation"] == "job.create":
                     from packages.actions.job_creation import job_execute
                     receipt = await job_execute(self, job_id, run_id, attempt, effect_key, executable)
+                elif executable['operation'] == 'template.instantiate':
+                    from packages.actions.invocation import template_job_execute
+                    receipt = await template_job_execute(self, job_id, run_id, attempt, effect_key, executable)
                 elif executable["operation"] in COMMAND_OPERATIONS:
                     from packages.actions.invocation import job_execute
                     receipt = await job_execute(self, job_id, run_id, attempt, effect_key, executable)
+                elif executable['operation'] in OPERATIONS_FAMILY:
+                    from packages.actions.invocation import family_job_execute
+                    receipt = await family_job_execute(self, job_id, run_id, attempt, effect_key, executable)
                 else:
                     receipt = await executor.execute(attempt=attempt, effect_key=effect_key, frozen_plan=executable,
                                                           retry=attempt["generation"] > 1)
@@ -2422,9 +2434,10 @@ class FinalService:
                 self.final.ledger.record_effect(job, self.root, attempt["attemptId"], "partial" if outcome == "partial" else mapped, receipt)
                 state = aggregate(job, self.root)
                 if run_id in state.get("cancellations", {}):
-                    if executable["operation"] in COMMAND_OPERATIONS:
+                    rows = receipt.get("receipt", {}).get("commands", [])
+                    if (executable["operation"] in COMMAND_OPERATIONS
+                            or executable['operation'] in OPERATIONS_FAMILY and rows):
                         intent = state["cancellations"][run_id]
-                        rows = receipt.get("receipt", {}).get("commands", [])
                         if (rows and all(row.get("cleanupProof", {}).get("confirmed") is True for row in rows)
                                 and all(t["attempt"]["attemptId"] == attempt["attemptId"] for t in intent["targets"])):
                             intent["status"] = "confirmed"

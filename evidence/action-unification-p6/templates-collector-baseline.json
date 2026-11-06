@@ -1,0 +1,7 @@
+{
+  "parent": "502ed455",
+  "method": "FinalService._install_product_actions",
+  "astEqual": true,
+  "astSha256": "4df13e7fee5117871d2ce8ef217b0d9a5430b405c27000321d2379d5f398881d",
+  "observed": "19 migration fixture failures: Collector.publish_action does not accept enabled; no behavior assertion changed"
+}

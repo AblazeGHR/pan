@@ -239,7 +239,8 @@ class LegacyGroupMigration:
         blockers, groups, files = [], [], {'registry.json': hashlib.sha256(raw).hexdigest()}
         if not source_enrolled(self.store.root):
             blockers.append({'reason': 'unknown_writer'})
-        if set(state) - {'revision', 'actions', 'groups', 'retired_plugins', 'actionRevisions', 'actionLifecycle', 'actionGenerations'}:
+        if set(state) - {'revision', 'actions', 'groups', 'retired_plugins', 'actionRevisions', 'actionLifecycle', 'actionGenerations',
+                         'jobTemplates', 'templateVersions'}:
             blockers.append({'reason': 'unknown_registry_fields'})
         if not isinstance(state.get('groups'), dict) or not 1 <= len(state['groups']) <= 100:
             fail('Registry Group scope exceeds bound or is malformed')
@@ -339,6 +340,16 @@ class LegacyGroupMigration:
                     standalone.append({'alias': aid, 'actionRef': ref})
                 except (ValueError, KeyError, TypeError, OSError, fc.ContractError) as exc:
                     blockers.append({'actionId': aid, 'reason': str(exc)})
+        templates = []
+        if 'jobTemplates' in state or 'templateVersions' in state:
+            try:
+                self.service._permit(actor, 'template', 'read')
+                self.service._permit(actor, 'template', 'updateConfig')
+                from .legacy_templates import review
+                with self.service.transaction(readonly=True) as db:
+                    templates = review(self.service, db, state, mappings)
+            except (ValueError, KeyError, TypeError, fc.ContractError) as exc:
+                blockers.append({'family': 'jobTemplates', 'reason': str(exc)})
         plan = {'protocol': 'legacy-group-adoption/v1', 'sourceRoot': str(self.store.root),
                 'canonicalRoot': str(self.service.root.resolve()), 'profileId': self.service.profile_id,
                 'expectedSourceEpoch': source_authority(self.store.root)[0],
@@ -346,6 +357,9 @@ class LegacyGroupMigration:
                 'mappings': mappings, 'blocked': blockers}
         if standalone:
             plan['standaloneActions'] = standalone
+        if 'jobTemplates' in state or 'templateVersions' in state:
+            plan['templates'] = templates
+            plan['templateVersions'] = state.get('templateVersions', {})
         return {**plan, 'planDigest': fc.digest(plan)}
 
     def apply(self, plan, request_key, *, actor, fault=lambda phase: None):
@@ -405,6 +419,8 @@ class LegacyGroupMigration:
                 with self.service.transaction() as db, self.service.auth.lock:
                     for capability in ('create', 'updateConfig', 'lifecycle'):
                         self.service._permit(actor, 'action', capability, execution=True)
+                    if plan.get('templates'):
+                        self.service._permit(actor, 'template', 'updateConfig', execution=True)
                     if not matches_review():
                         fail('Mapped definitions changed before the canonical authority commit')
                     def mutate(operation_id):
@@ -434,7 +450,13 @@ class LegacyGroupMigration:
                                 'sourceDigest': plan['files']['registry.json'], 'planDigest': plan['planDigest'],
                                 'operationId': operation_id, 'ownerEpoch': self.service.owner.token[0],
                                 'sourceEpoch': source_owner.token[0], 'source': source, 'versions': entry['versions']})
-                        Groups.save(db, 'action_group_registry', str(self.store.root), {'revision': plan['sourceRevision']})
+                        root = str(self.store.root)
+                        for template in plan.get('templates', []):
+                            Groups.save(db, 'legacy_template_binding', binding_key(root, template['legacyId']), {
+                                **template, 'sourceRoot': root, 'adoptionOperationId': operation_id,
+                                'sourceDigest': plan['files']['registry.json'], 'deleted': False})
+                        Groups.save(db, 'action_group_registry', root, {'revision': plan['sourceRevision'],
+                            **({'templateVersions': plan['templateVersions']} if 'templateVersions' in plan else {})})
                         seed_action_bindings(db, self.store.root, self.store.read(), plan.get('standaloneActions', []))
                         fault('before-commit')
                         return {'groups': [e['groupId'] for e in plan['groups']], 'planDigest': plan['planDigest'],
@@ -704,9 +726,18 @@ class LegacyGroupCompatibility:
                     self.service._permit(actor, 'action', 'lifecycle', execution=True)
                 template_ref = None
                 if item['execution']['kind'] == 'job_template':
+                    from packages.jobs.action_templates import check_action_graph
+                    graph = self.projection(Store(self.root).read())
+                    graph['actions'][aid] = item
+                    check_action_graph(graph, item)
                     # Only reuse an explicit original mapping. A jtpl_ name or
                     # equal revision is never evidence of canonical identity.
                     candidates = []
+                    for row in db.execute("SELECT document FROM final_documents WHERE kind='legacy_template_binding' AND json_extract(document,'$.sourceRoot')=?", (self.root,)):
+                        candidate = json.loads(row[0])
+                        if (not candidate['deleted'] and candidate['raw']['id'] == item['execution']['templateId']
+                                and candidate['raw']['revision'] == item['execution']['templateRevision']):
+                            candidates.append(candidate['templateRef'])
                     for row in db.execute("SELECT document FROM final_documents WHERE kind='legacy_action_binding' AND json_extract(document,'$.sourceRoot')=?", (self.root,)):
                         candidate = json.loads(row[0])
                         if candidate['deleted']:
@@ -819,8 +850,18 @@ class LegacyGroupCompatibility:
                     try:
                         state['actions'][aid] = self.action(db, binding)[0]
                     except fc.ContractError as exc:
-                        state['actions'][aid] = binding['raw']
                         state.setdefault('preservedActions', []).append({'id': aid, 'reason': exc.message})
+                        from packages.jobs.final_service import definition
+                        head = self.service._get(db, 'action', binding['actionId'])
+                        # Preserve the unrepresentable execution descriptor,
+                        # while current name/schema/lifecycle still describe
+                        # the canonical head. Never advertise a new draft as
+                        # enabled merely because the old source was enabled.
+                        state['actions'][aid] = {**binding['raw'], 'name': head['name'], 'description': head['description'],
+                            'enabled': head['enabled'] and head['state'] == 'published', 'input_schema': head['inputSchema'],
+                            'effect': head['effectClass'], 'idempotent': head['retry']['idempotent']}
+                        state.setdefault('canonicalActions', {})[aid] = {
+                            'object': head, 'definition': definition('action', head), 'reason': exc.message}
             for row in db.execute("SELECT id,document FROM final_documents WHERE kind IN ('action_group_handoff','legacy_group_binding')"):
                 gid, handoff = row[0], json.loads(row[1])
                 if handoff['sourceRoot'] != self.root:

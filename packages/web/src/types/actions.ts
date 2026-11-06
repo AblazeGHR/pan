@@ -28,4 +28,10 @@ export type ActionGroup = {
   blockers: { id: string; name: string }[];
   sessions: ({ id: string; name: string; loadedVersion: string | null } & PluginBinding)[];
 };
-export type ActionRegistry = { revision: number; actions: Action[]; groups: ActionGroup[] };
+export type CanonicalLegacyAction = {
+  object: import('./canonicalJobs').JsonObject;
+  definition: import('./canonicalJobs').JsonObject;
+  reason: string;
+};
+export type ActionRegistry = { revision: number; actions: Action[]; groups: ActionGroup[];
+  canonicalActions?: Record<string, CanonicalLegacyAction> };

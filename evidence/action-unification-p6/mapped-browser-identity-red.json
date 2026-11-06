@@ -1,0 +1,7 @@
+{
+  "port": 49985,
+  "checks": [],
+  "errors": [],
+  "status": "failed",
+  "failure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n44496 !== 8496\n\n    at file:///D:/project/pan-worktrees/action-unification-p6-20261106/packages/web/e2e/action-p6-mapped.e2e.mjs:32:10\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)"
+}

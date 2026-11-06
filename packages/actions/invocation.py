@@ -97,42 +97,24 @@ async def invoke(service, action_id, body, *, actor, source=None):
             from .job_creation import invoke as create_job
             return create_job(service, action_id, body, actor=actor, source=source)
         if operation == 'template.instantiate':
-            from .legacy_families import template_view
-            template_view(action, {'id': action_id, 'output_format': 'json'}, True)
-            template_ref = action['execution']['config']['templateRef']
-            from packages.jobs.final_service import definition
-            template = service._get(db, 'template', template_ref['id'])
-            if (template['revision'] != template_ref['revision']
-                    or fc.digest(definition('template', template)) != template_ref['digest']):
-                raise fc.ContractError('reference_conflict', 'Fixed TemplateRef changed; explicit remapping required')
             def instantiate(identity):
-                # Existing composition and Action operation join the same owner
-                # transaction. There is no second creation engine or ledger.
-                created = service.instantiate_template(template_ref['id'], {
-                    'expectedRevision': template_ref['revision'], 'requestKey': fc.digest(['legacy-template', identity])}, actor=actor)
-                old = action['execution']['config']['legacyTemplate']
-                output = {'ok': True, 'jobId': created['result']['objectIds']['job'], 'created': True,
-                          'jobCompleted': False, 'templateId': old['templateId'], 'templateRevision': old['templateRevision']}
-                return {'actionRef': ref, 'invocationId': identity, 'status': 'completed', 'phase': 'settled',
-                        'output': output, 'compositionOperationId': created['operationId'],
-                        **({'source': copy.deepcopy(source)} if source is not None else {})}, created['objectRefs'], False
+                from .legacy_templates import instantiate_action
+                result, refs = instantiate_action(service, db, action, ref, actor, identity, source=source)
+                return result, refs, False
             return service._operation(db, actor, 'invoke', body['requestKey'], payload, 'action', instantiate)
         if operation == "process":
             operation = "process.command"  # Original Job adapter remains IndependentExecutor.
-        from .legacy_families import SYSTEM_OPERATIONS, system_plan
+        from .legacy_families import SYSTEM_OPERATIONS
         system_adapter = operation in {'legacy.' + op for op in SYSTEM_OPERATIONS}
         if operation not in OPERATIONS and operation not in {'api.get', 'session.pause-everything'} and not system_adapter:
             raise fc.ContractError("unsupported_operation", "This Action has no direct command adapter")
         if system_adapter:
-            from .legacy_families import system_view
-            system_view(action, True)  # Only exact product schemas gain this adapter.
+            from .family_execution import prepare_family
             service._permit(actor, 'job', 'execute', execution=True)
-            prepared = system_plan(operation, argument_defaults(action['inputSchema'], body['arguments']))
-            if prepared['operation'] in OPERATIONS:
-                prepared['commands'] = prepare(prepared['operation'], prepared['config'], prepared['arguments'])
+            prepared = prepare_family(action, body['arguments'])
         elif operation in {'api.get', 'session.pause-everything'}:
-            from .group_migration import legacy_action_view
-            prepared = legacy_action_view(action, {'id': action_id, 'output_format': 'json'}, True)
+            from .family_execution import prepare_family
+            prepared = prepare_family(action, body['arguments'])
             if operation == 'session.pause-everything':
                 service._permit(actor, 'job', 'execute', execution=True)
                 if not callable(service.session_pause):
@@ -146,7 +128,7 @@ async def invoke(service, action_id, body, *, actor, source=None):
         response = service._operation(db, actor, "invoke", body["requestKey"], payload, "action",
             lambda identity: ({"actionRef": ref, "invocationId": identity,
                 "status": "uncertain", "phase": "prepared", "commands": [],
-                **({'providerPlan': copy.deepcopy(prepared)} if system_adapter else {}),
+                **({'providerPlan': {key: copy.deepcopy(value) for key, value in prepared.items() if key != 'commands'}} if system_adapter else {}),
                 **({'source': copy.deepcopy(source)} if source is not None else {})}, [ref], True))
         identity = response["operationId"]
         epoch = service.owner.token
@@ -155,7 +137,7 @@ async def invoke(service, action_id, body, *, actor, source=None):
                                   source=source, arguments=body['arguments'])
 
 
-async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None, arguments=None):
+async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None, arguments=None, event=None):
     @contextmanager
     def boundary():
         with service.transaction() as db:
@@ -184,51 +166,17 @@ async def execute_prepared(service, identity, ref, actor, commands, epoch, opera
     # Prepared is already durable. Any crash from here on is query-only, even
     # when no process happened to start. No automatic direct recovery.
     persist({"phase": "calling"})
-    if operation.startswith('legacy.'):
-        # Map the old payload once, then use the same process/provider primitive
-        # as canonical Jobs. The direct operation is the only durable identity.
+    from .family_execution import OPERATIONS_FAMILY, execute_family
+    if operation in OPERATIONS_FAMILY:
         @contextmanager
         def system_boundary():
             with boundary():
-                service._permit(actor, 'job', 'execute', execution=True)
-                yield
-        context = CommandContext({'operationId': identity}, system_boundary,
-                                 lambda rows: persist({'providerReceipts': rows}))
-        if commands['operation'] in OPERATIONS:
-            result = await service.executor.execute_commands(prepared_commands=commands['commands'],
-                frozen_plan=commands, context=CommandContext(context.identity, system_boundary,
-                    lambda rows: persist({'commands': rows})))
-            persist({**result['receipt'], 'outcome': result['outcome'], 'phase': 'settled'}, terminal=True)
-        else:
-            result = await service.executor.execute_provider(context=context, frozen_plan=commands)
-            status = {'succeeded': 'completed', 'rejected': 'failed', 'partial': 'partial', 'unknown': 'uncertain'}[result['outcome']]
-            persist({'status': status, 'phase': 'settled', 'outcome': result['outcome'],
-                     'providerReceipt': result, 'output': result['receipt']}, terminal=True)
-        return service.operation(identity, actor=actor)
-    if operation in {'api.get', 'session.pause-everything'}:
-        from .provider import execute
-        async def before_effect():
-            with boundary():
-                if operation == 'session.pause-everything':
+                if operation != 'api.get':
                     service._permit(actor, 'job', 'execute', execution=True)
-        try:
-            if operation == 'api.get':
-                output = await execute(commands, arguments, before_effect=before_effect)
-            else:
-                from .executor import execute_dynamic
-                async def progress(**fields):
-                    persist({'checkpoint': {**progress.checkpoint, **fields}})
-                    progress.checkpoint.update(copy.deepcopy(fields))
-                progress.checkpoint = {'id': identity}
-                progress.before_effect = before_effect
-                output = await execute_dynamic(commands, arguments, {}, progress, service.session_pause)
-        except Exception as exc:
-            # Preserve the original provider error text. The admitted identity
-            # remains query-only, including a lost HTTP response or owner loss.
-            persist({'status': 'uncertain', 'phase': 'settled', 'error': str(exc) or type(exc).__name__}, terminal=True)
-        else:
-            persist({'status': 'completed' if output.get('ok', True) else 'failed',
-                     'phase': 'settled', 'output': output}, terminal=True)
+                yield
+        result = await execute_family(service, operation, commands, arguments,
+            CommandContext({'operationId': identity}, system_boundary, persist), event=event)
+        persist({**result['receipt'], 'outcome': result['outcome'], 'phase': 'settled'}, terminal=True)
         return service.operation(identity, actor=actor)
     result = await service.executor.execute_commands(prepared_commands=commands,
         frozen_plan={"operation": operation}, context=CommandContext({"operationId": identity}, boundary,
@@ -237,9 +185,7 @@ async def execute_prepared(service, identity, ref, actor, commands, epoch, opera
     return service.operation(identity, actor=actor)
 
 
-async def job_execute(service, job_id, run_id, attempt, effect_key, plan):
-    commands = prepare(plan["operation"], plan, plan["arguments"])
-
+def job_context(service, job_id, run_id, attempt, effect_key, *, checkpoint_kind='commandReceipts'):
     @contextmanager
     def boundary():
         from packages.jobs.final_runtime.ledger import aggregate
@@ -255,7 +201,7 @@ async def job_execute(service, job_id, run_id, attempt, effect_key, plan):
             action = frozen_action(frozen, attempt["stepId"], effect_key["targetId"])
             service._guard_effect(db, job, run_id, frozen, action)
             check_capabilities(action)
-            yield
+            yield db, job, state, action, frozen
 
     def checkpoint(rows):
         from packages.jobs.final_runtime.ledger import aggregate
@@ -265,9 +211,50 @@ async def job_execute(service, job_id, run_id, attempt, effect_key, plan):
             if (state["attempts"][attempt["attemptId"]] != attempt or not service.owner.token
                     or service.owner.token[0] != attempt["ownerEpoch"]):
                 raise fc.ContractError("revision_conflict", "Original Attempt fence lost before checkpoint")
-            state["plans"][run_id].setdefault("commandReceipts", {})[attempt["attemptId"]] = rows
+            entries = state["plans"][run_id].setdefault(checkpoint_kind, {})
+            entries[attempt['attemptId']] = ({**entries.get(attempt['attemptId'], {}), **copy.deepcopy(rows)}
+                if checkpoint_kind == 'familyReceipts' else rows)
             service._save(db, "job", job_id, job)
+    return CommandContext({'attempt': copy.deepcopy(attempt), 'effectKey': copy.deepcopy(effect_key)}, boundary, checkpoint)
 
+
+async def job_execute(service, job_id, run_id, attempt, effect_key, plan):
+    commands = prepare(plan["operation"], plan, plan["arguments"])
     result = await service.executor.execute_commands(prepared_commands=commands, frozen_plan=plan,
-        context=CommandContext({"attempt": attempt, "effectKey": effect_key}, boundary, checkpoint))
+        context=job_context(service, job_id, run_id, attempt, effect_key))
     return {**result, "effectKey": copy.deepcopy(effect_key)}
+
+
+async def family_job_execute(service, job_id, run_id, attempt, effect_key, plan):
+    from .family_execution import prepare_family, execute_family
+    from packages.jobs.final_service import definition
+    context = job_context(service, job_id, run_id, attempt, effect_key, checkpoint_kind='familyReceipts')
+    with context.boundary() as (_, _, state, action, frozen):
+        prior = state['plans'][run_id].get('familyReceipts', {}).get(attempt['attemptId'])
+        if prior:
+            return {**copy.deepcopy(prior.get('result', {'outcome': 'unknown',
+                    'receipt': {'code': 'original_family_effect_unconfirmed'}})), 'effectKey': copy.deepcopy(effect_key)}
+        prepared = prepare_family(definition('action', action), plan['arguments'])
+        context.checkpoint({'phase': 'calling', 'prepared': {key: copy.deepcopy(value) for key, value in prepared.items() if key != 'commands'},
+                            'effectKey': copy.deepcopy(effect_key)})
+        event = copy.deepcopy(frozen['event'])
+    result = await execute_family(service, plan['operation'], prepared, plan['arguments'],
+        CommandContext(copy.deepcopy(effect_key), context.boundary, context.checkpoint), event=event, attempt=attempt)
+    context.checkpoint({'phase': 'settled', 'result': result})
+    return {**result, 'effectKey': copy.deepcopy(effect_key)}
+
+
+async def template_job_execute(service, job_id, run_id, attempt, effect_key, plan):
+    from packages.jobs.final_service import definition
+    from .legacy_templates import instantiate_action
+    context = job_context(service, job_id, run_id, attempt, effect_key)
+    with context.boundary() as (db, _, _, action, frozen):
+        ref = {key: action[key] for key in ('id', 'revision', 'digest')}
+        key = 'template-create:' + fc.digest(effect_key)
+        def mutate(identity):
+            result, refs = instantiate_action(service, db, definition('action', action), ref, frozen['authority'], identity,
+                source={'jobId': job_id, 'runId': run_id, 'effectKey': copy.deepcopy(effect_key)})
+            return result, refs, False
+        receipt = service._operation(db, frozen['authority'], 'invoke', key,
+            {'effectKey': effect_key, 'actionRef': ref, 'arguments': plan['arguments']}, 'action', mutate)
+        return {'outcome': 'succeeded', 'receipt': receipt['result'], 'effectKey': copy.deepcopy(effect_key)}

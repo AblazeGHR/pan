@@ -394,6 +394,15 @@ def test_P6_MULTI_01_explicit_serial_stdout_merge_and_original_pin(action_http, 
     if output_format == 'json':
         rebuilt = compat.mutate('tools', 'build', compat.projection(old.read())['revision'], 'old-entry-multi-build', actor=USER)
         assert rebuilt['result']['release']['tools'][0]['outputMerge'] == 'concat/v1'
+    client, _ = action_http
+    response = client.get('/api/actions')
+    assert response.status_code == 200
+    mapped = response.json()['canonicalActions']['echo']
+    assert mapped['object']['id'] == ref['id']
+    assert mapped['definition'] == value
+    assert len(mapped['definition']['execution']['config']['commands']) == 2
+    client.headers.clear()
+    assert 'canonicalActions' not in client.get('/api/actions').json()
 
 
 def test_P6_TEMPLATE_01_explicit_successor_create_original_fields_cold_no_replay(action_http, tmp_path, monkeypatch):
@@ -422,7 +431,8 @@ def test_P6_TEMPLATE_01_explicit_successor_create_original_fields_cold_no_replay
     assert asyncio.run(cold.invoke_action(ref['id'], body, actor=USER))['operationId'] == result['operationId']
     from packages.actions.legacy_families import template_view
     assert template_view(command_definition(raw, template_ref=template_ref), raw, True) == raw
-    with pytest.raises(fc.ContractError, match='explicit canonical TemplateRef'):
+    from packages.jobs.action_templates import ReferenceError as TemplateReferenceError
+    with pytest.raises(TemplateReferenceError, match='Missing or changed fixed Job Template'):
         compat.put_action(raw, None, 'unmapped-template', actor=USER)
     with service.transaction(readonly=True) as db:
         assert db.execute("SELECT count(*) FROM final_documents WHERE kind='job'").fetchone()[0] == 1

@@ -60,7 +60,7 @@ def _literal(arguments: dict) -> dict:
 
 
 class Mapper:
-    def __init__(self, context: dict):
+    def __init__(self, context: dict, *, require_enabled=True):
         require(type(context.get("schemaVersion")) is int and context["schemaVersion"] == 1,
                 "unsupported migration context version")
         self.context = context
@@ -72,7 +72,7 @@ class Mapper:
             definition = {k: v for k, v in action.items()
                           if k in fc.schema_artifacts()["action_definition.schema.json"]["properties"]}
             definition = fc.validate_definition("action", definition)
-            require(action["state"] == "published" and action["enabled"],
+            require(action["state"] == "published" and (action["enabled"] or not require_enabled),
                     "provider_unavailable: Action must be published and enabled")
             digest = fc.digest(definition)
             require(binding["ref"] == {"id": action["id"], "revision": action["revision"],

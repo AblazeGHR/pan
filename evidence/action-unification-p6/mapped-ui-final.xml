@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="28" failures="0" errors="0" time="3.911">
+    <testsuite name="views/ActionsMappedView.test.tsx" timestamp="2026-11-06T16:10:14.396Z" hostname="ablaze" tests="2" failures="0" errors="0" skipped="0" time="0.1644457">
+        <testcase classname="views/ActionsMappedView.test.tsx" name="opens the full mapped definition through the old Edit entry and keeps its observed CAS on refresh" time="0.1284408">
+        </testcase>
+        <testcase classname="views/ActionsMappedView.test.tsx" name="retains the existing discard confirmation for unsaved multi-command text" time="0.0355415">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/ActionsView.test.tsx" timestamp="2026-11-06T16:10:14.403Z" hostname="ablaze" tests="16" failures="0" errors="0" skipped="0" time="1.9132598">
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; loads only the registry first and renders the compact list" time="0.0975697">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; filters and clears without another request" time="0.0461704">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action Panel cache and lists &gt; keeps cached rows and shows a retry banner when refresh fails" time="0.0569363">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits structured query groups, retains malformed raw JSON on conflict refresh, and posts only repaired typed query" time="0.2852437">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; edits, duplicates and saves a Session Operation without changing its original or Group release" time="0.2231207">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates Session Operation in the new editor and rejects invalid Event targets without posting" time="0.0849191">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; blocks Group build for enabled Session Operation while preserving membership and build APIs" time="0.0308681">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; creates an Action without a client ID and returns to the list" time="0.0728691">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; duplicates through POST without an ID, opens the copy, and never touches Group references" time="0.092735">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; uses a clear suffixed default name when the first copy name already exists" time="0.0483841">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; keeps the draft and shows the write error" time="0.0843604">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; does not submit malformed advanced JSON and keeps the text for repair" time="0.0943609">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Action create, edit and duplicate &gt; guards a dirty draft before returning to the list" time="0.2571686">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; builds and unbuilds a Group through the existing mutation paths" time="0.1821301">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; preserves other plugin bindings and sends the expected revision" time="0.1751776">
+        </testcase>
+        <testcase classname="views/ActionsView.test.tsx" name="Group release and Session binding &gt; disables unbuild while a running Session blocks the Group" time="0.0791337">
+        </testcase>
+    </testsuite>
+    <testsuite name="views/UnifiedActionsView.test.tsx" timestamp="2026-11-06T16:10:14.408Z" hostname="ablaze" tests="10" failures="0" errors="0" skipped="0" time="0.5313172">
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="aggregates logical Actions and changes only viewing version, with fixed ref and full definition" time="0.1031102">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="preserves original identity after lost response, switch and remount; only GET queries" time="0.121207">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="a permission rejection is visible and never reported as successful invocation" time="0.0565343">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="all Groups preview includes legacy blockers and cannot apply a reduced batch" time="0.0238348">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="Group apply binds exact preview digest, revisions and original selection" time="0.0166824">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="Trigger target changes preserve business fields, remove legacy target and freeze explicit version" time="0.0270344">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="Job preview keeps exact steps, selected subscribers and frozen Run boundary" time="0.0653135">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="a stale preview fails without a second apply or false success" time="0.0289292">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="query permission failure preserves an unresolved update identity across remount" time="0.0333764">
+        </testcase>
+        <testcase classname="views/UnifiedActionsView.test.tsx" name="does not invoke previous valid arguments while raw JSON is incomplete" time="0.0546842">
+        </testcase>
+    </testsuite>
+</testsuites>

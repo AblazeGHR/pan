@@ -1,0 +1,14 @@
+{
+  "port": 53153,
+  "checks": [
+    "owned service PID, checkout and runtime verified",
+    "old Edit opens exact adopted canonical serial definition",
+    "old source bytes and Group release unchanged; current draft revision/lifecycle projected accurately",
+    "production save uses original logical id/CAS and preserves both descriptors; no legacy write",
+    "edit/save caused no command effect",
+    "production viewport 1280: full editor, no horizontal overflow",
+    "production viewport 390: full editor, no horizontal overflow"
+  ],
+  "errors": [],
+  "status": "passed"
+}

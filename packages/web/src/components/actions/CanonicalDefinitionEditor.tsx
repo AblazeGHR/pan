@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { canonicalRequest } from '@/services/api';
 import { canonicalError, canonicalJobs } from '@/services/canonicalJobs';
 import { Button } from '@/components/ui/Button';
@@ -10,10 +10,12 @@ export function CanonicalDefinitionEditor({
   item,
   definition,
   onChanged,
+  onDirtyChange,
 }: {
   item?: JsonObject;
   definition?: JsonObject;
   onChanged: () => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [text, setText] = useState<string | null>(null),
     [error, setError] = useState(''),
@@ -21,6 +23,7 @@ export function CanonicalDefinitionEditor({
   const [pending, setPending] = useOperationIdentity('definition:' + String(item?.id ?? 'new'));
   const [receipt, setReceipt] = useState<CanonicalReceipt | null>(null);
   const lock = useRef(false);
+  useEffect(() => { onDirtyChange?.(text !== null); }, [text, onDirtyChange]);
   const finish = async (value: CanonicalReceipt) => {
     setReceipt(value);
     if (['completed', 'rejected', 'cancelled'].includes(value.status)) {

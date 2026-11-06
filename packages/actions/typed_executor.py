@@ -351,7 +351,7 @@ class TypedExecutor:
             frozen_plan["operation"], frozen_plan, frozen_plan["arguments"])
         return await execute(commands, context, process_owner=self.process_owner)
 
-    async def execute_provider(self, *, context, frozen_plan):
+    async def execute_provider(self, *, context, frozen_plan, attempt=None):
         """Reuse typed providers with a direct host's operation identity/fence.
 
         No Attempt, effect cache, or secondary admission is created. The host
@@ -360,9 +360,11 @@ class TypedExecutor:
         token = _direct_provider_context.set(context)
         try:
             operation = frozen_plan['operation']
+            if operation == 'channel':
+                return await self._channel(context.identity, frozen_plan, attempt=attempt)
             return await {'session-message': self._session_message,
                           'session-broadcast': self._session_broadcast,
-                          'assign': self._assign, 'channel': self._channel,
+                          'assign': self._assign,
                           'resume-legal-running.v1': self._session_resume}[operation](context.identity, frozen_plan)
         finally:
             _direct_provider_context.reset(token)

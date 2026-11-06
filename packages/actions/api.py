@@ -98,6 +98,7 @@ def install(server):
             if exc.status_code not in (401,403,503):raise
             readable=False
         return {'revision': state['revision'], 'actions': list(state['actions'].values()) if readable else [], 'groups': groups,
+                **({'canonicalActions': state['canonicalActions']} if readable and state.get('canonicalActions') else {}),
                 **({'preservedActions': state['preservedActions']} if readable and state.get('preservedActions') else {})}
 
     @router.get('/api/actions/session-operation-template')

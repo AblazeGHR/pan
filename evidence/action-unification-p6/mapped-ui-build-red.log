@@ -1,0 +1,4 @@
+Command: pnpm build
+Exit code: 1
+src/views/ActionsMappedView.test.tsx(36,3): error TS2532: Object is possibly 'undefined'.
+src/views/ActionsMappedView.test.tsx(40,9): error TS2488: Type '[path: string, method?: string | undefined, body?: unknown, signal?: AbortSignal | undefined] | undefined' must have a '[Symbol.iterator]()' method that returns an iterator.

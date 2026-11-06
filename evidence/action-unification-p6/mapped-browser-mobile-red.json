@@ -1,0 +1,12 @@
+{
+  "port": 64321,
+  "checks": [
+    "old Edit opens exact adopted canonical serial definition",
+    "production save uses original logical id/CAS and preserves both descriptors; no legacy write",
+    "edit/save caused no command effect"
+  ],
+  "errors": [],
+  "status": "failed",
+  "failure": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Edit Owned old series', exact: true })\u001b[22m\n\n    at D:\\project\\pan-worktrees\\action-unification-p6-20261106\\packages\\web\\e2e\\action-p6-mapped.e2e.mjs:66:84",
+  "pageText": "☰\nPan\nChat\nEditor\nTerminal\nLocker\nActions\nAutomation\nNew\nImport\nrecent\nDrag 40\n0\ncbc\nDrag 39\n0\ncbc\nDrag 38\n0\ncbc\nDrag 37\n0\ncbc\nDrag 36\n0\ncbc\nDrag 35\n0\ncbc\nDrag 34\n0\ncbc\nDrag 33\n0\ncbc\nDrag 32\n0\ncbc\nDrag 31\n0\ncbc\nDrag 30\n0\ncbc\nDrag 29\n0\ncbc\nDrag 28\n0\ncbc\nDrag 27\n0\ncbc\nDrag 26\n0\ncbc\nDrag 25\n0\ncbc\nDrag 24\n0\ncbc\nDrag 23\n0\ncbc\nDrag 22\n0\ncbc\nDrag 21\n0\ncbc\nDrag 20\n0\ncbc\nDrag 19\n0\ncbc\nDrag 18\n0\ncbc\nDrag 17\n0\ncbc\nDrag 16\n0\ncbc\nDrag 15\n0\ncbc\nDrag 14\n0\ncbc\nDrag 13\n0\ncbc\nDrag 12\n0\ncbc\nDrag 11\n0\ncbc\nDrag 10\n0\ncbc\nDrag 09\n0\ncbc\nDrag 08\n0\ncbc\nDrag 07\n0\ncbc\nDrag 06\n0\ncbc\nDrag 05\n0\ncbc\nDrag 04\n0\ncbc\nDrag 03\n0\ncbc\nDrag 02\n0\ncbc\nDrag 01\n0\ncbc\nCharlie Session\n0\ncbc\nBravo Session\n0\ncbc\nAlpha Session\n0\ncbc\nChat Stream\nBrowser file-link fixtures relative file windows s...\n301\ncbc\n\nPAN / AUTOMATION\n\nActions & Groups\n\n固定版本、参数调用与显式引用更新\n\n已授权\n\nUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.\n\nLog out\n统一目录\nActions & Groups\n\nDefine an Action once. Share it across Groups, then build a Group to use it in a Session.\n\nRefresh\nActions\n1\nGroups\n1\nNew Action\nAll\nEnabled\nDraft\n1 of 1 Actions\nOwned old series\n\nOwned old series\n\nEnabled\nCommand\nWrite local\n1 Group"
+}
