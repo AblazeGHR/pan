@@ -151,8 +151,10 @@ def test_P6_GROUP_07_complex_or_mismatched_preserve(action_http, tmp_path, monke
     assert OwnerFence(old.root).status() is None
 
 
-def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch):
-    from tests.test_authorization_mcp import harness, close, grants
+@pytest.mark.parametrize("mode,view", [("standalone", "standalone"), ("pan_native", "native"), ("gateway", "gateway")])
+def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch, mode, view):
+    from tests.test_authorization_mcp import harness, close, grants, result
+    from types import SimpleNamespace
     from packages.plugins.catalog import Catalog
     from packages.plugins.lifecycle import pin, _pins
     async def exercise():
@@ -160,18 +162,27 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch):
         try:
             old, build, mappings, first = source(tmp_path, h.service, monkeypatch)
             pid = build['plugin_id']
-            h.session.adapter_config['plugin_bindings'].append({'plugin_id': pid, 'enabled': True, 'mode': 'standalone'})
+            h.session.adapter_config['plugin_bindings'].append({'plugin_id': pid, 'enabled': True, 'mode': mode})
             h.svc.auth.change_permissions(grants(), 0)
             pin(h.session, Catalog(h.bridge.runtime.get_manifest()))
             params = StdioServerParameters(command=sys.executable,
-                args=['-m', 'packages.plugins.mcp', '--view', 'standalone', '--plugin', pid],
+                args=['-m', 'packages.plugins.mcp', '--view', view, *(['--plugin', pid] if view == 'standalone' else [])],
                 cwd=str(Path.cwd()), env={**os.environ, 'PAN_PLUGIN_IPC': h.bridge.address,
                     'PAN_AGENT_SESSION_ID': h.session.id, 'PAN_API_URL': 'http://127.0.0.1:1'})
+            async def discover(client):
+                if view == 'gateway':
+                    info = result(await client.call_tool('api_discover', {'include_schema': True}))['tools'][0]
+                    return SimpleNamespace(name=info['name'], inputSchema=info['inputSchema'])
+                return (await client.list_tools()).tools[0]
+            async def call(client, name, arguments, **kwargs):
+                if view == 'gateway':
+                    return await client.call_tool('api_call', {'name': name, 'arguments': arguments}, **kwargs)
+                return await client.call_tool(name, arguments, **kwargs)
             async with stdio_client(params) as streams, ClientSession(*streams) as client:
                 await client.initialize()
-                tool = (await client.list_tools()).tools[0]
+                tool = await discover(client)
                 schema = copy.deepcopy(tool.inputSchema)
-                before = await client.call_tool(tool.name, {'value': 'old "quote" \\ 雪\n'})
+                before = await call(client, tool.name, {'value': 'old "quote" \\ 雪\n'})
                 assert before.structuredContent == {'value': 'old "quote" \\ 雪\n', 'requestKey': 'business-default'}
                 migration = LegacyGroupMigration(h.service, old.root)
                 plan = migration.preview(mappings, actor=USER)
@@ -192,7 +203,7 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch):
                 groups.apply(apply_body(preview), actor=USER)
                 release = groups.publish('tools', 2, 'build-v2', actor=USER)['result']['release']
                 # Loaded old Worker retains the original provider and v1 schema.
-                frozen = await client.call_tool(tool.name, {'value': 'still-old'})
+                frozen = await call(client, tool.name, {'value': 'still-old'})
                 assert frozen.structuredContent['value'] == 'still-old'
                 assert _pins[h.session.id][0][pid].version == build['version']
                 assert {p: p.read_bytes() for p in artifacts} == artifacts
@@ -200,16 +211,16 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch):
             pin(h.session, Catalog(h.bridge.runtime.get_manifest()))
             async with stdio_client(params) as streams, ClientSession(*streams) as client:
                 await client.initialize()
-                tool = (await client.list_tools()).tools[0]
+                tool = await discover(client)
                 assert tool.inputSchema == schema
                 args = {'value': 'new', 'requestKey': 'business-key'}
-                called = await client.call_tool(tool.name, args, meta={'panRequestKey': 'outer-once'})
+                called = await call(client, tool.name, args, meta={'panRequestKey': 'outer-once'})
                 assert not called.isError, called
                 assert called.structuredContent == {'value': 'v2', 'requestKey': 'business-key'}
-                repeated = await client.call_tool(tool.name, args, meta={'panRequestKey': 'outer-once'})
+                repeated = await call(client, tool.name, args, meta={'panRequestKey': 'outer-once'})
                 assert repeated.meta['panOperation']['operationId'] == called.meta['panOperation']['operationId']
                 assert called.meta['panOperation']['groupRelease'] == release['version']
-                conflict = await client.call_tool(tool.name, {**args, 'value': 'changed'}, meta={'panRequestKey': 'outer-once'})
+                conflict = await call(client, tool.name, {**args, 'value': 'changed'}, meta={'panRequestKey': 'outer-once'})
                 assert conflict.isError
                 assert (tmp_path / 'effects').read_text() == 'xxx'
                 original = h.service.executor.execute_commands
@@ -217,17 +228,17 @@ def test_P6_GROUP_05_old_to_upgraded_stdio(tmp_path, monkeypatch):
                     await original(**kwargs)
                     raise RuntimeError('injected response loss after checkpoint')
                 monkeypatch.setattr(h.service.executor, 'execute_commands', lost_receipt)
-                unknown = await client.call_tool(tool.name, args, meta={'panRequestKey': 'unknown-once'})
+                unknown = await call(client, tool.name, args, meta={'panRequestKey': 'unknown-once'})
                 assert unknown.isError and unknown.meta['panOperation']['requestKey'] == 'unknown-once'
                 assert unknown.meta['panOperation']['status'] == 'uncertain'
-                repeated = await client.call_tool(tool.name, args, meta={'panRequestKey': 'unknown-once'})
+                repeated = await call(client, tool.name, args, meta={'panRequestKey': 'unknown-once'})
                 assert repeated.isError
                 assert repeated.meta['panOperation']['operationId'] == unknown.meta['panOperation']['operationId']
                 assert (tmp_path / 'effects').read_text() == 'xxxx'
                 with h.service.transaction(readonly=True) as db:
                     assert db.execute("SELECT count(*) FROM final_documents WHERE kind='job'").fetchone()[0] == 0
                 h.svc.auth.change_permissions(grants(action={'invoke': False}), 1)
-                revoked = await client.call_tool(tool.name, args, meta={'panRequestKey': 'revoked'})
+                revoked = await call(client, tool.name, args, meta={'panRequestKey': 'revoked'})
                 assert revoked.isError
                 assert (tmp_path / 'effects').read_text() == 'xxxx'
         finally:
