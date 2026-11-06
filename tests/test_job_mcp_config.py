@@ -37,3 +37,16 @@ def test_legacy_template_mcp_delete_and_instantiate_keep_old_envelope(monkeypatc
         ('POST', '/api/jobs/job-templates/jtpl_one/instantiate',
          {'expectedRevision': 9, 'idempotencyKey': 'legacy-key', 'overrides': {'name': 'display'}}),
     ]
+
+
+def test_legacy_scheduler_cancel_forwards_original_task_route(monkeypatch):
+    calls=[]
+    monkeypatch.setenv('PAN_AGENT_SESSION_ID', 'ses_scheduler')
+    monkeypatch.setattr(server, '_check_access', lambda *args, **kwargs: None)
+    monkeypatch.setattr(server, '_api', lambda *args: calls.append(args) or {'ok': True,
+        'task': {'targetSessionId': 'ses_scheduler'}, 'taskId': 'old-task'})
+    assert server.scheduler_cancel('old-task', 'job_owned', 'run_owned', 1, 0, 'cancel-owned',
+                                   target_session_id='ses_scheduler')['ok']
+    assert calls == [('GET', '/api/scheduler/tasks/old-task'), ('POST', '/api/scheduler/tasks/old-task/cancel', {
+        'jobId': 'job_owned', 'runId': 'run_owned', 'expectedRevision': 1,
+        'expectedStateRevision': 0, 'requestKey': 'cancel-owned'})]

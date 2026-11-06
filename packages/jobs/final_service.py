@@ -1708,6 +1708,15 @@ class FinalService:
         response = self.control_run(run_id, body, actor=actor)
         if body["operation"] != "cancel" or response.get("replayed"):
             return response
+        return await self._cancel_postcommit(run_id, response, actor=actor)
+
+    async def _cancel_postcommit(self, run_id, response, *, actor):
+        """Finish the original cancel intent after a compatibility transaction.
+
+        The caller already owns the persisted Run cancellation receipt. No new
+        admission, resource identity, retry or ledger is allocated here.
+        """
+        self._permit(actor, 'job', 'execute', execution=True)
         with self.transaction() as db:
             job, _ = self._find_run(db, run_id)
             intent = aggregate(job, self.root)["cancellations"][run_id]

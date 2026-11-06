@@ -2611,6 +2611,33 @@ def scheduler_runs(task_id: str, target_session_id: str | None = None,
 
 
 @mcp.tool()
+def scheduler_cancel(task_id: str, job_id: str, run_id: str, expected_revision: int,
+                     expected_state_revision: int, request_key: str,
+                     target_session_id: str | None = None) -> dict:
+    """Cancel a reviewed successor Run by original Scheduler ID.
+
+    The explicit Job/Run/revision envelope is required; an original history
+    alias cannot establish adoption of an unknown execution. Query the same
+    operation after an unconfirmed reply; never repeat with a new key.
+    """
+    denied = _scheduler_auth(target_session_id, claim=False)
+    if denied:
+        return denied
+    task = _api('GET', _scheduler_task_path(task_id))
+    if not isinstance(task, dict) or task.get('ok') is not True:
+        return task
+    actual_target = _scheduler_target_of(task)
+    if target_session_id is not None and target_session_id != actual_target:
+        return {'ok': False, 'error': {'code': 'reference_conflict', 'message': 'Original task target differs'}}
+    denied = _scheduler_auth(actual_target, claim=False)
+    if denied:
+        return denied
+    return _api('POST', _scheduler_task_path(task_id, '/cancel'), {
+        'jobId': job_id, 'runId': run_id, 'expectedRevision': expected_revision,
+        'expectedStateRevision': expected_state_revision, 'requestKey': request_key})
+
+
+@mcp.tool()
 def agent_restart_delayed(session_id: str) -> dict:
     """Request a delayed restart of the Session's existing live Worker.
 
@@ -3281,6 +3308,9 @@ RETAINED_LEGACY_MCP_TOOLS = (
     "scheduler_get",
     "scheduler_runs",
 )
+
+# Additive P6 control: the historical inventory above remains unchanged.
+P6_COMPAT_MCP_TOOLS = ("scheduler_cancel",)
 
 LEGACY_MCP_COMPATIBILITY = {
     "agent_background_start": "old Runner owner/argv lifecycle has no lossless canonical Job admission mapping",

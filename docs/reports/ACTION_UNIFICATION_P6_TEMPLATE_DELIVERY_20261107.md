@@ -118,6 +118,10 @@ types remain fail-closed migration prerequisites.
    canonical controls/outbox/history now work for newly wired families and have
    named evidence above. Full legacy Job/Scheduler/Trigger API/MCP field and entry
    inventory, including live retained old jobs, still needs transfer/acceptance.
+   The Scheduler follow-up is a partial candidate only: see
+   [retained Scheduler report](ACTION_UNIFICATION_P6_SCHEDULER_RETAINED_20261107.md).
+   It adds reviewed successor queries/explicit Run cancellation, does not adopt
+   old Trigger executions, and retains seven reproduced Template baseline reds.
 5. **Old UI advanced operations:** Edit now preserves the full definition. The
    complete old duplicate/new/delete/lifecycle/Template flows for advanced schemas
    need their own compatibility checks; full parity is not claimed from Edit.

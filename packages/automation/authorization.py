@@ -59,6 +59,7 @@ _LEGACY_SURFACE = (
     # Explicit historical cancel controls: the only retained legacy POST.
     (r'/api/jobs/action-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
     (r'/api/background-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/cancel', CANCEL),
 )
 _LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}}
 

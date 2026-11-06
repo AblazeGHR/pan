@@ -319,6 +319,22 @@ def _history_error(exc):
     return _err("history_unavailable", str(exc))
 
 
+async def _successor(request, task, *, limit=100, offset=0):
+    from packages.jobs.final_api import actor
+    from packages.jobs import final_contracts as fc
+    from packages.plugins.lifecycle import io
+    from packages.scheduler import retained
+    service = getattr(getattr(request.app, 'state', None), 'job_final_service', None)
+    if not callable(getattr(service, 'transaction', None)):
+        return {}
+    try:
+        who = await actor(request, 'job', 'read')
+        return {'canonicalSuccessor': await io(retained.query, service, task, actor=who, limit=limit, offset=offset)}
+    except fc.ContractError as exc:
+        return {'canonicalSuccessor': {'status': 'blocked', 'code': exc.code,
+                                      'historicalExecutionAdopted': False}}
+
+
 @router.get("/tasks")
 async def list_tasks(includeDisabled: bool = True, request: Request = None,
                      limit: int | None = None, offset: int = 0):
@@ -354,7 +370,8 @@ async def get_task(task_id: str, request: Request = None):
         source = task['history']['source']
         if not source.get('legacySchedulerCompat'):
             await require_job(request, source)
-        return _ok(task=_public(task), **history.evidence(task))
+        extra = await _successor(request, task)
+        return _ok(task=_public(task), **history.evidence(task), **extra)
     except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
         return _history_error(exc)
 
@@ -407,9 +424,31 @@ async def task_runs(task_id: str, limit: int = 100, request: Request = None, off
         if not source.get('legacySchedulerCompat'):
             await require_job(request, source)
         runs = history.runs(task)
-        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs))
+        extra = await _successor(request, task, limit=limit, offset=offset)
+        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs), **extra)
     except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
         return _history_error(exc)
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str, request: Request):
+    """Request cancellation of an explicitly reviewed successor Run only."""
+    from packages.jobs.final_api import actor, body
+    from packages.jobs import final_contracts as fc
+    from packages.scheduler import retained
+    try:
+        who = await actor(request, 'job', 'execute')
+        service = getattr(request.app.state, 'job_final_service', None)
+        if service is None:
+            raise HTTPException(503, 'Canonical service unavailable')
+        task = _history(request).get(task_id)
+        if task is None:
+            return _err('not_found', 'Original Scheduler task not found')
+        return await retained.cancel(service, task, await body(request), actor=who)
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code}) from exc
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        raise HTTPException(503, 'Original Scheduler state unavailable; query original request') from exc
 
 
 @router.get("/next")
@@ -521,6 +560,7 @@ RETAINED_ROUTES = {
     ("GET", "/tasks"),
     ("GET", "/tasks/{task_id}"),
     ("GET", "/tasks/{task_id}/runs"),
+    ("POST", "/tasks/{task_id}/cancel"),
     ("GET", "/next"),
     ("GET", "/status"),
     ("GET", "/event-sources"),
