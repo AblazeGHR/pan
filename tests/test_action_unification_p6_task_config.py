@@ -12,7 +12,7 @@ import httpx
 from packages.jobs import final_contracts as fc
 from packages.jobs.final_service import FinalService
 from packages.scheduler import api, canonical_tasks
-from packages.scheduler.json_handoff import JsonTaskHandoff, project, resolve, control
+from packages.scheduler.json_handoff import JsonTaskHandoff, project, resolve, control, freeze_dispatch
 from tests.test_action_unification_p6_json_scheduler import json_task, USER
 from tests.test_job_final_clients import tcp
 from tests.test_action_unification_p6_json_receipts import shell_task, finish
@@ -261,3 +261,38 @@ def test_P6_CONFIG_06_actual_original_process_relative_receipt_and_live_handoff(
         gate.write_text('release')
         asyncio.run(cold.close())
     assert counter.read_text().splitlines() == ['literal & {business}'] and path.read_bytes() == raw
+
+
+def test_P6_CONFIG_07_multi_entry_identity_cursor_and_dispatch_key(json_task):
+    service, source, mapping, root = json_task
+    second = copy.deepcopy(source['schedule'][0])
+    second['id'] = 'entry-two'
+    # Both original entries intentionally share the old task-level next-fire
+    # fact; ruleId remains the disambiguating identity in the canonical event.
+    source['schedule'].append(second)
+    source['nextFireAt'] = source['schedule'][0]['nextFireAt']
+    path = root / mapping['sourceFile']
+    path.write_text(json.dumps(source), encoding='utf8')
+    port = JsonTaskHandoff(service)
+    plan = port.preview([mapping], actor=USER)
+    assert plan['blocked'] == [], plan['blocked']
+    mapped = plan['entries'][0]['mapped']
+    first_id = source['schedule'][0]['id']
+    assert set(mapped['entryCursors']) == {first_id, 'entry-two'}
+    port.apply(plan, 'multi-entry-adopt', actor=USER)
+    binding = None
+    with service.transaction(readonly=True) as db:
+        _, binding = resolve(service, db, source['taskId'])
+    creator = service.creators.get(binding['creatorId'])
+    assert {rule['ruleId'] for rule in creator['config']['rules']} == {first_id, 'entry-two'}
+    projected = project(service, source['taskId'], actor=USER)['task']
+    assert isinstance(projected['schedule'], list)
+    assert {entry['id'] for entry in projected['schedule']} == {first_id, 'entry-two'}
+    run = control(service, source['taskId'], 'run-now', actor=USER, request_key='multi-entry-manual')
+    with service.transaction() as db:
+        job = service._get(db, 'job', source['jobId'])
+        freeze_dispatch(service, db, job, run['runId'], {'creatorId': binding['creatorId'],
+            'payload': {'ruleId': 'entry-two', 'scheduledAt': creator['cursor']['rules']['entry-two']['nextFireAt']}})
+        service._save(db, 'job', source['jobId'], job)
+    state = service.final.store.get(source['jobId'])['finalRuntime']
+    assert state['plans'][run['runId']]['dispatchKey'].startswith(source['taskId'] + ':entry-two:')

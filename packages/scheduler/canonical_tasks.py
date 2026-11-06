@@ -67,6 +67,9 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
             creator = service.creators.get(binding['creatorId'])
             require(not creator.get('pendingPublication'), 'Original publication must settle before clock configuration changes')
             source = copy.deepcopy(binding.get('currentSource', binding['source']))
+            if len(source.get('schedule', [])) > 1 and any(key in patch for key in
+                    ('schedule', 'enabled', 'paused', 'misfire_policy', 'next_fire_at')):
+                require(False, 'Multi-entry schedule edit requires per-entry revision/CAS; preserve all entry cursors')
             if source['action']['api'] == 'shell':
                 # Use the already reviewed effective executable, never resolve
                 # a retained relative path against today's process cwd.

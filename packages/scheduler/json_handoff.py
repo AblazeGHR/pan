@@ -136,9 +136,11 @@ def install_graph(service, db, source, mapped, actor, operation_id, binding):
     cid = 'creator_' + fc.digest(['json-task', tid])[:24]
     creator = service.creators.create(mapped['creator'], request_key=operation_id + ':' + tid,
         creator_id=cid, state='disabled', created_by=principal(actor), owner=principal(actor))
-    cursor = creator['cursor']['rules'][source['schedule'][0]['id']]
-    cursor.update(nextFireAt=mapped['occurrence']['at'] if mapped['occurrence'] else None,
-                  nextOccurrence=mapped['occurrence'])
+    for item in source['schedule']:
+        cursor = creator['cursor']['rules'][item['id']]
+        occurrence = mapped.get('occurrences', {}).get(item['id'])
+        cursor.update(nextFireAt=occurrence['at'] if occurrence and item.get('enabled', True) else None,
+                      nextOccurrence=occurrence if item.get('enabled', True) else None)
     creator['state'] = ('paused' if source['paused'] else 'enabled') if source['enabled'] else 'disabled'
     service.creators._write(db, creator)
     trigger_id = 'trg_' + fc.digest(['json-task', tid])[:24]
@@ -152,7 +154,9 @@ def install_graph(service, db, source, mapped, actor, operation_id, binding):
             db.execute('INSERT INTO final_authorities VALUES(?,?,?)', (kind, oid, fc.canonical_json(actor)))
     binding.update(source=source, jobId=jid, creatorId=cid, triggerId=trigger_id,
         operationId=operation_id, revision=source.get('revision', 1), generation=source.get('generation', 1),
-        paused=source['paused'], originalRunIds=list(job['finalRuntime']['runs']),
+        paused=source['paused'], originalEntryIds=[item['id'] for item in source['schedule']],
+        originalEntryCursors=copy.deepcopy(mapped.get('entryCursors', {})),
+        originalRunIds=list(job['finalRuntime']['runs']),
         originalReturnedRunIds=sorted({effect['effectKey']['runId'] for effect in job['finalRuntime']['effects']}
             | {rid for rid, plan in job['finalRuntime']['plans'].items() if plan.get('pendingProcessAttempt')}))
     service._save(db, 'json_scheduler_handoff', tid, binding)
@@ -196,11 +200,21 @@ class JsonTaskHandoff:
         runtime = None if definition_only else _checkpoint(self.service, source,
             reconciled=existing['finalRuntime'] if existing else None, verified_active=active)
         entries = source.get('schedule')
-        require(isinstance(entries, list) and len(entries) == 1 and isinstance(entries[0], dict),
-                'Multiple-entry cursor/count handoff is not yet connected; preserve all entries')
+        require(isinstance(entries, list) and 1 <= len(entries) <= fc.MAX_SCHEDULER_RULES
+                and all(isinstance(item, dict) for item in entries),
+                'Original schedule entries are missing or exceed canonical rule bound')
+        require(len({item.get('id') for item in entries}) == len(entries)
+                and all(isinstance(item.get('id'), str) and item.get('id') for item in entries),
+                'Original schedule entry identity is missing or reused')
+        for item in entries:
+            require(not set(item) - SCHEDULE_ENTRY_FIELDS,
+                    'Unknown schedule entry fields require review')
+            require(item.get('enabled', True) or item.get('nextFireAt') is None,
+                    'Disabled entry retains an active cursor; preserve original')
+        active_entries = [item for item in entries if item.get('enabled', True)]
+        require(source.get('nextFireAt') == min((item.get('nextFireAt') for item in active_entries), default=None),
+                'Original task and multi-entry cursors disagree')
         entry = entries[0]
-        require(not set(entry) - SCHEDULE_ENTRY_FIELDS and entry.get('enabled', True), 'Unknown/disabled entry mapping requires review')
-        require(entry.get('nextFireAt') == source.get('nextFireAt'), 'Original task and entry cursors disagree')
         action = source.get('action', {})
         key = {'send_session': 'session.send', 'assign': 'session.assign', 'send_qq': 'qq.send',
                'shell': 'process.shell', 'resume_legal_running': 'resume-legal-running'}.get(action.get('api'))
@@ -273,12 +287,20 @@ class JsonTaskHandoff:
                             and action.get('revision') == ref['revision'] and action.get('digest') == ref['digest']
                             and fc.digest(action.get('definition')) == ref['digest'], 'Original frozen Action identity differs')
                     self.service._action_version_record(db, ref['id'], ref['revision'], digest=ref['digest'])
-        clock_source = {'id': source['taskId'], 'name': source['name'], 'owner': 'scheduler-json', 'revision': 1,
-            'enabled': source['enabled'], 'schedule': {k: v for k, v in entry.items()
-                if k in {'kind', 'at', 'intervalSec', 'interval_sec', 'anchor', 'cron', 'timezone'}},
-            'misfirePolicy': entry.get('misfirePolicy', source['misfirePolicy']), 'graceSec': entry.get('graceSec', 0),
-            'nextFireAt': entry['nextFireAt'], 'pending': None, 'publishCursor': None}
-        creator, occurrence = legacy_schedule_plan(clock_source, timezone_name=mapping['timezone'], rule_id=entry['id'])
+        planned = []
+        for item in entries:
+            clock_source = {'id': source['taskId'], 'name': source['name'], 'owner': 'scheduler-json', 'revision': 1,
+                'enabled': source['enabled'] and item.get('enabled', True), 'schedule': {k: v for k, v in item.items()
+                    if k in {'kind', 'at', 'intervalSec', 'interval_sec', 'anchor', 'cron', 'timezone'}},
+                'misfirePolicy': item.get('misfirePolicy', source['misfirePolicy']), 'graceSec': item.get('graceSec', 0),
+                'nextFireAt': item.get('nextFireAt'), 'pending': None, 'publishCursor': None}
+            planned.append((item, *legacy_schedule_plan(clock_source, timezone_name=mapping['timezone'], rule_id=item['id'])))
+        policy_pairs = {(item.get('misfirePolicy', source['misfirePolicy']), item.get('graceSec', 0)) for item in entries}
+        require(len(policy_pairs) == 1, 'Multi-entry policy differences need an explicit canonical policy adapter')
+        creator, occurrence = planned[0][1], planned[0][2]
+        creator['config']['rules'] = [copy.deepcopy(item[1]['config']['rules'][0]) for item in planned]
+        creator = fc.validate_definition('event_creator', creator)
+        occurrences = {item['id']: occ for item, _, occ in planned}
         creator['eventTypes'] = ['scheduler.time.v2']
         maximum = source.get('maxRuns')
         if maximum is not None:
@@ -287,8 +309,9 @@ class JsonTaskHandoff:
         # runs. Creator.producedCount counts Events before Job execution. Never
         # substitute one for the other; the existing effect receipts own count.
         self.service.creators.registry.validate_definition(creator)
-        return {'job': job, 'creator': creator, 'occurrence': occurrence, 'runtime': runtime,
-                'receiptReview': receipt_review}
+        return {'job': job, 'creator': creator, 'occurrence': occurrence, 'occurrences': occurrences,
+                'entryCursors': {item['id']: item.get('nextFireAt') for item in entries},
+                'runtime': runtime, 'receiptReview': receipt_review}
 
     def preview(self, mappings, *, actor):
         require(actor.get('type') == 'user', 'Explicit owner review required')
@@ -400,10 +423,21 @@ def project(service, task_id, *, actor, capability='read'):
         require(creator is not None, 'Original task clock missing')
         from packages.scheduler.history import project as historical
         task = historical(binding.get('currentSource', binding['source']), tid)
-        cursor = next(iter(creator['cursor']['rules'].values()))
+        cursors = creator['cursor']['rules']
+        cursor = next(iter(cursors.values()))
+        if len(binding.get('originalEntryIds', [])) > 1:
+            projected = copy.deepcopy(binding.get('currentSource', binding['source']))
+            projected['schedule'] = [dict(item, nextFireAt=cursors[item['id']]['nextFireAt'])
+                                    for item in projected['schedule']]
+            task['schedule'] = projected['schedule']
+            task['nextFireAt'] = min((item['nextFireAt'] for item in projected['schedule']
+                                      if item.get('enabled', True) and item.get('nextFireAt')), default=None)
+        projected_next = (min((item['nextFireAt'] for item in task.get('schedule', [])
+                               if item.get('enabled', True) and item.get('nextFireAt')), default=None)
+                          if len(binding.get('originalEntryIds', [])) > 1 else cursor['nextFireAt'])
         task.update(enabled=creator['state'] in {'enabled', 'paused'},
                     paused=creator['state'] == 'paused' if creator['state'] != 'disabled' else binding['paused'],
-                    nextFireAt=cursor['nextFireAt'], runCount=run_count(job, binding),
+                    nextFireAt=projected_next, runCount=run_count(job, binding),
                     revision=binding['revision'], generation=binding['generation'],
                     canonicalJobId=binding['jobId'], canonicalCreatorId=creator['id'], executable=not binding.get('deleted', False))
         runs = sorted(job['finalRuntime']['runs'].values(), key=lambda r: (r['createdAt'], r['runId']), reverse=True)
@@ -588,7 +622,12 @@ def freeze_dispatch(service, db, job, run_id, event):
     scheduled = event.get('payload', {}).get('scheduledAt')
     from datetime import datetime
     point = datetime.fromisoformat(scheduled.replace('Z', '+00:00'))
-    entry_id = binding['source']['schedule'][0]['id']
+    entry_id = event.get('payload', {}).get('ruleId')
+    if entry_id is None:
+        entry_id = next((item['id'] for item in binding['source']['schedule']
+                         if item.get('nextFireAt') == scheduled), None)
+    require(entry_id is not None and entry_id in {item['id'] for item in binding['source']['schedule']},
+            'Original occurrence lacks a unique schedule entry identity')
     job['finalRuntime']['plans'][run_id]['dispatchKey'] = f"{binding['source']['taskId']}:{entry_id}:{int(point.timestamp())}"
 
 
