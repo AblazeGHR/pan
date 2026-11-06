@@ -1,0 +1,181 @@
+{
+  "task": "ACTION-UNIFICATION-20261104-P6",
+  "revision": 4,
+  "base": "a298b32ea3299fdd9eae6964f79d6989ccd452cb",
+  "worktree": "D:/project/pan-worktrees/action-unification-p6-20261106",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceHashes": {
+    "packages/actions/api.py": "71841eee4207bac977e730e8963f88e7b59e2046911e2c6849e09ea6e2799f81",
+    "packages/actions/group_api.py": "bc1d4b7d5ec6abf84c0ac6180b1f1749ac75568d30a30a1e52f9fae5abfea91f",
+    "packages/actions/group_catalog.py": "73ea54fc6d511e6a50508998e6fedfe41f8b71cf79855cf9fc5d15e4f9df7911",
+    "packages/actions/group_migration.py": "18092be58078f8945a0424e46c7a84f7bc1fb6dcd46d4e69ef75cff11df0ba1b",
+    "packages/actions/groups.py": "213670baa649798c95e2d50a4b573c2105725536f892a089107c941b4bd1f1cd",
+    "packages/actions/provider.py": "f3b92b58240a45ddcd0d9a3e3040b3ba6247edfc2d9f8fef0a59411844104db5",
+    "packages/actions/store.py": "2bde70eee9929eb88575c9f57559def2a4bc0123eb5fc819a7811533109c649b",
+    "packages/plugins/mcp.py": "4f8abc42790a97f70e25e6ebb312ad003efb7a1f5f299a5449ac22a8e0c9cb0d",
+    "packages/plugins/runtime.py": "c34055e89ad1f35508cbaad2a86a9014851f913c9933ea778b34247c25ecae09",
+    "scripts/migrate_action_groups.py": "baec4bb6f0a51342837b4421fefe806518adb6dcb189fc2b9899a037453ea817",
+    "tests/test_action_unification_p6.py": "43b1bbb14c6f25fa8f3b2fb815b962adeca25191964b11a65bd41e8a5fd6e68b"
+  },
+  "finalChecks": [
+    {
+      "evidence": "combined.xml",
+      "tests": "175",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p1.py tests/test_action_unification_p2.py tests/test_action_unification_p3.py tests/test_action_unification_p3_review.py tests/test_action_unification_p4.py tests/test_action_unification_p34.py tests/test_action_unification_p6.py tests/test_action_groups.py tests/test_action_ids.py tests/test_action_persistence.py -q --tb=short --junitxml=evidence/action-unification-p6/combined.xml",
+      "environment": {
+        "NO_PROXY": "127.0.0.1,localhost,::1",
+        "no_proxy": "127.0.0.1,localhost,::1"
+      },
+      "exitCode": 0
+    },
+    {
+      "evidence": "plugin-auth.xml",
+      "tests": "42",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "command": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_plugin_platform.py tests/test_plugin_session_config.py tests/test_authorization_mcp.py -q --tb=short --junitxml=evidence/action-unification-p6/plugin-auth.xml",
+      "environment": {
+        "NO_PROXY": "127.0.0.1,localhost,::1",
+        "no_proxy": "127.0.0.1,localhost,::1"
+      },
+      "exitCode": 0
+    },
+    {
+      "command": "python scripts/run_tests_isolated.py -- python -c \"import packages.web.server; print('server import passed')\"",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    },
+    {
+      "command": "E:/Git/bin/bash.exe scripts/pre-commit",
+      "exitCode": 0,
+      "note": "Existing hook working copy normalized to repository LF; index content unchanged. Normal commit hook also required."
+    }
+  ],
+  "intermediateSuites": {
+    "combined-red.xml": [
+      {
+        "tests": "170",
+        "failures": "2",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "combined.xml": [
+      {
+        "tests": "175",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "compatibility-proxy-red.xml": [
+      {
+        "tests": "122",
+        "failures": "4",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "compatibility.xml": [
+      {
+        "tests": "122",
+        "failures": "4",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "focused.xml": [
+      {
+        "tests": "21",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "group-combined.xml": [
+      {
+        "tests": "31",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "initial.xml": [
+      {
+        "tests": "10",
+        "failures": "6",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "plugin-auth.xml": [
+      {
+        "tests": "42",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "plugin-baseline.xml": [
+      {
+        "tests": "4",
+        "failures": "4",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "plugin-localhost.xml": [
+      {
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "utf8-red.xml": [
+      {
+        "tests": "16",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ]
+  },
+  "boundaries": {
+    "sourceHashesUnchangedDuringFinalChecks": true,
+    "frontendChanged": false,
+    "frontendBuildRequired": false,
+    "productionBrowser": false,
+    "remoteCI": false,
+    "linuxMacos": false,
+    "realDataMigration": false,
+    "deploy": false,
+    "push": false
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "remainingBlockers": [
+    "Arbitrary existing writers lack cooperative source provenance and remain blocked; enrollment refuses an existing directory.",
+    "Unresolved legacy Action additions and general legacy Action CRUD after source freeze are not fully adapted.",
+    "Adopted-flat native/gateway, real GUI/browser, complete legacy notification/history/cancel parity and Linux/macOS acceptance are not newly proven."
+  ],
+  "compressedOriginalEvidence": {
+    "initial.xml": {
+      "file": "initial.xml.gz",
+      "rawSha256": "6feaff0ed9ad3ca291e8071da6dd2af865460f81bbb4062ed341ec4589124d3f"
+    },
+    "utf8-red.xml": {
+      "file": "utf8-red.xml.gz",
+      "rawSha256": "9bd629896e6ada3a70c6fc5dd505780432595aee9440c0a7b7904bb4eaba5cfe"
+    }
+  }
+}

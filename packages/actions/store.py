@@ -244,7 +244,8 @@ class Store:
                 time.sleep(.01)
 
     def mutate(self, change, expected=None, *, versioned=True):
-        with _lock:
+        from .group_migration import legacy_writer
+        with _lock, legacy_writer(self.root):
             state = self.read(effective=False)
             if expected is not None and (type(expected) is not int or state['revision'] != expected):
                 raise ValueError('Action registry changed; reload before saving')
@@ -390,6 +391,9 @@ def extend_catalog(catalog):
     from .group_catalog import extend
     extend(catalog)
     for group in Store().read()['groups'].values():
+        from .group_catalog import owns
+        if owns(group['id']):
+            continue
         build = group.get('build')
         if not build:
             continue

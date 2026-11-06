@@ -1,6 +1,7 @@
 """Core Action APIs: resource admission, off-loop IO, durable detach/rollback."""
 import copy
 import shutil
+import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -11,6 +12,23 @@ from packages.automation.authorization import require, require_write, delegated
 
 def install(server):
     router = APIRouter()
+
+    def compatibility():
+        service = getattr(server.app.state, 'job_final_service', None)
+        if service is None:
+            return None
+        from .group_migration import LegacyGroupCompatibility
+        return LegacyGroupCompatibility(service, Store().root)
+
+    async def compatible_write(request, gid, operation, expected, raw=None):
+        adapter = compatibility()
+        if adapter is None or not await io(adapter.owned, gid):
+            return None
+        from packages.jobs.final_api import actor
+        capability = {'put': 'updateConfig', 'build': 'lifecycle', 'unbuild': 'lifecycle', 'delete': 'delete'}[operation]
+        who = await actor(request, 'action', capability)
+        key = 'legacy-http-' + uuid.uuid4().hex
+        return await io(adapter.mutate, gid, operation, expected, key, actor=who, raw=raw)
 
     async def user(request):
         if delegated(request):
@@ -37,6 +55,9 @@ def install(server):
 
     async def view(request):
         state, owners = await io(Store().read), await sessions()
+        adapter = compatibility()
+        if adapter:
+            state = await io(adapter.projection, state)
         groups = []
         for group in state['groups'].values():
             item = copy.deepcopy(group)
@@ -94,6 +115,8 @@ def install(server):
         if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
             raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
         try:
+            if kind == 'groups' and await compatible_write(request, item_id, 'put', data.get('expectedRevision'), data['item']):
+                return await view(request)
             if kind == 'actions':
                 current = await io(Store().read)
                 await require_write(request, 'action', current['actions'].get(item_id), validate_action(data['item']))
@@ -128,6 +151,8 @@ def install(server):
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
+            if kind == 'groups' and await compatible_write(request, item_id, 'delete', expectedRevision):
+                return await view(request)
             if kind == 'actions':
                 await require_capability(request, 'delete')
             await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
@@ -149,6 +174,25 @@ def install(server):
             # Group first; this closes new-reference admission before collecting
             # Sessions. No mutex or store writer lock is held while we await IO.
             async with coordinator().claim(exclusive={pid}):
+                adapter = compatibility()
+                if adapter and await io(adapter.owned, group_id):
+                    if operation == 'build':
+                        await compatible_write(request, group_id, operation, data.get('expectedRevision'))
+                        for session in await sessions():
+                            if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
+                                if server.worker.find_alive_worker_by_session(session.id):
+                                    server.worker.request_delayed_restart(session.id)
+                    else:
+                        from types import SimpleNamespace
+                        from packages.jobs.final_api import actor
+                        from .group_api import unbuild_operation
+                        who = await actor(request, 'action', 'lifecycle')
+                        def unbuild(gid, expected, key, *, actor):
+                            return adapter.mutate(gid, 'unbuild', expected, key, actor=actor)
+                        await unbuild_operation(group_id, {'expectedRevision': data.get('expectedRevision'),
+                            'requestKey': 'legacy-http-' + uuid.uuid4().hex}, who,
+                            SimpleNamespace(service=adapter.service, unbuild=unbuild))
+                    return await view(request)
                 store = Store()
                 state = await io(store.read)
                 group = state['groups'].get(group_id)
@@ -216,6 +260,13 @@ def install(server):
         if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision'}:
             raise HTTPException(400, 'Invalid draft operation')
         try:
+            if kind == 'groups':
+                gid = (data.get('item') or {}).get('id') if operation == 'put' else data.get('id')
+                if gid and await compatible_write(request, gid, operation, data.get('expectedRevision'), data.get('item')):
+                    result = await view(request)
+                    if operation == 'put':
+                        result['item'] = next(g for g in result['groups'] if g['id'] == gid)
+                    return result
             if kind == 'actions':
                 current = await io(Store().read)
                 if operation == 'put':

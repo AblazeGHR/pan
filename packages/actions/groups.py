@@ -46,6 +46,9 @@ class Groups:
     def save(db, kind, identity, value):
         db.execute("INSERT OR REPLACE INTO final_documents VALUES(?,?,?)",
                    (kind, identity, fc.canonical_json(value)))
+        if kind == 'action_group':
+            from .group_migration import advance_projection
+            advance_projection(db, identity)
 
     def get(self, db, identity):
         return self.service._get(db, "action_group", identity)
@@ -99,7 +102,8 @@ class Groups:
             def mutate(_):
                 item = self.validate(db, value)
                 from .store import Store
-                if item['id'] in Store().read()['groups']:
+                handed_off = db.execute("SELECT 1 FROM final_documents WHERE kind='action_group_handoff' AND id=?", (item['id'],)).fetchone()
+                if item['id'] in Store().read()['groups'] and not handed_off:
                     fail('reference_conflict', 'Legacy JSON Group retains its writer; canonical adoption is required')
                 row = db.execute("SELECT document FROM final_documents WHERE kind='action_group' AND id=?", (item["id"],)).fetchone()
                 old = json.loads(row[0]) if row else {"revision": 0}
@@ -124,8 +128,12 @@ class Groups:
                     if definition.get("system"):
                         self.permit(actor, "manageSystemActions")
                     tools.append({**tool, "inputSchema": definition["inputSchema"],
-                                  "description": definition["name"], "outputSchema": definition["outputSchema"]})
+                                  "description": definition["name"], "outputSchema": definition["outputSchema"],
+                                  **({'outputFormat': group['compatibility']['outputFormats'][tool['alias']]}
+                                     if group.get('compatibility') else {})})
                 release = {"groupId": identity, "name": group["name"], "revision": expected, "tools": tools}
+                if group.get('compatibility'):
+                    release['compatibility'] = {'protocol': 'legacy-flat/v1'}
                 release["digest"] = fc.digest(release)
                 release["version"] = operation_id
                 # Artifacts are immutable. Only a committed release pointer can
@@ -157,6 +165,8 @@ class Groups:
         from .store import Store
         legacy_state = Store().read()
         legacy = legacy_state['groups']
+        adopted = {row[0] for row in db.execute("SELECT id FROM final_documents WHERE kind='action_group_handoff'")}
+        legacy = {gid: value for gid, value in legacy.items() if gid not in adopted}
         excluded = []
         if selection["scope"] == "action":
             if set(selection) - {"scope", "actionRef", "groupIds"} or 'actionRef' not in selection:
@@ -287,6 +297,8 @@ class Groups:
                 if group.get('release'):
                     fail('reference_conflict', 'Unbuild the Group before deleting it')
                 db.execute("DELETE FROM final_documents WHERE kind='action_group' AND id=?", (identity,))
+                from .group_migration import advance_projection
+                advance_projection(db, identity)
                 return {'groupId': identity, 'deleted': True}, [], False
             return self.service._operation(db, actor, 'retire', key,
                 {'groupId': identity, 'expectedRevision': expected}, 'action', mutate)
@@ -297,7 +309,7 @@ class Groups:
                 "provider": {"transport": "stdio_jsonrpc", "command_ref": pid + "-provider"},
                 "capabilities": [{"id": pid + "." + t["alias"], "export_key": t["alias"],
                     "description": t["description"], "contract_version": release["version"],
-                    "input_schema": {"type": "object", "additionalProperties": False,
+                    "input_schema": t['inputSchema'] if release.get('compatibility') else {"type": "object", "additionalProperties": False,
                         "properties": {"arguments": t["inputSchema"], "requestKey": {"type": "string", "minLength": 1}},
                         "required": ["arguments", "requestKey"]},
                     "execution": {"operation": t["alias"], "result_format": "mcp"}} for t in release["tools"]]}

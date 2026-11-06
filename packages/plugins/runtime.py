@@ -191,7 +191,7 @@ class Runtime:
             raise ValueError("Projected tool name collision between plugins")
         return result
 
-    async def invoke(self, sid, view, name, arguments, expected_digest=None, plugin_id=None):
+    async def invoke(self, sid, view, name, arguments, expected_digest=None, plugin_id=None, transport_request_key=None):
         descriptors = await self.directory(sid, view, plugin_id)
         key = "native_name" if view == "native" else ("source_name" if view == "standalone" else "name")
         descriptor = next((d for d in descriptors if d[key] == name), None)
@@ -204,10 +204,10 @@ class Runtime:
                 descriptor = next((d for d in current if d[key] == name), None)
                 if descriptor is None:
                     return error('tool_unavailable', 'Action Group changed before admission')
-                return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
-        return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
+                return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest, transport_request_key)
+        return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest, transport_request_key)
 
-    async def _invoke_resolved(self, sid, view, descriptor, arguments, expected_digest):
+    async def _invoke_resolved(self, sid, view, descriptor, arguments, expected_digest, transport_request_key=None):
         if expected_digest and expected_digest != descriptor["contract_digest"]:
             return error("contract_changed", "Discover the current schema before calling again")
         try:
@@ -224,7 +224,7 @@ class Runtime:
             from packages.actions.group_catalog import invoke
             from packages.jobs.final_contracts import ContractError
             try:
-                return await invoke(self, descriptor, arguments)
+                return await invoke(self, descriptor, arguments, transport_request_key=transport_request_key)
             except ContractError as exc:
                 return error(exc.code, exc.message)
         result = await provider.request("call", {"name": descriptor["source_name"], "arguments": arguments})
@@ -297,7 +297,7 @@ class Runtime:
                     "next_cursor": f"{cursor_key}:{offset + limit}" if offset + limit < len(filtered) else None}
         if op == "call":
             task = asyncio.create_task(self.invoke(sid, view, request["name"], request.get("arguments", {}),
-                                                   request.get("expected_contract_digest"), plugin))
+                                                   request.get("expected_contract_digest"), plugin, request.get('transport_request_key')))
             self.invocations.add(task)
             task.add_done_callback(self._retire)
             try:

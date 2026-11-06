@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 import os
+import uuid
 
 from mcp import types
 from mcp.server import Server
@@ -37,6 +38,15 @@ def create_server(view, plugin=None, core=False, rpc=None):
         from packages.mcp.server import mcp
         core_mcp = mcp
     core_names = set()
+    connection_id = uuid.uuid4().hex
+
+    def transport_key():
+        context = server.request_context
+        meta = context.meta.model_dump() if context.meta else {}
+        # Optional protocol metadata is outside the unchanged flat business
+        # schema. A business field called requestKey is never consumed here.
+        return (meta['panRequestKey'] if 'panRequestKey' in meta
+                else 'legacy-' + connection_id + '-' + str(context.request_id))
 
     async def send(operation, **payload):
         message = {"session_id": os.environ.get("PAN_AGENT_SESSION_ID", ""),
@@ -84,9 +94,9 @@ def create_server(view, plugin=None, core=False, rpc=None):
                     return response
                 if name != "api_call":
                     return types.CallToolResult.model_validate(error("tool_unavailable", "Unknown gateway tool"))
-                result = await send("call", **arguments)
+                result = await send("call", **arguments, transport_request_key=transport_key())
             else:
-                result = await send("call", name=name, arguments=arguments)
+                result = await send("call", name=name, arguments=arguments, transport_request_key=transport_key())
             return types.CallToolResult.model_validate(result)
         except Exception as exc:
             return types.CallToolResult.model_validate(error("execution_unconfirmed", str(exc)))

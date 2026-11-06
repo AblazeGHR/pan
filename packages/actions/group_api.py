@@ -86,6 +86,10 @@ async def unbuild(group_id: str, request: Request):
     value = await body(request)
     fields(value, {'expectedRevision', 'requestKey'}, {'expectedRevision', 'requestKey'})
     adapter = groups(request)
+    return await unbuild_operation(group_id, value, who, adapter)
+
+
+async def unbuild_operation(group_id, value, who, adapter):
     try:
         await io(adapter.service.operation_for_key, 'disable', value['requestKey'], actor=who)
     except KeyError:
@@ -116,7 +120,7 @@ async def unbuild(group_id: str, request: Request):
                         [b for b in staged.get('plugin_bindings', []) if b.get('plugin_id') != pid])
                     originals.append((owner, previous))
                     await session.commit_adapter_config_async(owner, staged, previous_config=previous)
-                result = await io(groups(request).unbuild, group_id, value['expectedRevision'], value['requestKey'], actor=who)
+                result = await io(adapter.unbuild, group_id, value['expectedRevision'], value['requestKey'], actor=who)
             except BaseException as failure:
                 errors = []
                 for owner, previous in originals:

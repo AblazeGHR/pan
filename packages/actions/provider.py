@@ -115,6 +115,10 @@ async def execute(action, arguments, *, before_effect=None):
 
 
 async def run(snapshot):
+    # The generic capability transport sends UTF-8 JSON lines. Windows pipe
+    # locale encoding can silently turn valid UTF-8 characters into other text.
+    sys.stdin.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8')
     document = json.loads(Path(snapshot).read_text(encoding='utf-8'))
     actions = {a['id']: a for a in document['actions']}
     for line in sys.stdin:
