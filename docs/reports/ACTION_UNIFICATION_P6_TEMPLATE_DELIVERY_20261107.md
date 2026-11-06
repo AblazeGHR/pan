@@ -108,11 +108,12 @@ types remain fail-closed migration prerequisites.
    fields now map to canonical reference Creator specs and Trigger eventFilter.
    Complex/unknown selectors or query objects remain preserve/blocked; broader
    external creator composition coverage still needs a reviewed mapping.
-3. **System background-process/main-lifecycle:** existing independent process host,
-   logs/monitoring/recovery, and protected lifecycle supervisor remain to be
-   connected with original identities and permissions. No synchronous command
-   wrapper is presented as replacement. Sources containing those records remain
-   blocked by their exact missing adapter, not recategorized as generically complex.
+3. **System background-process/main-lifecycle:** retained old background-process
+   GET/cancel now projects canonical FinalService process Jobs, Run history and
+   owner-fenced cancellation; the existing independent process/log/recovery and
+   fixed main-lifecycle supervisor remain authoritative. Full old writer creation
+   transfer and every legacy monitoring field still need a separate acceptance
+   pass. No synchronous command wrapper is presented as replacement.
 4. **Complete old entry cancellation/notification/history aliases:** the original
    canonical controls/outbox/history now work for newly wired families and have
    named evidence above. Full legacy Job/Scheduler/Trigger API/MCP field and entry

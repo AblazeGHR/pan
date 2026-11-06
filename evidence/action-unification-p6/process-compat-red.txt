@@ -1,0 +1,4 @@
+ACTION_UNIFICATION_20261104-P6 system-process/main-lifecycle gap identity
+Baseline: b9d8dc3b3db26ab70b5d487db96762981f34f571
+Original gap: retained /api/background-jobs GET/GET/{id}/cancel consulted only the legacy background_jobs registry; canonical FinalService process Jobs, Run/Attempt/effect history and process log identity were not projected through that old shape. Main-lifecycle already had a fixed supervisor path, but this slice records its focused canonical preparation/strict successor evidence separately.
+No real profile/data or protected port was used.

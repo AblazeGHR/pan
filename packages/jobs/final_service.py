@@ -1805,6 +1805,47 @@ class FinalService:
         with self.transaction(readonly=True) as db:
             return copy.deepcopy(self._get(db, "job", job_id).get("provenance"))
 
+    def legacy_background_view(self, job_id, *, actor):
+        """Project a canonical process Job through the retained old reader.
+
+        This is a compatibility read/control adapter only. The canonical Job,
+        Run, Attempt, effect and process owner remain authoritative; no legacy
+        registry row or second receipt is created.
+        """
+        self._permit(actor, "job", "read")
+        item = self.get("job", job_id, actor=actor)
+        cfg = definition("job", item)
+        if len(cfg.get("steps", [])) != 1:
+            error("capability_unsupported", "Complex process Job has no lossless legacy projection")
+        step = cfg["steps"][0]
+        action = self.get("action", step["actionRef"]["id"], actor=actor)
+        if action.get("execution", {}).get("operation") != "process":
+            error("capability_unsupported", "Job is not a canonical background process")
+        args = {key: copy.deepcopy(value.get("value")) for key, value in step.get("arguments", {}).items()
+                if isinstance(value, dict) and value.get("from") == "literal"}
+        runs = self.runs(job_id, actor=actor).get("items", [])
+        latest = runs[-1] if runs else None
+        status = item.get("state", "draft")
+        if latest:
+            status = latest.get("state", status)
+        return {"jobId": job_id, "kind": "background-process", "executionOwner": "final-service",
+                "status": status, "argv": args.get("argv", []), "cwd": args.get("cwd"),
+                "hideWindow": args.get("hideWindow", True), "name": item.get("name"),
+                "description": item.get("description", ""), "targetSessionId": args.get("sessionId"),
+                "creatorSessionId": None, "createdAt": item.get("createdAt"), "updatedAt": item.get("updatedAt"),
+                "runs": runs, "history": copy.deepcopy(runs), "notificationState": "canonical-outbox"}
+
+    def legacy_background_cancel(self, job_id, *, actor, request_key):
+        self._permit(actor, "job", "execute")
+        view = self.legacy_background_view(job_id, actor=actor)
+        active = next((run for run in reversed(view.get("runs", []))
+                       if run.get("state") in {"queued", "running", "retry_wait", "cancelling", "uncertain"}), None)
+        if active is None:
+            return view
+        result = self.control_run(active["runId"], {"operation": "cancel",
+            "expectedStateRevision": active["stateRevision"], "requestKey": request_key}, actor=actor)
+        return {**self.legacy_background_view(job_id, actor=actor), "cancelResult": result}
+
     def operation_for_key(self, operation, request_key, *, actor):
         with self.transaction(readonly=True) as db:
             row = db.execute("SELECT id FROM final_operations WHERE scope=? AND requestKey=?", (self._scope(actor, operation), request_key)).fetchone()
