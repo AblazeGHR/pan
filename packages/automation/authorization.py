@@ -33,7 +33,7 @@ def canonical_path(path):
         r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?)', parsed.path))
 
 
-READ, CANCEL = 'read', 'cancel'
+READ, CANCEL, LIFECYCLE = 'read', 'cancel', 'lifecycle'
 
 #: Historical non-canonical addresses and the only method class each may serve.
 #: Everything absent here — every retired legacy *write* root, including the
@@ -60,8 +60,9 @@ _LEGACY_SURFACE = (
     (r'/api/jobs/action-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
     (r'/api/background-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
     (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/cancel', CANCEL),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/(?:pause|resume|run-now)', LIFECYCLE),
 )
-_LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}}
+_LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}, LIFECYCLE: {'POST'}}
 
 
 def _legacy_surface(path):
@@ -84,6 +85,8 @@ def object_path(path, method=None):
     silently granting a write.
     """
     parsed = urlsplit(path)
+    if re.fullmatch(r'/api/scheduler/tasks/[A-Za-z0-9_-]+', parsed.path) and method == 'DELETE' and not parsed.scheme and not parsed.netloc and not parsed.fragment:
+        return True  # Canonical handoff-only delete adapter enforces identity/grants.
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
     if re.fullmatch(r'/api/action-drafts/(?:actions|groups)/(?:put|delete)', parsed.path):

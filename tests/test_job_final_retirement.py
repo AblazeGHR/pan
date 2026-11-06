@@ -50,10 +50,6 @@ LEGACY_HTTP_WRITES = [
     ("POST", "/api/background-jobs/{id}/retry"),
     ("POST", "/api/scheduler/tasks"),
     ("PATCH", "/api/scheduler/tasks/{id}"),
-    ("DELETE", "/api/scheduler/tasks/{id}"),
-    ("POST", "/api/scheduler/tasks/{id}/pause"),
-    ("POST", "/api/scheduler/tasks/{id}/resume"),
-    ("POST", "/api/scheduler/tasks/{id}/run-now"),
     ("POST", "/api/scheduler/event-sources"),
     ("PUT", "/api/scheduler/event-sources/{id}"),
     ("DELETE", "/api/scheduler/event-sources/{id}"),
@@ -212,7 +208,9 @@ def test_mcp_retires_old_writes_and_keeps_reads_and_cancel():
     inventory = {tool["symbol"] for tool in manifest["mcpTools"]}
     legacy = {name for name in inventory
               if name.startswith(("agent_background_", "agent_message_job_", "scheduler_"))}
-    assert legacy == set(RETIRED_MCP_TOOLS) | set(RETAINED_LEGACY_MCP_TOOLS)
+    from packages.mcp.server import P6_COMPAT_MCP_TOOLS
+    assert legacy == set(RETIRED_MCP_TOOLS) | set(RETAINED_LEGACY_MCP_TOOLS) | (set(P6_COMPAT_MCP_TOOLS) & legacy)
+    assert set(P6_COMPAT_MCP_TOOLS) <= tools
     # Reads and cancels survive; they are the safe half of the old surface.
     for name in ("agent_background_cancel", "agent_message_job_cancel",
                  "agent_background_get", "scheduler_runs"):

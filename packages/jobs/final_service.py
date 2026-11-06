@@ -1411,6 +1411,8 @@ class FinalService:
                                           authority=actor, operation_id=operation_id, rerun_of=rerun,
                                           authorization_revision=max(1, self.auth.permissions_status()["revision"]))
         run = next(r for r in state["runs"].values() if r["admissionId"] == admission["admissionId"])
+        from packages.scheduler.json_handoff import freeze_dispatch
+        freeze_dispatch(self, db, job, run['runId'], value.get('event'))
         self._save(db, "job", item["id"], job)
         return {"runId": run["runId"], "admissionId": admission["admissionId"], "configRevision": run["configRevision"]}
 
@@ -2225,6 +2227,8 @@ class FinalService:
 
     def _guard_effect(self, db, job, run_id, frozen, action):
         self._permit(frozen["authority"], "job", "execute", execution=True)
+        from packages.scheduler.json_handoff import guard_effect
+        guard_effect(self, db, job, run_id)
         if action.get("system"):
             self._permit(frozen["authority"], "action", "manageSystemActions", execution=True)
         # Definition retirement/disable blocks new admission. Already frozen
@@ -2539,7 +2543,9 @@ class FinalService:
                         self._save(db, "job", job_id, job)
                         return
                     runtime = None  # Existing failed-boundary handling below.
-                if runtime and (runtime["phase"] == "pending" or job["canonical"]["state"] != "enabled"):
+                from packages.scheduler.json_handoff import manual_intent
+                if runtime and (runtime["phase"] == "pending" or
+                                job["canonical"]["state"] != "enabled" and not manual_intent(self, db, job, run_id)):
                     plan.setdefault("runtimeDelivery", {})[pending_step["stepId"]] = runtime
                     self._save(db, "job", job_id, job)
                     return
@@ -2578,7 +2584,8 @@ class FinalService:
                     runtime = effective(job, state, run_id, step, action)
                     if runtime:
                         plan.setdefault("runtimeDelivery", {})[step["stepId"]] = runtime
-                        if runtime["phase"] == "pending" or job["canonical"]["state"] != "enabled":
+                        from packages.scheduler.json_handoff import manual_intent
+                        if runtime["phase"] == "pending" or job["canonical"]["state"] != "enabled" and not manual_intent(self, db, job, run_id):
                             self.final.ledger.transition_run(job, self.root, run_id, "paused_at_boundary", operation="pause")
                             self._save(db, "job", job_id, job)
                             return
@@ -3418,6 +3425,8 @@ class FinalService:
             if row is None:
                 error("authorization_denied", "Creator authority unavailable")
             self._permit(json.loads(row[0]), "event_creator", "lifecycle", execution=True)
+        from packages.scheduler.json_handoff import guard_clock
+        guard_clock(self, item)
 
     async def start(self, *, activation=None, expected_epoch=None):
         status = self.owner.status()

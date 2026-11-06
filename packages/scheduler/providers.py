@@ -645,6 +645,15 @@ def legacy_source_plan(source, *, timezone_name, rule_id="legacy"):
     published = source.get("publishCursor")
     if source.get("pending") or published and published.get("eventStoreReleased") is not True:
         raise contracts.ContractError("pending_publication", "Legacy source publication is unsettled; history only")
+    return legacy_schedule_plan(source, timezone_name=timezone_name, rule_id=rule_id)
+
+
+def legacy_schedule_plan(source, *, timezone_name, rule_id="legacy"):
+    """Pure shared calendar/cursor conversion; grants no writer authority.
+
+    Each source adapter validates its own schema, original ownership and
+    pending publication/dispatch before using this existing time calculation.
+    """
     provider = TimeProvider()
     zone = provider.zone(timezone_name)
 

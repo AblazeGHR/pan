@@ -166,8 +166,14 @@ def test_concurrent_starts_over_random_port_with_real_owned_processes(monkeypatc
         serving = asyncio.create_task(http.serve(sockets=[listener]))
         evidence = dict(port=port, profile=str(sess.SESSION_DIR), pids=[])
         try:
-            async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{port}', timeout=15) as client:
+            # This probe owns a loopback listener. OS/environment proxy routing
+            # must not send the request to another service (Windows registry
+            # proxies also apply when no *_PROXY environment variable exists).
+            async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{port}', timeout=15, trust_env=False) as client:
                 results = await asyncio.gather(*(client.post(f'/api/sessions/{s.id}/worker/restart') for s in sessions))
+                for response in results:
+                    response.raise_for_status()
+                    assert response.headers.get('content-type', '').startswith('application/json')
                 bodies = [r.json() for r in results]
                 assert all('error' not in r for r in bodies), bodies
                 assert len({r['workerId'] for r in bodies}) == 2

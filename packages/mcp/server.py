@@ -83,7 +83,7 @@ _pan_api_url = os.environ.get("PAN_API_URL", "http://127.0.0.1:8768")
 class PanMCP(FastMCP):
     async def call_tool(self, name: str, arguments: dict):
         """Dispatch tombstones without registering or executing retired tools."""
-        if name in LEGACY_MCP_COMPATIBILITY:
+        if name in LEGACY_MCP_COMPATIBILITY and name not in P6_COMPAT_MCP_TOOLS:
             result = legacy_mcp_compatibility(name, arguments)
             return CallToolResult(content=[TextContent(type="text", text=json.dumps(result))],
                                   structuredContent=result, isError=True)
@@ -2637,6 +2637,59 @@ def scheduler_cancel(task_id: str, job_id: str, run_id: str, expected_revision: 
         'expectedStateRevision': expected_state_revision, 'requestKey': request_key})
 
 
+def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, expected_revision):
+    denied = _scheduler_auth(target_session_id, claim=False)
+    if denied:
+        return denied
+    task = _api('GET', _scheduler_task_path(task_id))
+    if not isinstance(task, dict) or task.get('ok') is not True:
+        return task
+    actual = _scheduler_target_of(task)
+    if target_session_id is not None and target_session_id != actual:
+        return {'ok': False, 'error': {'code': 'reference_conflict', 'message': 'Original task target differs'}}
+    denied = _scheduler_auth(actual, claim=False)
+    if denied:
+        return denied
+    payload = {}
+    if request_key is not None:
+        payload['requestKey'] = request_key
+    if expected_revision is not None:
+        payload['expectedRevision'] = expected_revision
+    return _api('DELETE' if operation == 'delete' else 'POST',
+        _scheduler_task_path(task_id, '' if operation == 'delete' else '/' + operation), payload)
+
+
+@mcp.tool()
+def scheduler_pause(task_id: str, target_session_id: str | None = None,
+                    request_key: str | None = None, expected_revision: int | None = None) -> dict:
+    """Pause the original handed-off clock; preserve in-flight Runs and cursor policy."""
+    return _scheduler_lifecycle(task_id, 'pause', target_session_id, request_key, expected_revision)
+
+
+@mcp.tool()
+def scheduler_resume(task_id: str, target_session_id: str | None = None,
+                     request_key: str | None = None, expected_revision: int | None = None) -> dict:
+    """Resume the original handed-off clock without replaying paused occurrences."""
+    return _scheduler_lifecycle(task_id, 'resume', target_session_id, request_key, expected_revision)
+
+
+@mcp.tool()
+def scheduler_run_now(task_id: str, target_session_id: str | None = None,
+                      request_key: str | None = None, expected_revision: int | None = None) -> dict:
+    """Admit manual intent through the original Job; no scheduled cursor advance.
+
+    Accepted is not provider completion. Query original Run on unknown response.
+    """
+    return _scheduler_lifecycle(task_id, 'run-now', target_session_id, request_key, expected_revision)
+
+
+@mcp.tool()
+def scheduler_delete(task_id: str, target_session_id: str | None = None,
+                     request_key: str | None = None, expected_revision: int | None = None) -> dict:
+    """Retire one handed-off task; unknown execution/publication blocks deletion."""
+    return _scheduler_lifecycle(task_id, 'delete', target_session_id, request_key, expected_revision)
+
+
 @mcp.tool()
 def agent_restart_delayed(session_id: str) -> dict:
     """Request a delayed restart of the Session's existing live Worker.
@@ -3284,10 +3337,6 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
 REMOVED_SCHEDULER_MCP_TOOLS = (
     "scheduler_create",
     "scheduler_update",
-    "scheduler_delete",
-    "scheduler_pause",
-    "scheduler_resume",
-    "scheduler_run_now",
 )
 
 RETIRED_MCP_TOOLS = (
@@ -3309,8 +3358,8 @@ RETAINED_LEGACY_MCP_TOOLS = (
     "scheduler_runs",
 )
 
-# Additive P6 control: the historical inventory above remains unchanged.
-P6_COMPAT_MCP_TOOLS = ("scheduler_cancel",)
+# P6 successors retain original names/shapes after an actual owner handoff.
+P6_COMPAT_MCP_TOOLS = ("scheduler_cancel", "scheduler_pause", "scheduler_resume", "scheduler_run_now", "scheduler_delete")
 
 LEGACY_MCP_COMPATIBILITY = {
     "agent_background_start": "old Runner owner/argv lifecycle has no lossless canonical Job admission mapping",
@@ -3319,10 +3368,6 @@ LEGACY_MCP_COMPATIBILITY = {
     "agent_message_job_update": "old message Job update mutates legacy schedule state; canonical definitions are immutable/CAS-bound",
     "scheduler_create": "old scheduler fields lack a canonical Event Creator definition and explicit Trigger/Job composition",
     "scheduler_update": "old scheduler mutation lacks Creator revision and Trigger reference CAS",
-    "scheduler_delete": "old scheduler delete has no canonical Creator retirement/reference proof envelope",
-    "scheduler_pause": "old scheduler pause is a legacy cursor mutation, not a canonical Creator lifecycle operation",
-    "scheduler_resume": "old scheduler resume is a legacy cursor mutation, not a canonical Creator lifecycle operation",
-    "scheduler_run_now": "old run-now bypasses Event publication and Trigger admission; no canonical event identity is supplied",
 }
 
 LEGACY_MCP_GUIDANCE = {
@@ -3332,10 +3377,6 @@ LEGACY_MCP_GUIDANCE = {
     "agent_message_job_update": "job_get -> job_update(object_id, definition, expected_revision, request_key); edit schedule via event_creator_update with its own revision",
     "scheduler_create": "event_creator_create(definition, request_key) -> event_creator_control(enable); trigger_create binds the Creator to a canonical Job",
     "scheduler_update": "event_creator_get -> event_creator_update(object_id, definition, expected_revision, request_key)",
-    "scheduler_delete": "event_creator_get -> event_creator_retire(object_id, expected_revision, expected_state_revision, request_key); resolve active references first",
-    "scheduler_pause": "event_creator_get -> event_creator_control(object_id, operation='pause', expected_revision, expected_state_revision, request_key)",
-    "scheduler_resume": "event_creator_get -> event_creator_control(object_id, operation='enable', expected_revision, expected_state_revision, request_key)",
-    "scheduler_run_now": "job_get -> job_run(job_id, expected_revision, request_key) for explicit manual intent; this does not advance the Scheduler cursor or fabricate an Event",
 }
 
 

@@ -76,7 +76,8 @@ async def test_real_stdio_crud_operations_permissions_and_legacy(h, tmp_path, pr
             assert set(CANONICAL_TOOLS) <= set(names)
             # All baseline tools minus the R5 retired Job writes, plus canonical.
             baseline = json.loads((ROOT / "tests/fixtures/job_final_legacy_tools.json").read_text())
-            assert set(names) == (set(baseline) - set(RETIRED_MCP_TOOLS)) | set(CANONICAL_TOOLS) | {"scheduler_cancel"}
+            from packages.mcp.server import P6_COMPAT_MCP_TOOLS
+            assert set(names) == (set(baseline) - set(RETIRED_MCP_TOOLS)) | set(CANONICAL_TOOLS) | set(P6_COMPAT_MCP_TOOLS)
             # The retirement is exact: old writes are gone, reads/cancel remain.
             assert not set(RETIRED_MCP_TOOLS) & set(names)
             assert set(RETAINED_LEGACY_MCP_TOOLS) <= set(names)

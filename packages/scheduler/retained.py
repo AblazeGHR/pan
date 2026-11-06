@@ -12,6 +12,14 @@ from packages.jobs.final_runtime.ledger import aggregate
 
 
 def resolve(service, db, task):
+    # A committed JSON handoff supersedes evidence-only successor aliases.
+    # Resolve its original owner/bytes/operation instead of registering a new
+    # provenance row to make an active task appear settled.
+    matches = db.execute("SELECT id FROM final_documents WHERE kind='json_scheduler_handoff' AND (id=? OR json_extract(document,'$.jobId')=?)", (task['id'], task['id'])).fetchall()
+    if matches:
+        from packages.scheduler.json_handoff import resolve as original
+        _, binding = original(service, db, task['id'])
+        return service._get(db, 'job', binding['jobId'])
     evidence = task['history']
     source = evidence['source']
     digest = evidence['sourceSha256'].removeprefix('sha256:')
@@ -55,7 +63,13 @@ def query(service, task, *, actor, limit=100, offset=0):
                 'notifications': [copy.deepcopy(row) for row in state['outbox'].values() if row['runId'] in run_ids],
                 'effects': [copy.deepcopy(row) for row in state['effects'] if row['effectKey']['runId'] in run_ids],
                 'cancellations': {key:copy.deepcopy(value) for key,value in state.get('cancellations', {}).items() if key in run_ids},
-                'historicalExecutionAdopted': False}
+                'historicalExecutionAdopted': binding_exists(service, db, job['jobId'])}
+
+
+def binding_exists(service, db, job_id):
+    from packages.scheduler.json_handoff import binding_for_job
+    binding = binding_for_job(service, db, job_id)
+    return binding is not None and bool(binding['originalRunIds'])
 
 
 async def cancel(service, task, body, *, actor):
