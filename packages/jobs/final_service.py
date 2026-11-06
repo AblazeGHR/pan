@@ -197,6 +197,7 @@ class FinalService:
         self.diagnostics = []
         self._dispatch_lock = asyncio.Lock()
         self.state_reader = None
+        self.session_pause = None
         self.outbox_sender = None
         self.on_committed_change = None
         self._change_local = threading.local()
@@ -916,14 +917,26 @@ class FinalService:
             return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
                                    {"kind": "action", "objectId": object_id, **value}, "action", mutate)
 
-    def _action_control(self, object_id, body, *, actor, management_capability='lifecycle', legacy_projection=True):
+    def _action_control(self, object_id, body, *, actor, management_capability='lifecycle', legacy_projection=True,
+                        legacy_system_lifecycle=False):
         op = body["operation"]
         with self.transaction() as db:
             self._ensure_action_schema(db)
 
             def mutate(operation_id):
                 item = self._get(db, "action", object_id)
-                self._require_action_management(actor, item, capability=management_capability)
+                if legacy_system_lifecycle:
+                    # Only the retained old enable/disable capability for an
+                    # exact immutable product successor. Public system CRUD
+                    # continues to use its original management restrictions.
+                    if op not in {'enable', 'disable'}:
+                        error('authorization_denied', 'Legacy system lifecycle cannot edit or publish')
+                    from packages.actions.legacy_families import system_view
+                    system_view(definition('action', item), item['enabled'])
+                    self._permit(actor, 'action', 'lifecycle', execution=True)
+                    self._permit(actor, 'action', 'manageSystemActions', execution=True)
+                else:
+                    self._require_action_management(actor, item, capability=management_capability)
                 fc.check_revision(item["revision"], body["expectedRevision"])
                 fc.check_revision(item["stateRevision"], body["expectedStateRevision"])
                 parameters = copy.deepcopy(body.get("parameters") or {})
@@ -3185,6 +3198,7 @@ def bind(app, automation, root, *, owner=None):
     from packages.core.platform.data_paths import job_root as data_root
     service.legacy_roots = [Path(os.environ.get("PAN_BACKGROUND_JOBS_DIR") or background_jobs.DEFAULT_ROOT), data_root()]
     service.state_reader = automation.engine.state_reader
+    service.session_pause = automation.pause
     automation.events.owner_fence = service.owner
     automation.final_jobs = service
     from packages.automation.quota_native import NativeQuota

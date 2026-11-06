@@ -87,26 +87,34 @@ def legacy_result(release, alias, receipt):
     tool = next(t for t in release['tools'] if t['alias'] == alias)
     value, error = None, None
     result = receipt['result']
-    commands = result.get('commands', [])
-    if result.get('status') != 'completed' or len(commands) != 1:
-        code = commands[-1].get('exitCode') if commands else None
-        error = ('TimeoutError' if commands and commands[-1].get('code') == 'timeout' else
-                 f'Command exited {code}' if code is not None else 'Action result unconfirmed')
-    elif commands[0].get('stdoutTruncated') or commands[0].get('stderrTruncated'):
-        error = 'Command output exceeds 512 KiB'
-    else:
-        try:
-            text = commands[0]['stdout']
-            value = text if tool['outputFormat'] == 'text' else json.loads(text)
-        except (ValueError, KeyError) as exc:
-            error = str(exc)
     meta = {'panOperation': {'operationId': receipt['operationId'], 'requestKey': receipt['requestKey'],
                              'status': result.get('status', receipt['status']), 'receiptStatus': receipt['status'],
                              'actionRef': tool['actionRef'], 'groupRelease': release['version']}}
+    if result.get('status') == 'completed' and 'output' in result:
+        # The original bounded API provider already owns content, structured
+        # values and error semantics. Add provenance without serializing twice.
+        return {**result['output'], '_meta': meta}
+    commands = result.get('commands', [])
+    merged = tool.get('outputMerge') == 'concat/v1'
+    if result.get('status') != 'completed' or (not commands if merged else len(commands) != 1):
+        code = commands[-1].get('exitCode') if commands else None
+        error = ('TimeoutError' if commands and commands[-1].get('code') == 'timeout' else
+                 f'Command exited {code}' if code is not None else result.get('error', 'Action result unconfirmed'))
+    elif any(c.get('stdoutTruncated') or c.get('stderrTruncated') for c in commands):
+        error = 'Command output exceeds 512 KiB'
+    else:
+        try:
+            text = ''.join(c['stdout'] for c in commands) if merged else commands[0]['stdout']
+            from .provider import OUTPUT_LIMIT
+            if len(text.encode('utf-8')) > OUTPUT_LIMIT:
+                raise ValueError('Command output exceeds 512 KiB')
+            value = text if tool['outputFormat'] == 'text' else json.loads(text)
+        except (ValueError, KeyError) as exc:
+            error = str(exc)
     if not error:
         reply = {'content': [{'type': 'text', 'text': value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)}],
                  **({'structuredContent': value} if isinstance(value, dict) else {}), 'isError': False, '_meta': meta,
-                 'processTreeEnded': commands[0].get('cleanupProof', {}).get('confirmed') is True}
+                 'processTreeEnded': all(c.get('cleanupProof', {}).get('confirmed') is True for c in commands)}
         from .provider import RESULT_LIMIT
         if len(json.dumps(reply, ensure_ascii=False).encode('utf-8')) > RESULT_LIMIT:
             error = 'Action output exceeds 1 MiB encoded result limit'

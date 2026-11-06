@@ -8,7 +8,7 @@ import sqlite3
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from packages.actions.group_migration import LegacyGroupMigration
+from packages.actions.group_migration import LegacyGroupMigration, LegacyGroupCompatibility
 from packages.actions.store import atomic
 from packages.jobs.final_api import CanonicalUserAuth
 from packages.jobs.final_service import FinalService
@@ -42,6 +42,7 @@ def main(argv=None):
     parser.add_argument('--request-key')
     parser.add_argument('--expected-owner-epoch', type=int)
     parser.add_argument('--status-key')
+    parser.add_argument('--reconcile-actions', action='store_true', help='Review/repair indexing of an already committed handoff')
     args = parser.parse_args(argv)
     root = args.canonical_root.resolve()
     source = args.source_root.resolve()
@@ -60,12 +61,17 @@ def main(argv=None):
         print(json.dumps(migration.status(args.status_key, actor=USER), ensure_ascii=False))
         return 0
     if not args.apply:
-        if not args.mappings or not args.output:
+        if (not args.mappings and not args.reconcile_actions) or not args.output:
             parser.error('Dry-run requires --mappings and --output')
         output = args.output.resolve()
         if (any(output.is_relative_to(protected) for protected in (source, root, args.authorization_root.resolve()))
-                or output in {owner_path, root.parent / 'job-runtime-owner.lock', args.mappings.resolve()}):
+                or output in {owner_path, root.parent / 'job-runtime-owner.lock', args.mappings.resolve() if args.mappings else None}):
             parser.error('Plan output must be outside source/canonical/authorization roots and distinct from mappings')
+        if args.reconcile_actions:
+            plan = LegacyGroupCompatibility(service, source).reconciliation_preview(actor=USER)
+            atomic(output, plan)
+            print(json.dumps({'mode': 'reconciliation-dry-run', 'actions': len(plan['items']), 'planDigest': plan['planDigest']}))
+            return 0
         plan = migration.preview(json.loads(args.mappings.read_text('utf-8')), actor=USER)
         atomic(output, plan)
         print(json.dumps({'mode': 'dry-run', 'groups': len(plan['groups']), 'blocked': plan['blocked'],
@@ -76,7 +82,9 @@ def main(argv=None):
     # Only the existing owner protocol decides if a stopped profile can reopen.
     service.owner.claim(args.expected_owner_epoch)
     try:
-        response = migration.apply(json.loads(args.plan.read_text('utf-8')), args.request_key, actor=USER)
+        plan = json.loads(args.plan.read_text('utf-8'))
+        response = (LegacyGroupCompatibility(service, source).reconcile(plan, args.request_key, actor=USER)
+                    if args.reconcile_actions else migration.apply(plan, args.request_key, actor=USER))
         print(json.dumps(response, ensure_ascii=False))
         return 0
     finally:

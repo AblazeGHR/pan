@@ -128,14 +128,15 @@ class Groups:
                     if definition.get("system"):
                         self.permit(actor, "manageSystemActions")
                     if group.get('compatibility'):
-                        from .group_migration import legacy_action_view
+                        from .group_migration import flat_release_contract
                         formats = group['compatibility']['outputFormats']
                         if tool['alias'] not in formats:
                             fail('reference_conflict', 'A new flat alias requires an explicit output-format mapping')
-                        legacy_action_view(definition, {'id': tool['alias'], 'output_format': formats[tool['alias']]}, True)
+                        flat_release_contract(definition, {'id': tool['alias'], 'output_format': formats[tool['alias']]})
                     tools.append({**tool, "inputSchema": definition["inputSchema"],
                                   "description": definition["name"], "outputSchema": definition["outputSchema"],
-                                  **({'outputFormat': group['compatibility']['outputFormats'][tool['alias']]}
+                                  **({'outputFormat': group['compatibility']['outputFormats'][tool['alias']],
+                                      **({'outputMerge': 'concat/v1'} if definition['execution']['config'].get('legacyOutputMerge') == 'concat/v1' else {})}
                                      if group.get('compatibility') else {})})
                 release = {"groupId": identity, "name": group["name"], "revision": expected, "tools": tools}
                 if group.get('compatibility'):
@@ -230,10 +231,10 @@ class Groups:
                           else self.latest(db, old["id"]) if selection["scope"] == "group" else old)
                 before, after = self.resolve(db, old, available=False), self.resolve(db, target)
                 if group.get('compatibility'):
-                    from .group_migration import legacy_action_view
+                    from .group_migration import flat_release_contract
                     try:
-                        legacy_action_view(after, {'id': tool['alias'],
-                            'output_format': group['compatibility']['outputFormats'][tool['alias']]}, True)
+                        flat_release_contract(after, {'id': tool['alias'],
+                            'output_format': group['compatibility']['outputFormats'][tool['alias']]})
                     except (fc.ContractError, ValueError, KeyError):
                         blockers.append({'alias': tool['alias'], 'code': 'reference_conflict', 'fields': ['legacy_flat_output_contract']})
                 differences = [field for field in CONTRACT_FIELDS if before.get(field) != after.get(field)]

@@ -36,6 +36,7 @@ _SUCCESS_STATUSES = frozenset({"queued", "accepted", "sent", "succeeded", "compl
 _REJECTED_STATUSES = frozenset({"error", "failed", "rejected", "cancelled", "forbidden", "not_found"})
 _UNKNOWN_STATUSES = frozenset({"unknown", "uncertain", "unconfirmed", "timeout", "timed_out"})
 _runtime_session_delivery = ContextVar('runtime_session_delivery', default=False)
+_direct_provider_context = ContextVar('direct_provider_context', default=None)
 
 
 class SessionProvider(Protocol):
@@ -350,6 +351,22 @@ class TypedExecutor:
             frozen_plan["operation"], frozen_plan, frozen_plan["arguments"])
         return await execute(commands, context, process_owner=self.process_owner)
 
+    async def execute_provider(self, *, context, frozen_plan):
+        """Reuse typed providers with a direct host's operation identity/fence.
+
+        No Attempt, effect cache, or secondary admission is created. The host
+        persists intent and each fanout receipt before another provider call.
+        """
+        token = _direct_provider_context.set(context)
+        try:
+            operation = frozen_plan['operation']
+            return await {'session-message': self._session_message,
+                          'session-broadcast': self._session_broadcast,
+                          'assign': self._assign, 'channel': self._channel,
+                          'resume-legal-running.v1': self._session_resume}[operation](context.identity, frozen_plan)
+        finally:
+            _direct_provider_context.reset(token)
+
     def _store(self, key: Mapping[str, Any], value: Mapping[str, Any]) -> None:
         store = self.receipt_store
         if isinstance(store, MutableMapping):
@@ -653,6 +670,9 @@ class TypedExecutor:
                 **({"_runtimeDelivery": runtime, "_runtimeSlot": index} if runtime is not None else {})
             })
             rows.append(row)
+            direct = _direct_provider_context.get()
+            if direct is not None:
+                direct.checkpoint(copy.deepcopy(rows))
             if runtime is not None:
                 runtime.extend_slots(ids)
         outcomes = [str(row.get("outcome", "unknown")) for row in rows]
@@ -678,12 +698,15 @@ class TypedExecutor:
                 outcome, detail = "rejected", {"code": "provider_unavailable"}
             else:
                 try:
-                    detail = await _invoke(method, sid, effect_key=child)
+                    detail = await _invoke_provider(method, sid, effect_key=child)
                     outcome = _status(detail)
                     detail = dict(detail) if isinstance(detail, Mapping) else {"value": detail}
                 except BaseException as exc:
                     outcome, detail = _provider_error(exc)
             rows.append(EffectReceipt(child, outcome, detail, target_selection={"sessionIds": [sid]}).as_dict())
+            direct = _direct_provider_context.get()
+            if direct is not None:
+                direct.checkpoint(copy.deepcopy(rows))
         outcomes = [row["outcome"] for row in rows]
         outcome = ("succeeded" if all(s == "succeeded" for s in outcomes) else
                    "rejected" if all(s == "rejected" for s in outcomes) else
@@ -747,6 +770,10 @@ class TypedExecutor:
 
 async def _invoke_provider(method: Any, *args: Any, **kwargs: Any) -> Any:
     """Pass only keywords accepted by a small provider test double."""
+    direct = _direct_provider_context.get()
+    if direct is not None:
+        with direct.boundary():
+            pass
     try:
         signature = inspect.signature(method)
         if not any(param.kind == inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values()):

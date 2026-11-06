@@ -1,0 +1,255 @@
+{
+  "task": "ACTION-UNIFICATION-20261104-P6",
+  "revision": 4,
+  "parent": "10024df05f071cc26f114b150b6126a597f3876f",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceHashes": {
+    "packages/actions/group_catalog.py": "cfed233ea4044973304beec87c37053040e6b5b1561b9f0a47779a29ae82b669",
+    "packages/actions/group_migration.py": "9259ebc6ae68f6bec81deddd4773d7302795310ffecee98d9b4a1297512b5661",
+    "packages/actions/groups.py": "83f689b08eca9ec93cbbc10bedecd9d7bf2952761a6a7135b8d677de39ebdb5e",
+    "packages/actions/invocation.py": "ac25ce195ee202b460a21a005173b334d855aa894e0415bb266a37094378efaa",
+    "packages/actions/typed_executor.py": "d6042fd52cb027dea0252a913e33162a9dccb9ff4eabfa168be5739d66f6245f",
+    "packages/actions/legacy_families.py": "c61389192c3e0e9010b55c994df665c8e8ce8469766d9a27aa3ecc6f6b77abdb",
+    "packages/jobs/final_service.py": "00fdcb00c4b9701471393ff41d43199870468e0637c689738d63379f645bd54f",
+    "scripts/migrate_action_groups.py": "17bd1b608e9c242abb8d9908b980f6520d809233db9162af346f38ca48668ac6",
+    "tests/test_action_unification_p6_families.py": "f18c4a2fa6275cc9d398205a1d86d1bc969886faa2fe188a130168619ccf6917"
+  },
+  "results": {
+    "families-authorization-fix.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "21",
+        "time": "21.999",
+        "timestamp": "2026-11-06T23:10:27.803421+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-combined-final.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "188",
+        "time": "128.633",
+        "timestamp": "2026-11-06T23:09:44.160017+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-combined.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "188",
+        "time": "127.078",
+        "timestamp": "2026-11-06T22:59:59.147086+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-executor.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "39",
+        "time": "1.362",
+        "timestamp": "2026-11-06T23:07:43.605306+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-final-a.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "113",
+        "time": "79.868",
+        "timestamp": "2026-11-06T23:13:20.316645+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-final-b.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "137",
+        "time": "96.082",
+        "timestamp": "2026-11-06T23:13:30.541728+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-focused-final2.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "16",
+        "time": "16.171",
+        "timestamp": "2026-11-06T23:09:09.804578+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-focused-final3.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "17",
+        "time": "18.415",
+        "timestamp": "2026-11-06T23:10:00.285949+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-focused.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "8",
+        "time": "11.594",
+        "timestamp": "2026-11-06T23:00:21.054338+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-plugin-auth-valid.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "42",
+        "time": "23.683",
+        "timestamp": "2026-11-06T23:12:19.648478+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-plugin-auth.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "0",
+        "time": "0.002",
+        "timestamp": "2026-11-06T23:11:05.717391+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-system-initial.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "13",
+        "time": "13.149",
+        "timestamp": "2026-11-06T23:04:36.202924+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-transport-initial.xml": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "0",
+        "skipped": "0",
+        "tests": "20",
+        "time": "29.258",
+        "timestamp": "2026-11-06T23:12:01.573383+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-focused-final.xml.gz": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "16",
+        "time": "15.891",
+        "timestamp": "2026-11-06T23:08:11.429702+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "1",
+        "skipped": "0",
+        "tests": "8",
+        "time": "12.285",
+        "timestamp": "2026-11-06T22:59:41.382644+08:00",
+        "hostname": "ablaze"
+      }
+    ],
+    "families-template-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "errors": "0",
+        "failures": "3",
+        "skipped": "0",
+        "tests": "16",
+        "time": "17.125",
+        "timestamp": "2026-11-06T23:07:26.637269+08:00",
+        "hostname": "ablaze"
+      }
+    ]
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "finalEvidence": [
+    "families-final-a.xml",
+    "families-final-b.xml",
+    "families-plugin-auth-valid.xml"
+  ],
+  "finalCounts": {
+    "action_group_families_executor": 250,
+    "plugin_config_authorization": 42
+  },
+  "isolation": "scripts/run_tests_isolated.py; synthetic roots; random loopback HTTP/IPC; NO_PROXY=127.0.0.1,localhost,::1 for HTTP groups",
+  "commands": {
+    "A": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p1.py tests/test_action_unification_p2.py tests/test_action_unification_p3.py tests/test_action_unification_p3_review.py tests/test_action_unification_p34.py tests/test_action_unification_p6_families.py tests/test_job_final_executors.py tests/test_job_system_actions.py -q --junitxml=evidence/action-unification-p6/families-final-a.xml",
+    "B": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p4.py tests/test_action_unification_p6.py tests/test_action_unification_p6_compat.py tests/test_action_groups.py tests/test_action_ids.py tests/test_action_persistence.py -q --junitxml=evidence/action-unification-p6/families-final-b.xml",
+    "C": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_authorization_mcp.py tests/test_plugin_platform.py tests/test_plugin_session_config.py -q --junitxml=evidence/action-unification-p6/families-plugin-auth-valid.xml"
+  },
+  "checks": {
+    "serverImport": "passed using isolated runner",
+    "frontendBuild": "not required: no React source changes",
+    "remoteCI": "not run",
+    "realDataMigration": "not run",
+    "deployment": "not run"
+  },
+  "status": "candidate; P6 overall remains incomplete; see family report matrix",
+  "compressedRedEvidence": {
+    "families-focused-final.xml.gz": {
+      "rawSha256": "f5c3d4b0814bdcde261d1e532dd6488cf7d2c689c5c884ffc8adc1b52821d0d0",
+      "rawBytes": 6588,
+      "reason": "Preserve exact original bytes including trailing whitespace; do not weaken diff check"
+    },
+    "families-initial.xml.gz": {
+      "rawSha256": "a0dd0d6f1e555b04f656769dc443ee1ef4980483fa9f71aea28882ca5b7869c6",
+      "rawBytes": 5463,
+      "reason": "Preserve exact original bytes including trailing whitespace; do not weaken diff check"
+    },
+    "families-template-initial.xml.gz": {
+      "rawSha256": "05df33aa04212307e780e760241869f82ade8d859f88ce3b6e296a896d80b21b",
+      "rawBytes": 13431,
+      "reason": "Preserve exact original bytes including trailing whitespace; do not weaken diff check"
+    }
+  }
+}

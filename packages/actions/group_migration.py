@@ -85,11 +85,31 @@ def legacy_writer(root):
         owner.lock.release()
 
 
-def command_definition(raw):
-    action = validate_action(raw, automation=False)
+def command_definition(raw, *, template_ref=None):
+    action = validate_action(raw, automation=True)
+    if action['execution']['kind'] == 'job_template':
+        from .legacy_families import template_successor
+        return template_successor(action, template_ref)
+    if action['execution']['kind'] == 'system_job':
+        from .legacy_families import system_successor
+        return system_successor(action)
     if (action['system'] or action['monitoring'] or action['recoverable']
-            or action['effect'] == 'high_risk' or action['execution']['kind'] != 'command'):
-        fail('Only ordinary legacy commands have a proven direct successor')
+            or action['effect'] == 'high_risk'):
+        fail('Protected legacy Actions require their existing host policy')
+    if action['execution']['kind'] in {'api', 'session_operation'}:
+        kind = action['execution']['kind']
+        provider = 'pan.api' if kind == 'api' else 'pan.session-operation'
+        value = product_definition('api.get' if kind == 'api' else 'session.pause-everything')
+        value.update(providerRef={'id': provider, 'releaseDigest': fc.digest(provider + '.v1'), 'generation': 1},
+                     requiredCapabilities=[], cancel={'supported': False})
+        value.update(name=action['name'], description=action['description'], system=False,
+                     inputSchema=action['input_schema'], effectClass=action['effect'],
+                     retry={**value['retry'], 'idempotent': action['idempotent']})
+        value['execution']['config'] = {k: v for k, v in action['execution'].items() if k != 'kind'}
+        from .legacy_families import completion_contract
+        return fc.validate_definition('action', completion_contract(value, 'provider-receipt'))
+    if action['execution']['kind'] != 'command':
+        fail('Legacy Action requires its named host adapter')
     fixed_binding = bool(RESERVED & set(action['input_schema'].get('properties', {}))
                          or set(action['input_schema']) - {'type', 'properties', 'required', 'additionalProperties', 'description', 'title'})
     value = product_definition('process.command')
@@ -105,6 +125,20 @@ def command_definition(raw):
 def legacy_action_view(value, base, enabled):
     """Lossless single-command descriptor projection, never a new executor."""
     config = copy.deepcopy(value.get('execution', {}).get('config', {}))
+    if value.get('execution', {}).get('operation') == 'template.instantiate':
+        from .legacy_families import template_view
+        return template_view(value, base, enabled)
+    if value.get('execution', {}).get('operation', '').startswith('legacy.'):
+        from .legacy_families import system_view
+        return system_view(value, enabled)
+    if value.get('execution', {}).get('operation') in {'api.get', 'session.pause-everything'}:
+        kind = 'api' if value['execution']['operation'] == 'api.get' else 'session_operation'
+        raw = {**copy.deepcopy(base), 'name': value['name'], 'description': value['description'],
+               'enabled': enabled, 'effect': value['effectClass'], 'input_schema': value['inputSchema'],
+               'idempotent': value['retry']['idempotent'], 'execution': {'kind': kind, **config}}
+        if command_definition(raw) != value:
+            fail('Canonical contracts differ from the legacy family schema')
+        return validate_action(raw, automation=True)
     if value.get('execution', {}).get('operation') != 'process.command':
         fail('Canonical operation has no legacy single-command representation')
     commands = config.pop('commands', None)
@@ -138,6 +172,30 @@ def legacy_action_view(value, base, enabled):
     if expected != normalized:
         fail('Canonical Action contracts or business argument binding differ from the legacy command schema')
     return raw
+
+
+def flat_release_contract(value, base):
+    """Validate an explicit serial-output successor without flattening CRUD.
+
+    Old command output was one ordered byte stream. The reviewed concat/v1
+    declaration applies that rule to canonical serial stdout, parsing JSON only
+    after concatenation. Individual command receipts remain separately stored.
+    """
+    config = copy.deepcopy(value['execution']['config'])
+    merge = config.pop('legacyOutputMerge', None)
+    if merge is None:
+        return validate_action(legacy_action_view(value, base, True), automation=False)
+    if merge != 'concat/v1' or value['execution']['operation'] != 'process.command':
+        fail('Unknown legacy output merge declaration')
+    commands = config.pop('commands', None)
+    if not isinstance(commands, list) or not 1 <= len(commands) <= 32:
+        fail('Explicit serial command list required for concat/v1')
+    for command in commands:
+        if not isinstance(command, dict):
+            fail('Invalid serial command descriptor')
+        single = {**value, 'execution': {**value['execution'], 'config': {**config, **command}}}
+        validate_action(legacy_action_view(single, base, True), automation=False)
+    return {'outputMerge': merge}
 
 
 class LegacyGroupMigration:
@@ -226,6 +284,7 @@ class LegacyGroupMigration:
                     for version, actions, path, name in versions:
                         tools = []
                         for action in actions:
+                            validate_action(action, automation=False)
                             definition = command_definition(action)
                             entries = [m for m in mappings if m.get('groupId') == gid and m.get('version') == version
                                        and m.get('actionId') == action['id'] and m.get('definitionDigest') == fc.digest(action)]
@@ -264,7 +323,6 @@ class LegacyGroupMigration:
                 try:
                     action = copy.deepcopy(state['actions'][aid])
                     action['enabled'] = state.get('actionLifecycle', {}).get(aid, action.get('enabled', False))
-                    definition = command_definition(action)
                     entries = [m for m in mappings if m.get('groupId') is None and m.get('version') == 'draft'
                                and m.get('actionId') == aid and m.get('definitionDigest') == fc.digest(action)]
                     if len(entries) != 1:
@@ -272,6 +330,7 @@ class LegacyGroupMigration:
                     ref = entries[0]['actionRef']
                     from .groups import Groups
                     record = self.service._action_version_record(db, ref['id'], ref['revision'], digest=ref['digest'], for_ref=True)
+                    definition = command_definition(action, template_ref=record['definition']['execution']['config'].get('templateRef'))
                     if (Groups(self.service).resolve(db, ref, available=False) != definition
                             or record['enabled'] != action['enabled'] or record['state'] != 'published'):
                         fail('Standalone Action definition/lifecycle mismatch')
@@ -467,6 +526,102 @@ class LegacyGroupCompatibility:
     def __init__(self, service, source_root):
         self.service, self.root = service, str(Path(source_root).resolve())
 
+    def reconciliation_preview(self, *, actor):
+        """Review original adoption identities against durable canonical receipts.
+
+        This only repairs compatibility indexing for an already committed
+        handoff. It cannot enroll a source, infer aliases, publish, or replay.
+        """
+        from packages.jobs.final_service import definition
+        self.service._permit(actor, 'action', 'read')
+        self.service._permit(actor, 'action', 'updateConfig')
+        raw = Store(self.root).path.read_bytes()
+        state = fc.loads(raw.decode('utf-8'))
+        with self.service.transaction(readonly=True) as db:
+            registry = self.service._get(db, 'action_group_registry', self.root)
+            if registry.get('actionsInitialized'):
+                fail('Compatibility indexing is already initialized')
+            mappings, adoptions = {}, set()
+            for row in db.execute("SELECT document FROM final_documents WHERE kind='action_group_handoff'"):
+                handoff = json.loads(row[0])
+                if handoff['sourceRoot'] != self.root:
+                    continue
+                if handoff['sourceDigest'] != hashlib.sha256(raw).hexdigest():
+                    fail('Original adopted Action source changed')
+                receipt = db.execute('SELECT document FROM final_operations WHERE id=?', (handoff['operationId'],)).fetchone()
+                if (not receipt or json.loads(receipt[0])['response']['result'].get('planDigest') != handoff['planDigest']
+                        or handoff['generation'] != 1):
+                    fail('Original adoption receipt/generation is unproven')
+                adoptions.add(handoff['operationId'])
+                for tool in handoff['versions']['draft']['tools']:
+                    aid, ref = tool['alias'], tool['actionRef']
+                    if aid in mappings and mappings[aid] != ref:
+                        fail('Conflicting original Action identities')
+                    mappings[aid] = ref
+            if not adoptions or set(mappings) != set(state['actions']):
+                fail('Every Action needs its original committed adoption mapping')
+            items = []
+            for aid, ref in sorted(mappings.items()):
+                original = self.service._action_version_record(db, ref['id'], ref['revision'], digest=ref['digest'])
+                if original['definition'] != command_definition(state['actions'][aid],
+                        template_ref=original['definition']['execution']['config'].get('templateRef')):
+                    fail('Original mapped definition differs from preserved source')
+                head = self.service._get(db, 'action', ref['id'])
+                value = definition('action', head)
+                projected = legacy_action_view(value, state['actions'][aid], head['enabled'] and head['state'] == 'published')
+                proofs = []
+                if (head['revision'] != ref['revision'] or head['state'] != 'published'
+                        or head['enabled'] != state['actions'][aid]['enabled']):
+                    for op_id, document in db.execute("SELECT id,document FROM final_operations WHERE json_extract(document,'$.kind')='action'"):
+                        response = json.loads(document)['response']
+                        if response['status'] == 'completed' and response.get('result', {}).get('object') == head:
+                            proofs.append(op_id)
+                    if not proofs:
+                        fail('Changed head has no matching original canonical operation receipt')
+                items.append({'legacyId': aid, 'originalRef': ref,
+                              'currentRef': {'id': head['id'], 'revision': head['revision'], 'digest': fc.digest(value)},
+                              'state': head['state'], 'stateRevision': head['stateRevision'], 'enabled': head['enabled'],
+                              'receiptIds': sorted(proofs), 'projectionDigest': fc.digest(projected)})
+            plan = {'protocol': 'legacy-action-reconciliation/v1', 'sourceRoot': self.root,
+                    'sourceDigest': hashlib.sha256(raw).hexdigest(), 'expectedRevision': registry['revision'],
+                    'profileId': self.service.profile_id, 'principal': principal(actor),
+                    'authorizationRevision': self.service.auth.permissions_status()['revision'],
+                    'adoptionOperationIds': sorted(adoptions), 'items': items}
+            return {**plan, 'planDigest': fc.digest(plan)}
+
+    def reconcile(self, plan, key, *, actor):
+        from .groups import Groups
+        self.service._permit(actor, 'action', 'read')
+        fc.check_request_key(key)
+        payload = {'legacyActionReconciliation': plan}
+        with self.service.transaction(readonly=True) as db:
+            row = db.execute('SELECT document FROM final_operations WHERE scope=? AND requestKey=?',
+                             (self.service._scope(actor, 'update'), key)).fetchone()
+            if row:
+                prior = json.loads(row[0])
+                fc.idempotency_outcome({'scope': self.service._scope(actor, 'update'),
+                    'requestDigest': prior['requestDigest']}, scope=self.service._scope(actor, 'update'),
+                    request_digest=fc.request_digest('update', payload))
+                return {**prior['response'], 'replayed': True}
+        with self.service.transaction() as db, self.service.auth.lock:
+            def change(_):
+                self.service._permit(actor, 'action', 'updateConfig', execution=True)
+                if self.service.owner.token is None:
+                    fail('Reconciliation requires the canonical owner', 'revision_conflict')
+                if self.reconciliation_preview(actor=actor) != plan:
+                    fail('Reconciliation plan changed; dry-run again', 'revision_conflict')
+                state = Store(self.root).read()
+                for item in plan['items']:
+                    aid = item['legacyId']
+                    Groups.save(db, 'legacy_action_binding', binding_key(self.root, aid), {
+                        'sourceRoot': self.root, 'legacyId': aid, 'actionId': item['originalRef']['id'],
+                        'raw': state['actions'][aid], 'deleted': False})
+                registry = self.check_revision(db, plan['expectedRevision'])
+                Groups.save(db, 'action_group_registry', self.root, {**registry,
+                    'revision': registry['revision'] + 1, 'actionsInitialized': True})
+                return {'reconciliation': plan, 'preserved': True}, [], False
+            return self.service._operation(db, actor, 'update', key, payload, 'action', change)
+
     def active(self):
         with self.service.transaction(readonly=True) as db:
             return bool(db.execute("SELECT 1 FROM final_documents WHERE kind='action_group_registry' AND id=?", (self.root,)).fetchone())
@@ -486,6 +641,19 @@ class LegacyGroupCompatibility:
         value = definition('action', head)
         raw = legacy_action_view(value, binding['raw'], head['enabled'] and head['state'] == 'published')
         return raw, {'id': head['id'], 'revision': head['revision'], 'digest': fc.digest(value)}
+
+    def release_action(self, db, binding):
+        """Old build can publish a reviewed serial successor without a fake
+        single-command CRUD descriptor. Only fixed release metadata is needed.
+        """
+        from packages.jobs.final_service import definition
+        head = self.service._get(db, 'action', binding['actionId'])
+        value = definition('action', head)
+        if value['execution']['config'].get('legacyOutputMerge') != 'concat/v1':
+            return self.action(db, binding)
+        flat_release_contract(value, binding['raw'])
+        return {'id': binding['legacyId'], 'output_format': binding['raw']['output_format']}, {
+            'id': head['id'], 'revision': head['revision'], 'digest': fc.digest(value)}
 
     def check_revision(self, db, expected):
         registry = self.service._get(db, 'action_group_registry', self.root)
@@ -534,7 +702,22 @@ class LegacyGroupCompatibility:
                 self.service._permit(actor, 'action', capability, execution=True)
                 if lifecycle:
                     self.service._permit(actor, 'action', 'lifecycle', execution=True)
-                definition = command_definition(item)
+                template_ref = None
+                if item['execution']['kind'] == 'job_template':
+                    # Only reuse an explicit original mapping. A jtpl_ name or
+                    # equal revision is never evidence of canonical identity.
+                    candidates = []
+                    for row in db.execute("SELECT document FROM final_documents WHERE kind='legacy_action_binding' AND json_extract(document,'$.sourceRoot')=?", (self.root,)):
+                        candidate = json.loads(row[0])
+                        if candidate['deleted']:
+                            continue
+                        mapped = self.service._get(db, 'action', candidate['actionId'])
+                        cfg = mapped.get('execution', {}).get('config', {})
+                        if cfg.get('legacyTemplate') == item['execution'] and 'templateRef' in cfg:
+                            candidates.append(cfg['templateRef'])
+                    if candidates and all(c == candidates[0] for c in candidates):
+                        template_ref = candidates[0]
+                definition = command_definition(item, template_ref=template_ref)
                 inner = fc.digest(['legacy-action-draft', key])
                 head = self.service._action_write(binding['actionId'] if binding else None,
                     {'definition': definition, 'expectedRevision': self.service._get(db, 'action', binding['actionId'])['revision'] if binding else 0,
@@ -560,7 +743,19 @@ class LegacyGroupCompatibility:
         with self.service.transaction() as db, self.service.auth.lock:
             self.service._permit(actor, 'action', 'lifecycle', execution=True)
             self.initialize(db)
-            raw, _ = self.action(db, self.binding(db, aid))
+            raw, ref = self.action(db, self.binding(db, aid))
+            if raw['system']:
+                def change(_):
+                    self.check_revision(db, expected)
+                    self.service._permit(actor, 'action', 'manageSystemActions', execution=True)
+                    head = self.service._get(db, 'action', ref['id'])
+                    self.service._action_control(ref['id'], {'operation': 'enable' if enabled else 'disable',
+                        'expectedRevision': head['revision'], 'expectedStateRevision': head['stateRevision'],
+                        'parameters': {}, 'requestKey': fc.digest(['legacy-system-lifecycle', key])}, actor=actor,
+                        legacy_system_lifecycle=True)
+                    return {'item': {**raw, 'enabled': enabled}, 'actionRef': ref}, [ref], False
+                return self.service._operation(db, actor, 'update', key,
+                    {'legacySystemLifecycle': aid, 'enabled': enabled, 'expectedRevision': expected}, 'action', change)
             # A new current version preserves every old release's immutable
             # enabled snapshot. Do not disable a historical pinned version.
             return self.put_action({**raw, 'enabled': enabled}, expected, key, actor=actor, lifecycle_only=True)
@@ -676,7 +871,7 @@ class LegacyGroupCompatibility:
                     tools, formats = [], {}
                     for aid in value['action_ids']:
                         try:
-                            action, ref = self.action(db, self.binding(db, aid))
+                            action, ref = self.release_action(db, self.binding(db, aid))
                         except KeyError:
                             fail('Action missing; no canonical identity is inferred')
                         tools.append({'alias': aid, 'actionRef': ref})
@@ -700,7 +895,7 @@ class LegacyGroupCompatibility:
                     # every already published release and running pin stays fixed.
                     tools, formats = [], {}
                     for tool in group['tools']:
-                        action, ref = self.action(db, self.binding(db, tool['alias']))
+                        action, ref = self.release_action(db, self.binding(db, tool['alias']))
                         tools.append({'alias': tool['alias'], 'actionRef': ref})
                         formats[tool['alias']] = action['output_format']
                     staged = {**group, 'tools': tools, 'compatibility': {'protocol': 'legacy-flat/v1', 'outputFormats': formats}}

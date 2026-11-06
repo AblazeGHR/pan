@@ -96,26 +96,66 @@ async def invoke(service, action_id, body, *, actor, source=None):
         if operation == "job.create":
             from .job_creation import invoke as create_job
             return create_job(service, action_id, body, actor=actor, source=source)
+        if operation == 'template.instantiate':
+            from .legacy_families import template_view
+            template_view(action, {'id': action_id, 'output_format': 'json'}, True)
+            template_ref = action['execution']['config']['templateRef']
+            from packages.jobs.final_service import definition
+            template = service._get(db, 'template', template_ref['id'])
+            if (template['revision'] != template_ref['revision']
+                    or fc.digest(definition('template', template)) != template_ref['digest']):
+                raise fc.ContractError('reference_conflict', 'Fixed TemplateRef changed; explicit remapping required')
+            def instantiate(identity):
+                # Existing composition and Action operation join the same owner
+                # transaction. There is no second creation engine or ledger.
+                created = service.instantiate_template(template_ref['id'], {
+                    'expectedRevision': template_ref['revision'], 'requestKey': fc.digest(['legacy-template', identity])}, actor=actor)
+                old = action['execution']['config']['legacyTemplate']
+                output = {'ok': True, 'jobId': created['result']['objectIds']['job'], 'created': True,
+                          'jobCompleted': False, 'templateId': old['templateId'], 'templateRevision': old['templateRevision']}
+                return {'actionRef': ref, 'invocationId': identity, 'status': 'completed', 'phase': 'settled',
+                        'output': output, 'compositionOperationId': created['operationId'],
+                        **({'source': copy.deepcopy(source)} if source is not None else {})}, created['objectRefs'], False
+            return service._operation(db, actor, 'invoke', body['requestKey'], payload, 'action', instantiate)
         if operation == "process":
             operation = "process.command"  # Original Job adapter remains IndependentExecutor.
-        if operation not in OPERATIONS:
+        from .legacy_families import SYSTEM_OPERATIONS, system_plan
+        system_adapter = operation in {'legacy.' + op for op in SYSTEM_OPERATIONS}
+        if operation not in OPERATIONS and operation not in {'api.get', 'session.pause-everything'} and not system_adapter:
             raise fc.ContractError("unsupported_operation", "This Action has no direct command adapter")
-        try:
-            commands = prepare(operation, action["execution"]["config"],
-                argument_defaults(action["inputSchema"], body["arguments"]))
-        except ValueError as exc:
-            raise fc.ContractError("invalid_schema", str(exc)) from exc
+        if system_adapter:
+            from .legacy_families import system_view
+            system_view(action, True)  # Only exact product schemas gain this adapter.
+            service._permit(actor, 'job', 'execute', execution=True)
+            prepared = system_plan(operation, argument_defaults(action['inputSchema'], body['arguments']))
+            if prepared['operation'] in OPERATIONS:
+                prepared['commands'] = prepare(prepared['operation'], prepared['config'], prepared['arguments'])
+        elif operation in {'api.get', 'session.pause-everything'}:
+            from .group_migration import legacy_action_view
+            prepared = legacy_action_view(action, {'id': action_id, 'output_format': 'json'}, True)
+            if operation == 'session.pause-everything':
+                service._permit(actor, 'job', 'execute', execution=True)
+                if not callable(service.session_pause):
+                    raise fc.ContractError('provider_unavailable', 'Original Session pause host unavailable')
+        else:
+            try:
+                prepared = prepare(operation, action["execution"]["config"],
+                    argument_defaults(action["inputSchema"], body["arguments"]))
+            except ValueError as exc:
+                raise fc.ContractError("invalid_schema", str(exc)) from exc
         response = service._operation(db, actor, "invoke", body["requestKey"], payload, "action",
             lambda identity: ({"actionRef": ref, "invocationId": identity,
                 "status": "uncertain", "phase": "prepared", "commands": [],
+                **({'providerPlan': copy.deepcopy(prepared)} if system_adapter else {}),
                 **({'source': copy.deepcopy(source)} if source is not None else {})}, [ref], True))
         identity = response["operationId"]
         epoch = service.owner.token
 
-    return await execute_prepared(service, identity, ref, actor, commands, epoch, operation, source=source)
+    return await execute_prepared(service, identity, ref, actor, prepared, epoch, operation,
+                                  source=source, arguments=body['arguments'])
 
 
-async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None):
+async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None, arguments=None):
     @contextmanager
     def boundary():
         with service.transaction() as db:
@@ -144,6 +184,52 @@ async def execute_prepared(service, identity, ref, actor, commands, epoch, opera
     # Prepared is already durable. Any crash from here on is query-only, even
     # when no process happened to start. No automatic direct recovery.
     persist({"phase": "calling"})
+    if operation.startswith('legacy.'):
+        # Map the old payload once, then use the same process/provider primitive
+        # as canonical Jobs. The direct operation is the only durable identity.
+        @contextmanager
+        def system_boundary():
+            with boundary():
+                service._permit(actor, 'job', 'execute', execution=True)
+                yield
+        context = CommandContext({'operationId': identity}, system_boundary,
+                                 lambda rows: persist({'providerReceipts': rows}))
+        if commands['operation'] in OPERATIONS:
+            result = await service.executor.execute_commands(prepared_commands=commands['commands'],
+                frozen_plan=commands, context=CommandContext(context.identity, system_boundary,
+                    lambda rows: persist({'commands': rows})))
+            persist({**result['receipt'], 'outcome': result['outcome'], 'phase': 'settled'}, terminal=True)
+        else:
+            result = await service.executor.execute_provider(context=context, frozen_plan=commands)
+            status = {'succeeded': 'completed', 'rejected': 'failed', 'partial': 'partial', 'unknown': 'uncertain'}[result['outcome']]
+            persist({'status': status, 'phase': 'settled', 'outcome': result['outcome'],
+                     'providerReceipt': result, 'output': result['receipt']}, terminal=True)
+        return service.operation(identity, actor=actor)
+    if operation in {'api.get', 'session.pause-everything'}:
+        from .provider import execute
+        async def before_effect():
+            with boundary():
+                if operation == 'session.pause-everything':
+                    service._permit(actor, 'job', 'execute', execution=True)
+        try:
+            if operation == 'api.get':
+                output = await execute(commands, arguments, before_effect=before_effect)
+            else:
+                from .executor import execute_dynamic
+                async def progress(**fields):
+                    persist({'checkpoint': {**progress.checkpoint, **fields}})
+                    progress.checkpoint.update(copy.deepcopy(fields))
+                progress.checkpoint = {'id': identity}
+                progress.before_effect = before_effect
+                output = await execute_dynamic(commands, arguments, {}, progress, service.session_pause)
+        except Exception as exc:
+            # Preserve the original provider error text. The admitted identity
+            # remains query-only, including a lost HTTP response or owner loss.
+            persist({'status': 'uncertain', 'phase': 'settled', 'error': str(exc) or type(exc).__name__}, terminal=True)
+        else:
+            persist({'status': 'completed' if output.get('ok', True) else 'failed',
+                     'phase': 'settled', 'output': output}, terminal=True)
+        return service.operation(identity, actor=actor)
     result = await service.executor.execute_commands(prepared_commands=commands,
         frozen_plan={"operation": operation}, context=CommandContext({"operationId": identity}, boundary,
         lambda rows: persist({"commands": rows})))
