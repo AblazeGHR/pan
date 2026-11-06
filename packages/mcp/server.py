@@ -3168,7 +3168,8 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
 @mcp.tool()
 def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict | None = None,
                       item_id: str | None = None, expected_revision: int | None = None,
-                      name: str | None = None) -> dict:
+                      name: str | None = None, request_key: str | None = None,
+                      overrides: dict | None = None) -> dict:
     """Unified Action-reference Job/complete Template drafts (never execute or enable).
 
     kind: job or template. operation: list, schema, put, runs.
@@ -3186,19 +3187,29 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
     """
     if kind not in ('job', 'template'):
         return {'error': 'kind must be job or template'}
+    from urllib.parse import quote
     path = '/api/jobs/action-jobs' if kind == 'job' else '/api/jobs/job-templates'
     if operation == 'list': return _api('GET', path)
     if operation == 'schema': return _api('GET', '/api/jobs/action-jobs/schema')
     if operation == 'runs' and kind == 'job' and isinstance(item_id, str):
-        from urllib.parse import quote
         return _api('GET', path + '/' + quote(item_id, safe='') + '/runs')
+    if operation == 'delete' and kind == 'template' and isinstance(item_id, str):
+        if type(expected_revision) is not int or expected_revision < 1:
+            return {'error': 'delete requires expected_revision'}
+        return _api('DELETE', path + '/' + quote(item_id, safe='') + '?expectedRevision=' + str(expected_revision))
+    if operation == 'instantiate' and kind == 'template' and isinstance(item_id, str):
+        if type(expected_revision) is not int or expected_revision < 1:
+            return {'error': 'instantiate requires expected_revision'}
+        key = request_key or ('mcp-legacy-template:' + item_id + ':' + str(expected_revision))
+        return _api('POST', path + '/' + quote(item_id, safe='') + '/instantiate',
+                    {'expectedRevision': expected_revision, 'idempotencyKey': key,
+                     **({'overrides': overrides} if overrides is not None else {})})
     if operation != 'put' or not isinstance(config, dict):
         return {'error': 'put requires complete config'}
     if config.get('enabled', False) is not False:
         return {'error': 'Agent may submit disabled drafts only; enabled must be false'}
     import copy
     draft = copy.deepcopy(config); draft['enabled'] = False
-    from urllib.parse import quote
     if kind == 'job':
         body = {'config': draft}
         if item_id:

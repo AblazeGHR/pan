@@ -96,16 +96,18 @@ types remain fail-closed migration prerequisites.
 
 ## Remaining approved work — still blocks overall completion
 
-1. **Old Template HTTP/MCP CRUD and instantiate entry transfer is incomplete.**
-   This slice safely adopts existing complete records and executes their mapped
-   Actions. It does not yet restore all retired `/api/jobs/job-templates` writers,
-   display overrides, new Template mapping UX, delete/revision repair and old Job
-   return/control aliases. These are implementation gaps, not “complex records”
-   or an unsupported successor. Published canonical Template immutability must be
-   preserved when old mutable Template edits gain an explicit successor/alias.
-2. **Event Template composition:** its original external creator selector/query
-   needs a reviewed composition mapping. The source graph is preserved/blocked;
-   no selector is silently converted to a time schedule or literal Job input.
+1. **Old Template HTTP/MCP CRUD and instantiate entry transfer is now covered for
+   the reviewed compatibility shape.** The old `jobTemplates/templateVersions`
+   ID/revision/generation envelope, display overrides, delete/retire alias,
+   published-successor edit and instantiate replay now use the FinalService
+   owner/receipt path; focused HTTP and stdio MCP evidence is in the follow-up
+   report. Remaining work is full inventory of retired display/return aliases and
+   complex legacy fields outside this reviewed shape. Published canonical Template
+   immutability remains enforced through successor allocation.
+2. **Event Template composition:** explicit Creator-ID selectors and scalar query
+   fields now map to canonical reference Creator specs and Trigger eventFilter.
+   Complex/unknown selectors or query objects remain preserve/blocked; broader
+   external creator composition coverage still needs a reviewed mapping.
 3. **System background-process/main-lifecycle:** existing independent process host,
    logs/monitoring/recovery, and protected lifecycle supervisor remain to be
    connected with original identities and permissions. No synchronous command

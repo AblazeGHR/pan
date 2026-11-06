@@ -124,6 +124,10 @@ async def test_real_stdio_crud_operations_permissions_and_legacy(h, tmp_path, pr
             # The retained read is the canonical page, not the legacy keyed document.
             assert (await call("authorization_objects", kind="trigger", operation="read")) == {
                 "items": [], "nextCursor": None}
+            # P6 old Template MCP discovery keeps the historical envelope while
+            # traversing the owned HTTP compatibility adapter.
+            legacy_templates = await call("job_config_drafts", operation="list", kind="template")
+            assert isinstance(legacy_templates.get("templates"), list), legacy_templates
 
             objects = {}
             for resource in ["jobs", "event-creators", "triggers", "job-templates"]:

@@ -658,6 +658,172 @@ class FinalService:
                         "nativeRefs": refs}, refs, False
             return self._operation(db, actor, "create", request_key, policy, "job", mutate)
 
+    def _legacy_action_ref(self, db, legacy_id):
+        row = db.execute(
+            "SELECT actionId,revision,digest FROM final_action_aliases WHERE legacyId=?",
+            (legacy_id,),
+        ).fetchone()
+        if row is not None:
+            return {"id": row[0], "revision": int(row[1]), "digest": row[2]}
+        try:
+            return object_ref("action", self._get(db, "action", legacy_id))
+        except KeyError:
+            error("reference_conflict", "Legacy Action has no canonical ActionRef: " + str(legacy_id))
+
+    def _legacy_template_definition(self, db, item):
+        """Translate one old Template record without creating a second writer.
+
+        The old record remains the caller's identity and source of truth for the
+        compatibility response.  Canonical validation and references still run
+        before the existing FinalService write transaction.
+        """
+        if not isinstance(item, dict) or set(item) - {"id", "name", "description", "config", "revision", "referenceGeneration"}:
+            error("invalid_schema", "Invalid legacy Job Template fields")
+        config = item.get("config")
+        if not isinstance(config, dict) or not isinstance(item.get("name"), str) or not item["name"].strip():
+            error("invalid_schema", "Invalid legacy Job Template")
+        raw_steps = config.get("steps")
+        if raw_steps is None:
+            raw_steps = [{"stepId": "execute", "actionId": config.get("actionId"),
+                          "arguments": config.get("arguments", {})}]
+        if (not isinstance(raw_steps, list) or not raw_steps or
+                any(not isinstance(step, dict) or set(step) - {"stepId", "actionId", "arguments"}
+                    or not isinstance(step.get("actionId"), str)
+                    or not isinstance(step.get("arguments", {}), dict) for step in raw_steps)):
+            error("invalid_schema", "Invalid legacy Template steps")
+        steps = []
+        for index, step in enumerate(raw_steps):
+            ref = self._legacy_action_ref(db, step["actionId"])
+            action_version = self._action_version_record(db, ref["id"], ref["revision"], digest=ref["digest"])
+            arguments = {key: (copy.deepcopy(value) if isinstance(value, dict) and set(value) <= {"from", "value", "path"}
+                               and "from" in value else {"from": "literal", "value": copy.deepcopy(value)})
+                         for key, value in step.get("arguments", {}).items()}
+            steps.append({"stepId": step.get("stepId") or ("step_" + str(index)),
+                          "actionRef": ref, "arguments": arguments,
+                          "completion": {"contract": action_version["definition"].get("defaultCompletion", "ordinary")}})
+        trigger = config.get("trigger", {"kind": "manual"})
+        if not isinstance(trigger, dict):
+            error("invalid_schema", "Invalid legacy Template trigger")
+        composition = {"creators": [], "triggers": []}
+        if trigger.get("kind") == "event":
+            selector = trigger.get("creatorSelector")
+            if not isinstance(selector, dict) or set(selector) not in ({"mode", "ids"}, {"mode", "providerType"}):
+                error("reference_conflict", "Event Template creator selector requires explicit canonical mapping")
+            creator_keys = []
+            if selector["mode"] == "ids":
+                for index, creator_id in enumerate(selector.get("ids", [])):
+                    creator = self.creators.get(creator_id)
+                    if creator is None:
+                        error("reference_conflict", "Event Template creator is not a canonical Creator: " + str(creator_id))
+                    key = "creator_" + str(index)
+                    creator_keys.append(key)
+                    composition["creators"].append({"mode": "reference", "key": key,
+                                                   "ref": self.creators.ref(creator_id)})
+            event_types = trigger.get("eventTypes")
+            if not isinstance(event_types, list) or not event_types:
+                error("invalid_schema", "Event Template requires eventTypes")
+            definition_value = {"name": item["name"] + " trigger", "eventTypes": list(event_types),
+                                "targetJobId": "job",
+                                "creatorSelector": {"mode": "ids", "ids": creator_keys}}
+            if selector["mode"] == "registeredType":
+                definition_value["creatorSelector"] = copy.deepcopy(selector)
+            query = trigger.get("query")
+            if query is not None:
+                if not isinstance(query, dict) or any(not isinstance(value, (str, int, float, bool, type(None))) for value in query.values()):
+                    error("reference_conflict", "Event Template query needs a scalar canonical eventFilter")
+                definition_value["eventFilter"] = copy.deepcopy(query)
+            composition["triggers"].append({"key": "event_trigger", "definition": definition_value,
+                                           "targetJobKey": "job", "creatorKeys": creator_keys})
+        job = {"name": item["name"], "description": item.get("description", ""), "steps": steps,
+               "retention": {"policyRef": "legacy-template"}}
+        return fc.validate_definition("template", {"name": item["name"],
+            "description": item.get("description", ""), "jobDefinition": job, "composition": composition})
+
+    def _legacy_template_alias(self, db, legacy_id):
+        row = db.execute("SELECT document FROM final_documents WHERE kind='legacy_template_alias' AND id=?", (legacy_id,)).fetchone()
+        return json.loads(row[0]) if row is not None else None
+
+    def legacy_template_list(self, *, actor):
+        self._permit(actor, "template", "read")
+        with self.transaction(readonly=True) as db:
+            result = []
+            aliases = [json.loads(row[0]) for row in db.execute(
+                "SELECT document FROM final_documents WHERE kind='legacy_template_alias' ORDER BY id")]
+            aliased_canonical = {item.get("canonicalId") for item in aliases}
+            result.extend(copy.deepcopy(item["raw"]) for item in aliases if not item.get("deleted"))
+            for item in self._all(db, "template"):
+                if item["id"] not in aliased_canonical:
+                    result.append({"id": item["id"], "name": item["name"], "description": item.get("description", ""),
+                                   "config": {"name": item["name"], "enabled": False},
+                                   "revision": item["revision"], "referenceGeneration": {}})
+            return {"templates": result}
+
+    def legacy_template_write(self, item, expected_revision, request_key, *, actor, generation=None):
+        if not isinstance(item, dict):
+            error("invalid_schema", "Legacy Template item must be an object")
+        legacy_id = item.get("id")
+        if legacy_id is not None and (not isinstance(legacy_id, str) or not legacy_id.startswith("jtpl_")):
+            error("invalid_schema", "Invalid legacy Template ID")
+        with self.transaction(readonly=True) as db:
+            definition_value = self._legacy_template_definition(db, item)
+        canonical_id = legacy_id
+        with self.transaction(readonly=True) as db:
+            exists = False
+            current = None
+            alias = self._legacy_template_alias(db, canonical_id) if canonical_id else None
+            if canonical_id:
+                row = db.execute("SELECT document FROM final_documents WHERE kind='template' AND id=?", (canonical_id,)).fetchone()
+                exists = row is not None
+                current = json.loads(row[0]) if row is not None else None
+                if alias is not None and alias.get("raw", {}).get("revision") != expected_revision:
+                    error("revision_conflict", "Legacy Template revision changed")
+        body = {"definition": definition_value, "expectedRevision": expected_revision, "requestKey": request_key}
+        successor = bool(exists and current and current.get("state") == "published")
+        if exists and not successor:
+            result = self.write("template", canonical_id, body, actor=actor)
+        else:
+            body["legacyId"] = canonical_id or ("jtpl_" + fc.digest(definition_value)[:24])
+            body["expectedRevision"] = 0
+            result = self.write("template", None, body, actor=actor)
+        stored = result["result"]["object"] if "result" in result else result.get("object")
+        if successor:
+            stored = self.control("template", stored["id"], {"operation": "publish", "expectedRevision": stored["revision"],
+                "expectedStateRevision": stored["stateRevision"], "requestKey": request_key + ":publish", "parameters": {}}, actor=actor)["result"]["object"]
+        with self.transaction() as db:
+            raw = copy.deepcopy(item)
+            raw["id"] = canonical_id or stored["id"]
+            raw["revision"] = (expected_revision + 1) if successor else stored["revision"]
+            raw["referenceGeneration"] = copy.deepcopy(generation or item.get("referenceGeneration", {}))
+            db.execute("INSERT OR REPLACE INTO final_documents(kind,id,document) VALUES(?,?,?)",
+                       ("legacy_template_alias", raw["id"], fc.canonical_json({"raw": raw, "canonicalRef": object_ref("template", stored), "canonicalId": stored["id"], "deleted": False})))
+        return {"item": raw, "canonical": stored}
+
+    def legacy_template_delete(self, template_id, expected_revision, request_key, *, actor):
+        item = self.get("template", template_id, actor=actor)
+        result = self.retire("template", template_id,
+            {"expectedRevision": expected_revision, "expectedStateRevision": item["stateRevision"],
+             "requestKey": request_key, "parameters": {}}, actor=actor)
+        with self.transaction() as db:
+            alias = self._legacy_template_alias(db, template_id)
+            if alias:
+                alias["deleted"] = True
+                db.execute("INSERT OR REPLACE INTO final_documents(kind,id,document) VALUES(?,?,?)",
+                           ("legacy_template_alias", template_id, fc.canonical_json(alias)))
+        return {"deleted": True, "templateId": template_id, "result": result}
+
+    def legacy_template_instantiate(self, template_id, expected_revision, request_key, overrides=None, *, actor, activate=False):
+        canonical_revision = expected_revision
+        with self.transaction(readonly=True) as db:
+            alias = self._legacy_template_alias(db, template_id)
+            if alias and alias.get("raw", {}).get("revision") == expected_revision:
+                canonical_revision = self._get(db, "template", template_id).get("revision", expected_revision)
+        result = self.instantiate_template(template_id, {"expectedRevision": canonical_revision,
+            "requestKey": request_key, "activate": activate, "overrides": overrides or {}}, actor=actor)
+        objects = result["result"]["objectIds"] if "result" in result else result.get("objectIds", {})
+        return {"job": {"jobId": objects.get("job"), "templateId": template_id,
+                         "templateRevision": expected_revision, "displayOverrides": copy.deepcopy(overrides or {})},
+                "result": result}
+
     def instantiate_time_template(self, template_id, body, *, actor):
         """Compatibility name for the existing generic Template operation."""
         return self.instantiate_template(template_id, body, actor=actor)
@@ -669,13 +835,18 @@ class FinalService:
         the same SQLite transaction. A failed call rolls all of them back;
         an existing composition checkpoint resumes under its original key.
         """
-        if (not isinstance(body, dict) or set(body) - {"expectedRevision", "requestKey", "activate"}
+        if (not isinstance(body, dict) or set(body) - {"expectedRevision", "requestKey", "activate", "overrides"}
                 or not {"expectedRevision", "requestKey"} <= set(body)
                 or type(body.get("activate", False)) is not bool):
             error("invalid_schema", "Invalid Template instantiation")
+        overrides = body.get("overrides", {})
+        if (not isinstance(overrides, dict) or set(overrides) - {"name", "description"}
+                or any(not isinstance(value, str) for value in overrides.values())
+                or ("name" in overrides and not overrides["name"].strip())):
+            error("invalid_schema", "Invalid display overrides")
         self._permit(actor, "template", "use")
         activate = body.get("activate", False)
-        request = {**body, "activate": activate}
+        request = {**body, "activate": activate, "overrides": copy.deepcopy(overrides)}
         if fixed_template is not None:
             fixed_template = fc.validate_object('template', copy.deepcopy(fixed_template))
             if fixed_template['id'] != template_id:
@@ -688,6 +859,10 @@ class FinalService:
                 if template["state"] != "published":
                     error("reference_conflict", "Only a published Template can be instantiated")
                 value = definition("template", template)
+                if overrides:
+                    value = copy.deepcopy(value)
+                    value["jobDefinition"] = {**value["jobDefinition"], **overrides}
+                    value = fc.validate_definition("template", value)
                 specs = value["composition"]["creators"]
                 if not specs and value["composition"]["triggers"]:
                     error("capability_unsupported", "Source-free instantiation supports only a Job-only Template")
@@ -714,7 +889,7 @@ class FinalService:
                     if any(spec["mode"] == "create" for spec in specs):
                         self._permit(actor, "event_creator", "lifecycle", execution=True)
                 key = "template:" + fc.digest({"scope": self._scope(actor, "instantiate-template"),
-                                                "requestKey": body["requestKey"]})
+                                                "requestKey": body["requestKey"], "overrides": overrides})
                 composed = self.compositions.instantiate_template(value, request_key=key, activate=activate,
                     authorization_evidence={"principal": principal(actor)})
                 ids = composed["objectIds"]
@@ -1003,6 +1178,8 @@ class FinalService:
         allowed = {"definition", "expectedRevision", "requestKey", "requestDigest"}
         if "form" in body:
             allowed.add("form")
+        if kind == "template":
+            allowed.add("legacyId")
         if kind == "event_creator":
             allowed.add("expectedReferences")
         if kind == "trigger":
@@ -1010,6 +1187,10 @@ class FinalService:
         if set(body) - allowed:
             error("invalid_schema", "Unknown write fields")
         value = fc.validate_write_input(kind, {key: body[key] for key in ("definition", "expectedRevision", "requestKey")}, create=object_id is None)
+        forced_id = body.get("legacyId")
+        if forced_id is not None:
+            if kind != "template" or object_id is not None or not isinstance(forced_id, str) or not forced_id.startswith("jtpl_"):
+                error("invalid_schema", "Invalid legacy Template identity")
         if "form" in body:
             value["form"] = copy.deepcopy(body["form"])
         if "expectedReferences" in body:
@@ -1064,7 +1245,7 @@ class FinalService:
                         item = self.creators.update(object_id, value["definition"], expected_revision=value["expectedRevision"], request_key=operation_id)
                     item = self._public(kind, item)
                 else:
-                    item = self._envelope(kind, value["definition"], actor) if old is None else {
+                    item = self._envelope(kind, value["definition"], actor, object_id=(forced_id if old is None else object_id)) if old is None else {
                         **value["definition"], **{key: old[key] for key in fc.SERVER_FIELDS if key in old},
                         fc.VERSION_FIELD[kind]: old[fc.VERSION_FIELD[kind]] + 1, "updatedAt": now()}
                     item = fc.validate_object(kind, item)

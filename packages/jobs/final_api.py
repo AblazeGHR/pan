@@ -136,6 +136,11 @@ def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
     until P6 removes the legacy UI: a legacy Job that still owns a process must
     remain inspectable and cancellable.  Every other old mutation is refused.
     """
+    # P6 compatibility handoff: the old Template CRUD/instantiate shape is
+    # admitted only through the adapter in action_api, which calls the same
+    # FinalService owner fence and operation receipt as /api/job-templates.
+    if suffix.startswith("/job-templates"):
+        return False
     if methods <= {"GET", "HEAD", "OPTIONS"}:
         return False
     if suffix.endswith("/cancel"):
@@ -698,7 +703,8 @@ def _remount_legacy(facade, legacy_routers, facade_prefix):
 
 def _copy_legacy_route(target, route, path):
     """Add a facade copy of a pre-canonical route: reads keep, writes refuse."""
-    if route.methods <= {"GET", "HEAD", "OPTIONS"}:
+    template_compat = "/job-templates" in route.path
+    if route.methods <= {"GET", "HEAD", "OPTIONS"} or template_compat:
         target.add_api_route(
             path, route.endpoint, methods=sorted(route.methods),
             name="legacy_" + route.name,

@@ -225,6 +225,10 @@ async def confirm_recovery(job_id:str,data:dict,request:Request):
 @router.get('/job-templates')
 async def list_templates(request:Request):
     await require_capability(request, 'jobTemplate', 'read')
+    canonical = getattr(request.app.state, 'job_final_service', None)
+    if canonical is not None:
+        from packages.jobs.final_api import actor
+        return await io(canonical.legacy_template_list, actor=await actor(request, 'template', 'read'))
     return {'templates':await invoke(runtime(request).templates.list)}
 
 
@@ -232,6 +236,11 @@ async def list_templates(request:Request):
 async def create_template(data:dict,request:Request):
     await require_capability(request, 'jobTemplate', 'create')
     body(data,{'item','expectedRevision'},{'item','expectedRevision'})
+    canonical = getattr(request.app.state, 'job_final_service', None)
+    if canonical is not None:
+        from packages.jobs.final_api import actor
+        return await io(canonical.legacy_template_write, data['item'], data['expectedRevision'],
+                        'legacy-template-create:' + str(data['item'].get('id', 'new')), actor=await actor(request, 'template', 'create'))
     return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request))}
 
 
@@ -239,12 +248,23 @@ async def create_template(data:dict,request:Request):
 async def update_template(template_id:str,data:dict,request:Request):
     await require_capability(request, 'jobTemplate', 'updateConfig')
     body(data,{'item','expectedRevision'},{'item','expectedRevision'})
+    canonical = getattr(request.app.state, 'job_final_service', None)
+    if canonical is not None:
+        from packages.jobs.final_api import actor
+        item = dict(data['item']); item['id'] = template_id
+        return await io(canonical.legacy_template_write, item, data['expectedRevision'],
+                        'legacy-template-update:' + template_id + ':' + str(data['expectedRevision']), actor=await actor(request, 'template', 'updateConfig'))
     return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request),template_id)}
 
 
 @router.delete('/job-templates/{template_id}')
 async def delete_template(template_id:str,expectedRevision:int,request:Request):
     await require_capability(request, 'jobTemplate', 'delete')
+    canonical = getattr(request.app.state, 'job_final_service', None)
+    if canonical is not None:
+        from packages.jobs.final_api import actor
+        return await io(canonical.legacy_template_delete, template_id, expectedRevision,
+                        'legacy-template-delete:' + template_id + ':' + str(expectedRevision), actor=await actor(request, 'template', 'delete'))
     await invoke(runtime(request).templates.delete,template_id,expectedRevision)
     return {'deleted':True}
 
@@ -255,6 +275,12 @@ async def instantiate(template_id:str,data:dict,request:Request):
     await require_capability(request, 'job', 'create')
     body(data,{'expectedRevision','idempotencyKey','overrides'},{'expectedRevision','idempotencyKey'})
     await user(request,True)
+    canonical = getattr(request.app.state, 'job_final_service', None)
+    if canonical is not None:
+        from packages.jobs.final_api import actor
+        return await io(canonical.legacy_template_instantiate, template_id, data['expectedRevision'],
+                        data['idempotencyKey'], data.get('overrides'), actor=await actor(request, 'template', 'use'),
+                        activate=False)
     key=data['idempotencyKey']
     if not isinstance(key,str) or not 1<=len(key)<=128:raise HTTPException(400,'idempotencyKey requires1..128 characters')
     source = await authority(request)
@@ -278,10 +304,6 @@ RETIRED_ROUTES = {
     ('DELETE', '/api/jobs/action-jobs/{job_id}'),
     ('POST', '/api/jobs/action-jobs/{job_id}/confirm-recovery'),
     ('POST', '/api/jobs/action-jobs/{job_id}/retry'),
-    ('POST', '/api/jobs/job-templates'),
-    ('PUT', '/api/jobs/job-templates/{template_id}'),
-    ('DELETE', '/api/jobs/job-templates/{template_id}'),
-    ('POST', '/api/jobs/job-templates/{template_id}/instantiate'),
 }
 
 RETAINED_ROUTES = {
@@ -291,6 +313,10 @@ RETAINED_ROUTES = {
     ('GET', '/api/jobs/action-references/{action_id}'),
     ('POST', '/api/jobs/action-jobs/{job_id}/cancel'),
     ('GET', '/api/jobs/job-templates'),
+    ('POST', '/api/jobs/job-templates'),
+    ('PUT', '/api/jobs/job-templates/{template_id}'),
+    ('DELETE', '/api/jobs/job-templates/{template_id}'),
+    ('POST', '/api/jobs/job-templates/{template_id}/instantiate'),
 }
 
 for _route in router.routes:
