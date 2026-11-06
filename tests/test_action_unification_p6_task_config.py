@@ -288,11 +288,34 @@ def test_P6_CONFIG_07_multi_entry_identity_cursor_and_dispatch_key(json_task):
     projected = project(service, source['taskId'], actor=USER)['task']
     assert isinstance(projected['schedule'], list)
     assert {entry['id'] for entry in projected['schedule']} == {first_id, 'entry-two'}
+    paused = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-two',
+        'expected_entry_revision': 1, 'entry_paused': True}, actor=USER,
+        request_key='multi-entry-pause', expected_revision=1)
+    assert paused['result']['entryRevision'] == 2
+    assert next(item for item in project(service, source['taskId'], actor=USER)['task']['schedule']
+                if item['id'] == 'entry-two')['nextFireAt'] is None
+    replay = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-two',
+        'expected_entry_revision': 1, 'entry_paused': True}, actor=USER,
+        request_key='multi-entry-pause', expected_revision=1)
+    assert replay['replayed']
+    with pytest.raises(fc.ContractError, match='Per-entry schedule revision'):
+        canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-two',
+            'expected_entry_revision': 1, 'entry_paused': False}, actor=USER,
+            request_key='multi-entry-stale', expected_revision=2)
+    resumed = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-two',
+        'expected_entry_revision': 2, 'entry_paused': False}, actor=USER,
+        request_key='multi-entry-resume', expected_revision=2)
+    assert resumed['result']['entryRevision'] == 3
+    removed = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-two',
+        'expected_entry_revision': 3, 'delete_entry': True}, actor=USER,
+        request_key='multi-entry-delete', expected_revision=3)
+    assert removed['result']['entryId'] == 'entry-two'
+    assert [item['id'] for item in project(service, source['taskId'], actor=USER)['task']['schedule']] == [first_id]
     run = control(service, source['taskId'], 'run-now', actor=USER, request_key='multi-entry-manual')
     with service.transaction() as db:
         job = service._get(db, 'job', source['jobId'])
         freeze_dispatch(service, db, job, run['runId'], {'creatorId': binding['creatorId'],
-            'payload': {'ruleId': 'entry-two', 'scheduledAt': creator['cursor']['rules']['entry-two']['nextFireAt']}})
+            'payload': {'ruleId': first_id, 'scheduledAt': creator['cursor']['rules'][first_id]['nextFireAt']}})
         service._save(db, 'job', source['jobId'], job)
     state = service.final.store.get(source['jobId'])['finalRuntime']
-    assert state['plans'][run['runId']]['dispatchKey'].startswith(source['taskId'] + ':entry-two:')
+    assert state['plans'][run['runId']]['dispatchKey'].startswith(source['taskId'] + ':' + first_id + ':')

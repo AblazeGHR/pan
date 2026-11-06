@@ -156,6 +156,9 @@ def install_graph(service, db, source, mapped, actor, operation_id, binding):
         operationId=operation_id, revision=source.get('revision', 1), generation=source.get('generation', 1),
         paused=source['paused'], originalEntryIds=[item['id'] for item in source['schedule']],
         originalEntryCursors=copy.deepcopy(mapped.get('entryCursors', {})),
+        entryCursors=copy.deepcopy(mapped.get('entryCursors', {})),
+        entryRevisions={item['id']: 1 for item in source['schedule']},
+        entryPaused={item['id']: False for item in source['schedule']},
         originalRunIds=list(job['finalRuntime']['runs']),
         originalReturnedRunIds=sorted({effect['effectKey']['runId'] for effect in job['finalRuntime']['effects']}
             | {rid for rid, plan in job['finalRuntime']['plans'].items() if plan.get('pendingProcessAttempt')}))
@@ -211,8 +214,8 @@ class JsonTaskHandoff:
                     'Unknown schedule entry fields require review')
             require(item.get('enabled', True) or item.get('nextFireAt') is None,
                     'Disabled entry retains an active cursor; preserve original')
-        active_entries = [item for item in entries if item.get('enabled', True)]
-        require(source.get('nextFireAt') == min((item.get('nextFireAt') for item in active_entries), default=None),
+        active_entries = [item for item in entries if item.get('enabled', True) and item.get('nextFireAt')]
+        require(source.get('nextFireAt') == min((item['nextFireAt'] for item in active_entries), default=None),
                 'Original task and multi-entry cursors disagree')
         entry = entries[0]
         action = source.get('action', {})
@@ -290,7 +293,8 @@ class JsonTaskHandoff:
         planned = []
         for item in entries:
             clock_source = {'id': source['taskId'], 'name': source['name'], 'owner': 'scheduler-json', 'revision': 1,
-                'enabled': source['enabled'] and item.get('enabled', True), 'schedule': {k: v for k, v in item.items()
+                'enabled': source['enabled'] and item.get('enabled', True) and item.get('nextFireAt') is not None,
+                'schedule': {k: v for k, v in item.items()
                     if k in {'kind', 'at', 'intervalSec', 'interval_sec', 'anchor', 'cron', 'timezone'}},
                 'misfirePolicy': item.get('misfirePolicy', source['misfirePolicy']), 'graceSec': item.get('graceSec', 0),
                 'nextFireAt': item.get('nextFireAt'), 'pending': None, 'publishCursor': None}

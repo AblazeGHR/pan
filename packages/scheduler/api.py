@@ -548,6 +548,30 @@ async def update_task(task_id: str, data: dict, request: Request = None):
             return _err("invalid_argument",
                         f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
         patch["misfire_policy"] = policy
+    if "entryId" in data:
+        if not isinstance(data["entryId"], str) or not data["entryId"]:
+            return _err("invalid_argument", "entryId must be a non-empty string")
+        patch["entry_id"] = data["entryId"]
+    if "expectedEntryRevision" in data:
+        if type(data["expectedEntryRevision"]) is not int or data["expectedEntryRevision"] < 1:
+            return _err("invalid_argument", "expectedEntryRevision must be a positive integer")
+        patch["expected_entry_revision"] = data["expectedEntryRevision"]
+    if "entryEnabled" in data:
+        if type(data["entryEnabled"]) is not bool:
+            return _err("invalid_argument", "entryEnabled must be boolean")
+        patch["entry_enabled"] = data["entryEnabled"]
+    if "entryPaused" in data:
+        if type(data["entryPaused"]) is not bool:
+            return _err("invalid_argument", "entryPaused must be boolean")
+        patch["entry_paused"] = data["entryPaused"]
+    if "entryMisfirePolicy" in data:
+        if data["entryMisfirePolicy"] not in _MISFIRE_POLICIES:
+            return _err("invalid_argument", "entryMisfirePolicy must be fire_now or skip")
+        patch["entry_misfire_policy"] = data["entryMisfirePolicy"]
+    if "deleteEntry" in data:
+        if type(data["deleteEntry"]) is not bool:
+            return _err("invalid_argument", "deleteEntry must be boolean")
+        patch["delete_entry"] = data["deleteEntry"]
 
     try:
         operation = await io(canonical_tasks.update, service, task_id, patch, actor=who,

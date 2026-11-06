@@ -67,6 +67,76 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
             creator = service.creators.get(binding['creatorId'])
             require(not creator.get('pendingPublication'), 'Original publication must settle before clock configuration changes')
             source = copy.deepcopy(binding.get('currentSource', binding['source']))
+            entry_id = patch.get('entry_id')
+            if len(source.get('schedule', [])) > 1 and entry_id is not None:
+                require(isinstance(entry_id, str) and entry_id in {item['id'] for item in source['schedule']},
+                        'Per-entry update requires an existing entry identity')
+                expected_entry = patch.get('expected_entry_revision')
+                current_entry_revision = binding.get('entryRevisions', {}).get(entry_id, 1)
+                require(type(expected_entry) is int and expected_entry == current_entry_revision,
+                        'Per-entry schedule revision changed; query the original entry')
+                target = next(item for item in source['schedule'] if item['id'] == entry_id)
+                if patch.get('delete_entry'):
+                    require(len(source['schedule']) > 1, 'The final schedule entry requires task lifecycle delete')
+                    source['schedule'] = [item for item in source['schedule'] if item['id'] != entry_id]
+                else:
+                    if patch.get('schedule') is not None:
+                        replacement = copy.deepcopy(patch['schedule'])
+                        replacement['id'] = entry_id
+                        replacement['nextFireAt'] = target.get('nextFireAt')
+                        replacement['enabled'] = target.get('enabled', True)
+                        target.clear(); target.update(replacement)
+                    if 'entry_enabled' in patch:
+                        target['enabled'] = bool(patch['entry_enabled'])
+                        if not target['enabled']:
+                            target['nextFireAt'] = None
+                        else:
+                            target['nextFireAt'] = binding.get('entryCursors', {}).get(entry_id)
+                            require(target['nextFireAt'] is not None,
+                                    'Entry re-enable lacks a retained cursor; preserve and review')
+                    if 'entry_paused' in patch:
+                        binding.setdefault('entryPaused', {})[entry_id] = bool(patch['entry_paused'])
+                        if patch['entry_paused']:
+                            target['nextFireAt'] = None
+                        else:
+                            target['nextFireAt'] = binding.get('entryCursors', {}).get(entry_id)
+                            require(target['nextFireAt'] is not None,
+                                    'Entry resume lacks a retained cursor; preserve and review')
+                    if 'entry_misfire_policy' in patch:
+                        # Canonical time provider has one policy for the whole
+                        # Creator. Do not silently change only one legacy rule.
+                        require(all(item.get('misfirePolicy', source['misfirePolicy']) ==
+                                    patch['entry_misfire_policy'] for item in source['schedule']),
+                                'Per-entry policy differs from the canonical Creator policy; preserve')
+                        target['misfirePolicy'] = patch['entry_misfire_policy']
+                active = [item for item in source['schedule'] if item.get('enabled', True) and item.get('nextFireAt')]
+                source['nextFireAt'] = min((item['nextFireAt'] for item in active), default=None)
+                mapped_by = mapping(service, db, source, policies={key: job['config'][key]
+                    for key in ('overlap', 'recovery', 'notification', 'retention')}, timezone=binding['timezone'])
+                mapped = JsonTaskHandoff(service)._map(db, source, mapped_by, definition_only=True)
+                service.write('event_creator', creator['id'], {'definition': mapped['creator'],
+                    'expectedRevision': creator['revision'], 'requestKey': operation_id + ':entry'}, actor=actor)
+                creator = service.creators.get(creator['id'])
+                for item in source['schedule']:
+                    cursor = creator['cursor']['rules'][item['id']]
+                    paused = binding.get('entryPaused', {}).get(item['id'], False)
+                    if paused or not item.get('enabled', True):
+                        cursor.update(nextFireAt=None, nextOccurrence=None)
+                    elif item.get('nextFireAt'):
+                        cursor['nextFireAt'] = item['nextFireAt']
+                service.creators._write(db, creator)
+                binding.setdefault('entryRevisions', {})[entry_id] = current_entry_revision + 1
+                retained = binding.setdefault('entryCursors', {})
+                for item in source['schedule']:
+                    if item.get('nextFireAt') is not None:
+                        retained[item['id']] = item['nextFireAt']
+                if patch.get('delete_entry'):
+                    retained.pop(entry_id, None)
+                binding['currentSource'] = source
+                binding['revision'] += 1
+                service._save(db, 'json_scheduler_handoff', tid, binding)
+                return ({'taskId': tid, 'entryId': entry_id, 'entryRevision': current_entry_revision + 1},
+                    [object_ref('job', service._object(db, 'job', job['jobId']))], False)
             if len(source.get('schedule', [])) > 1 and any(key in patch for key in
                     ('schedule', 'enabled', 'paused', 'misfire_policy', 'next_fire_at')):
                 require(False, 'Multi-entry schedule edit requires per-entry revision/CAS; preserve all entry cursors')
