@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, cleanup, act } from '@testing-library/react';
 import { SessionList } from './SessionList';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -96,22 +96,47 @@ describe('SessionList select-mode interactions', () => {
     expect(useSessionStore.getState().selectedIds.has('a')).toBe(false);
   });
 
-  it('clicking the card body opens the session instead of changing selection', () => {
+  it('clicking anywhere on the card body toggles selection and never opens the session', () => {
     useSessionStore.setState({ sessions: [mk('a', 'Alpha'), mk('b', 'Beta')] });
 
     const { container } = render(<SessionList />);
     enterSelectMode();
 
-    // Pre-select Beta via its checkbox so we can prove the click on Alpha's
-    // body leaves the selection untouched.
+    // Pre-select Beta via its checkbox so we can prove Alpha's body click is
+    // an independent toggle.
     const checkboxes = container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[1]!);
     expect(useSessionStore.getState().selectedIds.has('b')).toBe(true);
 
     fireEvent.click(rows(container)[0]!);
-    expect(useSessionStore.getState().currentSessionId).toBe('a');
+    expect(useSessionStore.getState().selectedIds.has('a')).toBe(true);
     expect(useSessionStore.getState().selectedIds.has('b')).toBe(true);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+
+    // A second click on the same card deselects it.
+    fireEvent.click(rows(container)[0]!);
     expect(useSessionStore.getState().selectedIds.has('a')).toBe(false);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+  });
+
+  it('clicking the dedicated drag gutter never selects or opens the session', () => {
+    useSessionStore.setState({ sessions: [mk('a', 'Alpha'), mk('b', 'Beta')] });
+    const onSessionClick = vi.fn();
+
+    const { container } = render(<SessionList onSessionClick={onSessionClick} />);
+    enterSelectMode();
+
+    // Select mode keeps the dedicated drag zone on every card.
+    const handles = container.querySelectorAll('[data-testid="drag-handle"]');
+    expect(handles.length).toBe(2);
+
+    fireEvent.pointerDown(handles[0]!, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(handles[0]!);
+    fireEvent.click(handles[0]!);
+
+    expect(useSessionStore.getState().selectedIds.size).toBe(0);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(onSessionClick).not.toHaveBeenCalled();
   });
 
   it('checkbox hit zone is enlarged and still toggles exactly once per click', () => {
