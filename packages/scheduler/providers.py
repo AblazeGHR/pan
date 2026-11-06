@@ -430,8 +430,10 @@ class TimeProvider:
             basis = timestamp(max(instant(at), instant(scheduled)))
             following = self.next_after(rule, basis)
             late = instant(at) - instant(scheduled) > Decimal(item["config"]["graceSeconds"])
-            outcome = misfire_outcome(rule["type"], item["config"]["misfirePolicy"],
-                                      instant(at) - instant(scheduled), Decimal(item["config"]["graceSeconds"]))
+            policy = rule.get("misfirePolicy", item["config"]["misfirePolicy"])
+            grace = Decimal(rule.get("graceSeconds", item["config"]["graceSeconds"]))
+            outcome = misfire_outcome(rule["type"], policy,
+                                      instant(at) - instant(scheduled), grace)
             reason = "backfill" if late else "scheduled"
             occurrence = cursor.get("nextOccurrence") or {
                 "timezone": "UTC", "wallTime": scheduled, "fold": 0, "ordinal": 0, "gap": "none"
@@ -683,6 +685,8 @@ def legacy_schedule_plan(source, *, timezone_name, rule_id="legacy"):
                     dstPolicy="gap-shift-fold-first")
     else:
         raise contracts.ContractError("capability_unsupported", "Unsupported legacy source rule")
+    rule["misfirePolicy"] = source["misfirePolicy"]
+    rule["graceSeconds"] = str(source["graceSec"])
     config = {"rules": [rule], "misfirePolicy": source["misfirePolicy"],
               "graceSeconds": str(source["graceSec"]), "pausePolicy": "advance"}
     provider.validate_config(config)

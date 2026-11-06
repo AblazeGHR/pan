@@ -299,10 +299,10 @@ class JsonTaskHandoff:
                 'misfirePolicy': item.get('misfirePolicy', source['misfirePolicy']), 'graceSec': item.get('graceSec', 0),
                 'nextFireAt': item.get('nextFireAt'), 'pending': None, 'publishCursor': None}
             planned.append((item, *legacy_schedule_plan(clock_source, timezone_name=mapping['timezone'], rule_id=item['id'])))
-        policy_pairs = {(item.get('misfirePolicy', source['misfirePolicy']), item.get('graceSec', 0)) for item in entries}
-        require(len(policy_pairs) == 1, 'Multi-entry policy differences need an explicit canonical policy adapter')
         creator, occurrence = planned[0][1], planned[0][2]
         creator['config']['rules'] = [copy.deepcopy(item[1]['config']['rules'][0]) for item in planned]
+        creator['config']['misfirePolicy'] = source['misfirePolicy']
+        creator['config']['graceSeconds'] = str(source.get('graceSec', 0))
         creator = fc.validate_definition('event_creator', creator)
         occurrences = {item['id']: occ for item, _, occ in planned}
         creator['eventTypes'] = ['scheduler.time.v2']

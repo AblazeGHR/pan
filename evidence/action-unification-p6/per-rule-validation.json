@@ -1,0 +1,67 @@
+{
+  "baseline": "adcd124a133fec4e0f3ecd957c34c2e623c47676",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSha256": {
+    "packages/jobs/final_contracts.py": "9b68eb0a2aa6dc916abfa0ee5118ef0a6c859fd2c85314acadd7a716850c1711",
+    "packages/jobs/schemas/final/scheduler_config.schema.json": "d95a1642a22ed2f2e6e2b5bf18b29315f046457122d48114c1b2476f53fb16c5",
+    "packages/scheduler/providers.py": "f04f057575b915a4125a6c0c3044dc99ab046cb38f66fe24c1ad12e647b726de",
+    "packages/scheduler/json_handoff.py": "47e6c0f172132fbdd3f5f135d0af0d5392b1883f80215651aef13b66d5e4437d",
+    "packages/scheduler/canonical_tasks.py": "5094d5d5cdc7e8d312730b13a6c6f9fb3aa05b940f19facf4a0f2d0c10fdd167",
+    "packages/scheduler/api.py": "03998c33553efbc75afb13183c581e830f7bb48df7a761dff4f4b0a38caa614e",
+    "packages/mcp/server.py": "1d232362b6d9f64b79a33cb784b693a4f130407a35dd5b03b2bd40ddef8152a0",
+    "tests/test_action_unification_p6_task_config.py": "7659b9ceae049172255a03ce183f15e8ed72acf01d4d72786899a751f7b24412"
+  },
+  "junit": [
+    {
+      "artifact": "evidence/action-unification-p6/per-rule-final-combination.xml",
+      "tests": 77,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "4dd9485c1af11429cb837bf6d88828934d0d54d52eef18249e4fcac4dd149097"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/notification-cold-selected.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "d6b3db9d10b5abadffd72ae205943a722e5ba527852343d070b2640042269f6c"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/qq-cold-existing.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "b3261aa58b94383cdf489a290b9343cc13e1fb82cc9d1fea872244ab24eddd87"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/cancel-cold-selected.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "6e30a64a00dbabca1b75c46fa49aa59ab4c290a401433245ed45b87e0a8980a8"
+    }
+  ],
+  "checks": {
+    "ast": "passed",
+    "final_contracts": "passed",
+    "generatedSchema": "passed",
+    "git_diff_check": "passed"
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "claims": {
+    "productionBuild": "not run",
+    "chromium": "not run",
+    "remoteCI": "not run",
+    "linuxMacOS": "not run",
+    "realDataMigration": "not run",
+    "deployment": "not run",
+    "manualAcceptance": "pending MA"
+  }
+}

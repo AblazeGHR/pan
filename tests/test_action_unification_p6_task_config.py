@@ -319,3 +319,34 @@ def test_P6_CONFIG_07_multi_entry_identity_cursor_and_dispatch_key(json_task):
         service._save(db, 'job', source['jobId'], job)
     state = service.final.store.get(source['jobId'])['finalRuntime']
     assert state['plans'][run['runId']]['dispatchKey'].startswith(source['taskId'] + ':' + first_id + ':')
+
+
+def test_P6_CONFIG_08_multi_entry_heterogeneous_policy_rule_override_and_cas(json_task):
+    service, source, mapping, root = json_task
+    second = copy.deepcopy(source['schedule'][0])
+    second.update(id='entry-policy', misfirePolicy='skip', graceSec=7)
+    source['schedule'].append(second)
+    path = root / mapping['sourceFile']
+    path.write_text(json.dumps(source), encoding='utf8')
+    port = JsonTaskHandoff(service)
+    plan = port.preview([mapping], actor=USER)
+    assert plan['blocked'] == [], plan['blocked']
+    port.apply(plan, 'heterogeneous-policy-adopt', actor=USER)
+    with service.transaction(readonly=True) as db:
+        _, binding = resolve(service, db, source['taskId'])
+    creator = service.creators.get(binding['creatorId'])
+    rules = {rule['ruleId']: rule for rule in creator['config']['rules']}
+    assert rules['entry-policy']['misfirePolicy'] == 'skip'
+    assert rules['entry-policy']['graceSeconds'] == '7'
+    updated = canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-policy',
+        'expected_entry_revision': 1, 'entry_misfire_policy': 'fire_now',
+        'entry_grace_seconds': 2}, actor=USER, request_key='heterogeneous-policy-edit', expected_revision=1)
+    assert updated['result']['entryRevision'] == 2
+    creator = service.creators.get(binding['creatorId'])
+    rules = {rule['ruleId']: rule for rule in creator['config']['rules']}
+    assert rules['entry-policy']['misfirePolicy'] == 'fire_now'
+    assert rules['entry-policy']['graceSeconds'] == '2'
+    with pytest.raises(fc.ContractError, match='Per-entry schedule revision'):
+        canonical_tasks.update(service, source['taskId'], {'entry_id': 'entry-policy',
+            'expected_entry_revision': 1, 'entry_misfire_policy': 'skip'}, actor=USER,
+            request_key='heterogeneous-policy-stale', expected_revision=2)

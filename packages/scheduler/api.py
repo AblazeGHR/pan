@@ -568,6 +568,14 @@ async def update_task(task_id: str, data: dict, request: Request = None):
         if data["entryMisfirePolicy"] not in _MISFIRE_POLICIES:
             return _err("invalid_argument", "entryMisfirePolicy must be fire_now or skip")
         patch["entry_misfire_policy"] = data["entryMisfirePolicy"]
+    if "entryGraceSec" in data:
+        try:
+            grace = float(data["entryGraceSec"])
+        except (TypeError, ValueError):
+            return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
+        if grace < 0:
+            return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
+        patch["entry_grace_seconds"] = grace
     if "deleteEntry" in data:
         if type(data["deleteEntry"]) is not bool:
             return _err("invalid_argument", "deleteEntry must be boolean")

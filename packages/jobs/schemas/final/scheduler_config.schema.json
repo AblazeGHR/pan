@@ -23,6 +23,16 @@
               "at": {
                 "type": "string",
                 "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+              },
+              "misfirePolicy": {
+                "enum": [
+                  "skip",
+                  "fire_now"
+                ]
+              },
+              "graceSeconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
               }
             },
             "required": [
@@ -56,6 +66,16 @@
                   "grid",
                   "afterPublication"
                 ]
+              },
+              "misfirePolicy": {
+                "enum": [
+                  "skip",
+                  "fire_now"
+                ]
+              },
+              "graceSeconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
               }
             },
             "required": [
@@ -97,6 +117,16 @@
                 "minLength": 1,
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9_-]*$"
+              },
+              "misfirePolicy": {
+                "enum": [
+                  "skip",
+                  "fire_now"
+                ]
+              },
+              "graceSeconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
               }
             },
             "required": [
@@ -133,6 +163,16 @@
                 "minLength": 1,
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9_-]*$"
+              },
+              "misfirePolicy": {
+                "enum": [
+                  "skip",
+                  "fire_now"
+                ]
+              },
+              "graceSeconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
               }
             },
             "required": [
@@ -167,6 +207,16 @@
                 "minLength": 1,
                 "maxLength": 64,
                 "pattern": "^[a-z][a-z0-9_-]*$"
+              },
+              "misfirePolicy": {
+                "enum": [
+                  "skip",
+                  "fire_now"
+                ]
+              },
+              "graceSeconds": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9]\\d*)(?:\\.\\d+)?$"
               }
             },
             "required": [

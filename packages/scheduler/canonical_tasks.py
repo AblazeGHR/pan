@@ -103,12 +103,9 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
                             require(target['nextFireAt'] is not None,
                                     'Entry resume lacks a retained cursor; preserve and review')
                     if 'entry_misfire_policy' in patch:
-                        # Canonical time provider has one policy for the whole
-                        # Creator. Do not silently change only one legacy rule.
-                        require(all(item.get('misfirePolicy', source['misfirePolicy']) ==
-                                    patch['entry_misfire_policy'] for item in source['schedule']),
-                                'Per-entry policy differs from the canonical Creator policy; preserve')
                         target['misfirePolicy'] = patch['entry_misfire_policy']
+                    if 'entry_grace_seconds' in patch:
+                        target['graceSec'] = patch['entry_grace_seconds']
                 active = [item for item in source['schedule'] if item.get('enabled', True) and item.get('nextFireAt')]
                 source['nextFireAt'] = min((item['nextFireAt'] for item in active), default=None)
                 mapped_by = mapping(service, db, source, policies={key: job['config'][key]

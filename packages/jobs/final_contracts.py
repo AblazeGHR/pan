@@ -1369,6 +1369,14 @@ def _scheduler_config() -> dict[str, Any]:
     daily["properties"].pop("weekday")
     daily["required"].remove("weekday")
     rule["oneOf"].append(daily)
+    # Legacy scheduler entries can carry their own misfire/grace policy. Keep
+    # the Creator-level defaults for older callers, while allowing a rule to
+    # freeze an explicit per-entry override during migration.
+    for variant in rule["oneOf"]:
+        variant["properties"].update({
+            "misfirePolicy": {"enum": list(MISFIRE_POLICIES)},
+            "graceSeconds": _DURATION,
+        })
     return {
         "title": "Scheduler provider config",
         "description": "Time provider config consumed by Event Creator instances (design §10.3).",
