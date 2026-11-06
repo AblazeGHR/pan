@@ -1,3 +1,4 @@
+import { TriggerTarget } from '@/components/automation/TriggerTarget';
 import { wsClient } from '@/services/ws';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiRequestError } from '@/services/api';
@@ -117,7 +118,7 @@ const unresolved = (value: Pending | null) =>
 
 /** All state and requests belong to this canonical page, isolated from legacy stores. */
 export default function CanonicalJobsView() {
-  const token = useAutomationAuth((s) => s.token);
+  const token = useAutomationAuth((s) => s.token || (s.authenticated ? 'cookie' : ''));
   // Changing authorization remounts the workspace: late responses cannot expose an earlier user's data.
   return (
     <PageShell label="Canonical management">
@@ -429,7 +430,7 @@ export function CanonicalCollection({
                     <CanonicalDefinitionFields
                       kind={kind}
                       value={objectJson(editor.json)}
-                      targetJob={jobs.find((job) => job.id === objectJson(editor.json).targetJobId)}
+                      targetJob={jobs.find((job) => job.id === (objectJson(editor.json).targetJobId ?? (objectJson(editor.json).target as JsonObject | undefined)?.jobId))}
                       onChange={(value) => {
                         setStructuredEdited(true);
                         setEditor({ ...editor, json: JSON.stringify(value, null, 2) });
@@ -573,35 +574,7 @@ export function CanonicalCollection({
               className="min-w-0 space-y-3 rounded-xl border border-border-muted p-4"
             >
               <legend className="px-1 text-sm font-semibold text-text-secondary">订阅目标</legend>
-              <label className="block">
-                Target canonical Job
-                <select
-                  aria-label="Target canonical Job"
-                  className={field}
-                  value={String(previewObject(editor.json).targetJobId ?? '')}
-                  onChange={(e) =>
-                    setEditor({
-                      ...editor,
-                      json: JSON.stringify(
-                        { ...objectJson(editor.json), targetJobId: e.target.value },
-                        null,
-                        2,
-                      ),
-                    })
-                  }
-                >
-                  <option value="">Choose a Job</option>
-                  {jobs.map((job) => (
-                    <option
-                      key={job.id}
-                      value={job.id}
-                      disabled={job.state === 'draft' || job.state === 'retired'}
-                    >
-                      {job.name} · {job.state}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <TriggerTarget value={previewObject(editor.json)} jobs={jobs} onChange={value => setEditor({ ...editor, json: JSON.stringify(value, null, 2) })} />
               <label className="block">
                 Creator selection
                 <select

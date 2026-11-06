@@ -60,6 +60,7 @@ import {
   X,
 } from 'lucide-react';
 import './actions.css';
+export { default } from './UnifiedActionsView';
 
 type Tab = 'actions' | 'groups';
 type ConfirmState =
@@ -70,7 +71,7 @@ type ActionRegistryWithItem = import('@/types/actions').ActionRegistry & {
   item?: Action | ActionGroup;
 };
 
-export default function ActionsView() {
+export function LegacyActionsView() {
   const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const registry = useActionRegistryStore((state) => state.registry);
   const hasLoaded = useActionRegistryStore((state) => state.hasLoaded);
