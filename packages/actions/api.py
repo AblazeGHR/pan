@@ -20,15 +20,35 @@ def install(server):
         from .group_migration import LegacyGroupCompatibility
         return LegacyGroupCompatibility(service, Store().root)
 
-    async def compatible_write(request, gid, operation, expected, raw=None):
+    def request_key(request):
+        return request.headers['x-pan-request-key'] if 'x-pan-request-key' in request.headers else 'legacy-http-' + uuid.uuid4().hex
+
+    async def compatible_write(request, gid, operation, expected, raw=None, create=False, key=None):
         adapter = compatibility()
-        if adapter is None or not await io(adapter.owned, gid):
+        if adapter is None or not await io(adapter.active) or (operation != 'put' and not await io(adapter.owned, gid)):
             return None
         from packages.jobs.final_api import actor
-        capability = {'put': 'updateConfig', 'build': 'lifecycle', 'unbuild': 'lifecycle', 'delete': 'delete'}[operation]
-        who = await actor(request, 'action', capability)
-        key = 'legacy-http-' + uuid.uuid4().hex
-        return await io(adapter.mutate, gid, operation, expected, key, actor=who, raw=raw)
+        who = await actor(request)
+        return await io(adapter.mutate, gid, operation, expected, key or request_key(request), actor=who, raw=raw, create=create)
+
+    async def compatible_action(request, operation, expected, *, raw=None, aid=None, draft=False, create=False,
+                                enabled=None, confirm_references=False, key=None):
+        adapter = compatibility()
+        if adapter is None or not await io(adapter.active):
+            return None
+        from packages.jobs.final_api import actor
+        who = await actor(request)
+        key = key or request_key(request)
+        if operation == 'put':
+            return await io(adapter.put_action, raw, expected, key, actor=who, draft=draft, create=create)
+        if operation == 'lifecycle':
+            return await io(adapter.lifecycle_action, aid, enabled, expected, key, actor=who)
+        return await io(adapter.delete_action, aid, expected, key, actor=who, confirm_references=confirm_references)
+
+    async def current_state():
+        state = await io(Store().read)
+        adapter = compatibility()
+        return await io(adapter.projection, state) if adapter else state
 
     async def user(request):
         if delegated(request):
@@ -77,7 +97,8 @@ def install(server):
         except HTTPException as exc:
             if exc.status_code not in (401,403,503):raise
             readable=False
-        return {'revision': state['revision'], 'actions': list(state['actions'].values()) if readable else [], 'groups': groups}
+        return {'revision': state['revision'], 'actions': list(state['actions'].values()) if readable else [], 'groups': groups,
+                **({'preservedActions': state['preservedActions']} if readable and state.get('preservedActions') else {})}
 
     @router.get('/api/actions/session-operation-template')
     async def session_operation_template(request: Request):
@@ -99,6 +120,11 @@ def install(server):
         try:
             if kind == 'actions':
                 await require_write(request, 'action', None, data['item'])
+                result = await compatible_action(request, 'put', data.get('expectedRevision'), raw=data['item'], create=True)
+            else:
+                result = await compatible_write(request, data['item'].get('id'), 'put', data.get('expectedRevision'), data['item'], create=True)
+            if result:
+                return {**await view(request), 'item': result['result']['item'], 'operation': result}
             item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True, authorized=await user(request))
             return {**await view(request), 'item': item}
         except ValueError as exc:
@@ -118,8 +144,10 @@ def install(server):
             if kind == 'groups' and await compatible_write(request, item_id, 'put', data.get('expectedRevision'), data['item']):
                 return await view(request)
             if kind == 'actions':
-                current = await io(Store().read)
+                current = await current_state()
                 await require_write(request, 'action', current['actions'].get(item_id), validate_action(data['item']))
+                if await compatible_action(request, 'put', data.get('expectedRevision'), raw=data['item']):
+                    return await view(request)
             await io(Store().put, kind, data['item'], data.get('expectedRevision'), authorized=await user(request))
             return await view(request)
         except ValueError as exc:
@@ -134,13 +162,15 @@ def install(server):
         await require_capability(request, 'lifecycle')
         if set(data) != {'enabled', 'expectedRevision'} or type(data['enabled']) is not bool:
             raise HTTPException(400, 'Expected enabled and expectedRevision')
-        state = await io(Store().read)
+        state = await current_state()
         item = state['actions'].get(item_id)
         if not item:
             raise HTTPException(404, 'Action missing')
         if item.get('system'):
             await require_capability(request, 'manageSystemActions')
         try:
+            if await compatible_action(request, 'lifecycle', data['expectedRevision'], aid=item_id, enabled=data['enabled']):
+                return await view(request)
             await io(Store().set_enabled, item_id, data['enabled'], data['expectedRevision'])
             return await view(request)
         except ValueError as exc:
@@ -155,6 +185,8 @@ def install(server):
                 return await view(request)
             if kind == 'actions':
                 await require_capability(request, 'delete')
+                if await compatible_action(request, 'delete', expectedRevision, aid=item_id, confirm_references=confirmReferences):
+                    return await view(request)
             await io(Store().delete, kind, item_id, expectedRevision, authorized=await user(request), confirm_references=confirmReferences)
             return await view(request)
         except ValueError as exc:
@@ -177,11 +209,12 @@ def install(server):
                 adapter = compatibility()
                 if adapter and await io(adapter.owned, group_id):
                     if operation == 'build':
-                        await compatible_write(request, group_id, operation, data.get('expectedRevision'))
-                        for session in await sessions():
-                            if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
-                                if server.worker.find_alive_worker_by_session(session.id):
-                                    server.worker.request_delayed_restart(session.id)
+                        receipt = await compatible_write(request, group_id, operation, data.get('expectedRevision'))
+                        if not receipt.get('replayed'):
+                            for session in await sessions():
+                                if any(b['enabled'] and b['plugin_id'] == pid for b in bindings(session)):
+                                    if server.worker.find_alive_worker_by_session(session.id):
+                                        server.worker.request_delayed_restart(session.id)
                     else:
                         from types import SimpleNamespace
                         from packages.jobs.final_api import actor
@@ -190,7 +223,7 @@ def install(server):
                         def unbuild(gid, expected, key, *, actor):
                             return adapter.mutate(gid, 'unbuild', expected, key, actor=actor)
                         await unbuild_operation(group_id, {'expectedRevision': data.get('expectedRevision'),
-                            'requestKey': 'legacy-http-' + uuid.uuid4().hex}, who,
+                            'requestKey': request_key(request)}, who,
                             SimpleNamespace(service=adapter.service, unbuild=unbuild))
                     return await view(request)
                 store = Store()
@@ -257,24 +290,42 @@ def install(server):
 
     @router.post('/api/action-drafts/{kind}/{operation}')
     async def drafts(kind: str, operation: str, data: dict, request: Request):
-        if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision'}:
+        if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision', 'requestKey'}:
             raise HTTPException(400, 'Invalid draft operation')
         try:
+            if 'requestKey' in data:
+                from packages.jobs.final_contracts import check_request_key
+                check_request_key(data['requestKey'])
             if kind == 'groups':
                 gid = (data.get('item') or {}).get('id') if operation == 'put' else data.get('id')
-                if gid and await compatible_write(request, gid, operation, data.get('expectedRevision'), data.get('item')):
+                current = await current_state()
+                if operation == 'put':
+                    await require_write(request, 'action', current['groups'].get(gid), data.get('item'))
+                else:
+                    await require_capability(request, 'delete')
+                receipt = await compatible_write(request, gid, operation, data.get('expectedRevision'), data.get('item'), key=data.get('requestKey'))
+                if receipt:
                     result = await view(request)
                     if operation == 'put':
-                        result['item'] = next(g for g in result['groups'] if g['id'] == gid)
+                        result['item'] = next(g for g in result['groups'] if g['id'] == receipt['result']['group']['id'])
+                    result['operation'] = receipt
                     return result
             if kind == 'actions':
-                current = await io(Store().read)
+                current = await current_state()
                 if operation == 'put':
                     raw = data.get('item') or {}
                     old = current['actions'].get(raw.get('id'))
                     await require_write(request, 'action', old, {**raw, 'enabled': False})
                 else:
                     await require_capability(request, 'delete')
+                receipt = await compatible_action(request, operation, data.get('expectedRevision'),
+                    raw=data.get('item'), aid=data.get('id'), draft=True, key=data.get('requestKey'))
+                if receipt:
+                    result = await view(request)
+                    if operation == 'put':
+                        result['item'] = receipt['result']['item']
+                    result['operation'] = receipt
+                    return result
             if operation == 'put':
                 item = await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
                 return {**await view(request), 'item': item}

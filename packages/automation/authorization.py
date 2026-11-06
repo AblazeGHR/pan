@@ -85,6 +85,10 @@ def object_path(path, method=None):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
+    if re.fullmatch(r'/api/action-drafts/(?:actions|groups)/(?:put|delete)', parsed.path):
+        # P6 retained draft tool: exact compatibility endpoints only. The
+        # handler retains the original grants/schema and cannot enable/build.
+        return method is None or method.upper() == 'POST'
     if canonical_path(path):
         return True
     kind = _legacy_surface(parsed.path)

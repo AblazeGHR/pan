@@ -85,6 +85,9 @@ MA 与 TA 均适用；TA 对需由 MA 决策的问题仍先遵守任务汇报关
 Action/Group：核心 **Actions** Panel 管理 `data/actions` 中的共享定义。Agent 使用
 `action_drafts(operation="list"|"put"|"delete", kind="actions"|"groups", item=..., item_id=...,
 expected_revision=...)` CRUD 草稿；Agent put 强制 Action disabled。
+接管后的旧 Action/Group 草稿可传可选 `request_key`（HTTP 顶层 `requestKey`），
+返回 `operation` 为同一 canonical receipt；响应不明时查询原 operation/requestKey，不重建。
+尚未接管的 JSON source 不提供这项 receipt 保证；未知 writer/lease 不因传 key 获得迁移资格。
 新建 Action/Group 或 Agent 新建草稿均可省略 `item.id`，服务端生成稳定唯一 ID，
 返回 `item` 含已分配 ID。更新传原 `item.id`，重命名不改 ID；显式合法 ID 兼容。
 创建结果不明时先 list 核对，禁止盲目重发省略 ID 的创建。

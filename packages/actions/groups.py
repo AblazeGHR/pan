@@ -69,18 +69,18 @@ class Groups:
             check_capabilities(value["definition"])
         return value["definition"]
 
-    def validate(self, db, value):
+    def validate(self, db, value, *, available=True, allow_empty=False):
         if (not isinstance(value, dict) or set(value) != {"id", "name", "tools"}
                 or not isinstance(value["id"], str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", value["id"])
                 or not isinstance(value["name"], str) or not value["name"].strip()
-                or not isinstance(value["tools"], list) or not 1 <= len(value["tools"]) <= LIMIT):
+                or not isinstance(value["tools"], list) or not (0 if allow_empty else 1) <= len(value["tools"]) <= LIMIT):
             fail("invalid_schema", "Group requires id, name and 1..100 tools")
         aliases, actions = set(), set()
         for tool in value["tools"]:
             if (not isinstance(tool, dict) or set(tool) != {"alias", "actionRef"}
                     or not isinstance(tool["alias"], str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,47}", tool["alias"])):
                 fail("invalid_schema", "Tool requires a stable alias and fixed ActionRef")
-            self.resolve(db, tool["actionRef"])
+            self.resolve(db, tool["actionRef"], available=available)
             if tool["alias"] in aliases or tool["actionRef"]["id"] in actions:
                 fail("reference_conflict", "Duplicate tool alias or logical Action in Group")
             aliases.add(tool["alias"])
@@ -92,7 +92,7 @@ class Groups:
         with self.service.transaction(readonly=True) as db:
             return {"items": self.all(db)}
 
-    def put(self, value, expected, key, *, actor):
+    def put(self, value, expected, key, *, actor, available=True, allow_empty=False):
         self.permit(actor, "create" if expected == 0 else "updateConfig")
         if type(expected) is not int or expected < 0:
             fail("invalid_schema", "expectedRevision is required")
@@ -100,7 +100,7 @@ class Groups:
         from .store import _lock
         with _lock, self.writer(actor, 'create' if expected == 0 else 'updateConfig') as db:
             def mutate(_):
-                item = self.validate(db, value)
+                item = self.validate(db, value, available=available, allow_empty=allow_empty)
                 from .store import Store
                 handed_off = db.execute("SELECT 1 FROM final_documents WHERE kind='action_group_handoff' AND id=?", (item['id'],)).fetchone()
                 if item['id'] in Store().read()['groups'] and not handed_off:
@@ -127,6 +127,12 @@ class Groups:
                     definition = self.resolve(db, tool["actionRef"])
                     if definition.get("system"):
                         self.permit(actor, "manageSystemActions")
+                    if group.get('compatibility'):
+                        from .group_migration import legacy_action_view
+                        formats = group['compatibility']['outputFormats']
+                        if tool['alias'] not in formats:
+                            fail('reference_conflict', 'A new flat alias requires an explicit output-format mapping')
+                        legacy_action_view(definition, {'id': tool['alias'], 'output_format': formats[tool['alias']]}, True)
                     tools.append({**tool, "inputSchema": definition["inputSchema"],
                                   "description": definition["name"], "outputSchema": definition["outputSchema"],
                                   **({'outputFormat': group['compatibility']['outputFormats'][tool['alias']]}
@@ -223,6 +229,13 @@ class Groups:
                 target = (selection["actionRef"] if selection["scope"] == "action" and old["id"] == selection["actionRef"]["id"]
                           else self.latest(db, old["id"]) if selection["scope"] == "group" else old)
                 before, after = self.resolve(db, old, available=False), self.resolve(db, target)
+                if group.get('compatibility'):
+                    from .group_migration import legacy_action_view
+                    try:
+                        legacy_action_view(after, {'id': tool['alias'],
+                            'output_format': group['compatibility']['outputFormats'][tool['alias']]}, True)
+                    except (fc.ContractError, ValueError, KeyError):
+                        blockers.append({'alias': tool['alias'], 'code': 'reference_conflict', 'fields': ['legacy_flat_output_contract']})
                 differences = [field for field in CONTRACT_FIELDS if before.get(field) != after.get(field)]
                 # Changed schemas/contracts require editing and validating the
                 # draft explicitly; bulk apply cannot assert compatibility.

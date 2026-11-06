@@ -21,9 +21,29 @@ def check_capabilities(definition):
             raise fc.ContractError("capability_unsupported", "Action capability unavailable: " + name)
 
 
-def guard(service, db, ref, actor):
+def guard(service, db, ref, actor, source=None):
     service._permit(actor, "action", "invoke", execution=True)
-    action = service._action_version_record(db, ref["id"], ref["revision"], digest=ref["digest"], for_ref=True)
+    legacy_snapshot = False
+    if source and isinstance(source.get('groupRelease'), str):
+        row = db.execute("SELECT document FROM final_documents WHERE kind='action_group_release' AND id=?",
+                         (source['groupRelease'],)).fetchone()
+        release = json.loads(row[0]) if row else {}
+        legacy_snapshot = (release.get('compatibility', {}).get('protocol') == 'legacy-flat/v1'
+                           and any(t['actionRef'] == ref for t in release.get('tools', [])))
+        if legacy_snapshot:
+            alias = next(t['alias'] for t in release['tools'] if t['actionRef'] == ref)
+            owner = db.execute("SELECT document FROM final_documents WHERE kind IN ('action_group_handoff','legacy_group_binding') AND id=?",
+                               (release['groupId'],)).fetchone()
+            source_root = json.loads(owner[0])['sourceRoot'] if owner else None
+            legacy_snapshot = bool(db.execute(
+                "SELECT 1 FROM final_documents WHERE kind='legacy_action_retirement' "
+                "AND json_extract(document,'$.actionId')=? AND json_extract(document,'$.legacyId')=? "
+                "AND json_extract(document,'$.sourceRoot')=?", (ref['id'], alias, source_root)).fetchone())
+    # Legacy current-definition deletion/disable never rewrote an already built
+    # snapshot. Only a trusted bound immutable release can retain that contract;
+    # explicit retirement/disable of the exact version and invoke revocation
+    # still reject. Public direct Action calls retain the normal head gate.
+    action = service._action_version_record(db, ref["id"], ref["revision"], digest=ref["digest"], for_ref=not legacy_snapshot)
     if action["state"] != "published" or not action["enabled"]:
         raise fc.ContractError("authorization_denied", "Action version is disabled or retired")
     definition = action["definition"]
@@ -67,7 +87,7 @@ async def invoke(service, action_id, body, *, actor, source=None):
         previous = existing(db)  # Concurrent admissions serialize here.
         if previous:
             return previous
-        action = guard(service, db, ref, actor)
+        action = guard(service, db, ref, actor, source)
         if service.owner.token is None:
             raise fc.ContractError("revision_conflict", "Invocation requires the canonical owner")
         if not jsonschema.Draft202012Validator(action["inputSchema"]).is_valid(body["arguments"]):
@@ -87,20 +107,21 @@ async def invoke(service, action_id, body, *, actor, source=None):
             raise fc.ContractError("invalid_schema", str(exc)) from exc
         response = service._operation(db, actor, "invoke", body["requestKey"], payload, "action",
             lambda identity: ({"actionRef": ref, "invocationId": identity,
-                "status": "uncertain", "phase": "prepared", "commands": []}, [ref], True))
+                "status": "uncertain", "phase": "prepared", "commands": [],
+                **({'source': copy.deepcopy(source)} if source is not None else {})}, [ref], True))
         identity = response["operationId"]
         epoch = service.owner.token
 
-    return await execute_prepared(service, identity, ref, actor, commands, epoch, operation)
+    return await execute_prepared(service, identity, ref, actor, commands, epoch, operation, source=source)
 
 
-async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None):
+async def execute_prepared(service, identity, ref, actor, commands, epoch, operation, *, trigger_id=None, source=None):
     @contextmanager
     def boundary():
         with service.transaction() as db:
             if service.owner.token != epoch:
                 raise fc.ContractError("revision_conflict", "Invocation owner changed")
-            guard(service, db, ref, actor)
+            guard(service, db, ref, actor, source)
             if trigger_id is not None:
                 service._permit(actor, "trigger", "lifecycle", execution=True)
                 if service._get(db, "trigger", trigger_id)["state"] != "enabled":

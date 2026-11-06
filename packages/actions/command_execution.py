@@ -83,7 +83,14 @@ def prepare(operation, config, arguments):
     """Keep shell strings opaque; only explicit argv elements bind parameters."""
     if operation not in OPERATIONS or not isinstance(arguments, dict):
         raise ValueError("Unsupported command descriptor")
-    descriptor = {**copy.deepcopy(config), **copy.deepcopy(arguments)}
+    binding = config.get('argumentBinding')
+    if binding is not None and binding != 'legacy-flat/v1':
+        raise ValueError('Unknown fixed argument binding contract')
+    # Old Group business fields never overrode executable/cwd/timeout or
+    # command lists. Their only execution binding was a complete argv scalar.
+    descriptor = (copy.deepcopy(config) if binding == 'legacy-flat/v1'
+                  else {**copy.deepcopy(config), **copy.deepcopy(arguments)})
+    descriptor.pop('argumentBinding', None)
     commands = descriptor.pop("commands", None)
     if commands is None:
         commands = [{}]

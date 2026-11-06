@@ -1,5 +1,9 @@
 # ACTION-UNIFICATION-20261104-P6 revision 4 candidate
 
+Later slices and the current remaining scope are recorded in
+[P6 follow-up](ACTION_UNIFICATION_P6_FOLLOWUP_20261106.md). The matrix below is
+the retained 267287c candidate boundary, not a replacement for the follow-up.
+
 Base: `a298b32ea3299fdd9eae6964f79d6989ccd452cb`.
 Worktree: `D:/project/pan-worktrees/action-unification-p6-20261106`.
 Branch: `implement/action-unification-p6-20261106`.

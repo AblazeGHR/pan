@@ -836,9 +836,9 @@ class FinalService:
                 if actor.get("type") != "agent" or not allowed or actor.get("revision") != revision:
                     error("authorization_denied", "System Actions require manageSystemActions")
 
-    def _action_write(self, object_id, body, *, actor):
+    def _action_write(self, object_id, body, *, actor, draft_enabled=None, management_capability=None, legacy_projection=True):
         """Create or edit a draft without rewriting a published version."""
-        self._permit(actor, "action", "create" if object_id is None else "updateConfig")
+        self._permit(actor, "action", management_capability or ("create" if object_id is None else "updateConfig"))
         allowed = {"definition", "expectedRevision", "requestKey", "requestDigest"}
         if not isinstance(body, dict) or set(body) - allowed:
             error("invalid_schema", "Unknown Action write fields")
@@ -876,6 +876,10 @@ class FinalService:
                                 updatedAt=now(), enabled=old.get("enabled", False))
                 else:
                     item.update(id=action_id, revision=revision, state="draft", enabled=False)
+                if draft_enabled is not None:
+                    # Trusted legacy configuration adapter: a disabled edit
+                    # creates a disabled draft without touching frozen versions.
+                    item['enabled'] = draft_enabled
                 item = fc.validate_object("action", item)
                 digest = fc.digest(requested)
                 previous = db.execute(
@@ -898,6 +902,9 @@ class FinalService:
                     (action_id, revision, int(item.get("enabled", False)), "draft", item["stateRevision"], now()),
                 )
                 self._save(db, "action", action_id, item)
+                if legacy_projection:
+                    from packages.actions.group_migration import advance_action_projection
+                    advance_action_projection(db, action_id)
                 db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
                            ("action", action_id, fc.canonical_json(actor)))
                 return (
@@ -909,14 +916,14 @@ class FinalService:
             return self._operation(db, actor, "create" if object_id is None else "update", value["requestKey"],
                                    {"kind": "action", "objectId": object_id, **value}, "action", mutate)
 
-    def _action_control(self, object_id, body, *, actor):
+    def _action_control(self, object_id, body, *, actor, management_capability='lifecycle', legacy_projection=True):
         op = body["operation"]
         with self.transaction() as db:
             self._ensure_action_schema(db)
 
             def mutate(operation_id):
                 item = self._get(db, "action", object_id)
-                self._require_action_management(actor, item)
+                self._require_action_management(actor, item, capability=management_capability)
                 fc.check_revision(item["revision"], body["expectedRevision"])
                 fc.check_revision(item["stateRevision"], body["expectedStateRevision"])
                 parameters = copy.deepcopy(body.get("parameters") or {})
@@ -953,6 +960,9 @@ class FinalService:
                     error("unsupported_operation", "Unsupported Action operation")
                 item = fc.validate_object("action", item)
                 self._save(db, "action", object_id, item)
+                if legacy_projection:
+                    from packages.actions.group_migration import advance_action_projection
+                    advance_action_projection(db, object_id)
                 db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
                            ("action", object_id, fc.canonical_json(actor)))
                 return (

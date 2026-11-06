@@ -3121,12 +3121,15 @@ def pan_handbook() -> dict:
 
 @mcp.tool()
 def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | None = None,
-                  item_id: str | None = None, expected_revision: int | None = None) -> dict:
+                  item_id: str | None = None, expected_revision: int | None = None,
+                  request_key: str | None = None) -> dict:
     """List Action/Group sources or put/delete a draft. kind is actions or groups.
 
     Omit item.id to create with a server-generated stable ID; the response item
     contains that ID. Supply the original item.id to update; renaming keeps it.
     Explicit valid IDs remain supported. Do not replay an unconfirmed creation.
+    Optional request_key names the outer canonical operation after writer
+    handoff; retain it and query the original operation after response loss.
     Action fields: optional id, name, description, enabled (forced false for agents),
     effect (read/write_local/write_external/high_risk), output_format (json/text),
     input_schema (object, additionalProperties false), execution.
@@ -3158,6 +3161,7 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
     return _api('POST', f'/api/action-drafts/{kind}/{operation}',
                 {**({'item': item} if item is not None else {}),
                  **({'id': item_id} if item_id is not None else {}),
+                 **({'requestKey': request_key} if request_key is not None else {}),
                  **({'expectedRevision': expected_revision} if expected_revision is not None else {})})
 
 
