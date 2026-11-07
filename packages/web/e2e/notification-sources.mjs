@@ -63,21 +63,23 @@ try {
   evidence.sharedExclusionSaveRead = true;
   evidence.selectionRetainedWhenDisabled = true;
   evidence.errorTypeScrollWindow = windowSize;
-  for (const [source, name] of [['lockerUnread', 'Locker new unread'], ['newError', 'New errors']]) {
+  for (const source of ['lockerUnread', 'newError']) {
     const panel = settings.getByTestId(`notification-source-${source}`);
     await panel.getByRole('checkbox', { name: 'Enabled', exact: true }).check();
+    await expect(panel.getByRole('status').filter({ hasText: /^Saved\./ })).toBeVisible();
     await panel.getByRole('checkbox', { name: 'QQ Report', exact: true }).check();
-    await expect(panel.getByRole('button', { name: `Save ${name}`, exact: true })).toBeDisabled();
+    await expect(panel.getByRole('alert')).toHaveText('Select at least one QQ Report contact. That change was not saved.');
     await panel.getByRole('checkbox', { name: /Recording fake contact/ }).check();
+    await expect(panel.getByRole('status').filter({ hasText: /^Saved\./ })).toBeVisible();
     await expect(panel.getByRole('checkbox', { name: /Subscribe/ })).toHaveCount(0);
     await expect(panel.getByRole('checkbox', { name: 'System', exact: true })).toBeVisible();
     await expect(panel.getByRole('checkbox', { name: 'Browser', exact: true })).toBeVisible();
     if (source === 'newError') {
       await panel.getByRole('checkbox', { name: 'QQ Report', exact: true }).uncheck();
+      await expect(panel.getByRole('status').filter({ hasText: /^Saved\./ })).toBeVisible();
       await panel.getByRole('checkbox', { name: 'Browser', exact: true }).check();
+      await expect(panel.getByRole('status').filter({ hasText: /^Saved\./ })).toBeVisible();
     }
-    await panel.getByRole('button', { name: `Save ${name}`, exact: true }).click();
-    await expect(panel.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
   }
   await page.screenshot({ path: out + '/notifications-desktop.png' });
   await page.reload();
