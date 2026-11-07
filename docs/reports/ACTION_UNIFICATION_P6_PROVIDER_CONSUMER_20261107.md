@@ -25,6 +25,15 @@ adapter，不连接真实账号、profile、8767/8768，也未部署。
 
 ## Red-to-green / external boundary
 
+
+补跑修复：仓库已有 `packages/qq/requirements.txt` 声明 `nonebot2[fastapi,websockets]>=2.4.0` 与 `nonebot-adapter-onebot>=2.4.0,<2.5.0`；owned `.tmp/p6-env` 已包含 `nonebot`。之前 setup error 来自 isolated runner 选用全局 Python 3.14，而不是该 owned env。改用：
+
+```
+python scripts/run_tests_isolated.py -- .tmp/p6-env/Scripts/python.exe -m pytest   tests/test_action_unification_p6_delivery.py   tests/test_plugin_qq_integration.py tests/test_job_qq_native_provider.py -q
+```
+
+两个 OneBot ack 节点及相邻 QQ HTTP/native/gateway/stdio 用例 **6 passed**；完整 provider/QQ/CLI/stdio 组合在 owned env 中 **106 passed**，0 failure/error/skip，见 `provider-qq-owned-env-green.xml` 与 `provider-consumer-owned-env-final.xml`。原全局环境红证据仍保留，作为环境选择错误的对照，不再作为当前验收结果。
+
 完整首次组合 `provider-consumer-original-red.xml` 共 106 项，其中只有 2 项 setup
 error，0 个业务 failure：
 
@@ -33,10 +42,7 @@ ModuleNotFoundError: No module named 'nonebot'
 tests/test_job_qq_native_provider.py::test_P6_DELIVERY_CHANNEL_01_original_qq_http_plugin_synthetic_onebot_ack_and_no_send[False/True]
 ```
 
-这是本隔离 Python 环境缺少 nonebot 的外部 fixture 阻塞。没有安装新依赖、没有伪造
-QQ native 消费，也没有把错误标作通过。其余 95 项 owned provider/CLI/QQ/stdio
-回归全部通过，见 `provider-consumer-green.xml`。QQ HTTP/gateway/stdio 的可用链路
-和 legacy wire shape 已独立绿；只有依赖 nonebot 的 native OneBot fixture 未验证。
+这两个 setup error 已由仓库现有 owned env 路径修复；没有安装新依赖、没有伪造 QQ native 消费。原红保留为环境选择对照，当前 owned env 组合全部通过。QQ HTTP/gateway/stdio 的可用链路和 legacy wire shape 均已验证。
 
 unknown/no-replay 路径保持红证据和现有语义：任何没有可信 provider receipt、原始
 Run/Attempt/effect 或 durable outbox receipt 的结果都不会被转成成功，不会自动重发。
