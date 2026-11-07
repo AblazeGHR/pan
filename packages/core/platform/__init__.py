@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Callable, Mapping
 
 __all__ = [
     "CAPABILITIES",
@@ -94,9 +94,20 @@ class Capability:
     name: str
     supported_on: frozenset[str]
     reason: str
+    #: 运行时可判定的可用性（如桌面/opener 是否存在）；None 表示静态声明即可。
+    probe: Callable[[str], bool] | None = None
 
     def supports(self, platform: str | None = None) -> bool:
-        return platform_name(platform) in self.supported_on
+        resolved = platform_name(platform)
+        if resolved not in self.supported_on:
+            return False
+        return self.probe(resolved) if self.probe else True
+
+
+def _probe_file_manager_reveal(platform: str) -> bool:
+    from .file_manager import reveal_available
+
+    return reveal_available(platform)
 
 
 #: 能力矩阵（顺序即 API 输出顺序，便于前端与测试稳定比较）。
@@ -150,6 +161,15 @@ CAPABILITIES: Mapping[str, Capability] = {
         frozenset({WINDOWS}),
         "终端秘密存储使用 DPAPI",
     ),
+    # 运行时桌面/opener 探测：Windows Explorer、macOS open、Linux xdg-open +
+    # DISPLAY/WAYLAND_DISPLAY。缺失时 capability=false，请求返回 501。
+    "fileManager.reveal": Capability(
+        "fileManager.reveal",
+        frozenset({WINDOWS, DARWIN, LINUX}),
+        "需要运行时桌面与系统文件管理器 opener（Windows Explorer / macOS open / "
+        "Linux xdg-open + DISPLAY/WAYLAND_DISPLAY）；缺失时明确不支持",
+        probe=_probe_file_manager_reveal,
+    ),
 }
 
 
@@ -174,11 +194,7 @@ def supports(name: str, platform: str | None = None) -> bool:
 
 def capabilities(platform: str | None = None) -> dict[str, bool]:
     """能力矩阵的布尔投影（保持声明顺序；只含能力名，不含路径/账号等信息）。"""
-    resolved = platform_name(platform)
-    return {
-        name: resolved in item.supported_on
-        for name, item in CAPABILITIES.items()
-    }
+    return {name: item.supports(platform) for name, item in CAPABILITIES.items()}
 
 
 # --------------------------------------------------------------------------- 路径策略

@@ -1,7 +1,7 @@
 """平台层（能力注册表 + 路径策略）单元测试。
 
-纯函数测试，不导入 server、不触碰文件系统；所有平台值都显式注入，
-因此在任意宿主平台结果一致。
+不导入 server、不触碰真实文件系统；平台值显式注入，运行时探测能力
+（fileManager.reveal）的 opener/桌面输入由 monkeypatch 隔离。
 """
 
 import sys
@@ -47,6 +47,7 @@ EXPECTED_CAPABILITIES = (
     "processOwner",
     "process.hiddenDesktop",
     "secretStore",
+    "fileManager.reveal",
 )
 
 
@@ -58,11 +59,55 @@ def test_capability_matrix_shape_and_order():
 def test_capabilities_match_implemented_platform_backends():
     # ProcessOwner now has both Windows Job Object and POSIX process-group
     # implementations. Other Phase A capabilities remain Windows-only.
+    # fileManager.reveal is runtime-probed and covered by the dedicated test below.
     for name in EXPECTED_CAPABILITIES:
+        if name == "fileManager.reveal":
+            continue
         assert plat.supports(name, "win32") is True, name
         expected = name in {"processOwner", "job.runtimeOwner", "time.hostZone"}
         assert plat.supports(name, "darwin") is expected, name
         assert plat.supports(name, "linux") is expected, name
+
+
+def test_file_manager_reveal_capability_tracks_runtime_opener(monkeypatch):
+    from packages.core.platform import file_manager
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(file_manager, "_explorer_path", lambda: None)
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: None)
+
+    assert plat.supports("fileManager.reveal", "win32") is False
+    assert plat.capabilities("win32")["fileManager.reveal"] is False
+    assert plat.supports("fileManager.reveal", "darwin") is False
+    assert plat.supports("fileManager.reveal", "linux") is False
+    assert plat.supports("fileManager.reveal", "freebsd") is False
+
+    monkeypatch.setattr(
+        file_manager, "_explorer_path", lambda: r"C:\Windows\explorer.exe"
+    )
+    monkeypatch.setattr(
+        file_manager.shutil,
+        "which",
+        lambda name: {"open": "/usr/bin/open", "xdg-open": "/usr/bin/xdg-open"}.get(name),
+    )
+    assert plat.supports("fileManager.reveal", "win32") is True
+    assert plat.supports("fileManager.reveal", "darwin") is True
+    # Linux still needs a desktop session, not only the binary.
+    assert plat.supports("fileManager.reveal", "linux") is False
+
+    monkeypatch.setenv("DISPLAY", ":0")
+    assert plat.supports("fileManager.reveal", "linux") is True
+
+    monkeypatch.setattr(file_manager.shutil, "which", lambda name: None)
+    assert plat.supports("fileManager.reveal", "linux") is False
+
+    entry = plat.capability("fileManager.reveal")
+    assert entry.reason
+    assert "opener" in entry.reason
+    assert entry.supported_on == frozenset(
+        {plat.WINDOWS, plat.DARWIN, plat.LINUX}
+    )
 
 
 def test_unknown_platform_declares_nothing():

@@ -343,14 +343,17 @@ export const SessionItem = memo(function SessionItem({
           narrow column (full card height). The whole column — indicator
           included — responds to dragging; a dot-matrix texture fills the
           column around the centered indicator as a visual affordance.
-          Clicking without moving still selects the session (drag threshold). */}
-      {dragEnabled && !isPending && !multiSelectMode ? (
+          In select mode the gutter stays a pure drag zone: a click on it never
+          toggles selection (the click is swallowed here). Outside select mode
+          a click without movement still opens the session (drag threshold). */}
+      {dragEnabled && !isPending ? (
         <SessionDragGutter
           data-testid="drag-handle"
           role="button"
           aria-label={`Drag ${session.name}`}
           title={session.workerStatus ?? 'offline'}
           onPointerDown={(e) => onDragHandlePointerDown?.(e, session.id)}
+          onClick={multiSelectMode ? (e) => e.stopPropagation() : undefined}
         >
           <WorkerDot status={session.workerStatus} illegalOffline={session.illegalOffline} />
         </SessionDragGutter>

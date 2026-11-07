@@ -7,6 +7,7 @@ import {
   Folder,
   RotateCw,
   Send,
+  Settings,
   Timer,
   XOctagon,
 } from 'lucide-react';
@@ -25,13 +26,19 @@ import {
   type SelectedSessionAction,
   type SelectedSessionTarget,
 } from '@/utils/selectedSessionActions';
+import {
+  stableSelectedSessions,
+  type BulkTarget,
+} from '@/utils/bulkSessionSettings';
+import { BulkSessionSettingsModal } from './BulkSessionSettingsModal';
+import { BulkMsgBridgeModal } from './BulkMsgBridgeModal';
 
 const NewJobForm = lazy(() =>
   import('@/components/jobs/NewJobForm').then((module) => ({ default: module.NewJobForm })),
 );
 
 interface MenuItem {
-  key: SelectedSessionAction | 'workspace' | 'broadcast';
+  key: SelectedSessionAction | 'workspace' | 'broadcast' | 'manage' | 'msgbridge';
   label: string;
   Icon: ComponentType<{ size?: number }>;
   onClick: () => void;
@@ -49,7 +56,11 @@ export function SelectedSessionActions({
   const workspaces = useWorkspaceStore((state) => state.workspaces);
   const delayedRestarts = useWorkerStore((state) => state.delayedRestarts);
   const [targets, setTargets] = useState<SelectedSessionTarget[] | null>(null);
-  const [panel, setPanel] = useState<'menu' | 'workspace' | 'broadcast' | null>(null);
+  /** Stable-order selection snapshot for the bulk Manage / msgBridge windows. */
+  const [bulkTargets, setBulkTargets] = useState<BulkTarget[]>([]);
+  const [panel, setPanel] = useState<
+    'menu' | 'workspace' | 'broadcast' | 'manage' | 'msgbridge' | null
+  >(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const busyRef = useRef(false);
@@ -64,8 +75,22 @@ export function SelectedSessionActions({
     if (!busyRef.current) {
       setPanel(null);
       setTargets(null);
+      setBulkTargets([]);
       setError('');
     }
+  };
+
+  const openBulk = (nextPanel: 'manage' | 'msgbridge') => {
+    const snapshot = snapshotSelectedSessions(selectedIds, useSessionStore.getState().sessions);
+    setTargets(snapshot);
+    setBulkTargets(
+      stableSelectedSessions(
+        new Set(snapshot.map((target) => target.id)),
+        useSessionStore.getState().sessions,
+      ),
+    );
+    setPanel(nextPanel);
+    setError('');
   };
 
   useEffect(() => {
@@ -155,6 +180,20 @@ export function SelectedSessionActions({
     }),
   );
   const sessionMenuItems: MenuItem[] = [
+    {
+      key: 'manage',
+      label: 'Manage',
+      Icon: Settings,
+      onClick: () => openBulk('manage'),
+      title: 'Bulk edit non-manages-session settings for every selected Session',
+    },
+    {
+      key: 'msgbridge',
+      label: 'MsgBridge',
+      Icon: Bell,
+      onClick: () => openBulk('msgbridge'),
+      title: 'Bulk edit msgBridge and completion notifications for every selected Session',
+    },
     {
       key: 'workspace',
       label: 'Workspace',
@@ -257,6 +296,18 @@ export function SelectedSessionActions({
           {lifecycleMenuItems.map(renderMenuItem)}
         </div>
       )}
+      <BulkSessionSettingsModal
+        open={panel === 'manage'}
+        onClose={close}
+        targets={bulkTargets}
+        onApplied={close}
+      />
+      <BulkMsgBridgeModal
+        open={panel === 'msgbridge'}
+        onClose={close}
+        targets={bulkTargets}
+        onApplied={close}
+      />
       {(panel === 'workspace' || panel === 'broadcast') && targets && (
         <Modal
           open

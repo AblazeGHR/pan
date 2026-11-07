@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from '@/stores/sessionCreation';
 import { useEffect, useState } from 'react';
 import { fetchTakeoverReadiness } from '@/services/api';
 import type { Session } from '@/types';
@@ -9,7 +10,7 @@ export function useTakeoverReadiness(session: Session | null | undefined) {
   const id = session?.id;
   const key = JSON.stringify([id, session?.cliSessionId, session?.historyTotal, session?.updatedAt, session?.workerStatus]);
   useEffect(() => {
-    if (!id) return;
+    if (!id || isLocalSessionIdentity(id)) return;
     let active = true;
     fetchTakeoverReadiness(id).then(result => {
       if (active) setValue({ key, ...result });

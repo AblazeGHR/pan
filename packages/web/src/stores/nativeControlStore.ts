@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from '@/stores/sessionCreation';
 import { create } from 'zustand';
 import { nativeRequest, type NativeControlState, type NativeConfiguration } from '@/services/nativeControl';
 import { useSessionStore } from './sessionStore';
@@ -27,6 +28,7 @@ export const useNativeControlStore = create<NativeStore>((set, get) => ({
     set((current) => ({ terminalViews: { ...current.terminalViews, [id]: visible } }));
   },
   refresh: async (id) => {
+    if (isLocalSessionIdentity(id)) return;
     const revision = revisions[id] ?? 0;
     const state = await nativeRequest<NativeControlState>(id);
     set((current) => current.switching[id] || revision !== (revisions[id] ?? 0)

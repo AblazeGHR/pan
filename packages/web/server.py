@@ -131,6 +131,7 @@ from packages.core import launcher
 from packages.qq import gateway_plugins
 from packages.core import notifications, reminders
 from packages.core import platform as platform_layer
+from packages.core.platform import file_manager
 from packages.core import unread_policy
 from packages.scheduler import api as scheduler_api
 
@@ -1850,12 +1851,13 @@ def _project_worker_event(data: dict) -> dict:
     event_type = data.get("type")
     if event_type == "worker.result" and isinstance(data.get("result"), str):
         projected = _project_editor_links(session_id, data["result"])
-        return {**data, "result": projected} if projected != data["result"] else data
+        return {**data, "rawResult": data["result"], "result": projected} if projected != data["result"] else data
 
     if event_type != "worker.stream" or not isinstance(data.get("event"), dict):
         return data
 
     event = dict(data["event"])
+    event["rawEvent"] = data["event"]
     changed = False
     for key in ("content", "stream_text"):
         value = event.get(key)
@@ -2266,6 +2268,7 @@ async def _replay_agent_results(
                 "workerId": row.get("workerId", ""),
                 "sessionId": sid,
                 "status": row.get("status"),
+                "rawResult": str(row.get("result") or ""),
                 "result": _project_editor_links(
                     sid, str(row.get("result") or "")),
                 "taskSeq": task_seq,
@@ -2396,6 +2399,7 @@ def _session_to_api(
     if project_links and include_last_result and isinstance(last_result, dict) and isinstance(last_result.get("result"), str):
         last_result = {
             **last_result,
+            "rawResult": last_result["result"],
             "result": _project_editor_links(s.id, last_result["result"]),
         }
     mcp_lock_reason = _get_mcp_locked_state(s)
@@ -2657,6 +2661,7 @@ def _project_session_list_row(session_id, api, page, history_epoch):
     """Only private snapshots cross to the projection thread, never live Sessions."""
     result = api.get("lastResult")
     if isinstance(result, dict) and isinstance(result.get("result"), str):
+        result["rawResult"] = result["result"]
         result["result"] = _project_editor_links(session_id, result["result"])
     if page is None:
         history = []
@@ -5446,6 +5451,7 @@ def _api_history(
         safe_message = {
             **public_message,
             "content": content,
+            "rawContent": message["content"],
             **({"messageId": wire_identity} if wire_identity else {}),
         }
         if isinstance(message.get("parts"), list):
@@ -15271,6 +15277,8 @@ async def api_fs_read(session_id: str, path: str = "", download: bool = False):
         return {"error": f"File too large (max {_MAX_FILE_BYTES // (1024*1024)} MiB)"}
     try:
         content = target.read_text(encoding="utf-8")
+        if "\x00" in content:
+            return {"error": "Cannot read binary file"}
         return {"content": content, "size": len(content)}
     except UnicodeDecodeError:
         return {"error": "Cannot read binary file"}
@@ -15397,28 +15405,8 @@ def _reap_external_opener(process: "subprocess.Popen") -> None:
     threading.Thread(target=reap, name="external-open-reaper", daemon=True).start()
 
 
-def _opener_error_detail(exc: OSError) -> str:
-    """Readable opener failure without echoing the user's full path."""
-    code = getattr(exc, "winerror", None) or exc.errno
-    suffix = f" {code}" if code else ""
-    return f"system file opener failed ({type(exc).__name__}{suffix})"
-
-
-def _open_file_with_system_default(target: Path) -> None:
-    """Open one existing file with the OS default handler, never via a shell."""
-    if sys.platform == "win32":
-        startfile = getattr(os, "startfile", None)
-        if startfile is None:
-            raise ExternalOpenUnavailable("no system file opener is available")
-        try:
-            startfile(str(target))
-        except OSError as exc:
-            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
-        return
-
-    argv = _external_opener_argv(target)
-    if argv is None:
-        raise ExternalOpenUnavailable("no system file opener is available")
+def _launch_external_opener(argv: list[str], *, ignore_nonzero_exit: bool = False) -> None:
+    """Start a fixed opener argv without a shell and reap it if it stays open."""
     try:
         process = subprocess.Popen(
             argv,
@@ -15441,39 +15429,43 @@ def _open_file_with_system_default(target: Path) -> None:
         # out of band instead of holding the request open.
         _reap_external_opener(process)
         return
-    if returncode != 0:
+    if returncode != 0 and not ignore_nonzero_exit:
         raise ExternalOpenFailed(f"system file opener exited with status {returncode}")
 
 
-def _editor_open_allowed_roots(session_id: str) -> list[Path]:
-    """Filesystem roots a Session may hand to the system opener.
-
-    Mirrors the roots the server can verify: the Session workdir and the dirs
-    of the Session's effective Workspace. Browser-only Temp roots are excluded
-    on purpose — the client cannot grant itself filesystem access.
-    """
-    roots: list[Path] = []
-    session = _summary_session_get(session_id)
-    if session is not None and getattr(session, "workdir", None):
-        roots.append(Path(session.workdir))
-    for workspace_id in sess.effective_workspace_ids(session_id):
-        workspace = workspaces.get(workspace_id)
-        if workspace is None:
-            continue
-        for raw in workspace.dirs:
-            if isinstance(raw, str) and raw.strip():
-                roots.append(Path(raw))
-    return roots
+def _opener_error_detail(exc: OSError) -> str:
+    """Readable opener failure without echoing the user's full path."""
+    code = getattr(exc, "winerror", None) or exc.errno
+    suffix = f" {code}" if code else ""
+    return f"system file opener failed ({type(exc).__name__}{suffix})"
 
 
-@app.post("/api/editor/open-external")
-async def api_editor_open_external(data: dict):
-    """Open one Editor file with the operating system's default application.
+def _open_file_with_system_default(target: Path) -> None:
+    """Open one existing file with the OS default handler, never via a shell."""
+    if sys.platform == "win32":
+        startfile = getattr(os, "startfile", None)
+        if startfile is None:
+            raise ExternalOpenUnavailable("no system file opener is available")
+        try:
+            startfile(str(target))
+        except OSError as exc:
+            raise ExternalOpenFailed(_opener_error_detail(exc)) from exc
+        return
 
-    The request carries a path, never a command. It is resolved with the same
-    containment rules as the Editor read path (``..``, absolute escapes and
-    symlink targets are resolved first) and must stay inside the Session
-    workdir or one of its Workspace dirs.
+    argv = _external_opener_argv(target)
+    if argv is None:
+        raise ExternalOpenUnavailable("no system file opener is available")
+    _launch_external_opener(argv)
+
+
+def _resolve_editor_file_target(data: dict) -> Path:
+    """Resolve the one file an Editor OS action may touch.
+
+    Shared by open and reveal so both keep the Editor containment rules:
+    ``..``, absolute paths and symlink targets are resolved first. Relative
+    paths remain Session-workdir relative; absolute paths use the same scope
+    as the existing editor read/download endpoints and may address any file
+    the running Pan process can access.
     """
     session_id = data.get("session_id")
     raw_path = data.get("path")
@@ -15489,18 +15481,22 @@ async def api_editor_open_external(data: dict):
         # Unresolvable syntax (for example a drive-relative Windows name) and
         # symlink loops are client errors, not server failures.
         raise HTTPException(status_code=400, detail="Invalid path") from exc
-    # Check containment before existence so traversal never distinguishes
-    # existing from missing files outside the allowed roots.
-    roots = _editor_open_allowed_roots(session_id)
-    if not roots or not _path_is_allowed(target, roots):
-        raise HTTPException(
-            status_code=403,
-            detail="Path is outside the allowed workspace roots",
-        )
     if not target.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {target.name}")
     if not target.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {target.name}")
+    return target
+
+
+@app.post("/api/editor/open-external")
+async def api_editor_open_external(data: dict):
+    """Open one Editor file with the operating system's default application.
+
+    The request carries a path, never a command. It uses the same path scope as
+    the Editor read/download endpoints: relative paths resolve from the Session
+    workdir, while absolute paths may address files accessible to Pan.
+    """
+    target = _resolve_editor_file_target(data)
 
     try:
         # Off the event loop: Popen/wait may block briefly on a slow handler.
@@ -15508,6 +15504,24 @@ async def api_editor_open_external(data: dict):
     except ExternalOpenUnavailable as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except ExternalOpenFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"ok": True, "name": target.name}
+
+
+@app.post("/api/editor/reveal-external")
+async def api_editor_reveal_external(data: dict):
+    """Reveal one Editor file in the operating system's file manager.
+
+    The path rules are identical to ``/api/editor/open-external``; the request
+    still carries a path, never a command.
+    """
+    target = _resolve_editor_file_target(data)
+
+    try:
+        await asyncio.to_thread(file_manager.reveal_file_in_file_manager, target)
+    except file_manager.RevealUnavailable as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except file_manager.RevealFailed as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"ok": True, "name": target.name}
 

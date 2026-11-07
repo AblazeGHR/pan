@@ -82,12 +82,18 @@ export function SessionFilterMenu() {
   // Fixed positioning relative to the measured trigger rect, clamped into the
   // viewport: narrow screens cannot overflow horizontally, and the max height
   // always leaves the panel (and its last item) inside the window.
+  //
+  // The panel's RIGHT edge is anchored to the trigger's right edge, so it opens
+  // toward the session list — away from the WorkspaceRail navigation column on
+  // the right. Anchoring the left edge (the historical behavior) pushed the
+  // w-64 panel over the rail and made its tabs unclickable while the filter
+  // was open.
   const reposition = useCallback(() => {
     const trigger = triggerRef.current;
     if (!trigger || typeof window === 'undefined') return;
     const rect = trigger.getBoundingClientRect();
     const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN);
-    const left = Math.min(Math.max(VIEWPORT_MARGIN, rect.left), maxLeft);
+    const left = Math.min(Math.max(VIEWPORT_MARGIN, rect.right - MENU_WIDTH), maxLeft);
     const top = rect.bottom + 4;
     const maxHeight = Math.max(MIN_MENU_HEIGHT, window.innerHeight - top - VIEWPORT_MARGIN);
     setPosition({ left, top, maxHeight });
@@ -150,13 +156,12 @@ export function SessionFilterMenu() {
         <>
           {/* Click-away backdrop */}
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-          {/* z-40：本层必须压在 WorkspaceRail 之上。rail 外壳是 `relative z-30`
-              的兄弟堆叠上下文，而 <aside> 是 `relative` + z-auto（不成堆叠上下文），
-              于是两者同落在 App 的 `relative z-30` 外壳里；同为 30 时按 DOM 顺序
-              决胜，后出现的 rail 面板（bg-bg-secondary，不透明）会盖住本层伸入
-              rail 的右半部分（w-64 从筛选按钮左沿起算，宽于侧栏）。提到 40 即可
-              在该上下文内胜出，且仍受该上下文约束，不会盖住挂在 <body> 的
-              z-40/z-50 portal Modal。固定定位同样受该祖先堆叠上下文约束。 */}
+          {/* z-40 keeps the panel above the session list inside the App's
+              `relative z-30` shell. The panel is right-anchored to the trigger,
+              so it no longer reaches the WorkspaceRail column; the rail stays
+              above the click-away backdrop (z-20) and remains operable while
+              the filter is open. The panel stays inside its ancestor stacking
+              context, so it never covers a body-level z-40/z-50 portal Modal. */}
           <div
             role="menu"
             aria-label="Session filters"

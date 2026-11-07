@@ -30,6 +30,7 @@ CAPABILITY_KEYS = {
     "processOwner",
     "process.hiddenDesktop",
     "secretStore",
+    "fileManager.reveal",
 }
 
 
@@ -73,6 +74,25 @@ def test_platform_endpoint_matches_capability_matrix():
         return response.json()["capabilities"]
 
     assert asyncio.run(run()) == platform_layer.capabilities()
+
+
+def test_platform_endpoint_reflects_runtime_file_manager_probe(monkeypatch):
+    from packages.core.platform import file_manager
+
+    monkeypatch.setattr(file_manager, "platform_name", lambda value=None: "windows")
+    monkeypatch.setattr(file_manager, "_explorer_path", lambda: None)
+
+    async def run():
+        async with _client() as client:
+            response = await client.get("/api/platform")
+        return response.json()["capabilities"]
+
+    assert asyncio.run(run())["fileManager.reveal"] is False
+
+    monkeypatch.setattr(
+        file_manager, "_explorer_path", lambda: r"C:\Windows\explorer.exe"
+    )
+    assert asyncio.run(run())["fileManager.reveal"] is True
 
 
 def test_rewind_returns_unsupported_platform(monkeypatch):

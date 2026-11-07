@@ -1,0 +1,102 @@
+{
+  "task": "CC Switch Bridge duration display: 130h41min -> 5d 10h 41min",
+  "baselineSha": "51db605cc8b3976f3ad0d6b4a4d8ccba9d319f68",
+  "branch": "fix/cc-switch-duration-days-20261104",
+  "verifiedSource": {
+    "path": "packages\\web\\src\\views\\PluginPanelView.tsx",
+    "sha256": "7ff34bdbf7e5262ae82cdee0aed57490fab956f2d2d002123af4954c413b817d"
+  },
+  "runtime": {
+    "kind": "real isolated FastAPI Pan process, production dist bundle",
+    "port": 49395,
+    "dataRoot": "<owned temporary root>",
+    "syntheticCli": "<owned temporary synthetic-cc-switch.cmd>",
+    "realCcSwitchOrAccountUsed": false
+  },
+  "assertions": [
+    "synthetic 130h41min reset renders as 5d 10h 41min",
+    "synthetic 3h20min reset keeps the hour/minute form",
+    "synthetic 45min reset keeps the minutes-only form",
+    "query age (3h) keeps the existing hour/minute form",
+    "no 130h/2460h legacy duration text remains",
+    "raw reset timestamps remain visible next to every countdown"
+  ],
+  "screenshots": [
+    {
+      "path": "evidence/cc-switch-duration-days-20261104/after-130h41min.png",
+      "bytes": 93721
+    },
+    {
+      "path": "evidence/cc-switch-duration-days-20261104/after-provider-card.png",
+      "bytes": 35247
+    },
+    {
+      "path": "evidence/cc-switch-duration-days-20261104/after-tick-61s.png",
+      "bytes": 93775
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "quotaResponses": [
+    {
+      "url": "http://127.0.0.1:49395/api/plugins/cc-switch-bridge/panels/accounts/actions/quota",
+      "status": 200,
+      "capturedAt": 1793726860895,
+      "body": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"id\": \"p-a\", \"app\": \"codex\", \"quota\": {\"status\": \"ok\", \"available\": true, \"queriedAt\": 1793716030881, \"tiers\": [{\"name\": \"long\", \"usedPercent\": 70, \"resetsAt\": \"2026-11-09T04:09:10.881000Z\"}, {\"name\": \"day\", \"usedPercent\": 30, \"resetsAt\": \"2026-11-03T20:48:10.881000Z\"}, {\"name\": \"hour\", \"usedPercent\": 10, \"resetsAt\": \"2026-11-03T18:13:10.881000Z\"}], \"balances\": [], \"message\": null}}"
+          }
+        ],
+        "structuredContent": {
+          "id": "p-a",
+          "app": "codex",
+          "quota": {
+            "status": "ok",
+            "available": true,
+            "queriedAt": 1793716030881,
+            "tiers": [
+              {
+                "name": "long",
+                "usedPercent": 70,
+                "resetsAt": "2026-11-09T04:09:10.881000Z"
+              },
+              {
+                "name": "day",
+                "usedPercent": 30,
+                "resetsAt": "2026-11-03T20:48:10.881000Z"
+              },
+              {
+                "name": "hour",
+                "usedPercent": 10,
+                "resetsAt": "2026-11-03T18:13:10.881000Z"
+              }
+            ],
+            "balances": [],
+            "message": null
+          }
+        },
+        "isError": false
+      }
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+  "tierRemainingMinutes": {
+    "long": 7841,
+    "day": 200,
+    "hour": 45
+  },
+  "liveTick": {
+    "afterSeconds": 61,
+    "displayed": "5d 10h 40min",
+    "quotaRequestsDuringTick": 0
+  },
+  "cleanup": {
+    "port": 49395,
+    "portReleased": true,
+    "ownedLeftovers": [],
+    "dataRootRemoved": true
+  },
+  "result": "passed"
+}

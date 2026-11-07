@@ -5,6 +5,8 @@ import type { AttachmentLocation } from './attachment';
 export type { AttachmentLocation } from './attachment';
 
 export interface Message {
+  /** Verbatim provider/history body before display link projection. */
+  rawContent?: string;
   terminal?: HistoryTerminal;
   role: string;
   content: string;
@@ -357,6 +359,7 @@ export interface WorkerEventContent {
 }
 
 export interface WorkerEvent {
+  rawEvent?: WorkerEvent;
   type: string;
   /** 本地 ISO-8601 完成时刻（最终 assistant 消息一次性携带，delta 不带）。 */
   ts?: string;
@@ -400,6 +403,7 @@ export interface WorkerEvent {
   error?: unknown;
   error_text?: string;
   result?: string;
+  rawResult?: string;
   cliSessionId?: string;
   /** Durable acknowledgement correlation for browser send-queue items. */
   clientMessageId?: string;
@@ -519,6 +523,7 @@ export interface StreamEvent {
   message?: string;
   status?: string;
   result?: string;
+  rawResult?: string;
   notification?: {
     title?: string;
     body?: string;

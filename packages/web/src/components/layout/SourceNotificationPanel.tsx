@@ -8,6 +8,20 @@ import { lockerNotificationPermission, requestLockerNotificationPermission } fro
 
 interface ContactOption { target: string; name: string }
 
+const SAVED_NOTICE = 'Saved. Only new events are forwarded; historical events are not replayed.';
+
+/** A source needs at least one QQ contact once it is enabled with QQ Report. */
+function isInvalidSource(value: SourceNotificationSettings) {
+  return value.enabled && value.qqReport && value.qqTargets.length === 0;
+}
+
+/** Skip a write that would only restate the committed value (and rotate its epoch). */
+function sameSettings(a: SourceNotificationSettings, b: SourceNotificationSettings) {
+  return a.enabled === b.enabled && a.system === b.system && a.browser === b.browser
+    && a.qqReport === b.qqReport && a.qqTargets.length === b.qqTargets.length
+    && a.qqTargets.every((target, index) => target === b.qqTargets[index]);
+}
+
 export function SourceNotificationPanel({ source }: { source: NotificationSource }) {
   const saved = useAppSettingsStore((s) => s.notifications[source]);
   const save = useAppSettingsStore((s) => s.saveSourceNotification);
@@ -22,6 +36,9 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
   const [permission, setPermission] = useState(lockerNotificationPermission);
   const live = useRef(true);
   const edited = useRef(false);
+  /** Latest draft awaiting persistence; only the newest value is written after the in-flight save. */
+  const pending = useRef<SourceNotificationSettings | null>(null);
+  const saving = useRef(false);
 
   useEffect(() => {
     live.current = true;
@@ -31,9 +48,8 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
     if (!edited.current) setDraft(sanitizeSourceNotification(saved));
   }, [saved]);
 
-  const needsContacts = draft.qqReport;
   useEffect(() => {
-    if (!needsContacts) return;
+    if (!draft.qqReport) return;
     let cancelled = false;
     setLoading(true);
     setContactError('');
@@ -64,7 +80,7 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
       }
     })();
     return () => { cancelled = true; };
-  }, [needsContacts]);
+  }, [draft.qqReport]);
 
   const options = useMemo(() => {
     const rows = new Map(contacts.map((row) => [row.target, row]));
@@ -77,29 +93,49 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
   const filtered = options.filter((row) => matchesQqContact(query, row.name, row.target));
   const selected = options.filter((row) => draft.qqTargets.includes(row.target));
 
-  const invalid = draft.enabled && needsContacts && draft.qqTargets.length === 0;
-  const update = (patch: Partial<SourceNotificationSettings>) => {
-    edited.current = true;
-    setDraft((current) => ({ ...current, ...patch }));
-    setError('');
-    setNotice('');
-  };
-  const submit = async () => {
-    if (busy || invalid) return;
+  const needsContacts = draft.qqReport;
+  const invalid = isInvalidSource(draft);
+
+  /** Write queued drafts one at a time so a fast sequence can never land out of order. */
+  const persist = async () => {
+    if (saving.current) return;
+    saving.current = true;
     setBusy(true);
-    setError('');
-    setNotice('');
     try {
-      await save(source, draft);
-      if (live.current) {
-        edited.current = false;
-        setNotice('Saved. Only new events are forwarded; historical events are not replayed.');
+      while (pending.current) {
+        const value = pending.current;
+        pending.current = null;
+        await save(source, value);
+        if (!live.current) return;
+        if (!pending.current) edited.current = false;
+        setError('');
+        setNotice(SAVED_NOTICE);
       }
     } catch (reason) {
-      if (live.current) setError(reason instanceof Error ? reason.message : 'Defaults could not be saved');
+      // Keep the draft the user asked for; nothing has been dropped, and the next edit
+      // re-sends the whole desired state through the same save path.
+      pending.current = null;
+      if (live.current) {
+        setNotice('');
+        setError(reason instanceof Error ? reason.message : 'Defaults could not be saved');
+      }
     } finally {
+      saving.current = false;
       if (live.current) setBusy(false);
     }
+  };
+
+  const update = (patch: Partial<SourceNotificationSettings>) => {
+    const next = { ...draft, ...patch };
+    edited.current = true;
+    setDraft(next);
+    setError('');
+    setNotice('');
+    // An invalid combination stays visible as a draft; it is persisted once it becomes valid.
+    if (isInvalidSource(next)) return;
+    if (sameSettings(next, sanitizeSourceNotification(saved))) { edited.current = false; return; }
+    pending.current = next;
+    void persist();
   };
 
   return (
@@ -113,7 +149,7 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
           </label>
         ))}
       </div>
-      <p className="text-[11px] text-text-tertiary">Browser requires notification permission and an authenticated open page. System and QQ Report run on the server. QQ forwards notifications only.</p>
+      <p className="text-[11px] text-text-tertiary">Changes are saved as soon as you make them. Browser requires notification permission and an authenticated open page. System and QQ Report run on the server. QQ forwards notifications only.</p>
       {draft.browser && <div className="flex items-center gap-2 text-xs">
         <button type="button" disabled={permission === 'unsupported'} className="rounded border border-border-default px-2 py-1"
           onClick={async () => setPermission(await requestLockerNotificationPermission())}>Request browser permission</button>
@@ -135,16 +171,18 @@ export function SourceNotificationPanel({ source }: { source: NotificationSource
         <div className="max-h-48 overflow-y-auto space-y-1">
           {filtered.length === 0 && !loading && <p role="status" className="py-2 text-xs text-text-tertiary">{query.trim() ? 'No contacts match this search.' : 'No QQ contacts available.'}</p>}
           {filtered.map((row) => <label key={row.target} className="flex min-w-0 items-start gap-2 rounded py-1 text-xs">
-            <input type="checkbox" className="mt-0.5 shrink-0" disabled={busy} checked={draft.qqTargets.includes(row.target)} onChange={(e) => update({ qqTargets: e.target.checked ? [...draft.qqTargets, row.target] : draft.qqTargets.filter((target) => target !== row.target) })} />
+            <input type="checkbox" className="mt-0.5 shrink-0" disabled={busy} checked={draft.qqTargets.includes(row.target)}
+              aria-describedby={invalid ? `${source}-error` : undefined}
+              onChange={(e) => update({ qqTargets: e.target.checked ? [...draft.qqTargets, row.target] : draft.qqTargets.filter((target) => target !== row.target) })} />
             <span className="min-w-0"><QqContactName name={row.name} number={row.target} /><span className="block break-all text-[10px] text-text-tertiary">{row.target}</span></span>
           </label>)}
         </div>
-        {invalid && <p id={`${source}-error`} role="alert" className="text-xs text-danger">Select at least one QQ Report contact.</p>}
+        {invalid && <p id={`${source}-error`} role="alert" className="text-xs text-danger">Select at least one QQ Report contact. That change was not saved.</p>}
       </div>}
       {source === 'newError' && <ErrorNotificationExclusions />}
+      {busy && <p role="status" className="text-xs text-text-secondary">Saving…</p>}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       {notice && <p role="status" className="text-xs text-text-secondary">{notice}</p>}
-      <button type="button" disabled={busy || invalid} aria-describedby={invalid ? `${source}-error` : undefined} onClick={() => { void submit(); }} className="rounded border border-border-default px-3 py-1.5 text-xs disabled:opacity-50">{busy ? 'Saving…' : `Save ${source === 'lockerUnread' ? 'Locker new unread' : 'New errors'}`}</button>
     </div>
   );
 }

@@ -1,0 +1,202 @@
+Pan
+Chat
+Editor
+Jobs
+Terminal
+Locker
+Actions
+Automation
+New
+Import
+recent
+Chat Stream
+RAW VERBATIM large binary local web
+302
+cbc
+Drag 40
+0
+cbc
+Drag 39
+0
+cbc
+Drag 38
+0
+cbc
+Drag 37
+0
+cbc
+Drag 36
+0
+cbc
+Drag 35
+0
+cbc
+Drag 34
+0
+cbc
+Drag 33
+0
+cbc
+Drag 32
+0
+cbc
+Drag 31
+0
+cbc
+Drag 30
+0
+cbc
+Drag 29
+0
+cbc
+Drag 28
+0
+cbc
+Drag 27
+0
+cbc
+Drag 26
+0
+cbc
+Drag 25
+0
+cbc
+Drag 24
+0
+cbc
+Drag 23
+0
+cbc
+Drag 22
+0
+cbc
+Drag 21
+0
+cbc
+Drag 20
+0
+cbc
+Drag 19
+0
+cbc
+Drag 18
+0
+cbc
+Drag 17
+0
+cbc
+Drag 16
+0
+cbc
+Drag 15
+0
+cbc
+Drag 14
+0
+cbc
+Drag 13
+0
+cbc
+Drag 12
+0
+cbc
+Drag 11
+0
+cbc
+Drag 10
+0
+cbc
+Drag 09
+0
+cbc
+Drag 08
+0
+cbc
+Drag 07
+0
+cbc
+Drag 06
+0
+cbc
+Drag 05
+0
+cbc
+Drag 04
+0
+cbc
+Drag 03
+0
+cbc
+Drag 02
+0
+cbc
+Drag 01
+0
+cbc
+Charlie Session
+0
+cbc
+Bravo Session
+0
+cbc
+Alpha Session
+0
+cbc
+工作区
+全部
+44
+无工作区
+44
+新建工作区
+全部
+Select a session to start
+Select a session to start
+服务端队列
+0
+new locked msg
+create reminding card
+Lock all
+Unlock all
+Pause reports
+Pause everything
+队列为空
+Send
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: 'Switch to Raw view', exact: true })
+
+    at D:\project\pan-worktrees\editor-raw-download-20261102\packages\web\e2e\editor-raw-download.e2e.mjs:49:72 {
+  log: [
+    "  - waiting for getByRole('button', { name: 'Switch to Raw view', exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.22.1
+cleanup verified {
+  port: 55148,
+  runtime: 'D:\\project\\pan-worktrees\\editor-raw-download-20261102\\packages\\web\\test-results\\raw-download-1793587842113'
+}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1 !== 0
+
+    at file:///D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/e2e/editor-raw-download-runner.mjs:86:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.1

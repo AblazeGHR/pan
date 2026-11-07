@@ -109,6 +109,7 @@ FinalService 与 Job facade 共用环境变量优先级，解析不创建目录�
 | `service.lifecycle` | 可用 | 不可用 | 不可用 | UI 旧入口保留；WP05b canonical 单步 service.restart/exit 经受保护 supervisor，取消窗口在 stopping 前关闭，ready/offline 需证据；POSIX 显式 capability_unsupported |
 | `processOwner` | 可用 | 可用 | 可用 | WP05a typed executor 与 WP05b independent canonical Attempt 复用 `ProcessOwner`；POSIX 使用 setsid/进程组与持久身份核验；独立启动经短命 bootstrap 的 retained-handle exit receipt |
 | `secretStore` | 可用 | 不可用 | 不可用 | 终端秘密存储使用 DPAPI |
+| `fileManager.reveal` | 运行时探测 | 运行时探测 | 运行时探测 | 需要 Explorer / `open` / xdg-open 与桌面会话；探针为 false 时 API `501`、按钮禁用 |
 
 CP-X3 revision2：Worker 的普通 pipe 启动在 POSIX 通过平台层 `start_new_session` 隔离宿主终端信号，
 Windows 继续使用既有窗口策略；停止仍由 Worker 自有树清理负责。Native Terminal TUI 的创建、配置、
@@ -140,3 +141,27 @@ Never substitute the current fixed offset for future DST rules. Failure is
 `provider_unavailable`; explicit overrides remain independent. Host changes invalidate
 only future, unreserved calendar cursor points; reserved envelopes settle unchanged.
 Windows discovery was exercised locally; Linux/macOS require CI/runtime verification.
+### Editor 的 OS 打开 / 定位
+
+Editor 顶栏的“用系统默认方式打开”（`POST /api/editor/open-external`）保留原行为，
+不新增能力门；新增的“在系统资源管理器中定位”（`POST /api/editor/reveal-external`）
+登记 `fileManager.reveal`。两者共用同一套 Session workdir / effective Workspace
+containment 与 `..`、符号链接解析，请求只携带路径、不携带命令。
+
+`fileManager.reveal` 与静态 Phase A 能力不同：除声明 `supported_on` 外，每次
+`GET /api/platform` 都由平台层探针计算可用性——Windows 需要 Explorer 路径，
+macOS 需要 `open`，Linux 需要 `xdg-open` 且存在 `DISPLAY`/`WAYLAND_DISPLAY`；
+未知平台直接 false。探针为 false 时请求返回 `501`，前端 `platformStore` 读取
+同一布尔值并禁用按钮、在 title 显示明确原因；探针失败（旧服务/网络错误）仍按
+后端 501 显示 toast，不静默隐藏。启动或退出失败返回 `500`。
+
+- Windows：默认打开走 `os.startfile`；定位走 Explorer 固定 argv
+  `explorer.exe /select, <file>`（Explorer 成功时也可能返回非零，按已交付处理）。
+- macOS：默认打开 `open <file>`；定位 `open -R <file>`。
+- Linux：默认打开 `xdg-open <file>`；定位打开父目录（`xdg-open <dir>`），没有
+  可移植的“选中该文件”原语。无桌面会话或 opener 按不支持处理。
+
+平台差异与命令构造集中在 `packages/core/platform/file_manager.py`，`server.py`
+只负责解析路径、映射状态码并调用。本机 Windows 候选证据见
+`evidence/editor-system-open/`；macOS/Linux 仅有 argv 构建与探针单元测试，尚无
+目标平台运行证据，不得当成已验收。

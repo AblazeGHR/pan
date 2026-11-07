@@ -25,12 +25,15 @@ function useNow(intervalMs = 30_000): number {
   return now;
 }
 
-/** "Xh Ymin" duration (the hour part is omitted below one hour); null when the
- *  value is negative or not finite, so callers can state expiry explicitly. */
+/** "Xd Yh Zmin" duration: the day part is omitted below one day and the hour
+ *  part below one hour; null when the value is negative or not finite, so
+ *  callers can state expiry explicitly. */
 export function formatClockDuration(milliseconds: number): string | null {
   if (!Number.isFinite(milliseconds) || milliseconds < 0) return null;
   const minutes = Math.floor(milliseconds / 60_000);
-  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(minutes / (24 * 60));
+  const hours = Math.floor(minutes / 60) % 24;
+  if (days > 0) return `${days}d ${hours}h ${minutes % 60}min`;
   return hours > 0 ? `${hours}h ${minutes % 60}min` : `${minutes}min`;
 }
 

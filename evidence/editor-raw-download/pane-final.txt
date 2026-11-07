@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 D:/project/pan-worktrees/editor-raw-download-20261102/packages/web/src
+
+ ✓ components/editor/EditorPane.test.tsx (5 tests) 1097ms
+   ✓ EditorPane editor action wiring > loads Markdown preview on demand and retains preview/edit/split mode switching 423ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  11:13:56
+   Duration  3.10s (transform 247ms, setup 10ms, collect 419ms, tests 1.10s, environment 439ms, prepare 120ms)
+

@@ -1,0 +1,24 @@
+pre-commit: checking React frontend...
+React frontend OK
+[fix/editor-raw-download-20261102 1101f563] fix: preserve raw chat bodies and open unpreviewable file downloads
+ 32 files changed, 2423 insertions(+), 17 deletions(-)
+ create mode 100644 evidence/editor-raw-download/README.md
+ create mode 100644 evidence/editor-raw-download/backend-final.txt
+ create mode 100644 evidence/editor-raw-download/baseline-E1b.txt
+ create mode 100644 evidence/editor-raw-download/browser-complete.txt
+ create mode 100644 evidence/editor-raw-download/browser-final.txt
+ create mode 100644 evidence/editor-raw-download/browser-first.txt
+ create mode 100644 evidence/editor-raw-download/browser-second.txt
+ create mode 100644 evidence/editor-raw-download/browser-third.txt
+ create mode 100644 evidence/editor-raw-download/build-final.txt
+ create mode 100644 evidence/editor-raw-download/build.txt
+ create mode 100644 evidence/editor-raw-download/chat-tests.txt
+ create mode 100644 evidence/editor-raw-download/editor-final.txt
+ create mode 100644 evidence/editor-raw-download/focused-final.txt
+ create mode 100644 evidence/editor-raw-download/focused.txt
+ create mode 100644 evidence/editor-raw-download/pane-final.txt
+ create mode 100644 evidence/editor-raw-download/red-backend.txt
+ create mode 100644 evidence/editor-raw-download/red-editor.txt
+ create mode 100644 packages/web/e2e/editor-raw-download-runner.mjs
+ create mode 100644 packages/web/e2e/editor-raw-download.e2e.mjs
+ create mode 100644 packages/web/e2e/editor-raw-download.server.py

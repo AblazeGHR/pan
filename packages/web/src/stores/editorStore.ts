@@ -236,6 +236,7 @@ interface EditorStore {
   activePath: string | null;
   dirty: Set<string>;
   contents: Record<string, string>;
+  previewErrors: Record<string, string>;
   imagePreviews: Record<string, EditorImagePreviewSource>;
   mdViewMode: Record<string, 'edit' | 'preview' | 'split'>;
   /** A one-shot location request produced by a Markdown file link. */
@@ -414,6 +415,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activePath: null,
   dirty: new Set(),
   contents: {},
+  previewErrors: {},
   imagePreviews: {},
   mdViewMode: {},
   pendingLocation: null,
@@ -454,6 +456,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             activePath: null,
             dirty: new Set<string>(),
             contents: {},
+            previewErrors: {},
             imagePreviews: {},
             mdViewMode: {},
             pendingLocation: null,
@@ -728,6 +731,17 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       });
       return true;
     } catch (error) {
+      if (!isCurrent() || !isCurrentOpenRequest(get(), snapshot)) return false;
+      const reason = openFileErrorMessage(error);
+      if (/^File too large|^Cannot read binary file/.test(reason)) {
+        set((s) => ({
+          openPaths: s.openPaths.includes(path) ? s.openPaths : [...s.openPaths, path],
+          activePath: path,
+          previewErrors: { ...s.previewErrors, [path]: reason },
+          pendingLocation: null,
+        }));
+        return true;
+      }
       if (isCurrent() && isCurrentOpenRequest(get(), snapshot)) {
         set({ pendingLocation: null });
         useUIStore.getState().showToast(`打开文件失败：${openFileErrorMessage(error)}`, 'error');
@@ -770,6 +784,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const newOpen = s.openPaths.filter((p) => p !== path);
       const newDirty = new Set(s.dirty);
       newDirty.delete(path);
+      const previewErrors = { ...s.previewErrors };
+      delete previewErrors[path];
       const newContents = { ...s.contents };
       delete newContents[path];
       const newImagePreviews = { ...s.imagePreviews };
@@ -790,6 +806,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         openPaths: newOpen,
         dirty: newDirty,
         contents: newContents,
+        previewErrors,
         imagePreviews: newImagePreviews,
         activePath: newActive,
         selectedPath: s.selectedPath === path ? newActive : s.selectedPath,
@@ -866,6 +883,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   markDirty: (path: string, content: string) => {
+    if (get().previewErrors[path]) return;
     set((s) => ({
       dirty: new Set([...s.dirty, path]),
       contents: { ...s.contents, [path]: content },
@@ -879,6 +897,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const path = repath || activePath;
     if (!path) return;
 
+    if (get().previewErrors[path]) return;
     const content = contents[path];
     if (content === undefined) return;
 
@@ -954,6 +973,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             delete contents[from];
           }
 
+          const previewErrors = { ...s.previewErrors };
+          if (Object.prototype.hasOwnProperty.call(previewErrors, from)) {
+            previewErrors[to] = previewErrors[from]!;
+            delete previewErrors[from];
+          }
           const mdViewMode = { ...s.mdViewMode };
           if (Object.prototype.hasOwnProperty.call(mdViewMode, from)) {
             mdViewMode[to] = mdViewMode[from]!;
@@ -966,6 +990,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             selectedPath: s.selectedPath === from ? to : s.selectedPath,
             dirty,
             contents,
+            previewErrors,
             mdViewMode,
           };
         });

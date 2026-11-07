@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from './sessionCreation';
 import { create } from 'zustand';
 import type { WorkerInfo, SettingsBody, ApiGenericResponse, DelayedRestartState } from '@/types';
 import {
@@ -110,6 +111,7 @@ export const useWorkerStore = create<WorkerStore>((set, get) => ({
     return intent;
   },
   refreshDelayedRestart: async (sessionId) => {
+    if (isLocalSessionIdentity(sessionId)) return;
     const epoch = get().runtimeEpoch;
     const intent = await requestDelayedRestart(sessionId, 'GET');
     if (get().runtimeEpoch === epoch && intent) get().applyDelayedRestart(intent);

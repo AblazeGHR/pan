@@ -212,7 +212,7 @@ SnowLuma 的注册字段、WebSocket 地址、token、客户端前置条件和�
 
 ### 通知与未读记录
 
-**Behavior → Session errors → msgBridge** 控制 Session 的新错误是否使用该 Session 的 System、Browser、QQ Report 连接；默认开启以保留 QQ 错误报告。**Notifications → Locker new unread / New errors** 是两个独立、默认关闭的全局通知源，可分别启停并选择 System、Browser 或 QQ Report 联系人。新源只有通知转发，没有 QQ Subscribe 或接收 Session；原 Session 的 Subscribe/Report 保留。同一 error 的 Session/全局配置按事件和渠道/QQ目标去重，两处都开 System 只发送一次。开关重开不补发历史；QQ/System 不依赖浏览器打开，Browser 需要已登录页面和已授予的通知权限。错误覆盖范围、失败/unknown 回执与持久化说明见[通知源契约](design/notification-sources-v1.md)。
+**Behavior → Session errors → msgBridge** 控制 Session 的新错误是否使用该 Session 的 System、Browser、QQ Report 连接；默认开启以保留 QQ 错误报告。**Notifications → Locker new unread / New errors** 是两个独立、默认关闭的全局通知源，可分别启停并选择 System、Browser 或 QQ Report 联系人；每次勾选或改选 QQ 联系人立即保存，出现保存失败会在原处报错并保留你的修改。新源只有通知转发，没有 QQ Subscribe 或接收 Session；原 Session 的 Subscribe/Report 保留。同一 error 的 Session/全局配置按事件和渠道/QQ目标去重，两处都开 System 只发送一次。开关重开不补发历史；QQ/System 不依赖浏览器打开，Browser 需要已登录页面和已授予的通知权限。错误覆盖范围、失败/unknown 回执与持久化说明见[通知源契约](design/notification-sources-v1.md)。
 
 ### 错误通知排除
 

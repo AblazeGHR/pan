@@ -8,7 +8,12 @@
   it off does not disable the independent global error source.
 - **App Settings → Notifications → Locker new unread / New errors** provides two
   independent sources, both disabled by default. Each has Enabled, System,
-  Browser, QQ Report and QQ contact selection, with an explicit Save button.
+  Browser, QQ Report and QQ contact selection. Every checkbox and QQ target
+  change saves immediately through the existing source-save endpoint; there is no
+  separate Save button. A failed write is reported in place and keeps the edit on
+  screen, so the next change re-sends the whole desired state instead of dropping
+  it. An enabled QQ Report source with no contact is not written: the invalid
+  combination stays visible with its inline message until it becomes valid.
   QQ contacts reuse bot-qualified identities and the existing contact search.
   These sources have no receiving Session, Subscribe or inbox configuration.
 - An error's Session and global routes form a union. The same System path,

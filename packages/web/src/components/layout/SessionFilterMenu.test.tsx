@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { SessionFilterMenu } from './SessionFilterMenu';
 import { SessionList } from '@/components/session/SessionList';
@@ -221,6 +221,38 @@ describe('SessionFilterMenu interaction contract', () => {
     openMenu();
     fireEvent.click(document.querySelector('div.fixed.inset-0.z-20')!);
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('anchors the panel right edge to the trigger so the workspace nav rail stays clear', () => {
+    // jsdom has no layout: pin a trigger rect near the sidebar's right edge.
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.getAttribute('title') === 'Special filters') {
+          return {
+            left: 220, right: 300, top: 60, bottom: 100,
+            width: 80, height: 40, x: 220, y: 60,
+            toJSON: () => {},
+          };
+        }
+        return {
+          left: 0, right: 0, top: 0, bottom: 0,
+          width: 0, height: 0, x: 0, y: 0,
+          toJSON: () => {},
+        };
+      });
+    try {
+      render(<SessionFilterMenu />);
+      const menu = openMenu();
+      const left = Number.parseFloat(menu.style.left);
+      const top = Number.parseFloat(menu.style.top);
+      expect(left).toBe(300 - 256);
+      // The panel never reaches past the trigger's right edge (= the nav rail).
+      expect(left + 256).toBeLessThanOrEqual(300);
+      expect(top).toBe(104);
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('the trigger toggles the menu open and closed', () => {

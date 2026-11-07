@@ -1,0 +1,18 @@
+platform capabilities {
+  platform: 'windows',
+  capabilities: {
+    'terminal.native': true,
+    'terminal.detach': true,
+    rewind: true,
+    'service.lifecycle': true,
+    processOwner: true,
+    secretStore: true,
+    'fileManager.reveal': true
+  }
+}
+reveal state { enabled: true, title: '在系统资源管理器中定位' }
+PASS production HTTP Chromium: open+reveal notes, failed binary/large tabs, dirty disk-only open, capability false disables+501, 403/404/400 negative controls, 390px fit
+cleanup verified {
+  port: 56464,
+  runtime: 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\test-results\\system-open-1793726792075'
+}

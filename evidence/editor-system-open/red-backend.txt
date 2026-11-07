@@ -1,0 +1,580 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\editor-system-open-20261104
+EEEEEEEEEEEFFFFFFFFFFF                                                   [100%]
+=================================== ERRORS ====================================
+_ ERROR at setup of test_reveals_an_existing_file_inside_the_session_workdir __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26C8E83E0>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+_ ERROR at setup of test_accepts_an_absolute_file_inside_the_session_workdir __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26C8E8510>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+_________________ ERROR at setup of test_rejects_a_directory __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26D7EE570>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+________________ ERROR at setup of test_rejects_a_missing_file ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E98F020>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+______________ ERROR at setup of test_rejects_relative_traversal ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E98F9B0>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+__ ERROR at setup of test_rejects_an_absolute_path_outside_the_allowed_roots __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA42750>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+_______ ERROR at setup of test_rejects_a_link_that_escapes_the_workdir ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E95B650>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+_____ ERROR at setup of test_allows_a_link_that_stays_inside_the_workdir ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA468A0>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+_________ ERROR at setup of test_allows_a_file_inside_a_workspace_dir _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA45310>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+___ ERROR at setup of test_rejects_every_path_when_the_session_has_no_roots ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26D58F770>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+____________ ERROR at setup of test_requires_a_session_and_a_path _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E9C6CF0>
+
+    @pytest.fixture
+    def revealed(monkeypatch):
+        import packages.web.server as server
+    
+        calls: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: calls.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:49: AttributeError
+================================== FAILURES ===================================
+___________________ test_reveal_argv_selection_per_platform ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26D757E10>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_reveal_argv_selection_per0')
+
+    def test_reveal_argv_selection_per_platform(monkeypatch, tmp_path):
+        import packages.web.server as server
+    
+        target = tmp_path / "file.txt"
+        target.write_text("hello", encoding="utf-8")
+    
+>       assert server._external_reveal_argv(target, "darwin") == [
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            "open",
+            "-R",
+            str(target),
+        ]
+E       AttributeError: module 'packages.web.server' has no attribute '_external_reveal_argv'
+
+tests\test_editor_reveal_external.py:240: AttributeError
+______________ test_windows_uses_explorer_select_without_a_shell ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E8CBAD0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_windows_uses_explorer_sel0/workdir')
+
+    def test_windows_uses_explorer_select_without_a_shell(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        target = workdir / "file.txt"
+        target.write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "win32")
+        monkeypatch.setattr(
+            server.shutil, "which", lambda name: r"C:\Windows\explorer.exe"
+        )
+    
+        launched: list[tuple[list[str], dict]] = []
+    
+        class Process:
+            def wait(self, timeout=None):
+                # Explorer reports a nonzero status even when the window opens.
+                return 1
+    
+        def fake_popen(argv, **kwargs):
+            launched.append((list(argv), kwargs))
+            return Process()
+    
+        monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    
+>       result = reveal_external(server)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_editor_reveal_external.py:288: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+_______________________ test_windows_requires_explorer ________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E8CBB90>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_windows_requires_explorer0/workdir')
+
+    def test_windows_requires_explorer(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "win32")
+        monkeypatch.setattr(server.shutil, "which", lambda name: None)
+        monkeypatch.setattr(
+            server.subprocess,
+            "Popen",
+            lambda *a, **k: pytest.fail("must not launch without Explorer"),
+        )
+    
+        with pytest.raises(HTTPException) as error:
+>           reveal_external(server)
+
+tests\test_editor_reveal_external.py:320: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+_____________________ test_macos_reveals_with_open_select _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA543C0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_macos_reveals_with_open_s0/workdir')
+
+    def test_macos_reveals_with_open_select(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        target = workdir / "file.txt"
+        target.write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "darwin")
+    
+        launched: list[list[str]] = []
+    
+        class Process:
+            def wait(self, timeout=None):
+                return 0
+    
+        def fake_popen(argv, **kwargs):
+            launched.append(list(argv))
+            return Process()
+    
+        monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    
+>       result = reveal_external(server)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_editor_reveal_external.py:346: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+___________________ test_linux_reveals_the_parent_directory ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA541B0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_linux_reveals_the_parent_0/workdir')
+
+    def test_linux_reveals_the_parent_directory(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        target = workdir / "file.txt"
+        target.write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "linux")
+        monkeypatch.setenv("DISPLAY", ":0")
+        monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open")
+    
+        launched: list[list[str]] = []
+    
+        class Process:
+            def wait(self, timeout=None):
+                return 0
+    
+        def fake_popen(argv, **kwargs):
+            launched.append(list(argv))
+            return Process()
+    
+        monkeypatch.setattr(server.subprocess, "Popen", fake_popen)
+    
+>       result = reveal_external(server)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_editor_reveal_external.py:374: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+________________ test_returns_501_without_an_opener_or_desktop ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E9977F0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_returns_501_without_an_op0/workdir')
+
+    def test_returns_501_without_an_opener_or_desktop(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "linux")
+        monkeypatch.delenv("DISPLAY", raising=False)
+        monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+        monkeypatch.setattr(server.shutil, "which", lambda name: "/usr/bin/xdg-open")
+    
+        with pytest.raises(HTTPException) as error:
+>           reveal_external(server)
+
+tests\test_editor_reveal_external.py:391: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+_________________ test_returns_501_on_an_unsupported_platform _________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E997CF0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_returns_501_on_an_unsuppo0/workdir')
+
+    def test_returns_501_on_an_unsupported_platform(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "freebsd")
+    
+        with pytest.raises(HTTPException) as error:
+>           reveal_external(server)
+
+tests\test_editor_reveal_external.py:412: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+________________ test_returns_500_when_the_reveal_opener_fails ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26E9FF380>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_returns_500_when_the_reve0/workdir')
+
+    def test_returns_500_when_the_reveal_opener_fails(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "darwin")
+    
+        class Process:
+            def wait(self, timeout=None):
+                return 3
+    
+        monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: Process())
+    
+        with pytest.raises(HTTPException) as error:
+>           reveal_external(server)
+
+tests\test_editor_reveal_external.py:431: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+____________________ test_reports_a_missing_opener_binary _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA93550>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_reports_a_missing_opener_0/workdir')
+
+    def test_reports_a_missing_opener_binary(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "darwin")
+    
+        def missing_binary(*_args, **_kwargs):
+            raise FileNotFoundError("open")
+    
+        monkeypatch.setattr(server.subprocess, "Popen", missing_binary)
+    
+        with pytest.raises(HTTPException) as error:
+>           reveal_external(server)
+
+tests\test_editor_reveal_external.py:450: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+________ test_a_still_running_reveal_opener_is_not_treated_as_failure _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26EA271D0>
+workdir = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_a_still_running_reveal_op0/workdir')
+
+    def test_a_still_running_reveal_opener_is_not_treated_as_failure(monkeypatch, workdir):
+        import packages.web.server as server
+    
+        session_with_workdir(monkeypatch, server, workdir)
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        monkeypatch.setattr(server.sys, "platform", "darwin")
+    
+        class Process:
+            def wait(self, timeout=None):
+                if timeout is not None:
+                    raise server.subprocess.TimeoutExpired(cmd="open", timeout=timeout)
+                return 0
+    
+        reapers: list[object] = []
+        monkeypatch.setattr(server.subprocess, "Popen", lambda *a, **k: Process())
+        monkeypatch.setattr(server, "_reap_external_opener", reapers.append)
+    
+>       result = reveal_external(server)
+                 ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_editor_reveal_external.py:472: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+server = <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'>
+session_id = 'ses_editor', path = 'file.txt'
+
+    def reveal_external(server, session_id="ses_editor", path="file.txt"):
+        return asyncio.run(
+>           server.api_editor_reveal_external({"session_id": session_id, "path": path})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: module 'packages.web.server' has no attribute 'api_editor_reveal_external'. Did you mean: 'api_editor_open_external'?
+
+tests\test_editor_reveal_external.py:21: AttributeError
+____________ test_route_maps_success_and_rejection_to_http_status _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002B26AD72430>
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-6932/test_route_maps_success_and_re0')
+
+    def test_route_maps_success_and_rejection_to_http_status(monkeypatch, tmp_path):
+        from fastapi.testclient import TestClient
+    
+        import packages.web.server as server
+        from packages.core import session as sess
+    
+        workdir = tmp_path / "workdir"
+        workdir.mkdir()
+        (workdir / "file.txt").write_text("hello", encoding="utf-8")
+        session = sess.create(name="editor-reveal-external", adapter="cbc", workdir=str(workdir))
+        revealed: list[Path] = []
+>       monkeypatch.setattr(
+            server, "_reveal_file_in_file_manager", lambda target: revealed.append(target)
+        )
+E       AttributeError: <module 'packages.web.server' from 'D:\\project\\pan-worktrees\\editor-system-open-20261104\\packages\\web\\server.py'> has no attribute '_reveal_file_in_file_manager'
+
+tests\test_editor_reveal_external.py:489: AttributeError
+============================== warnings summary ===============================
+tests/test_editor_reveal_external.py::test_route_maps_success_and_rejection_to_http_status
+  D:\project\Pan-main\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_editor_reveal_external.py::test_route_maps_success_and_rejection_to_http_status
+  D:\project\Pan-main\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_editor_reveal_external.py::test_reveal_argv_selection_per_platform
+FAILED tests/test_editor_reveal_external.py::test_windows_uses_explorer_select_without_a_shell
+FAILED tests/test_editor_reveal_external.py::test_windows_requires_explorer
+FAILED tests/test_editor_reveal_external.py::test_macos_reveals_with_open_select
+FAILED tests/test_editor_reveal_external.py::test_linux_reveals_the_parent_directory
+FAILED tests/test_editor_reveal_external.py::test_returns_501_without_an_opener_or_desktop
+FAILED tests/test_editor_reveal_external.py::test_returns_501_on_an_unsupported_platform
+FAILED tests/test_editor_reveal_external.py::test_returns_500_when_the_reveal_opener_fails
+FAILED tests/test_editor_reveal_external.py::test_reports_a_missing_opener_binary
+FAILED tests/test_editor_reveal_external.py::test_a_still_running_reveal_opener_is_not_treated_as_failure
+FAILED tests/test_editor_reveal_external.py::test_route_maps_success_and_rejection_to_http_status
+ERROR tests/test_editor_reveal_external.py::test_reveals_an_existing_file_inside_the_session_workdir
+ERROR tests/test_editor_reveal_external.py::test_accepts_an_absolute_file_inside_the_session_workdir
+ERROR tests/test_editor_reveal_external.py::test_rejects_a_directory - Attrib...
+ERROR tests/test_editor_reveal_external.py::test_rejects_a_missing_file - Att...
+ERROR tests/test_editor_reveal_external.py::test_rejects_relative_traversal
+ERROR tests/test_editor_reveal_external.py::test_rejects_an_absolute_path_outside_the_allowed_roots
+ERROR tests/test_editor_reveal_external.py::test_rejects_a_link_that_escapes_the_workdir
+ERROR tests/test_editor_reveal_external.py::test_allows_a_link_that_stays_inside_the_workdir
+ERROR tests/test_editor_reveal_external.py::test_allows_a_file_inside_a_workspace_dir
+ERROR tests/test_editor_reveal_external.py::test_rejects_every_path_when_the_session_has_no_roots
+ERROR tests/test_editor_reveal_external.py::test_requires_a_session_and_a_path

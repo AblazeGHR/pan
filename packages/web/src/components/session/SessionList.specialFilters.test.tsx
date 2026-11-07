@@ -465,12 +465,12 @@ describe('select-mode hide/show sessions', () => {
     fireEvent.click(container.querySelector('button[title="Hide session"]')!);
     expect(useSessionStore.getState().selectedIds.size).toBe(0);
 
-    // Clicking the card row opens the session (select mode no longer swallows
-    // it) and must not touch the selection or the hidden set.
+    // Clicking the card row toggles its selection (select mode semantics) and
+    // must not open the session or change the hidden set.
     const rows = container.querySelectorAll('.flex.items-center.gap-2.px-3.py-2');
     fireEvent.click(rows[0] as HTMLElement);
-    expect(useSessionStore.getState().currentSessionId).toBe('a');
-    expect(useSessionStore.getState().selectedIds.size).toBe(0);
+    expect(useSessionStore.getState().currentSessionId).toBeNull();
+    expect(useSessionStore.getState().selectedIds.has('a')).toBe(true);
     expect(useUIStore.getState().hiddenSessionIds.size).toBe(1);
   });
 

@@ -352,7 +352,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
         {sourceBadge}
         <div className="msg user text-sm">
           {rawViewEnabled ? (
-            <RawMessageText content={message.content} className="text-sm" />
+            <RawMessageText content={message.rawContent ?? message.content} className="text-sm" />
           ) : (
             <MarkdownRenderer
               content={message.content}
@@ -381,7 +381,7 @@ export const MessageBubble = memo(function MessageBubble({ message, prevRole = n
       {sourceBadge}
       <div className="msg assistant text-sm leading-relaxed">
         {rawViewEnabled ? (
-          <RawMessageText content={message.content} />
+          <RawMessageText content={message.rawContent ?? message.content} />
         ) : (
           <MarkdownRenderer
             content={message.content}

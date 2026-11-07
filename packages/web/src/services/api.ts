@@ -2309,6 +2309,15 @@ export async function openFileExternally(sessionId: string, path: string): Promi
   if (data.error) throw new Error(data.error);
 }
 
+/** Ask the Pan server to reveal one Editor file in the OS file manager. */
+export async function revealFileExternally(sessionId: string, path: string): Promise<void> {
+  const data = await request<ApiFsGenericResponse>(`${BASE}/editor/reveal-external`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId, path }),
+  });
+  if (data.error) throw new Error(data.error);
+}
+
 export async function writeFile(
   sessionId: string,
   path: string,

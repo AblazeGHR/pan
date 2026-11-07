@@ -1,3 +1,4 @@
+import { isLocalSessionIdentity } from './sessionCreation';
 /**
  * Per-Session message bookmarks: the client mirror of the durable sidecar
  * store (`packages/core/session_bookmarks.py`).
@@ -292,6 +293,7 @@ export const useBookmarkStore = create<BookmarkStore>((set, get) => ({
   sessions: {},
 
   loadBookmarks: async (sessionId, force = false) => {
+    if (isLocalSessionIdentity(sessionId)) return;
     const current = get().sessions[sessionId];
     if (!force && current?.loaded) return;
     const inFlight = loadsInFlight.get(sessionId);
