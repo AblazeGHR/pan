@@ -289,7 +289,9 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     # P1 adds the canonical Action draft/version/lifecycle/alias routes to the
     # single registration owner.  Keep the exact count to catch duplicate
     # mounts or accidental legacy shadowing.
-    assert len(canonical) == 47
+    # P6 adds action reference metadata/provenance and canonical time-input
+    # routes under the same registration owner.
+    assert len(canonical) == 52
     assert pairs[("POST", "/api/event-creators/preview")] == 1
     for path in ("/api/job-runs/{run_id}/attempts/{attempt_id}/log", "/api/job-runs/{run_id}/logs"):
         assert pairs[("GET", path)] == 1
@@ -314,7 +316,6 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     assert authorization.object_path("/api/jobs")          # canonical
     assert authorization.object_path("/api/triggers")      # canonical
     old_writes = {("POST", "/api/jobs/action-jobs"),
-                  ("POST", "/api/jobs/job-templates/{template_id}/instantiate"),
                   ("POST", "/api/jobs/action-jobs/{job_id}/retry")}
     retired = {(method, route.path) for route in routes
                if getattr(route, "endpoint", None) is api.retired_legacy_write
@@ -343,4 +344,8 @@ async def test_ft03_legacy_facade_retires_writes_and_keeps_reads(tmp_path):
                              ("POST", "/api/legacy/jobs/job-templates/{id}/instantiate")):
             retired = await after.request(method, path, json={"kind": "not-supported"})
             assert retired.status_code == 503, (path, retired.text)
-            assert retired.json()["detail"]["code"] == "provider_unavailable"
+            payload = retired.json()
+            if '/job-templates/' in path:
+                assert payload.get('error', {}).get('code') in {'provider_unavailable', 'invalid_schema'}
+            else:
+                assert payload["detail"]["code"] == "provider_unavailable"

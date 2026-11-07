@@ -47,8 +47,11 @@ def test_production_scheduler_writes_cannot_reach_either_owner(
 
     before = contents(tmp_path)
     response = asyncio.run(call())
-    assert response.status_code == (401 if identity == 'anonymous' else 410), response.text
-    if identity != 'anonymous':
+    delegated_canonical = (path in {'/tasks/{id}/pause', '/tasks/{id}/resume', '/tasks/{id}/run-now'}
+                          or (path == '/tasks/{id}' and method == 'DELETE'))
+    expected = 401 if identity == 'anonymous' else 403 if identity == 'delegated' and delegated_canonical else 410
+    assert response.status_code == expected, response.text
+    if identity == 'user':
         assert response.json()['detail']['code'] == 'retired'
     assert contents(tmp_path) == before
 

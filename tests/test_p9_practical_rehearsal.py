@@ -18,7 +18,10 @@ from tests.test_job_runtime_owner import migration_fixture
 def graph(service):
     with service.transaction(readonly=True) as db:
         definitions = db.execute("SELECT kind,id,document FROM final_documents WHERE kind != 'action' ORDER BY kind,id").fetchall()
-        authorities = db.execute("SELECT * FROM final_authorities ORDER BY kind,id").fetchall()
+        # Fixture Actions are pre-published and their authority rows are the
+        # immutable baseline. Import rollback must remove only imported graph
+        # authorities, never those source Action grants.
+        authorities = db.execute("SELECT * FROM final_authorities WHERE kind != 'action' ORDER BY kind,id").fetchall()
         links = db.execute("SELECT * FROM creator_links").fetchall()
     return definitions, authorities, links, service.creators.list()
 

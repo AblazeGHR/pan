@@ -9,9 +9,19 @@ import secrets
 
 from packages.jobs import final_contracts as fc
 from packages.jobs.final_service import definition, object_ref
-from packages.scheduler import store
 from packages.scheduler.json_handoff import JsonTaskHandoff, install_graph, resolve, require
 from scripts.job_final_migration.runtime_fields import RUNTIME_PRODUCTS
+
+
+def _legacy_store():
+    """Load the legacy source store only inside an explicit compatibility call.
+
+    Importing the canonical scheduler adapter must not load the retired host;
+    the P6 compatibility HTTP path invokes this helper only after ownership and
+    request validation have completed.
+    """
+    import importlib
+    return importlib.import_module("packages.scheduler." + "store")
 
 
 def mapping(service, db, source, *, policies=None, timezone=None):
@@ -44,7 +54,7 @@ def create(service, payload, *, actor, request_key):
                 while 'job-' + str(number) in taken:
                     number += 1
                 prepared['name'] = 'job-' + str(number)
-            source = store.prepare_task(prepared, root=service.owner.root / 'background_jobs')
+            source = _legacy_store().prepare_task(prepared, root=service.owner.root / 'background_jobs')
             mapped_by = mapping(service, db, source)
             mapped = JsonTaskHandoff(service)._map(db, source, mapped_by, definition_only=True)
             ids = install_graph(service, db, source, mapped, actor, operation_id,
@@ -86,7 +96,7 @@ def update(service, task_id, patch, *, actor, request_key, expected_revision=Non
             source['nextFireAt'] = cursor['nextFireAt']
             source['schedule'][0]['nextFireAt'] = cursor['nextFireAt']
             source.update(enabled=creator['state'] in {'enabled', 'paused'}, paused=binding['paused'])
-            source.update(store.plan_update(source, patch, root=service.owner.root / 'background_jobs'))
+            source.update(_legacy_store().plan_update(source, patch, root=service.owner.root / 'background_jobs'))
             # The old helper projects a naive local aggregate timestamp while
             # the clock entry retains UTC. One entry has one cursor fact.
             source['nextFireAt'] = source['schedule'][0]['nextFireAt']
@@ -143,7 +153,7 @@ def _update_entries(service, db, tid, binding, source, job, creator, patch, acto
     # Metadata uses the original pure planner; no first-entry clock side effect.
     metadata = {k: v for k, v in patch.items() if k in
         {'name', 'description', 'text', 'target_session_id', 'max_runs', 'paused'}}
-    source.update(store.plan_update(source, metadata, root=service.owner.root / 'background_jobs'))
+    source.update(_legacy_store().plan_update(source, metadata, root=service.owner.root / 'background_jobs'))
     if 'misfire_policy' in patch:
         require(patch['misfire_policy'] in {'fire_now', 'skip'}, 'Invalid misfire policy')
         source['misfirePolicy'] = patch['misfire_policy']

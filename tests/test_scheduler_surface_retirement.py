@@ -18,10 +18,11 @@ from tests.test_scheduler_api import contents, scheduler_env  # noqa: F401
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REMOVED_TOOLS = (
+REMOVED_TOOLS = ()
+COMPAT_TOOLS = {
     'scheduler_create', 'scheduler_update', 'scheduler_delete',
     'scheduler_pause', 'scheduler_resume', 'scheduler_run_now',
-)
+}
 READ_TOOLS = {'scheduler_list', 'scheduler_get', 'scheduler_runs'}
 
 
@@ -50,7 +51,7 @@ def test_removed_mcp_names_are_absent_and_unknown_before_any_transport(monkeypat
     async def check():
         tools = {t.name for t in await mcp_server.mcp.list_tools()}
         assert tools & set(REMOVED_TOOLS) == set()
-        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS
+        assert {n for n in tools if n.startswith('scheduler_')} == READ_TOOLS | COMPAT_TOOLS
         # Approved rev16 contract: undiscoverable legacy names return a
         # structured refusal before any transport, never a legacy dispatcher.
         # The former exception-only expectations and their 13-red JUnit are

@@ -182,7 +182,8 @@ def test_structured_scheduler_job_trigger_forms_preserve_precision_shared_cas_an
                     updated_trigger = next(t for t in client.get('/api/triggers').json()['items'] if t['name']=='Form subscription A')
                     assert updated_trigger['condition'] == {'field':'workers.runningCount','op':'eq','value':2}
                     assert updated_trigger['creatorSelector'] == {'mode':'ids','ids':[interval['id']]}
-                    assert updated_trigger['targetJobId'] == job['id']
+                    assert (updated_trigger.get('targetJobId') or
+                            updated_trigger.get('target', {}).get('jobId')) == job['id']
                     refs = client.get('/api/event-creators/'+interval['id']+'/references').json()
                     assert len(refs['references'])==2
                     page.get_by_role('tab',name='Event Register',exact=True).click()

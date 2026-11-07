@@ -916,8 +916,14 @@ class FinalService:
                         self._permit(actor, "trigger", "lifecycle", execution=True)
                     if any(spec["mode"] == "create" for spec in specs):
                         self._permit(actor, "event_creator", "lifecycle", execution=True)
-                key = "template:" + fc.digest({"scope": self._scope(actor, "instantiate-template"),
-                                                "requestKey": body["requestKey"], "overrides": overrides})
+                # Omitted overrides and an explicit empty object are the same
+                # request across the old HTTP/MCP envelopes. Keep composition
+                # identity stable while fencing non-empty display changes.
+                key_payload = {"scope": self._scope(actor, "instantiate-template"),
+                               "requestKey": body["requestKey"]}
+                if overrides:
+                    key_payload["overrides"] = overrides
+                key = "template:" + fc.digest(key_payload)
                 composed = self.compositions.instantiate_template(value, request_key=key, activate=activate,
                     authorization_evidence={"principal": principal(actor)})
                 ids = composed["objectIds"]

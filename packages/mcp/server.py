@@ -2542,7 +2542,10 @@ def scheduler_create(
     request_key: str | None = None,
     schedule_entries: list[dict] | None = None,
 ) -> dict:
-    """Create via the canonical owner, preserving original flat arguments."""
+    """Create via the canonical owner, preserving original flat arguments.
+
+    完整编排流程见 /pan skill。
+    """
     denied = _scheduler_auth(target_session_id, claim=True)
     if denied:
         return denied
@@ -2584,7 +2587,10 @@ def scheduler_update(task_id: str, target_session_id: str | None = None,
                      entry_misfire_policy: str | None = None, entry_grace_sec: float | None = None,
                      delete_entry: bool | None = None, append_schedule: list[dict] | None = None,
                      insert_index: int | None = None) -> dict:
-    """Patch provided legacy configuration fields through the original graph."""
+    """Patch provided legacy configuration fields through the original graph.
+
+    完整编排流程见 /pan skill。
+    """
     denied = _scheduler_auth(target_session_id, claim=True)
     if denied:
         return denied
@@ -2696,6 +2702,7 @@ def scheduler_cancel(task_id: str, job_id: str, run_id: str, expected_revision: 
     The explicit Job/Run/revision envelope is required; an original history
     alias cannot establish adoption of an unknown execution. Query the same
     operation after an unconfirmed reply; never repeat with a new key.
+    完整编排流程见 /pan skill。
     """
     denied = _scheduler_auth(target_session_id, claim=False)
     if denied:
@@ -2741,14 +2748,20 @@ def _scheduler_lifecycle(task_id, operation, target_session_id, request_key, exp
 @mcp.tool()
 def scheduler_pause(task_id: str, target_session_id: str | None = None,
                     request_key: str | None = None, expected_revision: int | None = None) -> dict:
-    """Pause the original handed-off clock; preserve in-flight Runs and cursor policy."""
+    """Pause the original handed-off clock; preserve in-flight Runs and cursor policy.
+
+    完整编排流程见 /pan skill。
+    """
     return _scheduler_lifecycle(task_id, 'pause', target_session_id, request_key, expected_revision)
 
 
 @mcp.tool()
 def scheduler_resume(task_id: str, target_session_id: str | None = None,
                      request_key: str | None = None, expected_revision: int | None = None) -> dict:
-    """Resume the original handed-off clock without replaying paused occurrences."""
+    """Resume the original handed-off clock without replaying paused occurrences.
+
+    完整编排流程见 /pan skill。
+    """
     return _scheduler_lifecycle(task_id, 'resume', target_session_id, request_key, expected_revision)
 
 
@@ -2759,6 +2772,7 @@ def scheduler_run_now(task_id: str, target_session_id: str | None = None,
     """Admit manual intent through the original Job; no scheduled cursor advance.
 
     Wait for the original dispatch receipt by default. Query original Run on unknown response.
+    完整编排流程见 /pan skill。
     """
     return _scheduler_lifecycle(task_id, 'run-now', target_session_id, request_key, expected_revision, wait_for_dispatch)
 
@@ -2766,7 +2780,10 @@ def scheduler_run_now(task_id: str, target_session_id: str | None = None,
 @mcp.tool()
 def scheduler_delete(task_id: str, target_session_id: str | None = None,
                      request_key: str | None = None, expected_revision: int | None = None) -> dict:
-    """Retire one handed-off task; unknown execution/publication blocks deletion."""
+    """Retire one handed-off task; unknown execution/publication blocks deletion.
+
+    完整编排流程见 /pan skill。
+    """
     return _scheduler_lifecycle(task_id, 'delete', target_session_id, request_key, expected_revision)
 
 
@@ -3347,6 +3364,16 @@ def job_config_drafts(operation: str = 'list', kind: str = 'job', config: dict |
     """
     if kind not in ('job', 'template'):
         return {'error': 'kind must be job or template'}
+    # A restricted Agent may inspect or submit a disabled draft, but it cannot
+    # use the legacy Template lifecycle as a substitute for a managed target.
+    # Enforce this before the transport call so a mocked/failed transport can
+    # never turn the adapter into an execution capability.
+    caller = _caller_identity()
+    access = (caller or {}).get('panAccess') or {}
+    if (operation in {'instantiate', 'delete'} and access.get('restrictToManaged')
+            and not (caller or {}).get('managed')):
+        return {'error': {'code': 'permission_denied',
+                          'message': 'Restricted Agent requires a managed target for Template lifecycle'}}
     from urllib.parse import quote
     path = '/api/jobs/action-jobs' if kind == 'job' else '/api/jobs/job-templates'
     if operation == 'list': return _api('GET', path)

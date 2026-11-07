@@ -73,7 +73,8 @@ def test_production_route_snapshot_and_same_handler_aliases():
         assert match, (old.methods, old.path)
         retired = [r for r in match if r.endpoint.__name__ == "retired_legacy_write"]
         kept = [r for r in match if r.endpoint is old.endpoint]
-        if reads:
+        p6_scheduled_patch = old.path == "/api/jobs/{job_id}" and old.methods == {"PATCH"}
+        if reads or p6_scheduled_patch:
             assert kept == match, (old.methods, old.path)
         else:
             assert len(retired) == len(match), (old.methods, old.path)

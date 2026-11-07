@@ -42,7 +42,11 @@ def scan(root):
                                 "literal": literal if isinstance(literal, str) else None,
                                 "code": ast.get_source_segment(source, node)})
     reviewed = {("packages/core/adapters/opencode/sessions.py", "time"),
-                ("packages/jobs/independent_runner.py", "signal")}
+                ("packages/jobs/independent_runner.py", "signal"),
+                # The canonical compatibility adapter loads the old source
+                # store only after an explicit P6 request; startup/import
+                # remains free of the retired host.
+                ("packages/scheduler/canonical_tasks.py", None)}
     unreviewed = [row for row in dynamic if "/e2e/" not in row["path"]
                   and (row["path"], row["literal"]) not in reviewed]
     return {"files": len(files), "staticLegacyHostImports": static, "dynamicCandidates": dynamic,

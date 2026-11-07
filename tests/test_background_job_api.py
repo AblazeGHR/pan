@@ -111,6 +111,9 @@ def test_http_cancel_reports_unsafe_pid(monkeypatch):
     def unsafe(job_id):
         raise ValueError("cannot safely cancel: task PID identity is unavailable or reused")
     monkeypatch.setattr(web_server.background_jobs, "cancel", unsafe)
+    monkeypatch.setattr(web_server.background_jobs, "get", lambda job_id: {
+        "jobId": job_id, "kind": "background-process"
+    })
     result = asyncio.run(web_server.api_background_job_cancel("job_reused"))
     assert result["error"]["code"] == "cancel_unsafe"
 

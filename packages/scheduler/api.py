@@ -348,7 +348,7 @@ async def _canonical_record(request, task_id):
     from packages.plugins.lifecycle import io
     from packages.scheduler.json_handoff import project, resolve
     service = getattr(request.app.state, 'job_final_service', None)
-    if service is None:
+    if service is None or not callable(getattr(service, 'transaction', None)):
         return None
     with service.transaction(readonly=True) as db:
         found = db.execute("SELECT 1 FROM final_documents WHERE kind='json_scheduler_handoff' AND (id=? OR json_extract(document,'$.jobId')=?)", (task_id, task_id)).fetchone()
@@ -398,7 +398,11 @@ async def list_tasks(includeDisabled: bool = True, request: Request = None,
     try:
         tasks = _history(request).tasks(includeDisabled)
         service = getattr(request.app.state, 'job_final_service', None)
-        if service is not None:
+        # Historical-only hosts may expose the canonical root for archive
+        # reads without binding a live FinalService. Do not manufacture a
+        # transaction requirement in that mode; the archive remains the
+        # authoritative read source and must stay usable without startup.
+        if service is not None and callable(getattr(service, 'transaction', None)):
             from packages.scheduler.json_handoff import project
             from packages.jobs.final_api import actor
             from packages.plugins.lifecycle import io
