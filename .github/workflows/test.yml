@@ -130,6 +130,13 @@ jobs:
         run: |
           python scripts/run_tests_isolated.py -- python -m pytest tests/test_notification_http.py tests/test_history_terminal_http.py tests/test_job_maintenance_startup.py tests/test_job_preserved_data.py tests/test_job_maintenance_browser.py tests/test_retirement_rev16_mcp_stdio.py -q -ra --junitxml=evidence/cp-x1-ubuntu-browser/pytest.xml 2>&1 | tee evidence/cp-x1-ubuntu-browser/pytest.log
 
+      - name: Run Action and Template production browser compatibility
+        working-directory: packages/web
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/pan-playwright
+          PAN_E2E_PYTHON: python
+        run: node e2e/action-p6-ui-compat.e2e.mjs
+
       - name: Upload fresh Ubuntu browser results and owned cleanup evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -137,13 +144,15 @@ jobs:
           name: ubuntu-browser-py312
           path: |
             evidence/cp-x1-ubuntu-browser/
+            .tmp/p6-ui-*/evidence.json
+            .tmp/p6-ui-*/server.log
             artifacts/notification-error-exclusions/http/
             artifacts/history-terminal/http/
           if-no-files-found: warn
 
   platform-fast:
     name: platform-fast (${{ matrix.os }}, Python 3.12)
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -167,6 +176,10 @@ jobs:
 
       - name: Real server import, full collection and core contracts
         run: python scripts/platform_fast_gate.py --output evidence/cp-x1-ci
+
+      - name: Run Action unification P1-P6 contracts
+        run: >-
+          python -c "import glob, subprocess, sys; files = sorted(glob.glob('tests/test_action_unification_p*.py')); assert files; sys.exit(subprocess.call([sys.executable, 'scripts/run_tests_isolated.py', '--', sys.executable, '-m', 'pytest', *files, 'tests/test_job_mcp_config.py', '-q', '-ra', '--junitxml=evidence/cp-x1-ci/action-unification.xml']))"
 
       - name: Upload fast gate logs, collection errors and platform skips
         if: always()
