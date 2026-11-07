@@ -33,5 +33,6 @@ export type CanonicalLegacyAction = {
   definition: import('./canonicalJobs').JsonObject;
   reason: string;
 };
+export type PreservedAction = { id: string; reason: string };
 export type ActionRegistry = { revision: number; actions: Action[]; groups: ActionGroup[];
-  canonicalActions?: Record<string, CanonicalLegacyAction> };
+  canonicalActions?: Record<string, CanonicalLegacyAction>; preservedActions?: PreservedAction[] };

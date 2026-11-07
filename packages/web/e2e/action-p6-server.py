@@ -53,9 +53,26 @@ def run(server, *args, **kwargs):
             value['execution']['config'] = {'cwd': str(RUNTIME), 'legacyOutputMerge': 'concat/v1', 'commands': [
                 {'argv': [sys.executable, str(scripts[0])]}, {'argv': [sys.executable, str(scripts[1])], 'timeout': 19}]}
             changed = service.write('action', ref['id'], {'definition': value, 'expectedRevision': ref['revision'], 'requestKey': 'owned-series'}, actor=who)['result']['object']
-            service.control('action', ref['id'], {'operation': 'publish', 'expectedRevision': changed['revision'],
-                'expectedStateRevision': changed['stateRevision'], 'requestKey': 'owned-publish', 'parameters': {}}, actor=who)
-            (RUNTIME / 'p6-seed.json').write_text(json.dumps({'sourceSha': fc.digest(old.read()), 'groupRelease': built['version'], 'ref': ref}), 'utf-8')
+            published = service.control('action', ref['id'], {'operation': 'publish', 'expectedRevision': changed['revision'],
+                'expectedStateRevision': changed['stateRevision'], 'requestKey': 'owned-publish', 'parameters': {}}, actor=who)['result']['object']
+            action_ref = object_ref('action', published)
+            template_value = {
+                'name': 'Owned template',
+                'description': 'Owned advanced template',
+                'jobDefinition': {'name': 'Owned template job', 'steps': [{
+                    'stepId': 'effect', 'actionRef': action_ref, 'arguments': {},
+                    'completion': {'contract': value.get('defaultCompletion', 'process-exit')}}],
+                    'retention': {'policyRef': 'default'}},
+                'composition': {'creators': [], 'triggers': []},
+            }
+            template = service.write('template', None, {'definition': template_value,
+                'expectedRevision': 0, 'requestKey': 'owned-template'}, actor=who)['result']['object']
+            template = service.control('template', template['id'], {'operation': 'publish',
+                'expectedRevision': template['revision'], 'expectedStateRevision': template['stateRevision'],
+                'requestKey': 'owned-template-publish', 'parameters': {}}, actor=who)['result']['object']
+            (RUNTIME / 'p6-seed.json').write_text(json.dumps({'sourceSha': fc.digest(old.read()), 'groupRelease': built['version'], 'ref': ref,
+                'actionRef': action_ref, 'actionRevision': published['revision'], 'actionStateRevision': published['stateRevision'],
+                'templateId': template['id'], 'templateRevision': template['revision']}), 'utf-8')
         return await call_next(request)
     return original_run(server, *args, **kwargs)
 

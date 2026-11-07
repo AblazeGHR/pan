@@ -115,6 +115,17 @@ const unresolved = (value: Pending | null) =>
   !!value &&
   !value.rejected &&
   (!value.receipt || ['accepted', 'pending', 'unknown'].includes(value.receipt.status));
+function duplicateName(name: string, names: string[]) {
+  const used = new Set(names.map((value) => value.trim().toLowerCase()));
+  const root = `${name.trim() || 'Untitled'} copy`;
+  let candidate = root;
+  let index = 2;
+  while (used.has(candidate.toLowerCase())) {
+    candidate = `${root} ${index}`;
+    index += 1;
+  }
+  return candidate;
+}
 
 /** All state and requests belong to this canonical page, isolated from legacy stores. */
 export default function CanonicalJobsView() {
@@ -896,6 +907,33 @@ export function CanonicalCollection({
                       Instantiate {item.name}
                     </Button>
                   )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    aria-label={`duplicate ${item.name}`}
+                    disabled={busy || !!editor}
+                    onClick={() => {
+                      const definition = definitionOf(kind, item);
+                      delete definition.name;
+                      delete definition.provenance;
+                      void mutate('duplicate', (key) =>
+                        canonicalJobs.write(
+                          kind,
+                          null,
+                          {
+                            ...definition,
+                            name: duplicateName(
+                              item.name,
+                              items.map((value) => value.name),
+                            ),
+                          },
+                          key,
+                        ),
+                      );
+                    }}
+                  >
+                    duplicate
+                  </Button>
                 </>
               )}
               {kind !== 'job-templates' && (

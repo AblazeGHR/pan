@@ -126,6 +126,24 @@ export const canonicalJobs = {
         : `operations?operation=${part(operation)}&requestKey=${part(requestKey)}`,
     ),
   actions: () => canonicalRequest<CanonicalPage<JsonObject> & { references?: Record<string, JsonObject> }>('actions'),
+  actionCopy: (definition: JsonObject, name: string, requestKey: string) =>
+    canonicalRequest<CanonicalReceipt>('jobs/actions', 'POST', {
+      definition: { ...definition, name },
+      expectedRevision: 0,
+      requestKey,
+    }),
+  actionControl: (item: JsonObject, operation: 'publish' | 'enable' | 'disable', requestKey: string) =>
+    canonicalRequest<CanonicalReceipt>(
+      `jobs/actions/${part(String(item.id))}/operations`,
+      'POST',
+      {
+        operation,
+        expectedRevision: Number(item.revision),
+        expectedStateRevision: Number(item.stateRevision),
+        requestKey,
+        parameters: {},
+      },
+    ),
   creatorReferences: (id: string) => canonicalRequest<import('@/types/automationJobs').CreatorReferences>(`event-creators/${part(id)}/references`),
   creatorProviders: () => canonicalRequest<{ items: import('@/types/automationJobs').SchedulerProvider[] }>('event-creators/providers'),
   resolveTimeInput: (value: string, timezone?: string, signal?: AbortSignal) =>
