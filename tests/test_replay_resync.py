@@ -109,7 +109,9 @@ def test_expired_result_cursor_returns_snapshot_boundary_with_queue_and_history(
         snapshot = ws.sent[-1]
         assert snapshot["boundary"] == "authoritative"
         assert snapshot["details"][sid]["queue"]["queueRevision"] == 7
-        assert snapshot["details"][sid]["history"] == s.history
+        assert snapshot["details"][sid]["history"] == [{
+            "role": "user", "content": "hello", "rawContent": "hello",
+        }]
         assert snapshot["details"][sid]["summaryRevision"] == s.summary_projection["revision"]
     finally:
         _cleanup(ws, sid)

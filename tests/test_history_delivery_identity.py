@@ -13,6 +13,7 @@ def test_history_api_projects_delivery_receipt_keys_as_public_identity():
     assert projected == [{
         "role": "user",
         "content": "agent instruction",
+        "rawContent": "agent instruction",
         "deliveryKeys": ["task:q-agent-1", "report:task-2:abc123"],
         "messageId": "legacy:session-a:legacy:0",
     }]

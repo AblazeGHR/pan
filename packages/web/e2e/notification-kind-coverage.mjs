@@ -78,8 +78,7 @@ try {
   await expect(globalTool).toBeChecked();
   await expect(shared.getByRole('checkbox', { name: 'codex_error_payload · serverOverloaded', exact: true })).toBeChecked();
   await panel.getByRole('checkbox', { name: 'Enabled', exact: true }).check();
-  await panel.getByRole('button', { name: 'Save New errors', exact: true }).click();
-  await expect(panel.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+  await expect(panel.getByRole('status').filter({ hasText: /^Saved\./ })).toBeVisible();
   await expect(panel.getByRole('checkbox', { name: /Subscribe/ })).toHaveCount(0);
   const sharedSwitch = shared.getByRole('checkbox', { name: 'Enable error notification exclusions' });
   await sharedSwitch.click();
