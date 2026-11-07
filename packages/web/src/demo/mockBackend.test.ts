@@ -36,7 +36,9 @@ describe('frontend mock backend', () => {
   });
 
   it('rejects handoff instead of pretending relationship transfer succeeded', async () => {
-    await expect(handoffSession('mock-alpha', { handoffPrompt: 'brief' })).rejects.toThrow('演示模式不支持替身交接');
+    await expect(handoffSession('mock-alpha', { handoffPrompt: 'brief' })).rejects.toThrow(
+      'Session handoff is unavailable in demo mode',
+    );
   });
 
   it('only enables the URL switch for ?mock=1', () => {

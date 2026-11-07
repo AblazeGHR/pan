@@ -382,7 +382,7 @@ describe('reaudit · ordered event pipeline', () => {
     });
 
     expect(useSessionStore.getState().currentMessages).toEqual([
-      { role: 'tool', content: 'Command({"command":"echo hi"})', nativeItemId: 'exec-X' },
+      { role: 'tool', content: 'Command({"command":"echo hi"})', nativeItemId: 'exec-X', turnId: 'T' },
     ]);
   });
 
