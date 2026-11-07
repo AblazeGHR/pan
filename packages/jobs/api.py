@@ -642,15 +642,25 @@ async def patch_job(job_id: str, data: dict, request: Request = None):
     service = getattr(getattr(request.app, 'state', None), 'job_final_service', None) if request else None
     if service is None:
         return await retired_legacy_write(request)
-    await actor(request, 'job', 'updateConfig')
+    from packages.jobs.final_contracts import ContractError
+    from fastapi import HTTPException
+    try:
+        await actor(request, 'job', 'updateConfig')
+    except ContractError as exc:
+        raise HTTPException(status_code=exc.status,
+                            detail={'code': exc.code, 'message': exc.code.replace('_', ' ')}) from exc
     from packages.scheduler.json_handoff import binding_for_job
     from packages.scheduler import api as scheduler_api
     from packages.plugins.lifecycle import io
     def lookup():
         with service.transaction(readonly=True) as db:
-            return binding_for_job(service, db, job_id)
-    binding = await io(lookup)
+            binding = binding_for_job(service, db, job_id)
+            canonical = service._get(db, 'job', job_id) is not None if binding is None else False
+            return binding, canonical
+    binding, canonical = await io(lookup)
     if binding is None:
+        if canonical and request.url.path.startswith('/api/jobs/'):
+            raise HTTPException(status_code=405, detail='Method Not Allowed', headers={'Allow': 'GET, PUT, DELETE'})
         return await retired_legacy_write(request)
     allowed = {'name', 'description', 'text', 'target', 'targetSessionId', 'target_session_id',
         'schedule', 'enabled', 'paused', 'maxRuns', 'max_runs', 'misfirePolicy', 'misfire_policy',
@@ -669,7 +679,7 @@ async def patch_job(job_id: str, data: dict, request: Request = None):
     result = await scheduler_api.update_task(binding['source']['taskId'], body, request)
     if not result.get('ok'):
         return result
-    updated = await io(lookup)
+    updated, _ = await io(lookup)
     job = dict(updated.get('currentSource', updated['source']))
     job.update(result['task'])
     job.update(jobId=binding['jobId'], taskId=binding['source']['taskId'], kind='scheduled-task')
