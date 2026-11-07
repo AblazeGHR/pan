@@ -126,7 +126,8 @@ def main() -> None:
     import socket
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        if sys.platform == "win32":
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         probe.bind(("127.0.0.1", PORT))
 
     import packages.web.server as server_module
