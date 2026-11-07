@@ -518,6 +518,11 @@ class WindowsOwnedProcess(OwnedProcess):
         super().__init__(owner, int(popen.pid), identity)
         self.popen = popen
         self.guard = guard
+        # Keep the spawn-time membership proof as historical ownership
+        # evidence.  JobObjectBasicProcessIdList only reports live members;
+        # a normally exited root can therefore otherwise produce an empty
+        # ``owned`` receipt even though this handle was assigned and checked.
+        self.owned_pids = {int(popen.pid)}
 
     def close(self) -> None:
         """证明整树退出，再释放 Job/进程/窗口守卫/desktop；失败可重试。"""
@@ -818,7 +823,7 @@ class WindowsProcessOwner(ProcessOwner):
         except Exception as exc:  # GuardQueryError -> 统一为所有权未知
             raise OwnershipUnknownError(f"Job 整树终止失败：{exc}") from exc
         return TreeTerminationResult(
-            owned=tuple(sorted(int(p) for p in owned_pids)),
+            owned=tuple(sorted(set(int(p) for p in owned_pids) | owned.owned_pids)),
             remaining=tuple(sorted(int(p) for p in remaining)),
             confirmed=not remaining,
             detail="TerminateJobObject + active==0 双证据" if not remaining else "仍有残留",
