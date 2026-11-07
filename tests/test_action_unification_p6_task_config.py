@@ -21,6 +21,12 @@ from tests.test_action_unification_p6_json_receipts import shell_task, finish
 @pytest.fixture
 def h(json_task):
     service, source, mapping, root = json_task
+    # Exercise real durable queue admission without depending on a globally
+    # installed CLI or starting an unowned worker on the test machine.
+    from packages.core import session as sessions
+    target = sessions.get(source['targetSessionId'])
+    target.queue_paused = True
+    sessions.save(target)
     port = JsonTaskHandoff(service)
     port.apply(port.preview([mapping], actor=USER), 'config-original-adopt', actor=USER)
     app = FastAPI()
@@ -71,6 +77,9 @@ def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write
         ran = c.post('/api/scheduler/tasks/' + tid + '/run-now', json={'requestKey': 'new-task-sync'}).json()
         assert ran['run']['status'] == 'dispatched', ran
         assert ran['run']['run']['result']['status'] == 'queued', ran
+        from packages.core import session as sessions
+        queued = sessions.get(h.source['targetSessionId']).queue_pending
+        assert len(queued) == 1 and queued[0]['text'] == 'edited before dispatch'
         rid = ran['operation']['runId']
         again = c.post('/api/scheduler/tasks/' + tid + '/run-now', json={'requestKey': 'new-task-sync'}).json()
         assert again['operation']['runId'] == rid
@@ -182,6 +191,9 @@ def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_pa
                 assert updated['task']['text'] == 'stdio edited', updated
                 ran = unpack(await call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-sync-original'}))
                 assert ran['run']['status'] == 'dispatched', ran
+                from packages.core import session as sessions
+                queued = sessions.get(session.id).queue_pending
+                assert len(queued) == 1 and queued[0]['text'] == 'stdio edited'
                 assert unpack(await call_tool('scheduler_runs', {'task_id': tid}))['total'] == 1
                 multi = unpack(await call_tool('scheduler_create', {
                     'target_session_id': session.id, 'text': 'stdio multi', 'kind': 'interval',
