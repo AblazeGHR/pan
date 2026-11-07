@@ -637,9 +637,43 @@ async def pin_job(job_id: str, data: dict, request: Request = None):
 
 @router.patch("/{job_id}")
 async def patch_job(job_id: str, data: dict, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    """Adopted scheduled-task edits transfer to the same canonical graph."""
+    from packages.jobs.final_api import retired_legacy_write, actor
+    service = getattr(getattr(request.app, 'state', None), 'job_final_service', None) if request else None
+    if service is None:
+        return await retired_legacy_write(request)
+    await actor(request, 'job', 'updateConfig')
+    from packages.scheduler.json_handoff import binding_for_job
+    from packages.scheduler import api as scheduler_api
+    from packages.plugins.lifecycle import io
+    def lookup():
+        with service.transaction(readonly=True) as db:
+            return binding_for_job(service, db, job_id)
+    binding = await io(lookup)
+    if binding is None:
+        return await retired_legacy_write(request)
+    allowed = {'name', 'description', 'text', 'target', 'targetSessionId', 'target_session_id',
+        'schedule', 'enabled', 'paused', 'maxRuns', 'max_runs', 'misfirePolicy', 'misfire_policy',
+        'requestKey', 'expectedRevision', 'entryId', 'expectedEntryRevision', 'entryEnabled',
+        'entryPaused', 'entryMisfirePolicy', 'entryGraceSec', 'deleteEntry', 'appendSchedule', 'insertIndex'}
+    if not isinstance(data, dict) or set(data) - allowed:
+        return _err('invalid_argument', 'Unknown scheduled-task edit fields; no changes applied')
+    body = dict(data)
+    if 'target' in body:
+        target = body.pop('target')
+        if not isinstance(target, dict) or set(target) != {'sessionId'}:
+            return _err('invalid_argument', 'target requires one sessionId')
+        if 'targetSessionId' in body and body['targetSessionId'] != target['sessionId']:
+            return _err('invalid_argument', 'Conflicting target identities')
+        body['targetSessionId'] = target['sessionId']
+    result = await scheduler_api.update_task(binding['source']['taskId'], body, request)
+    if not result.get('ok'):
+        return result
+    updated = await io(lookup)
+    job = dict(updated.get('currentSource', updated['source']))
+    job.update(result['task'])
+    job.update(jobId=binding['jobId'], taskId=binding['source']['taskId'], kind='scheduled-task')
+    return _ok(job=job, operation=result['operation'])
 
 
 @router.delete("/{job_id}")

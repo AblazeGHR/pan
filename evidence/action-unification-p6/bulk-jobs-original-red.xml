@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.560" timestamp="2026-11-07T11:18:33.475450+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_15_original_jobs_bulk_entry_transfers_to_same_graph" time="1.636"><failure message="AssertionError: {&quot;detail&quot;:{&quot;code&quot;:&quot;retired&quot;,&quot;message&quot;:&quot;Legacy write entrypoint retired; use the canonical /api API&quot;}}&#10;assert 410 == 200&#10; +  where 410 = &lt;Response [410 Gone]&gt;.status_code">tests\test_action_unification_p6_task_config.py:703: in test_P6_CONFIG_15_original_jobs_bulk_entry_transfers_to_same_graph
+    assert result.status_code == 200, result.text
+E   AssertionError: {"detail":{"code":"retired","message":"Legacy write entrypoint retired; use the canonical /api API"}}
+E   assert 410 == 200
+E    +  where 410 = &lt;Response [410 Gone]&gt;.status_code</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.384" timestamp="2026-11-07T11:26:44.780438+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_20_mixed_edit_preserves_live_task_lifecycle" time="0.528"><failure message="assert False">tests\test_action_unification_p6_task_config.py:802: in test_P6_CONFIG_20_mixed_edit_preserves_live_task_lifecycle
+    assert project(h.service, tid, actor=USER)['task']['paused']
+E   assert False</failure></testcase></testsuite></testsuites>

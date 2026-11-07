@@ -134,7 +134,8 @@ def test_P6_CONFIG_04_old_relative_cwd_normalizes_omitted_is_validation_error(tm
         validate_shell_action('echo unchanged', None)
 
 
-def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_path):
+@pytest.mark.parametrize('projection', ['core', 'native', 'gateway'])
+def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_path, projection):
     import sys
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
@@ -156,24 +157,33 @@ def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_pa
     async def scenario():
         bridge = Bridge(runtime, tmp_path)
         env = {k: v for k, v in os.environ.items() if not k.upper().startswith('PAN_')}
-        env.update(PAN_PLUGIN_IPC=bridge.address, PAN_AGENT_SESSION_ID=session.id, PAN_API_URL='http://127.0.0.1:1')
+        env.update(PAN_PLUGIN_IPC=bridge.address, PAN_AGENT_SESSION_ID=session.id, PAN_API_URL='http://127.0.0.1:1', NO_PROXY='127.0.0.1,localhost')
         try:
-            params = StdioServerParameters(command=sys.executable, args=['-m', 'packages.mcp.server'], cwd=str(ROOT), env=env)
+            params = StdioServerParameters(command=sys.executable, args=(['-m', 'packages.mcp.server'] if projection == 'core' else
+                ['-m', 'packages.plugins.mcp', '--view', projection, '--core']), cwd=str(ROOT), env=env)
             async with stdio_client(params) as streams, ClientSession(*streams) as c:
                 await c.initialize()
+                async def call_tool(name, arguments):
+                    if projection == 'gateway':
+                        return await c.call_tool('api_call', {'name': 'pan.' + name, 'arguments': arguments})
+                    return await c.call_tool(name, arguments)
+                if projection == 'gateway':
+                    schema = unpack(await c.call_tool('api_discover', {'plugin': 'pan',
+                        'name': 'pan.scheduler_update', 'include_schema': True}))
+                    assert schema['tools'][0]['name'] == 'pan.scheduler_update', schema
                 args = {'target_session_id': session.id, 'text': 'stdio original', 'kind': 'interval',
                     'interval_sec': 60, 'request_key': 'stdio-create-original'}
-                created = unpack(await c.call_tool('scheduler_create', args))
+                created = unpack(await call_tool('scheduler_create', args))
                 assert created['ok'], created
                 tid = created['task']['id']
-                assert unpack(await c.call_tool('scheduler_create', args))['task']['id'] == tid
-                updated = unpack(await c.call_tool('scheduler_update', {'task_id': tid, 'text': 'stdio edited',
+                assert unpack(await call_tool('scheduler_create', args))['task']['id'] == tid
+                updated = unpack(await call_tool('scheduler_update', {'task_id': tid, 'text': 'stdio edited',
                     'description': 'stdio description', 'request_key': 'stdio-edit-original'}))
                 assert updated['task']['text'] == 'stdio edited', updated
-                ran = unpack(await c.call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-sync-original'}))
+                ran = unpack(await call_tool('scheduler_run_now', {'task_id': tid, 'request_key': 'stdio-sync-original'}))
                 assert ran['run']['status'] == 'dispatched', ran
-                assert unpack(await c.call_tool('scheduler_runs', {'task_id': tid}))['total'] == 1
-                multi = unpack(await c.call_tool('scheduler_create', {
+                assert unpack(await call_tool('scheduler_runs', {'task_id': tid}))['total'] == 1
+                multi = unpack(await call_tool('scheduler_create', {
                     'target_session_id': session.id, 'text': 'stdio multi', 'kind': 'interval',
                     'schedule_entries': [
                         {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00',
@@ -184,11 +194,53 @@ def test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync(h, tmp_pa
                 assert multi['ok'] and len(multi['task']['schedule']) == 2, multi
                 assert [(e['misfirePolicy'], e['graceSec']) for e in multi['task']['schedule']] == [('fire_now', 1), ('skip', 7)]
                 entry = multi['task']['schedule'][1]
-                edited = unpack(await c.call_tool('scheduler_update', {'task_id': multi['task']['id'],
+                edited = unpack(await call_tool('scheduler_update', {'task_id': multi['task']['id'],
                     'entry_id': entry['id'], 'expected_entry_revision': 1,
                     'entry_paused': True, 'request_key': 'stdio-multi-pause'}))
                 assert edited['ok'] and next(item for item in edited['task']['schedule']
                     if item['id'] == entry['id'])['nextFireAt'] is None, edited
+                mtid = multi['task']['id']
+                bulk = unpack(await call_tool('scheduler_update', {'task_id': mtid,
+                    'schedule': [{'kind': 'interval', 'intervalSec': 180}, {'kind': 'interval', 'intervalSec': 240}],
+                    'expected_revision': 2, 'request_key': 'stdio-bulk'}))
+                assert bulk['ok'], bulk
+                inserted = unpack(await call_tool('scheduler_update', {'task_id': mtid,
+                    'append_schedule': [{'kind': 'interval', 'intervalSec': 300}], 'insert_index': 1,
+                    'expected_revision': 3, 'request_key': 'stdio-insert'}))
+                assert inserted['ok'] and len(inserted['task']['schedule']) == 3, inserted
+                rows = inserted['task']['schedule']
+                mixed = unpack(await call_tool('scheduler_update', {'task_id': mtid,
+                    'entry_id': rows[1]['id'], 'expected_entry_revision': 1, 'entry_paused': True,
+                    'text': 'stdio mixed', 'expected_revision': 4, 'request_key': 'stdio-mixed'}))
+                assert mixed['task']['text'] == 'stdio mixed' and mixed['task']['schedule'][1]['paused'], mixed
+                assert unpack(await call_tool('scheduler_update', {'task_id': mtid,
+                    'entry_id': rows[1]['id'], 'expected_entry_revision': 1, 'entry_paused': True,
+                    'text': 'stdio mixed', 'expected_revision': 4, 'request_key': 'stdio-mixed'}))['operation']['replayed']
+                for rev, row in enumerate(rows, start=5):
+                    removed = unpack(await call_tool('scheduler_update', {'task_id': mtid,
+                        'entry_id': row['id'], 'expected_entry_revision': 2 if row['id'] == rows[1]['id'] else 1,
+                        'delete_entry': True, 'expected_revision': rev, 'request_key': 'stdio-del-' + row['id']}))
+                    assert removed['ok'], removed
+                assert removed['operation']['result']['deleted']
+                permissions['job']['updateConfig'] = False
+                h.service.auth.change_permissions(permissions, h.service.auth.permissions_status()['revision'])
+                denied = unpack(await call_tool('scheduler_update', {'task_id': tid,
+                    'text': 'denied', 'request_key': 'stdio-revoked'}))
+                assert denied['error']['code'] == 403, denied
+                assert denied['error']['message']['code'] == 'authorization_denied', denied
+                if projection == 'gateway':
+                    changed = await c.call_tool('api_call', {'name': 'pan.scheduler_list',
+                        'arguments': {}, 'expected_contract_digest': 'stale'})
+                    assert changed.isError
+                    assert json.loads(changed.content[0].text)['error']['code'] == 'contract_changed'
+                session.adapter_config['plugin_bindings'][0]['enabled'] = False
+                unavailable = await call_tool('scheduler_update', {'task_id': tid,
+                    'text': 'disabled', 'request_key': 'stdio-disabled'})
+                if projection == 'core':
+                    assert unpack(unavailable)['error'] == {'code': 403, 'message': 'Pan core disabled'}
+                else:
+                    assert unavailable.isError
+                    assert json.loads(unavailable.content[0].text)['error']['code'] == 'tool_unavailable'
         finally:
             await bridge.close()
     asyncio.run(scenario())
@@ -463,10 +515,290 @@ def test_P6_CONFIG_09_entry_lifecycle_permission_fence(h):
     assert project(h.service, h.source['taskId'], actor=USER)['task'] == before
 
 
-def test_P6_CONFIG_10_mixed_entry_patch_does_not_silently_drop_task_fields(h):
-    before = project(h.service, h.source['taskId'], actor=USER)['task']
-    with pytest.raises(fc.ContractError, match='Mixed task and entry'):
+def test_P6_CONFIG_10_mixed_entry_patch_is_atomic(h):
+    canonical_tasks.update(h.service, h.source['taskId'], {
+        'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
+        'entry_paused': True, 'text': 'mixed body'}, actor=USER, request_key='mixed-edit')
+    value = project(h.service, h.source['taskId'], actor=USER)['task']
+    assert value['text'] == 'mixed body' and value['nextFireAt'] is None
+    before = copy.deepcopy(value)
+    with pytest.raises(fc.ContractError, match='Per-entry schedule revision'):
         canonical_tasks.update(h.service, h.source['taskId'], {
             'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
-            'entry_paused': True, 'text': 'must not be ignored'}, actor=USER, request_key='mixed-edit')
+            'entry_paused': False, 'text': 'must rollback'}, actor=USER, request_key='mixed-stale')
     assert project(h.service, h.source['taskId'], actor=USER)['task'] == before
+
+
+def test_P6_CONFIG_11_bulk_mixed_insert_delete_cold_receipts(h):
+    tid = h.source['taskId']
+    spec = {'kind': 'interval', 'intervalSec': 120, 'anchor': '2030-01-01T00:00:00',
+            'misfirePolicy': 'skip', 'graceSec': 7}
+    body = {'schedule': [spec, dict(spec, intervalSec=240)], 'text': 'bulk edited'}
+    value = canonical_tasks.update(h.service, tid, body, actor=USER,
+        request_key='bulk-two', expected_revision=1)
+    assert canonical_tasks.update(h.service, tid, body, actor=USER,
+        request_key='bulk-two', expected_revision=1)['replayed']
+    rows = project(h.service, tid, actor=USER)['task']['schedule']
+    assert len(rows) == 2 and rows[0]['id'] != h.source['schedule'][0]['id']
+    first, second = rows
+    canonical_tasks.update(h.service, tid, {'entry_id': first['id'], 'expected_entry_revision': 1,
+        'entry_paused': True, 'text': 'mixed atomic'}, actor=USER, request_key='mixed-two', expected_revision=2)
+    canonical_tasks.update(h.service, tid, {'append_schedule': [spec], 'insert_index': 1}, actor=USER,
+        request_key='insert-middle', expected_revision=3)
+    task = project(h.service, tid, actor=USER)['task']
+    assert task['text'] == 'mixed atomic'
+    assert task['schedule'][0]['paused'] and task['schedule'][2]['id'] == second['id']
+    inserted = task['schedule'][1]
+    assert inserted['id'] not in {first['id'], second['id']}
+    for rev, entry in enumerate([inserted, first, second], start=4):
+        result = canonical_tasks.update(h.service, tid, {'entry_id': entry['id'],
+            'expected_entry_revision': 2 if entry['id'] == first['id'] else 1, 'delete_entry': True},
+            actor=USER, request_key='remove-' + entry['id'], expected_revision=rev)
+    assert result['result']['deleted']
+    cold = FinalService(h.service.root, h.service.auth)
+    try:
+        task = project(cold, tid, actor=USER)
+        assert task['deleted'] and task['task']['runCount'] == 0
+    finally:
+        asyncio.run(cold.close())
+    assert json.loads((h.root / h.mapping['sourceFile']).read_text(encoding='utf8')) == h.source
+
+
+def test_P6_CONFIG_12_real_http_concurrent_revision_owner_lease(h, tcp):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from packages.jobs.runtime_owner import OwnerFence, OwnershipConflict
+    tid = h.source['taskId']
+    spec = {'kind': 'interval', 'intervalSec': 60}
+    canonical_tasks.update(h.service, tid, {'schedule': [spec, spec]}, actor=USER,
+        request_key='concurrent-setup', expected_revision=1)
+    entry = project(h.service, tid, actor=USER)['task']['schedule'][0]
+    barrier = Barrier(2)
+    def edit(number):
+        barrier.wait(timeout=10)
+        body = {'entryId': entry['id'], 'expectedEntryRevision': 1, 'entryPaused': True,
+                'text': 'winner-' + str(number), 'expectedRevision': 2, 'requestKey': 'race-' + str(number)}
+        with client(h, tcp) as c:
+            result = c.patch('/api/scheduler/tasks/' + tid, json=body)
+            return result.status_code, body
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(edit, [1, 2]))
+    assert sorted(code for code, _ in results) == [200, 409]
+    winner = next(body for code, body in results if code == 200)
+    with client(h, tcp) as c:
+        assert c.patch('/api/scheduler/tasks/' + tid, json=winner).json()['operation']['replayed']
+    competing = OwnerFence(h.service.owner.root)
+    with pytest.raises(OwnershipConflict) as exc:
+        competing.claim(h.service.owner.token[0])
+    assert exc.value.code == 'revision_conflict' and exc.value.reason == 'owner_busy'
+    with pytest.raises(fc.ContractError):
+        with competing.legacy_pass():
+            pytest.fail('legacy writer must never enter after handoff')
+    original = h.service.owner.token
+    before = project(h.service, tid, actor=USER)['task']
+    h.service.owner.token = (original[0], 'expired-owner')
+    try:
+        with pytest.raises(fc.ContractError, match='fence'):
+            canonical_tasks.update(h.service, tid, {'append_schedule': [spec]}, actor=USER,
+                request_key='stale-owner-insert', expected_revision=3)
+    finally:
+        h.service.owner.token = original
+    assert project(h.service, tid, actor=USER)['task'] == before
+    assert before['runCount'] == 0
+
+
+@pytest.mark.parametrize('lost_receipt', [False, True])
+def test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay(h, lost_receipt):
+    from packages.core import session
+    from packages.web.server import _send_final_notice
+    from packages.jobs.final_service import definition
+    tid = h.source['taskId']
+    target = session.get(h.source['targetSessionId'], load_history=False)
+    target.queue_paused = True
+    session.save(target)
+    job = h.service.get('job', h.source['jobId'], actor=USER)
+    config = definition('job', job)
+    config['notification'] = {'on': ['completed'], 'recipients': [
+        {'recipientId': 'owned-entry-notice', 'channelId': 'session', 'targetRef': target.id}]}
+    h.service.write('job', job['id'], {'definition': config, 'expectedRevision': job['configRevision'],
+        'requestKey': 'configure-owned-notice'}, actor=USER)
+    run = control(h.service, tid, 'run-now', actor=USER, request_key='notice-original-run')
+    frozen = copy.deepcopy(h.service.final.store.get(job['id'])['finalRuntime']['plans'][run['runId']]['frozen'])
+    canonical_tasks.update(h.service, tid, {'schedule': [{'kind': 'interval', 'intervalSec': 60},
+        {'kind': 'interval', 'intervalSec': 120}], 'text': 'future notice work'}, actor=USER,
+        request_key='notice-bulk', expected_revision=2)
+    assert h.service.final.store.get(job['id'])['finalRuntime']['plans'][run['runId']]['frozen'] == frozen
+    sends = []
+    async def sender(row):
+        sends.append((row['channel'], row['outboxId']))
+        receipt = await _send_final_notice(row)
+        return {'outcome': 'unknown'} if lost_receipt and row['channel'] == 'session' else receipt
+    h.service.outbox_sender = sender
+    async def deliver():
+        await h.service.dispatch_once()
+        await h.service.deliver_outbox()
+        await h.service.deliver_outbox()
+    asyncio.run(deliver())
+    projected = h.service.get_run(run['runId'], actor=USER)
+    assert projected['state'] == 'completed'
+    notice = projected['notifications'][0]
+    assert notice['status'] == ('uncertain' if lost_receipt else 'acked')
+    assert len(sends) == 2 and len(set(sends)) == 2
+    assert ('session', notice['outboxId']) in sends
+    assert len([item for item in sends if item[0] == 'ws']) == 1
+    queued = session.get(target.id, load_history=False).queue_pending
+    assert len([row for row in queued if row.get('type') == 'notice']) == 1
+    assert next(row for row in queued if row.get('type') == 'notice')['eventId'] == notice['outboxId']
+    asyncio.run(h.service.close())
+    cold = FinalService(h.service.root, h.service.auth)
+    cold.owner.claim(cold.owner.status()['epoch'])
+    cold.owner.set_state('active')
+    cold.outbox_sender = sender
+    try:
+        asyncio.run(cold.deliver_outbox())
+        assert len(sends) == 2 and len(set(sends)) == 2
+        assert ('session', notice['outboxId']) in sends
+        assert cold.get_run(run['runId'], actor=USER)['notifications'][0]['outboxId'] == notice['outboxId']
+        assert project(cold, tid, actor=USER)['task']['text'] == 'future notice work'
+    finally:
+        asyncio.run(cold.close())
+
+
+def test_P6_CONFIG_14_real_http_bulk_insert_mixed_final_delete(h, tcp):
+    tid = h.source['taskId']
+    path = '/api/scheduler/tasks/' + tid
+    spec = {'kind': 'interval', 'intervalSec': 120, 'misfirePolicy': 'skip', 'graceSec': 3}
+    with client(h, tcp) as c:
+        bulk = {'schedule': [spec, dict(spec, intervalSec=240)], 'text': 'HTTP bulk',
+                'expectedRevision': 1, 'requestKey': 'tcp-bulk'}
+        created = c.patch(path, json=bulk)
+        assert created.status_code == 200, created.text
+        assert c.patch(path, json=bulk).json()['operation']['replayed']
+        task = created.json()['task']
+        assert task['text'] == 'HTTP bulk' and len(task['schedule']) == 2
+        inserted = c.patch(path, json={'appendSchedule': [spec], 'insertIndex': 1,
+            'expectedRevision': 2, 'requestKey': 'tcp-insert'})
+        assert inserted.status_code == 200, inserted.text
+        entries = inserted.json()['task']['schedule']
+        body = {'entryId': entries[1]['id'], 'expectedEntryRevision': 1, 'entryPaused': True,
+                'name': 'HTTP mixed', 'expectedRevision': 3, 'requestKey': 'tcp-mixed'}
+        mixed = c.patch(path, json=body)
+        assert mixed.status_code == 200, mixed.text
+        assert mixed.json()['task']['name'] == 'HTTP mixed' and mixed.json()['task']['schedule'][1]['paused']
+        bad = c.patch(path, json={**body, 'name': 'must rollback', 'requestKey': 'tcp-stale'})
+        assert bad.status_code == 409
+        assert c.get(path).json()['task']['name'] == 'HTTP mixed'
+        for rev, entry in enumerate(entries, start=4):
+            removed = c.patch(path, json={'entryId': entry['id'], 'expectedEntryRevision': 2 if entry == entries[1] else 1,
+                'deleteEntry': True, 'description': 'retained tombstone',
+                'expectedRevision': rev, 'requestKey': 'tcp-delete-' + entry['id']})
+            assert removed.status_code == 200, removed.text
+        assert removed.json()['operation']['result']['deleted']
+        assert removed.json()['task']['description'] == 'retained tombstone'
+        assert not removed.json()['task']['executable']
+
+
+@pytest.mark.parametrize('prefix', ['/api/jobs', '/api/legacy/jobs'])
+def test_P6_CONFIG_15_original_jobs_bulk_entry_transfers_to_same_graph(h, tcp, prefix):
+    from packages.jobs import api as jobs_api
+    from packages.jobs.final_api import install
+    install(h.app, jobs_api.router)
+    with client(h, tcp) as c:
+        result = c.patch(prefix + '/' + h.source['jobId'], json={
+            'schedule': [{'kind': 'interval', 'intervalSec': 60}, {'kind': 'interval', 'intervalSec': 120}],
+            'description': 'original jobs edit', 'expectedRevision': 1, 'requestKey': 'original-jobs-bulk'})
+        assert result.status_code == 200, result.text
+        value = result.json()
+        assert value['ok'] and value['job']['jobId'] == h.source['jobId']
+        assert len(value['job']['schedule']) == 2 and value['job']['description'] == 'original jobs edit'
+        assert c.patch(prefix + '/' + h.source['jobId'], json={
+            'schedule': [{'kind': 'interval', 'intervalSec': 60}, {'kind': 'interval', 'intervalSec': 120}],
+            'description': 'original jobs edit', 'expectedRevision': 1, 'requestKey': 'original-jobs-bulk'}).json()['operation']['replayed']
+
+
+def test_P6_CONFIG_16_last_entry_delete_unsettled_rolls_back_all_fields(h):
+    tid = h.source['taskId']
+    admitted = control(h.service, tid, 'run-now', actor=USER, request_key='unsettled-original')
+    before = project(h.service, tid, actor=USER)
+    with pytest.raises(fc.ContractError, match='unsettled'):
+        canonical_tasks.update(h.service, tid, {'entry_id': h.source['schedule'][0]['id'],
+            'expected_entry_revision': 1, 'delete_entry': True, 'text': 'must rollback'},
+            actor=USER, request_key='last-delete-unsettled', expected_revision=2)
+    assert project(h.service, tid, actor=USER) == before
+    assert h.service.get_run(admitted['runId'], actor=USER)['state'] == 'queued'
+
+
+def test_P6_CONFIG_17_inserted_entry_real_tick_original_receipt_no_replay(h):
+    tid = h.source['taskId']
+    original = (h.root / h.mapping['sourceFile']).read_bytes()
+    canonical_tasks.update(h.service, tid, {'append_schedule': [
+        {'kind': 'once', 'at': '2027-01-01T00:00:00Z'}]}, actor=USER,
+        request_key='new-entry-clock', expected_revision=1)
+    task = project(h.service, tid, actor=USER)['task']
+    added = task['schedule'][1]
+    assert added['id'] != h.source['schedule'][0]['id']
+    assert asyncio.run(h.service.creator_runtime.tick(at=added['nextFireAt'])) == 1
+    envelope = h.service.events.page()[-1]
+    event = {**envelope, 'type': envelope['eventType']}
+    assert event['payload']['ruleId'] == added['id']
+    target = h.service.targets(event)[0]
+    admitted = asyncio.run(h.service.admit_event_async(event, target))
+    assert asyncio.run(h.service.admit_event_async(event, target))['runId'] == admitted['runId']
+    asyncio.run(h.service.dispatch_once())
+    state = h.service.final.store.get(h.source['jobId'])['finalRuntime']
+    assert state['plans'][admitted['runId']]['dispatchKey'].startswith(tid + ':' + added['id'] + ':')
+    assert len(state['effects']) == 1
+    assert asyncio.run(h.service.creator_runtime.tick(at=added['nextFireAt'])) == 0
+    assert (h.root / h.mapping['sourceFile']).read_bytes() == original
+
+
+@pytest.mark.parametrize('case', ['mixed', 'insert', 'last-delete'])
+def test_P6_CONFIG_18_named_original_entry_gaps(h, case):
+    editor = canonical_tasks
+    if os.environ.get('P6_ENTRY_EDITOR_BASELINE') == '1':
+        import subprocess, types
+        editor = types.ModuleType('packages.scheduler.original_entry_editor')
+        editor.__package__ = 'packages.scheduler'
+        code = subprocess.check_output(['git', 'show', 'f2045961:packages/scheduler/canonical_tasks.py'])
+        exec(compile(code, '<f2045961 original entry editor>', 'exec'), editor.__dict__)
+    tid = h.source['taskId']
+    if case == 'mixed':
+        patch = {'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
+                 'entry_paused': True, 'text': 'named mixed edit'}
+    elif case == 'insert':
+        patch = {'append_schedule': [{'kind': 'interval', 'intervalSec': 120}]}
+    else:
+        patch = {'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1,
+                 'delete_entry': True}
+    result = editor.update(h.service, tid, patch, actor=USER, request_key='named-' + case, expected_revision=1)
+    current = project(h.service, tid, actor=USER)
+    if case == 'mixed':
+        assert current['task']['text'] == 'named mixed edit' and current['task']['nextFireAt'] is None
+    elif case == 'insert':
+        assert isinstance(current['task']['schedule'], list) and len(current['task']['schedule']) == 2
+    else:
+        assert result['result']['deleted'] and current['deleted']
+
+
+@pytest.mark.parametrize('patch', [{'entry_paused': True}, {'insert_index': 0},
+    {'delete_entry': True, 'entry_grace_seconds': 1}])
+def test_P6_CONFIG_19_no_silent_entry_controls(h, patch):
+    if patch.get('delete_entry'):
+        patch = {**patch, 'entry_id': h.source['schedule'][0]['id'], 'expected_entry_revision': 1}
+    before = project(h.service, h.source['taskId'], actor=USER)
+    with pytest.raises(fc.ContractError):
+        canonical_tasks.update(h.service, h.source['taskId'], patch, actor=USER,
+            request_key='incomplete-entry-control', expected_revision=1)
+    assert project(h.service, h.source['taskId'], actor=USER) == before
+
+
+def test_P6_CONFIG_20_mixed_edit_preserves_live_task_lifecycle(h):
+    tid = h.source['taskId']
+    canonical_tasks.update(h.service, tid, {'schedule': [{'kind': 'interval', 'intervalSec': 60},
+        {'kind': 'interval', 'intervalSec': 120}]}, actor=USER, request_key='paused-bulk', expected_revision=1)
+    control(h.service, tid, 'pause', actor=USER, request_key='external-pause', expected_revision=2)
+    entry = project(h.service, tid, actor=USER)['task']['schedule'][0]
+    canonical_tasks.update(h.service, tid, {'entry_id': entry['id'], 'expected_entry_revision': 1,
+        'entry_misfire_policy': 'skip', 'text': 'edit while paused'}, actor=USER,
+        request_key='edit-while-paused', expected_revision=3)
+    assert project(h.service, tid, actor=USER)['task']['paused']

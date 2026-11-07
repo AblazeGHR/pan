@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="2.717" timestamp="2026-11-07T11:23:24.047613+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_18_named_original_entry_gaps[mixed]" time="0.508"><failure message="packages.jobs.final_contracts.ContractError: Mixed task and entry edits require separate reviewed operations; no fields were applied">tests\test_action_unification_p6_task_config.py:770: in test_P6_CONFIG_18_named_original_entry_gaps
+    result = editor.update(h.service, tid, patch, actor=USER, request_key='named-' + case, expected_revision=1)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;f2045961 original entry editor&gt;:203: in update
+    ???
+packages\jobs\final_service.py:552: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+&lt;f2045961 original entry editor&gt;:72: in mutate
+    ???
+packages\scheduler\json_handoff.py:24: in require
+    raise fc.ContractError('reconciliation_required', message)
+E   packages.jobs.final_contracts.ContractError: Mixed task and entry edits require separate reviewed operations; no fields were applied</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_18_named_original_entry_gaps[insert]" time="0.520"><failure message="AssertionError: assert (False)&#10; +  where False = isinstance({'anchor': '2030-01-01T08:00:00', 'intervalSec': 60, 'interval_sec': 60, 'kind': 'interval'}, list)">tests\test_action_unification_p6_task_config.py:775: in test_P6_CONFIG_18_named_original_entry_gaps
+    assert isinstance(current['task']['schedule'], list) and len(current['task']['schedule']) == 2
+E   AssertionError: assert (False)
+E    +  where False = isinstance({'anchor': '2030-01-01T08:00:00', 'intervalSec': 60, 'interval_sec': 60, 'kind': 'interval'}, list)</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_18_named_original_entry_gaps[last-delete]" time="0.501"><failure message="packages.jobs.final_contracts.ContractError: The final schedule entry requires task lifecycle delete">tests\test_action_unification_p6_task_config.py:770: in test_P6_CONFIG_18_named_original_entry_gaps
+    result = editor.update(h.service, tid, patch, actor=USER, request_key='named-' + case, expected_revision=1)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;f2045961 original entry editor&gt;:203: in update
+    ???
+packages\jobs\final_service.py:552: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+&lt;f2045961 original entry editor&gt;:93: in mutate
+    ???
+packages\scheduler\json_handoff.py:24: in require
+    raise fc.ContractError('reconciliation_required', message)
+E   packages.jobs.final_contracts.ContractError: The final schedule entry requires task lifecycle delete</failure></testcase></testsuite></testsuites>

@@ -761,10 +761,17 @@ def _remount_legacy(facade, legacy_routers, facade_prefix):
             _copy_legacy_route(facade, route, path)
 
 
+def _is_scheduled_compat_patch(route):
+    # Only this adapter can transfer an already-adopted scheduled-task. It
+    # authenticates and refuses unbound records before any old writer is used.
+    from packages.jobs.api import patch_job
+    return route.endpoint is patch_job and set(route.methods) == {'PATCH'}
+
+
 def _copy_legacy_route(target, route, path):
     """Retain reads and canonical Template adapters; refuse other old writes."""
     template_compat = "/job-templates" in route.path
-    if route.methods <= {"GET", "HEAD", "OPTIONS"} or template_compat:
+    if route.methods <= {"GET", "HEAD", "OPTIONS"} or template_compat or _is_scheduled_compat_patch(route):
         target.add_api_route(
             path, route.endpoint, methods=sorted(route.methods),
             name="legacy_" + route.name,
@@ -802,6 +809,8 @@ def install(app, *legacy_routers):
       and its effectful routes answer 410 after authenticating the caller.
     * old reads keep both addresses, because Job history/listing queries are
       retained until R6 and moving them would break audit reads for no gain.
+    * P6 adopted scheduled-task PATCH transfers through the canonical owner at
+      both addresses; it cannot restore an unbound JSON writer.
     * P6 Template CRUD/instantiate keeps its original shape at both addresses,
       owned by this module with no legacy runtime fallback.
     * a canonical path always wins; an old write address that canonical does not
@@ -834,6 +843,9 @@ def install(app, *legacy_routers):
         for route in old.routes:
             suffix = route.path.removeprefix("/api/jobs")
             retired = _is_retired_legacy_route(suffix, set(route.methods))
+            if _is_scheduled_compat_patch(route):
+                _copy_legacy_route(retained, route, route.path)
+                continue
             if retired:
                 if suffix in {"", "/"} or is_canonical(route.path) or canonical_serves(route.path):
                     continue

@@ -576,6 +576,17 @@ async def update_task(task_id: str, data: dict, request: Request = None):
             return _err("invalid_argument",
                         f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
         patch["misfire_policy"] = policy
+    if "appendSchedule" in data:
+        if not isinstance(data['appendSchedule'], list):
+            return _err('invalid_argument', 'appendSchedule must be a list')
+        specs, why = _validate_schedule(data['appendSchedule'])
+        if why:
+            return _err('invalid_schedule', why)
+        patch['append_schedule'] = specs
+    if 'insertIndex' in data:
+        if type(data['insertIndex']) is not int or data['insertIndex'] < 0:
+            return _err('invalid_argument', 'insertIndex must be a nonnegative integer')
+        patch['insert_index'] = data['insertIndex']
     if "entryId" in data:
         if not isinstance(data["entryId"], str) or not data["entryId"]:
             return _err("invalid_argument", "entryId must be a non-empty string")

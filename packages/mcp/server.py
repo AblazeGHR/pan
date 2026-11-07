@@ -2575,14 +2575,15 @@ def scheduler_create(
 @mcp.tool()
 def scheduler_update(task_id: str, target_session_id: str | None = None,
                      name: str | None = None, text: str | None = None,
-                     schedule: dict | None = None, enabled: bool | None = None,
+                     schedule: dict | list[dict] | None = None, enabled: bool | None = None,
                      max_runs: int | None = None, misfire_policy: str | None = None,
                      description: str | None = None, paused: bool | None = None,
                      request_key: str | None = None, expected_revision: int | None = None,
                      entry_id: str | None = None, expected_entry_revision: int | None = None,
                      entry_enabled: bool | None = None, entry_paused: bool | None = None,
                      entry_misfire_policy: str | None = None, entry_grace_sec: float | None = None,
-                     delete_entry: bool | None = None) -> dict:
+                     delete_entry: bool | None = None, append_schedule: list[dict] | None = None,
+                     insert_index: int | None = None) -> dict:
     """Patch provided legacy configuration fields through the original graph."""
     denied = _scheduler_auth(target_session_id, claim=True)
     if denied:
@@ -2598,7 +2599,7 @@ def scheduler_update(task_id: str, target_session_id: str | None = None,
         'expectedEntryRevision': expected_entry_revision, 'entryEnabled': entry_enabled,
         'entryPaused': entry_paused, 'entryMisfirePolicy': entry_misfire_policy,
         'entryGraceSec': entry_grace_sec,
-        'deleteEntry': delete_entry}.items() if value is not None}
+        'deleteEntry': delete_entry, 'appendSchedule': append_schedule, 'insertIndex': insert_index}.items() if value is not None}
     return _api('PATCH', _scheduler_task_path(task_id), body)
 
 

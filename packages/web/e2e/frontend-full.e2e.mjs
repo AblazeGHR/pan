@@ -194,6 +194,8 @@ async function assertLiveVisualOrder(label, snapshots) {
             ? 'user'
             : el.querySelector('.msg.assistant')
               ? 'assistant'
+              : el.querySelector('[data-terminal-id]')
+                ? 'terminal'
               : el.querySelector('.system-message')
                 ? 'system'
                 : 'unknown';
@@ -203,6 +205,9 @@ async function assertLiveVisualOrder(label, snapshots) {
         bottom: rect.bottom,
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 180),
         actualRole,
+        terminalId: el.querySelector('[data-terminal-id]')?.dataset.terminalId,
+        terminalStatus: el.querySelector('[data-terminal-id]')?.dataset.terminalStatus,
+        expectedTerminal: expected?.role === 'terminal' ? expected.items[0].terminal : null,
         expectedRole: expected?.role || 'missing',
         expectedContent: expected?.role !== 'thinking' && expected?.content
           ? normalize(expected.content).slice(0, 180).trimEnd() : null,
@@ -227,6 +232,11 @@ async function assertLiveVisualOrder(label, snapshots) {
     for (const node of nodes) {
       if (node.expectedRole !== node.actualRole) {
         violations.push({ kind: 'role-mismatch', node });
+      }
+      if (node.expectedRole === 'terminal'
+          && (node.terminalId !== node.expectedTerminal?.eventId
+            || node.terminalStatus !== node.expectedTerminal?.status)) {
+        violations.push({ kind: 'terminal-identity-mismatch', node });
       }
       if (node.expectedRole === 'thinking'
           && !normalize(node.text).toLowerCase().includes('thinking')) {
@@ -1097,8 +1107,11 @@ try {
   const earlyBoundary = await page.evaluate(({ id, history }) => {
     const store = window.__panSessionStore;
     const meta = { workerId: 'fixture-bootstrap-worker', generation: 1, taskSeq: 901, executionSeq: 2 };
-    const final = history.history.at(-1);
-    if (final?.role !== 'assistant') throw new Error('fixture must end with canonical assistant');
+    const final = history.history.findLast(row => row.role === 'assistant');
+    const terminal = history.history.at(-1);
+    if (!final?.messageId || terminal?.role !== 'terminal' || !terminal.terminal?.eventId) {
+      throw new Error('fixture requires an addressable assistant and durable terminal tail');
+    }
     store.setState(state => ({ currentSessionId: id, currentMessages: [],
       sessions: state.sessions.map(session => session.id === id
         ? { ...session, history: [], historyTotal: 0 } : session),

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.905" timestamp="2026-11-07T11:10:53.096159+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync[gateway]" time="1.144"><failure message="IndexError('list index out of range') [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 227, in test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync
+  |     asyncio.run(scenario())
+  |     ~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 164, in scenario
+  |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 164, in scenario
+    |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+    |                                                 ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 173, in scenario
+      |     assert schema['tools'][0]['name'] == 'pan.scheduler_update', schema
+      |            ~~~~~~~~~~~~~~~^^^
+      | IndexError: list index out of range
+      +------------------------------------</failure></testcase></testsuite></testsuites>

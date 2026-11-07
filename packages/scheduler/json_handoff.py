@@ -429,7 +429,7 @@ def project(service, task_id, *, actor, capability='read'):
         task = historical(binding.get('currentSource', binding['source']), tid)
         cursors = creator['cursor']['rules']
         cursor = next(iter(cursors.values()))
-        if len(binding.get('originalEntryIds', [])) > 1:
+        if (binding.get('multiEntry') or len(binding.get('originalEntryIds', [])) > 1):
             projected = copy.deepcopy(binding.get('currentSource', binding['source']))
             projected['schedule'] = [dict(item, nextFireAt=cursors[item['id']]['nextFireAt'],
                 revision=binding.get('entryRevisions', {}).get(item['id'], 1),
@@ -440,7 +440,7 @@ def project(service, task_id, *, actor, capability='read'):
                                       if item.get('enabled', True) and item.get('nextFireAt')), default=None)
         projected_next = (min((item['nextFireAt'] for item in task.get('schedule', [])
                                if item.get('enabled', True) and item.get('nextFireAt')), default=None)
-                          if len(binding.get('originalEntryIds', [])) > 1 else cursor['nextFireAt'])
+                          if (binding.get('multiEntry') or len(binding.get('originalEntryIds', [])) > 1) else cursor['nextFireAt'])
         task.update(enabled=creator['state'] in {'enabled', 'paused'},
                     paused=creator['state'] == 'paused' if creator['state'] != 'disabled' else binding['paused'],
                     nextFireAt=projected_next, runCount=run_count(job, binding),
@@ -632,7 +632,7 @@ def freeze_dispatch(service, db, job, run_id, event):
     if entry_id is None:
         entry_id = next((item['id'] for item in binding['source']['schedule']
                          if item.get('nextFireAt') == scheduled), None)
-    require(entry_id is not None and entry_id in {item['id'] for item in binding['source']['schedule']},
+    require(entry_id is not None and entry_id in set(binding.get('knownEntryIds', binding.get('originalEntryIds', []))),
             'Original occurrence lacks a unique schedule entry identity')
     job['finalRuntime']['plans'][run_id]['dispatchKey'] = f"{binding['source']['taskId']}:{entry_id}:{int(point.timestamp())}"
 
