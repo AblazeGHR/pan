@@ -1,0 +1,25 @@
+{
+  "parent": "502ed4556a0959c09af3871a788c7c48f7b07682",
+  "sourceHashes": {
+    "packages/actions/api.py": "396dbd26f1f00b39e591d46cc6b9f161ab84962e1c976b2af2c93afe416d18d0",
+    "packages/actions/group_migration.py": "4ac8eb4965e4177768e14051e2be8669a55dfefcd099f613b5774007f3f03346",
+    "packages/actions/invocation.py": "f12d25169c0f9694c8ac806ab1439a0095db1a443018d6746e48157aa143ff74",
+    "packages/actions/typed_executor.py": "72013b8f000a3721e171a06530609005165bb9280d82642f51d3804e32acc629",
+    "packages/actions/family_execution.py": "59e86395bbb5c7802844e6d6b20d0d026ba195a92ac1ce243e67a4e5c743ef84",
+    "packages/actions/legacy_templates.py": "9d21e0d65f8e8a6aa91d1641b52cb543e66834223820c95722385cffebb56462",
+    "packages/jobs/action_trigger.py": "900f95b58c9c8e1e0ac1340d0d668f592efec84c982ad26cc2c07e878df9f9fe",
+    "packages/jobs/final_service.py": "f237f5d6407e6d02bb46d40848e14c8113853ec2d09e56e48149b3d594ed15c4",
+    "scripts/job_final_migration/mapping.py": "fddaa36eebd9d729d474c600c64bbf1caede93a5866ee80803e7eaee368cadab",
+    "packages/web/src/components/actions/CanonicalDefinitionEditor.tsx": "ce8a8853e7d6af775246240eac89f33d9a771fc039c92a08582a155e86d64d3a",
+    "packages/web/src/types/actions.ts": "24aaeb18a235f761c0c41d86b81d985e829a51a5fe6a234114983251162ebbd5",
+    "packages/web/src/views/ActionsView.tsx": "9d38a4444c7d381c2f35508ac6ae02d7a77f9ac59a9064c0cff1a675514439b4",
+    "packages/web/src/views/ActionsMappedView.test.tsx": "b60c29e5100eef52d341998a73a5c7674ef9683e7a8403b0f77fc0e42755a9be",
+    "tests/test_action_unification_p6_templates.py": "9f36aa3f09f2fa52fdf5dd5ccd57efa5b0e22064dec3d9340340feb42c04f24a",
+    "tests/test_action_unification_p6_delivery.py": "46f6234da5ca45801fa399fae05e52bfae0948048babbd496478b0f0719a8be4",
+    "tests/test_action_unification_p6_families.py": "b1b6e89bc428fabb8dfdda43bc172a116c80263a22cc920643edbbc6356ba05d",
+    "tests/test_job_migration_runtime_contract.py": "330f04119e146ca077ed9ababb8cfe8329aae4740a72748d0b1d54befea18c86",
+    "tests/support/job_migration_readiness_rehearsal.py": "1a2e6d6f949f38c760920317b3f07430b66af180cc5c4013b0d9a4a6298aede1",
+    "packages/web/e2e/action-p6-server.py": "667830fb96ac33b5a111bc61a27e9b89977c0c6e7186f89aa1e6b9728bba3b76",
+    "packages/web/e2e/action-p6-mapped.e2e.mjs": "3bdf23bee4e4b0b99d477caf9c0295da81097d1ff497a494d3d2528c2094208c"
+  }
+}

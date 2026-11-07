@@ -1,5 +1,9 @@
 # Pan 跨平台支持规划（macOS / Linux）
 
+2026-11-06 P6 Group adoption 复用 `job.runtimeOwner`/`processOwner` 的能力与实测边界见
+[P6 平台与兼容矩阵](../reports/ACTION_UNIFICATION_P6_20261106.md#platform-and-delivery-limits)。
+本地 Windows 证据不代表 Linux/macOS 或三平台 CI 验收；未新增 capability。
+
 - 日期：2026-10-25
 - 基线：`58c0739a`（跨平台审计基线 `3bf174b1`，结论见
   `docs/audit/CROSS_PLATFORM_GAPS_20261025.md`，审计工作树 `cross-platform-audit-20261025`）

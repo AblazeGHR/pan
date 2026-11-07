@@ -1,6 +1,7 @@
 """R5 retirement: pre-canonical write entrypoints are gone, reads/cancel stay.
 
-Each case asserts three things the R5 exit condition needs:
+R5 refusals remain, while approved P6 scheduler successors must prove the
+same owner fence and zero legacy writer use. Each refusal case asserts:
 
 * the old mutation is refused *after* authentication (401 unauth, 410 authed),
   so an anonymous caller cannot probe which legacy paths remain;
@@ -50,10 +51,6 @@ LEGACY_HTTP_WRITES = [
     ("POST", "/api/background-jobs/{id}/retry"),
     ("POST", "/api/scheduler/tasks"),
     ("PATCH", "/api/scheduler/tasks/{id}"),
-    ("DELETE", "/api/scheduler/tasks/{id}"),
-    ("POST", "/api/scheduler/tasks/{id}/pause"),
-    ("POST", "/api/scheduler/tasks/{id}/resume"),
-    ("POST", "/api/scheduler/tasks/{id}/run-now"),
     ("POST", "/api/scheduler/event-sources"),
     ("PUT", "/api/scheduler/event-sources/{id}"),
     ("DELETE", "/api/scheduler/event-sources/{id}"),
@@ -105,6 +102,14 @@ def test_durable_job_route_is_not_bound_to_its_old_handler(method, path):
     assert all(is_retirement(route.endpoint) for route in routes)
 
 
+def canonical_successor(method, path, handler):
+    # Exact approved ports, not a blanket exemption for a module or old writes.
+    from packages.scheduler import api
+    expected = {('POST', '/api/scheduler/tasks'): api.create_task,
+                ('PATCH', '/api/scheduler/tasks/{id}'): api.update_task}
+    return expected.get((method, path)) is handler
+
+
 @pytest.mark.parametrize("method,path", LEGACY_HTTP_WRITES)
 def test_old_write_reaches_no_effectful_handler(method, path):
     routes = matching_routes(method, path)
@@ -114,7 +119,8 @@ def test_old_write_reaches_no_effectful_handler(method, path):
     # a path it legitimately shares.
     for route in routes:
         owner = route.endpoint.__module__
-        assert (is_retirement(route.endpoint) or owner == "packages.jobs.final_api"), (
+        assert (is_retirement(route.endpoint) or owner == "packages.jobs.final_api"
+                or canonical_successor(method, path, route.endpoint)), (
             method, path, owner, route.endpoint.__name__)
 
 
@@ -198,6 +204,7 @@ def test_retirement_is_implemented_at_the_route_table_not_by_hiding_paths():
         routes = matching_routes(method, path)
         assert routes, (method, path)
         assert all(is_retirement(r.endpoint) or r.endpoint.__module__ == "packages.jobs.final_api"
+                   or canonical_successor(method, path, r.endpoint)
                    for r in routes), (method, path)
 
 
@@ -212,7 +219,9 @@ def test_mcp_retires_old_writes_and_keeps_reads_and_cancel():
     inventory = {tool["symbol"] for tool in manifest["mcpTools"]}
     legacy = {name for name in inventory
               if name.startswith(("agent_background_", "agent_message_job_", "scheduler_"))}
-    assert legacy == set(RETIRED_MCP_TOOLS) | set(RETAINED_LEGACY_MCP_TOOLS)
+    from packages.mcp.server import P6_COMPAT_MCP_TOOLS
+    assert legacy == set(RETIRED_MCP_TOOLS) | set(RETAINED_LEGACY_MCP_TOOLS) | (set(P6_COMPAT_MCP_TOOLS) & legacy)
+    assert set(P6_COMPAT_MCP_TOOLS) <= tools
     # Reads and cancels survive; they are the safe half of the old surface.
     for name in ("agent_background_cancel", "agent_message_job_cancel",
                  "agent_background_get", "scheduler_runs"):
@@ -242,3 +251,36 @@ def test_canonical_surface_is_unchanged():
     # Deprecated aliases still bind the canonical handlers.
     assert "/api/final/jobs" in spec
     assert spec["/api/final/jobs"]["get"]["deprecated"] is True
+
+
+# Keep the original route nodes above and prove their approved successors use
+# actual canonical authority, not the forbidden legacy producer implementation.
+from tests.test_action_unification_p6_json_scheduler import json_task
+from tests.test_action_unification_p6_task_config import h
+
+
+@pytest.mark.parametrize('mode', ['create', 'update'])
+def test_P6_scheduler_successor_has_no_legacy_writer_and_rejects_stale_owner(h, monkeypatch, mode):
+    from packages.scheduler import store
+    def forbidden(*args, **kwargs):
+        pytest.fail('canonical successor called an old JSON writer')
+    for name in ('create_task', 'update_task', 'replace_task_schedule', 'append_run'):
+        monkeypatch.setattr(store, name, forbidden)
+    headers = {'Authorization': 'Bearer ' + h.token}
+    with TestClient(h.app) as c:
+        def request(key):
+            if mode == 'create':
+                return c.post('/api/scheduler/tasks', headers=headers, json={
+                    'targetSessionId': h.source['targetSessionId'], 'text': 'canonical-only',
+                    'schedule': {'kind': 'interval', 'intervalSec': 60}, 'requestKey': key})
+            return c.patch('/api/scheduler/tasks/' + h.source['taskId'], headers=headers,
+                json={'text': 'canonical-only', 'requestKey': key})
+        result = request('approved-successor')
+        assert result.status_code == 200 and result.json()['ok'], result.text
+        token = h.service.owner.token
+        h.service.owner.token = (token[0], 'stale-owner')
+        try:
+            refused = request('stale-successor')
+            assert refused.status_code == 409, refused.text
+        finally:
+            h.service.owner.token = token

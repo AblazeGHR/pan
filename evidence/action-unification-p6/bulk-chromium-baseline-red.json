@@ -1,0 +1,32 @@
+{
+  "port": 8765,
+  "pass": null,
+  "failure": "AssertionError [ERR_ASSERTION]: visual-order-round: live DOM order/geometry violation\n+ actual - expected\n\n+ [\n+   {\n+     kind: 'role-mismatch',\n+     node: {\n+       actualRole: 'unknown',\n+       bottom: -97.90625,\n+       expectedContent: null,\n+       expectedRole: 'terminal',\n+       expectedThinkingCount: 0,\n+       expectedToolCount: 0,\n+       index: 399,\n+       text: '已完成',\n+       top: -121.90625\n+     }\n+   },\n+   {\n+     kind: 'role-mismatch',\n+     node: {\n+       actualRole: 'unknown',\n+       bottom: 452.28125,\n+       expectedContent: null,\n+       expectedRole: 'terminal',\n+       expectedThinkingCount: 0,\n+       expectedToolCount: 0,\n+       index: 404,\n+       text: '已完成',\n+       top: 428.28125\n+     }\n+   }\n+ ]\n- []\n\n    at assertLiveVisualOrder (file:///D:/project/pan-worktrees/action-unification-p6-20261106/packages/web/e2e/frontend-full.e2e.mjs:268:10)\n    at async file:///D:/project/pan-worktrees/action-unification-p6-20261106/packages/web/e2e/frontend-full.e2e.mjs:542:5",
+  "cleanup": {
+    "portFree": true
+  },
+  "source": "packages/web/test-results/full-1794020763739/evidence.json",
+  "sha256": "d37bc3fbe7d19e2b448e12f53c939b9f5666a308dde90f85cba0fa040b407a7f",
+  "stages": [
+    "initial tail",
+    "wheel pagination",
+    "A multi-turn 1",
+    "B compound 1",
+    "A multi-turn 2",
+    "B compound 2",
+    "A multi-turn 3",
+    "B compound 3",
+    "A multi-turn 4",
+    "B compound 4",
+    "non-durable tool/thinking disappear after terminal coverage without reload",
+    "missed terminal and next running: new stream retires old provisional rows without reload",
+    "system-notice-live canonical without reload",
+    "report-notice-live canonical without reload",
+    "ordinary queue task after notices",
+    "two live transport frames reordered",
+    "authoritative snapshot delayed across live frames",
+    "delayed history + duplicate/reordered frames + rapid A/B/A",
+    "late duplicate terminal results and obsolete task deltas"
+  ],
+  "liveVisualSnapshots": 1
+}

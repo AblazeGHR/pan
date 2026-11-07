@@ -1,0 +1,44 @@
+{
+  "baseline": "68e534a329f6daa4072c1ce05bdf6ae02207ab6e",
+  "scope": "isolated provider/QQ/model-CLI consumer compatibility",
+  "status": "all_provider_qq_cli_named_gates_green_using_existing_owned_env",
+  "junit": {
+    "provider-consumer-original-red.xml": {
+      "tests": 106,
+      "failures": 0,
+      "errors": 2,
+      "skipped": 0,
+      "sha256": "8bb27d470edfe454b930aa077c8a4eef9a1e588ae4bd14e2639d8076f2dc5bda"
+    },
+    "provider-consumer-green.xml": {
+      "tests": 95,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "1c5cd106ae96cab1bc6fa26b49dd300fd8cf1c62ddea076041e9b19e89b8445b"
+    },
+    "provider-qq-owned-env-green.xml": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e8ac736606268efaf5629db6fcef98153e7af0ffc5e714a64915d06ffcfd116c"
+    },
+    "provider-consumer-owned-env-final.xml": {
+      "tests": 106,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "aa1c1bd6b4e065988fad20dfee4d0be97ceac57b10921f74bde49176a46f1179"
+    }
+  },
+  "report": "docs/reports/ACTION_UNIFICATION_P6_PROVIDER_CONSUMER_20261107.md",
+  "external_blockers": [],
+  "notes": [
+    "provider-consumer-original-red: 106 tests, 2 setup errors, 0 business failures; provider-consumer-green: 95 tests, 0 failures/errors/skips.",
+    "Do not count overlapping prior P6 reconciliation/multi-entry/Chromium suites here.",
+    "No real account/profile/8767/8768/deployment.",
+    "Initial global-Python setup red is retained as provider-consumer-original-red.xml; owned env rerun is the current acceptance result."
+  ],
+  "ownedEnv": ".tmp/p6-env/Scripts/python.exe (existing; no installation performed)"
+}

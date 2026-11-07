@@ -51,3 +51,17 @@
 | MCP `scheduler_create/update/run_now/list/get/delete/pause/resume/runs`, HTTP `/api/scheduler/tasks*`, Jobs schedule editor | `packages/scheduler/legacy_bridge.py::LegacySchedulerBridge` keeps `taskId`/`jobId`, creates one `Sources` row, one managed Ledger Trigger filtered by `payload.scheduleId`, and converts the Job to `system_scheduled_task` Action config | `tests/test_scheduler_legacy_bridge.py` proves stable identities, one source link, Event→Trigger→Job audit, run-now, explicit switch and idempotent repeat; `background_jobs.run_due_scheduled_tasks` skips `is_action_job` records | Real production MCP/GUI transport and deployment acceptance remain untested |
 | Existing legacy schedule records | `POST /api/scheduler/tasks/{task_id}/owner-switch` is explicit/idempotent; unmappable Action/schedule records remain legacy | unknown Action, multi-entry and unknown schedule fields raise `legacy_unmappable` and leave the old record untouched | Bulk real-data migration and operator review are Phase 4b deployment work |
 | Scheduled shell, QQ text, `resume_legal_running` | `system_scheduled_task` preserves the old `action` payload and delegates to the existing `_execute_job_action` effect path | system Action schema validation occurs before switch; old error/receipt fields remain on the compatibility record | Provider-specific QQ and shell process recovery need live acceptance |
+
+## 当前实现状态核对（2026-11-06 P0）
+
+**本节不是新设计，是把上文 Phase 4/4b/5 的兼容描述对照到 `f5fb73c5` 基线后的漂移记录。上文仍是历史证据，不能被读成当前能力。**
+
+| 上文描述 | 当前事实（`f5fb73c5`） | 影响 |
+|---|---|---|
+| legacy MCP 创建工具经兼容适配器生成 Action Job | `agent_background_start/retry`、`agent_message_job_create/update`、`scheduler_create/update/delete/pause/resume/run_now` 已从 `tools/list` 移除，并以 `capability_unsupported` + guidance 拒绝（`packages/mcp/server.py` 的 `RETIRED_MCP_TOOLS`/`LEGACY_MCP_COMPATIBILITY`）；读与取消保留 | "工具名不变"的无感迁移不再是当前契约，验收需回到 canonical `job_*`/`trigger_*`/`event_creator_*` 工具 |
+| 旧 HTTP `/api/background-jobs`、`/api/session-message-jobs` 写入仍走旧 producer | `POST /api/background-jobs`、`POST /api/session-message-jobs`、`PATCH /api/background-jobs/{id}`、`POST /{id}/retry` 统一 `410 retired`（`packages/jobs/final_api.py:retired_legacy_write`，由 `packages/web/server.py` 注册） | 旧 GUI/CLI 写入路径只在读投影与取消上保留 |
+| `packages/jobs/system_actions.py:execute` 是系统 Action 执行入口 | `execute`/`invoke` 已由 `__getattr__` 显式拒绝；`recovery_ready` 对 `system_job` 返回 False；`automation.job_runtime` 恒为 `None` | 旧 kind 定义只作审计读取，不再准入执行 |
+| `packages/scheduler/legacy_bridge.py:LegacySchedulerBridge` 承担 owner switch | 该模块仍存在但当前无任何 import/实例化；旧 scheduler 写路由在 `RETIRED_ROUTES` 中统一 410 | owner switch 与真实存量迁移属于后续阶段，不能用该类存在证明已接线 |
+| `system_scheduled_task` 内嵌旧 `action` payload 并委派 `_execute_job_action` | `_execute_job_action` 已在 `background_jobs._RETIRED_ENTRYPOINTS` 中退役 | shell/QQ 的旧调度执行链已无宿主；canonical 侧缺 `shell` 字符串 Action（见 P0 矩阵 C-4） |
+
+逐项能力映射、复用回执/owner 路径与未验证层见 [P0 覆盖矩阵](../action-unification/ACTION_UNIFICATION_P0_CAPABILITY_MATRIX_20261106.md)。

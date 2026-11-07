@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="2.401" timestamp="2026-11-07T11:24:45.236417+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_19_no_silent_entry_controls[patch0]" time="0.484"><failure message="Failed: DID NOT RAISE ContractError">tests\test_action_unification_p6_task_config.py:787: in test_P6_CONFIG_19_no_silent_entry_controls
+    with pytest.raises(fc.ContractError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ContractError</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_19_no_silent_entry_controls[patch1]" time="0.485"><failure message="Failed: DID NOT RAISE ContractError">tests\test_action_unification_p6_task_config.py:787: in test_P6_CONFIG_19_no_silent_entry_controls
+    with pytest.raises(fc.ContractError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ContractError</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_19_no_silent_entry_controls[patch2]" time="0.478" /></testsuite></testsuites>

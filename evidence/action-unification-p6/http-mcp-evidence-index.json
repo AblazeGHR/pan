@@ -1,0 +1,82 @@
+{
+  "baseline": "f18a7eab3872cd99cc348d96b516524c2b9c7491",
+  "sourceSHA256": {
+    "packages/mcp/server.py": "50948b8f37f5a301deb154d8efe7d3111dde17532e9573b38cd2f088edf133e5",
+    "packages/scheduler/api.py": "b12b97fc147236958bcd46b8fd3cf6b2f36400786189a31c789c7551a6bb12a9",
+    "packages/scheduler/canonical_tasks.py": "f0b6a4392ba637813120bc0a3140a9e5b76184fba73b1fe4ed8f47a146592d9a",
+    "packages/scheduler/json_handoff.py": "7f4b8c6dfc4067fd0fceebc8e5aaddd3351fb93836de78f8f92bad452b3179ee",
+    "packages/scheduler/providers.py": "5273e118ccf3b8589989a9134aff8418cf45910a6fefcf5fef346018b48ef499",
+    "tests/test_action_unification_p6_task_config.py": "7a36b48ef62b5fc0f732ff029cbc9fa34021a48208a1d20426e0c6ae79b5f0d2"
+  },
+  "junit": {
+    "http-mcp-cursor-intermediate-red.xml": {
+      "tests": 7,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "87210047b4f480bb5437be0f1965e1e1dbb5f9394da3c6d493894c7876bdc392"
+    },
+    "http-mcp-entry-guards.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "0d844d629d14aeca646be01487c61a4e0318c36d07941b4d29f023ddf73b90cd"
+    },
+    "http-mcp-entry-permission.xml": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "69b109023247d423f157179e0d9f241d09eeb7721cb98ea3c7e8f5c466011394"
+    },
+    "http-mcp-final-combination.xml": {
+      "tests": 83,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ff710e7536fc27f1a0b7b75737adce669b5129d99dc270ed067a8fff6e053be9"
+    },
+    "http-mcp-multi-focused.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5de3cef80d16f82e291d52be574f3ac808ee7007979774ee4c31fb9bddcce98d"
+    },
+    "http-mcp-permission-harness-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "2b235c4ab83ca2899aa09af393a6766c2fb735b6214e7eed24707116a974066d"
+    },
+    "http-mcp-policy-original-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "43f335c08fef7564911832bbf88a55c51d188492651f02a204952475321f37a2"
+    },
+    "http-mcp-rule-grace.xml": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "881ed0f5ccb52e994e9835f3657b2c9424ba968755c15dd2de2c31373d151028"
+    }
+  },
+  "build": {
+    "command": "pnpm build",
+    "cwd": "packages/web",
+    "exitCode": 0,
+    "modules": 2590,
+    "compressedAssetsVerified": 90,
+    "execution": "before explicit stop in same task; no frontend source changes since build"
+  },
+  "frontendFocused": {
+    "command": "pnpm exec vitest run src/components/automation/SchedulerInstantInput.test.tsx",
+    "passed": 6,
+    "exitCode": 0
+  }
+}

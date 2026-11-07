@@ -148,6 +148,70 @@
       "maxLength": 128,
       "pattern": "^\\S(?:.*\\S)?$"
     },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "action"
+            },
+            "actionRef": {
+              "$ref": "common.schema.json#/$defs/Ref"
+            }
+          },
+          "required": [
+            "type",
+            "actionRef"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "job"
+            },
+            "jobId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^\\S(?:.*\\S)?$"
+            },
+            "configRevision": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "type",
+            "jobId",
+            "configRevision"
+          ]
+        }
+      ]
+    },
+    "concurrency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxActive": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "maxPending": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 256
+        }
+      },
+      "required": [
+        "maxActive",
+        "maxPending"
+      ]
+    },
     "managedByComposition": {
       "type": "string",
       "minLength": 1,
@@ -167,8 +231,29 @@
     "revision",
     "name",
     "eventTypes",
-    "creatorSelector",
-    "targetJobId"
+    "creatorSelector"
+  ],
+  "oneOf": [
+    {
+      "required": [
+        "targetJobId"
+      ],
+      "not": {
+        "required": [
+          "target"
+        ]
+      }
+    },
+    {
+      "required": [
+        "target"
+      ],
+      "not": {
+        "required": [
+          "targetJobId"
+        ]
+      }
+    }
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://pan.local/pan/job-final/v2/trigger.schema.json",

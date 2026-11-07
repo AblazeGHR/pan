@@ -1,0 +1,21 @@
+{
+  "command": "pnpm build",
+  "cwd": "packages/web",
+  "exitCode": 0,
+  "modules": 2590,
+  "compressedAssetsVerified": 90,
+  "assetsSHA256": {
+    "packages/web/dist/index.html": "c08e0ed0234b5bde2f53230d712606d3de4c4ab4e4e5bba5e576653fd0f8f790",
+    "packages/web/dist/assets/index-CDSLxS12-pc2.js": "ed917b353f6a1e0e068f01f10741b669e9bece329f63541960a46c0f9b480528",
+    "packages/web/dist/assets/react-vendor-DNy7vAOG.js": "7e7e8bdf258b0755319cddb493aa5116085917166d8adabef881c7bd3ff99ba0",
+    "packages/web/dist/assets/index-DideG5ps.css": "e949bf38dad589ee5d0f8f9fda0f06b3f8c621eebd287e761452845e9ec5c603"
+  },
+  "sessionStoreSourceSHA256": "1e1f2ffdd8c4660076cda55b44ea805cfa7f8f8f800bd96367f5caa8760f52d9",
+  "initialTypecheckRed": {
+    "path": "src/stores/sessionStore.terminalTransient.test.ts:428",
+    "code": "TS2740",
+    "cause": "fixture omitted required HistoryTerminal fields",
+    "resolution": "complete typed fixture; normal build passed"
+  },
+  "chromiumFreshBuild": "packages/web/test-results/full-1794021451997/evidence.json"
+}

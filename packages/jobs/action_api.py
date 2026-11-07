@@ -222,47 +222,19 @@ async def confirm_recovery(job_id:str,data:dict,request:Request):
     except OSError as exc:raise HTTPException(503,'Persistence failed; reload before retrying') from exc
 
 
-@router.get('/job-templates')
-async def list_templates(request:Request):
-    await require_capability(request, 'jobTemplate', 'read')
-    return {'templates':await invoke(runtime(request).templates.list)}
-
-
-@router.post('/job-templates')
-async def create_template(data:dict,request:Request):
-    await require_capability(request, 'jobTemplate', 'create')
-    body(data,{'item','expectedRevision'},{'item','expectedRevision'})
-    return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request))}
-
-
-@router.put('/job-templates/{template_id}')
-async def update_template(template_id:str,data:dict,request:Request):
-    await require_capability(request, 'jobTemplate', 'updateConfig')
-    body(data,{'item','expectedRevision'},{'item','expectedRevision'})
-    return {'item':await invoke(runtime(request).templates.put,data['item'],data['expectedRevision'],await user(request),template_id)}
-
-
-@router.delete('/job-templates/{template_id}')
-async def delete_template(template_id:str,expectedRevision:int,request:Request):
-    await require_capability(request, 'jobTemplate', 'delete')
-    await invoke(runtime(request).templates.delete,template_id,expectedRevision)
-    return {'deleted':True}
-
-
-@router.post('/job-templates/{template_id}/instantiate')
-async def instantiate(template_id:str,data:dict,request:Request):
-    await require_capability(request, 'jobTemplate', 'use')
-    await require_capability(request, 'job', 'create')
-    body(data,{'expectedRevision','idempotencyKey','overrides'},{'expectedRevision','idempotencyKey'})
-    await user(request,True)
-    key=data['idempotencyKey']
-    if not isinstance(key,str) or not 1<=len(key)<=128:raise HTTPException(400,'idempotencyKey requires1..128 characters')
-    source = await authority(request)
-    state = await invoke(runtime(request).actions.read)
-    template = state.get('jobTemplates',{}).get(template_id)
-    if template and template['config'].get('enabled'):
-        await require_capability(request, 'job', 'lifecycle')
-    return {'job':await invoke(runtime(request).instantiate,template_id,data['expectedRevision'],source['type']+':'+key,data.get('overrides'),authority=source,_emit=True)}
+# Template compatibility is owned by the canonical boundary. Keeping the
+# original URLs does not retain a fallback legacy writer.
+from .final_api import (ContractRoute, legacy_template_list, legacy_template_create,
+                        legacy_template_update, legacy_template_delete,
+                        legacy_template_instantiate)
+for _path, _method, _handler in (
+    ('/job-templates', 'GET', legacy_template_list),
+    ('/job-templates', 'POST', legacy_template_create),
+    ('/job-templates/{template_id}', 'PUT', legacy_template_update),
+    ('/job-templates/{template_id}', 'DELETE', legacy_template_delete),
+    ('/job-templates/{template_id}/instantiate', 'POST', legacy_template_instantiate),
+):
+    router.add_api_route(_path, _handler, methods=[_method], route_class_override=ContractRoute)
 
 
 # R5: replace the old mutation endpoints at the route table.  Reads and the
@@ -278,10 +250,6 @@ RETIRED_ROUTES = {
     ('DELETE', '/api/jobs/action-jobs/{job_id}'),
     ('POST', '/api/jobs/action-jobs/{job_id}/confirm-recovery'),
     ('POST', '/api/jobs/action-jobs/{job_id}/retry'),
-    ('POST', '/api/jobs/job-templates'),
-    ('PUT', '/api/jobs/job-templates/{template_id}'),
-    ('DELETE', '/api/jobs/job-templates/{template_id}'),
-    ('POST', '/api/jobs/job-templates/{template_id}/instantiate'),
 }
 
 RETAINED_ROUTES = {
@@ -291,6 +259,10 @@ RETAINED_ROUTES = {
     ('GET', '/api/jobs/action-references/{action_id}'),
     ('POST', '/api/jobs/action-jobs/{job_id}/cancel'),
     ('GET', '/api/jobs/job-templates'),
+    ('POST', '/api/jobs/job-templates'),
+    ('PUT', '/api/jobs/job-templates/{template_id}'),
+    ('DELETE', '/api/jobs/job-templates/{template_id}'),
+    ('POST', '/api/jobs/job-templates/{template_id}/instantiate'),
 }
 
 for _route in router.routes:

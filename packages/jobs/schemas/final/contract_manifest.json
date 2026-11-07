@@ -704,6 +704,7 @@
       "run-admission"
     ],
     "operations": [
+      "invoke",
       "create",
       "update",
       "publish",

@@ -16,6 +16,36 @@ from packages.core.platform.runtime_lock import RuntimeLock, RuntimeLockBusy
 from packages.jobs.final_contracts import ContractError
 
 _local = threading.local()
+COOPERATIVE_PROFILE = 'cooperative-profile-v1'
+
+
+def enroll_fresh_profile(root):
+    """Bootstrap cooperating writers before ANY profile data exists.
+
+    This is not an attestation API for an existing/unknown installation.
+    All participating writers must already use this module's owner fence.
+    """
+    root = Path(root).resolve()
+    root.mkdir(parents=True, exist_ok=False)
+    owner = OwnerFence(root)
+    owner.lock.acquire()
+    try:
+        with owner.transaction() as db:
+            db.execute('INSERT INTO metadata VALUES(?,?)',
+                       (COOPERATIVE_PROFILE, str(root)))
+    finally:
+        owner.lock.release()
+
+
+def cooperative_profile(root):
+    """Read eligibility without enrolling or creating an owner database."""
+    root = Path(root).resolve()
+    path = root / 'job-runtime-owner.sqlite3'
+    if not path.is_file():
+        return False
+    with sqlite3.connect(path.as_uri() + '?mode=ro', uri=True) as db:
+        row = db.execute('SELECT value FROM metadata WHERE key=?', (COOPERATIVE_PROFILE,)).fetchone()
+        return row is not None and row[0] == str(root)
 
 
 class OwnershipConflict(ContractError):

@@ -50,9 +50,9 @@ def current_actions():
         def __init__(self):
             self.actions = {}
 
-        def publish_action(self, key, definition):
+        def publish_action(self, key, definition, *, enabled=True):
             definition = fc.validate_definition("action", definition)
-            self.actions[key] = object_document("action", definition, id=key, revision=1)
+            self.actions[key] = object_document("action", definition, id=key, revision=1, enabled=enabled)
 
         def transaction(self, **kwargs):
             return nullcontext(None)

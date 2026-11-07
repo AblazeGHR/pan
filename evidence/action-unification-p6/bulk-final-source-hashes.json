@@ -1,0 +1,14 @@
+{
+  "packages/jobs/api.py": "7217ed9772c84d61385c9cf030efc058bbdc08421958ceb4604207f5f696b29d",
+  "packages/jobs/final_api.py": "731e19a53c99920c0af23f1f35eedd27d3f0fe79df9d107ea5fca0fed10dff86",
+  "packages/mcp/server.py": "e66e827a056aa0ff230541d288bd56e71fe5219c70dc4c8b65108f1cce527e4b",
+  "packages/plugins/mcp.py": "ae714446368b9ba081577eef609ba7ec17151b0a341f98263464a56c1b6a359d",
+  "packages/scheduler/api.py": "6a123735a27695092fa1e237ad881f06ed633720700eaed3306da2502ad75042",
+  "packages/scheduler/canonical_tasks.py": "466bcdb67c6bb88109247f4b184fe965a3c06d2b06e4a3a766b848ed0404b69f",
+  "packages/scheduler/json_handoff.py": "f7d1ffb83c787d4554a8a61db839ecd85cf18a682df82479b8caafe1f794d138",
+  "packages/web/e2e/frontend-full.e2e.mjs": "e695ac05da1a5ff83de47a581eb65484e887e33945826d01602d01bd3e6dcb7c",
+  "packages/web/src/stores/sessionStore.terminalTransient.test.ts": "fa91f1f3cdd85f9f6cafa6998b3ead30cf04c7a307d687681d8fd699e69c4bb7",
+  "packages/web/src/stores/sessionStore.ts": "1e1f2ffdd8c4660076cda55b44ea805cfa7f8f8f800bd96367f5caa8760f52d9",
+  "tests/test_action_unification_p6_task_config.py": "396fa2552c6369ef5074b4aa23ad95b0a0b40835a7f487af7d2ae254af8df967",
+  "tests/test_job_final_retirement.py": "b551ddf5fc45125d5c99bf751ad35f9c1824b072f7b8263bf1c4062ea3be9b2b"
+}

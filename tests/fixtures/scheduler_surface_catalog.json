@@ -46,7 +46,7 @@
         "POST"
       ],
       "handler": "packages.scheduler.api.create_task",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}",
@@ -62,7 +62,7 @@
         "PATCH"
       ],
       "handler": "packages.scheduler.api.update_task",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}",
@@ -70,7 +70,7 @@
         "DELETE"
       ],
       "handler": "packages.scheduler.api.delete_task",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}/pause",
@@ -78,7 +78,7 @@
         "POST"
       ],
       "handler": "packages.scheduler.api.pause_task",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}/resume",
@@ -86,7 +86,7 @@
         "POST"
       ],
       "handler": "packages.scheduler.api.resume_task",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}/run-now",
@@ -94,7 +94,7 @@
         "POST"
       ],
       "handler": "packages.scheduler.api.run_task_now",
-      "deprecated": true
+      "deprecated": false
     },
     {
       "path": "/api/scheduler/tasks/{task_id}/runs",
@@ -102,6 +102,14 @@
         "GET"
       ],
       "handler": "packages.scheduler.api.task_runs",
+      "deprecated": false
+    },
+    {
+      "path": "/api/scheduler/tasks/{task_id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "handler": "packages.scheduler.api.cancel_task",
       "deprecated": false
     },
     {
@@ -190,9 +198,16 @@
     "report_status",
     "report_subscribe",
     "report_unsubscribe",
+    "scheduler_cancel",
+    "scheduler_create",
+    "scheduler_delete",
     "scheduler_get",
     "scheduler_list",
+    "scheduler_pause",
+    "scheduler_resume",
+    "scheduler_run_now",
     "scheduler_runs",
+    "scheduler_update",
     "self_queue_consume",
     "self_queue_read",
     "session_batch_delete",

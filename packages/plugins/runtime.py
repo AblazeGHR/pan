@@ -99,6 +99,10 @@ class Runtime:
         if session is None:
             raise ValueError("Session not found")
         catalog = Catalog(self.get_manifest())
+        group_service = self.group_service() if getattr(self, 'group_service', None) else None
+        if group_service is not None:
+            from packages.actions.group_catalog import extend
+            extend(catalog, group_service)
         from .lifecycle import apply_pins, pinned
         apply_pins(catalog, sid)
         bindings = session_bindings(session, catalog)
@@ -157,7 +161,9 @@ class Runtime:
             jsonschema.validators.validator_for(tool["inputSchema"]).check_schema(tool["inputSchema"])
             descriptors.append({"name": canonical, "plugin": plugin.id, "source_name": original,
                                 "native_name": native, "tool": copy.deepcopy(tool),
-                                "contract_version": version, "contract_digest": digest([tool, version])})
+                                "contract_version": version, "contract_digest": digest([tool, version]),
+                                **({'action_group_release': plugin.source['action_group_release']}
+                                   if plugin.source.get('action_group_release') else {})})
         if self.audience != "panel" and plugin.agent_capabilities is not None:
             descriptors = [d for d in descriptors if d['name'] in plugin.agent_capabilities]
         previous = self.snapshots.get(key)
@@ -185,7 +191,7 @@ class Runtime:
             raise ValueError("Projected tool name collision between plugins")
         return result
 
-    async def invoke(self, sid, view, name, arguments, expected_digest=None, plugin_id=None):
+    async def invoke(self, sid, view, name, arguments, expected_digest=None, plugin_id=None, transport_request_key=None):
         descriptors = await self.directory(sid, view, plugin_id)
         key = "native_name" if view == "native" else ("source_name" if view == "standalone" else "name")
         descriptor = next((d for d in descriptors if d[key] == name), None)
@@ -198,10 +204,10 @@ class Runtime:
                 descriptor = next((d for d in current if d[key] == name), None)
                 if descriptor is None:
                     return error('tool_unavailable', 'Action Group changed before admission')
-                return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
-        return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest)
+                return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest, transport_request_key)
+        return await self._invoke_resolved(sid, view, descriptor, arguments, expected_digest, transport_request_key)
 
-    async def _invoke_resolved(self, sid, view, descriptor, arguments, expected_digest):
+    async def _invoke_resolved(self, sid, view, descriptor, arguments, expected_digest, transport_request_key=None):
         if expected_digest and expected_digest != descriptor["contract_digest"]:
             return error("contract_changed", "Discover the current schema before calling again")
         try:
@@ -214,6 +220,13 @@ class Runtime:
         if not any(b["enabled"] and b["plugin_id"] == descriptor["plugin"] and b["mode"] == mode for b in bindings):
             return error("tool_unavailable", "Plugin configuration changed")
         provider = self.providers[(sid, descriptor["plugin"])][1]
+        if descriptor.get('action_group_release'):
+            from packages.actions.group_catalog import invoke
+            from packages.jobs.final_contracts import ContractError
+            try:
+                return await invoke(self, descriptor, arguments, transport_request_key=transport_request_key)
+            except ContractError as exc:
+                return error(exc.code, exc.message)
         result = await provider.request("call", {"name": descriptor["source_name"], "arguments": arguments})
         types.CallToolResult.model_validate(result)
         if not result.get("isError") and descriptor["tool"].get("outputSchema"):
@@ -284,7 +297,7 @@ class Runtime:
                     "next_cursor": f"{cursor_key}:{offset + limit}" if offset + limit < len(filtered) else None}
         if op == "call":
             task = asyncio.create_task(self.invoke(sid, view, request["name"], request.get("arguments", {}),
-                                                   request.get("expected_contract_digest"), plugin))
+                                                   request.get("expected_contract_digest"), plugin, request.get('transport_request_key')))
             self.invocations.add(task)
             task.add_done_callback(self._retire)
             try:

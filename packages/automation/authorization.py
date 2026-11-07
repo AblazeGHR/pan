@@ -17,7 +17,10 @@ def canonical_path(path):
     parsed = urlsplit(path)
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
-    if parsed.path == '/api/jobs/actions':
+    if re.fullmatch(r'/api/action-groups(?:/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)?)?', parsed.path):
+        return True
+    if (re.fullmatch(r'/api/jobs/actions(?:/[A-Za-z0-9_-]+(?:/(?:versions(?:/[0-9]+)?|operations|aliases))?)?', parsed.path)
+            or re.fullmatch(r'/api/jobs/actions/aliases/[A-Za-z0-9_-]+', parsed.path)):
         return True
     if re.fullmatch(r'/api/event-creators/[A-Za-z0-9_-]+/references', parsed.path):
         return True
@@ -30,7 +33,7 @@ def canonical_path(path):
         r'|job-runs/[A-Za-z0-9_-]+(?:/operations)?|operations(?:/[A-Za-z0-9_-]+)?)', parsed.path))
 
 
-READ, CANCEL = 'read', 'cancel'
+READ, CANCEL, LIFECYCLE = 'read', 'cancel', 'lifecycle'
 
 #: Historical non-canonical addresses and the only method class each may serve.
 #: Everything absent here — every retired legacy *write* root, including the
@@ -56,8 +59,10 @@ _LEGACY_SURFACE = (
     # Explicit historical cancel controls: the only retained legacy POST.
     (r'/api/jobs/action-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
     (r'/api/background-jobs/[A-Za-z0-9_-]+/cancel', CANCEL),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/cancel', CANCEL),
+    (r'/api/scheduler/tasks/[A-Za-z0-9_-]+/(?:pause|resume|run-now)', LIFECYCLE),
 )
-_LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}}
+_LEGACY_METHODS = {READ: {'GET', 'HEAD', 'OPTIONS'}, CANCEL: {'POST'}, LIFECYCLE: {'POST'}}
 
 
 def _legacy_surface(path):
@@ -80,8 +85,18 @@ def object_path(path, method=None):
     silently granting a write.
     """
     parsed = urlsplit(path)
+    if (method is not None and not parsed.scheme and not parsed.netloc and not parsed.fragment
+            and ((parsed.path == '/api/scheduler/tasks' and method.upper() == 'POST')
+                 or (re.fullmatch(r'/api/scheduler/tasks/[A-Za-z0-9_-]+', parsed.path) and method.upper() == 'PATCH'))):
+        return True  # Existing canonical graph adapter checks all original grants/CAS.
+    if re.fullmatch(r'/api/scheduler/tasks/[A-Za-z0-9_-]+', parsed.path) and method == 'DELETE' and not parsed.scheme and not parsed.netloc and not parsed.fragment:
+        return True  # Canonical handoff-only delete adapter enforces identity/grants.
     if parsed.scheme or parsed.netloc or parsed.fragment or not path.startswith('/api/'):
         return False
+    if re.fullmatch(r'/api/action-drafts/(?:actions|groups)/(?:put|delete)', parsed.path):
+        # P6 retained draft tool: exact compatibility endpoints only. The
+        # handler retains the original grants/schema and cannot enable/build.
+        return method is None or method.upper() == 'POST'
     if canonical_path(path):
         return True
     kind = _legacy_surface(parsed.path)
@@ -127,6 +142,9 @@ async def authority(request):
 def bind_objects(runtime, app):
     """Only called by the host; reused routes retain their normal business gates."""
     import httpx
+    # Production binds IPC before canonical startup; resolve at request time so
+    # failed startup/shutdown cannot leave an executable stale service pointer.
+    runtime.group_service = lambda: getattr(app.state, 'job_final_service', None)
     async def call(method, path, body):
         if method not in {'GET','POST','PUT','DELETE','PATCH'} or not object_path(path, method):
             return {'ok': False, 'error': {'code': 403, 'message': 'Outside four-object MCP boundary'}}

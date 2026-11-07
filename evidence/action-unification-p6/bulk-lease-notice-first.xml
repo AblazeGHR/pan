@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="7.075" timestamp="2026-11-07T11:13:07.388062+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_12_real_http_concurrent_revision_owner_lease" time="3.622"><failure message="AssertionError: assert 'revision_conflict' == 'owner_busy'&#10;  &#10;  - owner_busy&#10;  + revision_conflict">tests\test_action_unification_p6_task_config.py:574: in test_P6_CONFIG_12_real_http_concurrent_revision_owner_lease
+    assert exc.value.code == 'owner_busy'
+E   AssertionError: assert 'revision_conflict' == 'owner_busy'
+E
+E     - owner_busy
+E     + revision_conflict</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay[False]" time="1.350"><failure message="AssertionError: assert ['outbox_20b3...10429f4f82d9'] == ['outbox_e7a9...10429f4f82d9']&#10;  &#10;  At index 0 diff: 'outbox_20b397eda3957513007a57fb8738ef55d6941d4c' != 'outbox_e7a95f82cbd08f4a781edc71f7ea10429f4f82d9'&#10;  Left contains one more item: 'outbox_e7a95f82cbd08f4a781edc71f7ea10429f4f82d9'&#10;  Use -v to get more diff">tests\test_action_unification_p6_task_config.py:627: in test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay
+    assert sends == [notice['outboxId']]
+E   AssertionError: assert ['outbox_20b3...10429f4f82d9'] == ['outbox_e7a9...10429f4f82d9']
+E
+E     At index 0 diff: 'outbox_20b397eda3957513007a57fb8738ef55d6941d4c' != 'outbox_e7a95f82cbd08f4a781edc71f7ea10429f4f82d9'
+E     Left contains one more item: 'outbox_e7a95f82cbd08f4a781edc71f7ea10429f4f82d9'
+E     Use -v to get more diff</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay[True]" time="0.690"><failure message="AssertionError: assert ['outbox_16a2...47fd6fa1616b'] == ['outbox_9653...47fd6fa1616b']&#10;  &#10;  At index 0 diff: 'outbox_16a2ac5396ba3f33b75204723dca0feab800ccce' != 'outbox_9653ef73be44d3d18ffcb602290047fd6fa1616b'&#10;  Left contains one more item: 'outbox_9653ef73be44d3d18ffcb602290047fd6fa1616b'&#10;  Use -v to get more diff">tests\test_action_unification_p6_task_config.py:627: in test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay
+    assert sends == [notice['outboxId']]
+E   AssertionError: assert ['outbox_16a2...47fd6fa1616b'] == ['outbox_9653...47fd6fa1616b']
+E
+E     At index 0 diff: 'outbox_16a2ac5396ba3f33b75204723dca0feab800ccce' != 'outbox_9653ef73be44d3d18ffcb602290047fd6fa1616b'
+E     Left contains one more item: 'outbox_9653ef73be44d3d18ffcb602290047fd6fa1616b'
+E     Use -v to get more diff</failure></testcase></testsuite></testsuites>

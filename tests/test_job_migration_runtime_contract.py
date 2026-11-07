@@ -23,8 +23,8 @@ def runtime_context(root):
     class Collector:
         executor = SimpleNamespace(channel_provider=object())
         def __init__(self): self.actions = {}
-        def publish_action(self, key, definition):
-            self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1)
+        def publish_action(self, key, definition, *, enabled=True):
+            self.actions[key] = object_document('action', fc.validate_definition('action', definition), id=key, revision=1, enabled=enabled)
         def transaction(self, **kwargs): return nullcontext(None)
         def _get(self, db, kind, key): return self.actions[key]
     collector = Collector()

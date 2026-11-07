@@ -502,7 +502,7 @@ class FinalRuntime:
             blockers = self.deletion_blockers(job)
             if job["canonical"]["state"] not in {"disabled", "retired"}:
                 blockers.append("definition_enabled")
-            if any(t.get("targetJobId") == job_id and t.get("state") != "retired" for t in service._all(db, "trigger")):
+            if any(t.get("targetJobId", t.get("target", {}).get("jobId")) == job_id and t.get("state") != "retired" for t in service._all(db, "trigger")):
                 blockers.append("referenced_by_trigger")
             if blockers:
                 raise contracts.ContractError("reference_conflict", "Cannot delete Job: " + ", ".join(blockers))

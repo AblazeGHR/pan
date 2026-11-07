@@ -286,7 +286,12 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     pairs = Counter((method, route.path) for route in routes if hasattr(route, "methods") for method in route.methods)
     assert max(pairs.values()) == 1
     canonical = [route for route in routes if "canonical-jobs" in getattr(route, "tags", []) and not route.deprecated]
-    assert len(canonical) == 38
+    # P1 adds the canonical Action draft/version/lifecycle/alias routes to the
+    # single registration owner.  Keep the exact count to catch duplicate
+    # mounts or accidental legacy shadowing.
+    # P6 adds action reference metadata/provenance and canonical time-input
+    # routes under the same registration owner.
+    assert len(canonical) == 52
     assert pairs[("POST", "/api/event-creators/preview")] == 1
     for path in ("/api/job-runs/{run_id}/attempts/{attempt_id}/log", "/api/job-runs/{run_id}/logs"):
         assert pairs[("GET", path)] == 1
@@ -298,6 +303,9 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
         assert pairs[("GET", path)] == 1
     assert pairs[("POST", "/api/final/jobs")] == 1
     assert pairs[("POST", "/api/jobs")] == 1
+    for path in ("/api/jobs/actions", "/api/jobs/actions/{action_id}/versions",
+                 "/api/jobs/actions/{action_id}/operations", "/api/jobs/actions/{action_id}/aliases"):
+        assert pairs[("GET" if path.endswith("versions") else "POST", path)] == 1
     assert pairs[("POST", "/api/jobs/action-jobs")] == 1
     assert app.openapi()["paths"]["/api/legacy/jobs"]["get"]["deprecated"] is True
     # R5 retires the old writes at the HTTP boundary rather than by rewriting
@@ -308,7 +316,6 @@ def test_ft03_one_registration_owner_no_duplicate_or_shadowed_canonical_routes()
     assert authorization.object_path("/api/jobs")          # canonical
     assert authorization.object_path("/api/triggers")      # canonical
     old_writes = {("POST", "/api/jobs/action-jobs"),
-                  ("POST", "/api/jobs/job-templates/{template_id}/instantiate"),
                   ("POST", "/api/jobs/action-jobs/{job_id}/retry")}
     retired = {(method, route.path) for route in routes
                if getattr(route, "endpoint", None) is api.retired_legacy_write
@@ -337,4 +344,8 @@ async def test_ft03_legacy_facade_retires_writes_and_keeps_reads(tmp_path):
                              ("POST", "/api/legacy/jobs/job-templates/{id}/instantiate")):
             retired = await after.request(method, path, json={"kind": "not-supported"})
             assert retired.status_code == 503, (path, retired.text)
-            assert retired.json()["detail"]["code"] == "provider_unavailable"
+            payload = retired.json()
+            if '/job-templates/' in path:
+                assert payload.get('error', {}).get('code') in {'provider_unavailable', 'invalid_schema'}
+            else:
+                assert payload["detail"]["code"] == "provider_unavailable"

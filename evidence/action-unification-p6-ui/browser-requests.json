@@ -1,0 +1,223 @@
+[
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/automation/login",
+    "body": {
+      "key": "zFgBeaTiQeZ4HVY35_cEsn5UuzuP0jsErsSF53PuDDY"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/jobs/actions",
+    "body": {
+      "definition": {
+        "cancel": {
+          "supported": true
+        },
+        "completionContracts": [
+          {
+            "id": "process-exit",
+            "schema": {
+              "type": "object"
+            },
+            "terminalProofSchema": {
+              "type": "object"
+            }
+          }
+        ],
+        "defaultCompletion": "process-exit",
+        "description": "Owned old series",
+        "effectClass": "write_local",
+        "execution": {
+          "config": {
+            "commands": [
+              {
+                "argv": [
+                  "E:\\software\\miniforge\\python.exe",
+                  "D:\\project\\Pan\\data\\workdirs\\action-unification-ui-20261107\\.tmp\\p6-ui-1793988177372\\command-0.py"
+                ]
+              },
+              {
+                "argv": [
+                  "E:\\software\\miniforge\\python.exe",
+                  "D:\\project\\Pan\\data\\workdirs\\action-unification-ui-20261107\\.tmp\\p6-ui-1793988177372\\command-1.py"
+                ],
+                "timeout": 19
+              }
+            ],
+            "cwd": "D:\\project\\Pan\\data\\workdirs\\action-unification-ui-20261107\\.tmp\\p6-ui-1793988177372",
+            "legacyOutputMerge": "concat/v1"
+          },
+          "operation": "process.command"
+        },
+        "inputSchema": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "name": "Owned browser copy",
+        "outputSchema": {
+          "type": "object"
+        },
+        "providerRef": {
+          "generation": 1,
+          "id": "pan.command",
+          "releaseDigest": "def5f2f8b7b05fa6c22b2321bee8b603502129bef3ced612bc6944a5d09916b2"
+        },
+        "reconcile": {
+          "supported": false
+        },
+        "requiredCapabilities": [
+          "processOwner"
+        ],
+        "retry": {
+          "idempotent": false,
+          "requiresProof": true,
+          "sameKeySupported": true
+        },
+        "system": false
+      },
+      "expectedRevision": 0,
+      "requestKey": "dcef7108-0ff1-40c5-a560-eb1c123c68e0"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/jobs/actions/p6_original/operations",
+    "body": {
+      "operation": "disable",
+      "expectedRevision": 2,
+      "expectedStateRevision": 2,
+      "requestKey": "0f882b7c-c38f-4c83-8beb-8b3307c72542",
+      "parameters": {}
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/jobs/actions/p6_original/operations",
+    "body": {
+      "operation": "enable",
+      "expectedRevision": 2,
+      "expectedStateRevision": 3,
+      "requestKey": "8529914b-9246-48e2-8403-1ba950b636eb",
+      "parameters": {}
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/job-templates",
+    "body": {
+      "definition": {
+        "composition": {
+          "creators": [],
+          "triggers": []
+        },
+        "description": "Owned advanced template",
+        "jobDefinition": {
+          "arguments": {},
+          "inputSchema": {
+            "type": "object"
+          },
+          "name": "Owned template job",
+          "notification": {
+            "on": [],
+            "recipients": []
+          },
+          "overlap": {
+            "maxActive": 1,
+            "maxPending": 0,
+            "mode": "forbid"
+          },
+          "recovery": {
+            "automatic": false,
+            "backoffSeconds": [
+              "5",
+              "15",
+              "60"
+            ],
+            "maxAttempts": 3,
+            "retryIf": [],
+            "stableResetSeconds": "300"
+          },
+          "retention": {
+            "pinned": false,
+            "policyRef": "default"
+          },
+          "steps": [
+            {
+              "actionRef": {
+                "digest": "538d0cd6826839d27428cc6b856a1c5039833459aa61b1b31d20c338aa08264a",
+                "id": "p6_original",
+                "revision": 2
+              },
+              "arguments": {},
+              "completion": {
+                "contract": "process-exit"
+              },
+              "stepId": "effect"
+            }
+          ],
+          "triggerLinks": []
+        },
+        "name": "Owned template copy"
+      },
+      "expectedRevision": 0,
+      "requestKey": "operation_fa6ee077a63f425eb27fcb9fca259ac5"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/job-templates/template_92c4efbaf4b042cf9298301e/operations",
+    "body": {
+      "operation": "publish",
+      "requestKey": "operation_55d9871e37634629bab84782337da944",
+      "expectedRevision": 1,
+      "expectedStateRevision": 0,
+      "parameters": {}
+    }
+  },
+  {
+    "method": "DELETE",
+    "url": "http://127.0.0.1:50385/api/job-templates/template_92c4efbaf4b042cf9298301e",
+    "body": {
+      "expectedRevision": 2,
+      "expectedStateRevision": 0,
+      "requestKey": "operation_55353250c15f49a392c3473aa34bf62d"
+    }
+  },
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:50385/api/job-templates",
+    "body": {
+      "definition": {
+        "jobDefinition": {
+          "name": "Browser new job",
+          "steps": [
+            {
+              "stepId": "effect",
+              "actionRef": {
+                "id": "p6_original",
+                "revision": 2,
+                "digest": "538d0cd6826839d27428cc6b856a1c5039833459aa61b1b31d20c338aa08264a"
+              },
+              "arguments": {},
+              "completion": {
+                "contract": "process-exit"
+              }
+            }
+          ],
+          "retention": {
+            "policyRef": "default"
+          }
+        },
+        "composition": {
+          "creators": [],
+          "triggers": []
+        },
+        "name": "Browser new template"
+      },
+      "expectedRevision": 0,
+      "requestKey": "operation_9da49126ff0d4ef3b718e113b5c1c9ce"
+    }
+  }
+]

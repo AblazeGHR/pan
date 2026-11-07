@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import math
 import sqlite3
 from datetime import datetime, timezone
 
@@ -116,14 +117,18 @@ def _public(task: dict | None) -> dict | None:
     for key, value in task.items():
         out[_FIELD_RENAMES.get(key, key)] = value
     schedule = out.get("schedule")
-    if isinstance(schedule, dict):
-        sch = dict(schedule)
-        # 内核可能回 snake 的 interval_sec，统一收敛到 intervalSec
-        if "interval_sec" in sch:
-            sch.setdefault("intervalSec", sch.pop("interval_sec"))
-        else:
-            sch.pop("interval_sec", None)
-        out["schedule"] = sch
+    schedules = schedule if isinstance(schedule, list) else [schedule] if isinstance(schedule, dict) else []
+    if schedules:
+        normalized = []
+        for schedule_item in schedules:
+            sch = dict(schedule_item)
+            # 内核可能回 snake 的 interval_sec，统一收敛到 intervalSec
+            if "interval_sec" in sch:
+                sch.setdefault("intervalSec", sch.pop("interval_sec"))
+            else:
+                sch.pop("interval_sec", None)
+            normalized.append(sch)
+        out["schedule"] = normalized if isinstance(schedule, list) else normalized[0]
     # PLAN §4.1 用 nextRunAt/lastRunAt 描述列表字段，§4.4 用 nextFireAt/lastFireAt；
     # 两处都发，避免下游按其中任意一份契约取字段时取空。
     out.setdefault("nextRunAt", out.get("nextFireAt"))
@@ -169,8 +174,31 @@ def _as_bool(value, default=False) -> bool:
     return default
 
 
-def _validate_schedule(raw) -> tuple[dict | None, str | None]:
+def _validate_schedule(raw) -> tuple[dict | list[dict] | None, str | None]:
     """校验 schedule；返回 (spec, None) 或 (None, 原因)。"""
+    if isinstance(raw, list):
+        if not raw or len(raw) > 64:
+            return None, "schedule must be a non-empty list of at most 64 entries"
+        values = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                return None, f"schedule[{index}] must be an object"
+            value, why = _validate_schedule(item)
+            if why:
+                return None, f"schedule[{index}]: {why}"
+            for key in ('misfirePolicy', 'enabled', 'graceSec'):
+                if key in item:
+                    value[key] = item[key]
+            if value.get('misfirePolicy', 'fire_now') not in _MISFIRE_POLICIES:
+                return None, f"schedule[{index}].misfirePolicy must be fire_now or skip"
+            if type(value.get('enabled', True)) is not bool:
+                return None, f"schedule[{index}].enabled must be boolean"
+            if 'graceSec' in value:
+                grace = value['graceSec']
+                if type(grace) not in (int, float) or not math.isfinite(grace) or not 0 <= grace <= 86400:
+                    return None, f"schedule[{index}].graceSec must be between 0 and 86400"
+            values.append(value)
+        return values, None
     if not isinstance(raw, dict):
         return None, "schedule must be an object"
     kind = raw.get("kind")
@@ -315,8 +343,50 @@ async def _history_access(request):
         await principal(request)
 
 
+async def _canonical_record(request, task_id):
+    from packages.jobs.final_api import actor
+    from packages.plugins.lifecycle import io
+    from packages.scheduler.json_handoff import project, resolve
+    service = getattr(request.app.state, 'job_final_service', None)
+    if service is None or not callable(getattr(service, 'transaction', None)):
+        return None
+    with service.transaction(readonly=True) as db:
+        found = db.execute("SELECT 1 FROM final_documents WHERE kind='json_scheduler_handoff' AND (id=? OR json_extract(document,'$.jobId')=?)", (task_id, task_id)).fetchone()
+        if not found:
+            return None
+        tid, binding = resolve(service, db, task_id)
+    value = await io(project, service, tid, actor=await actor(request))
+    if value['deleted']:
+        return None
+    return {**value['task'], 'history': {'source': binding['source'], 'originalId': tid,
+        'recordType': 'canonicalCreated' if binding.get('origin') == 'canonical-create' else 'adoptedOriginal',
+        'executable': True}}
+
+
 def _history_error(exc):
     return _err("history_unavailable", str(exc))
+
+
+async def _successor(request, task, *, limit=100, offset=0):
+    from packages.jobs.final_api import actor
+    from packages.jobs import final_contracts as fc
+    from packages.plugins.lifecycle import io
+    from packages.scheduler import retained
+    service = getattr(getattr(request.app, 'state', None), 'job_final_service', None)
+    if not callable(getattr(service, 'transaction', None)):
+        return {}
+    try:
+        who = await actor(request, 'job', 'read')
+        from packages.scheduler.json_handoff import project
+        with service.transaction(readonly=True) as db:
+            adopted = db.execute("SELECT 1 FROM final_documents WHERE kind='json_scheduler_handoff' AND (id=? OR json_extract(document,'$.jobId')=?)", (task['id'], task['id'])).fetchone()
+        if adopted:
+            value = await io(project, service, task['id'], actor=who)
+            return {'canonicalSuccessor': value}
+        return {'canonicalSuccessor': await io(retained.query, service, task, actor=who, limit=limit, offset=offset)}
+    except fc.ContractError as exc:
+        return {'canonicalSuccessor': {'status': 'blocked', 'code': exc.code,
+                                      'historicalExecutionAdopted': False}}
 
 
 @router.get("/tasks")
@@ -327,6 +397,32 @@ async def list_tasks(includeDisabled: bool = True, request: Request = None,
         return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
     try:
         tasks = _history(request).tasks(includeDisabled)
+        service = getattr(request.app.state, 'job_final_service', None)
+        # Historical-only hosts may expose the canonical root for archive
+        # reads without binding a live FinalService. Do not manufacture a
+        # transaction requirement in that mode; the archive remains the
+        # authoritative read source and must stay usable without startup.
+        if service is not None and callable(getattr(service, 'transaction', None)):
+            from packages.scheduler.json_handoff import project
+            from packages.jobs.final_api import actor
+            from packages.plugins.lifecycle import io
+            who = await actor(request)
+            with service.transaction(readonly=True) as db:
+                adopted_ids = {row[0] for row in db.execute("SELECT id FROM final_documents WHERE kind='json_scheduler_handoff'")}
+            projected = []
+            historical_ids = {task['id'] for task in tasks}
+            for tid in sorted(adopted_ids - historical_ids):
+                created = await _canonical_record(request, tid)
+                if created is not None:
+                    tasks.append(created)
+            for task in tasks:
+                if task['id'] in adopted_ids:
+                    value = await io(project, service, task['id'], actor=who)
+                    if value['deleted'] or not includeDisabled and not value['task']['enabled']:
+                        continue
+                    task = {**value['task'], 'history': task['history']}
+                projected.append(task)
+            tasks = projected
         if not await may_read_jobs(request):
             from packages.jobs.action_runtime import is_action_job
             tasks = [t for t in tasks if not is_action_job(t['history']['source'])
@@ -338,9 +434,69 @@ async def list_tasks(includeDisabled: bool = True, request: Request = None,
 
 @router.post("/tasks")
 async def create_task(data: dict, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    """创建定时任务。Body: {name?, targetSessionId, text, schedule, enabled?, maxRuns?, misfirePolicy?}"""
+    from packages.jobs.final_api import actor
+    from packages.jobs import final_contracts as fc
+    from packages.plugins.lifecycle import io
+    from packages.scheduler import canonical_tasks
+    from packages.scheduler.json_handoff import project
+    service = getattr(request.app.state, 'job_final_service', None)
+    if service is None:
+        from packages.jobs.final_api import retired_legacy_write
+        return await retired_legacy_write(request)
+    try:
+        who = await actor(request, 'job', 'create')
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code, 'message': str(exc)}) from exc
+    if not isinstance(data, dict):
+        return _err("invalid_argument", "request body must be a JSON object")
+
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return _err("invalid_argument", "text is required")
+
+    target = data.get("targetSessionId") or data.get("target_session_id")
+    if not isinstance(target, str) or not target.strip():
+        return _err("invalid_argument", "targetSessionId is required")
+    if not _session_exists(target):
+        return _err("session_not_found", f"Session {target} not found")
+
+    spec, why = _validate_schedule(data.get("schedule"))
+    if why:
+        return _err("invalid_schedule", why)
+
+    max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
+    if why:
+        return _err("invalid_argument", why)
+
+    policy = data.get("misfirePolicy", data.get("misfire_policy"))
+    if policy is None:
+        policy = "fire_now"
+    if policy not in _MISFIRE_POLICIES:
+        return _err("invalid_argument",
+                    f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
+
+    payload = {
+        "name": data.get("name") if isinstance(data.get("name"), str) else "",
+        "description": data.get("description") if isinstance(data.get("description"), str) else "",
+        "target_session_id": target,
+        "text": text,
+        "enabled": _as_bool(data.get("enabled"), True),
+        "paused": False,
+        "schedule": spec,
+        "max_runs": max_runs,
+        "misfire_policy": policy,
+    }
+    try:
+        operation = await io(canonical_tasks.create, service, payload, actor=who,
+            request_key=canonical_tasks.request_key(data.get('requestKey')))
+        task = (await io(project, service, operation['result']['taskId'], actor=who))['task']
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code, 'message': str(exc)}) from exc
+    except ValueError as exc:
+        return _err("invalid_schedule", str(exc))
+    _emit_task("scheduler.task.created", task)
+    return _ok(task=_public(task), operation=operation)
 
 
 @router.get("/tasks/{task_id}")
@@ -348,49 +504,208 @@ async def get_task(task_id: str, request: Request = None):
     await _history_access(request)
     try:
         history = _history(request)
-        task = history.get(task_id)
+        task = history.get(task_id) or await _canonical_record(request, task_id)
         if task is None:
             return _err("not_found", f"task {task_id} not found")
         source = task['history']['source']
         if not source.get('legacySchedulerCompat'):
             await require_job(request, source)
-        return _ok(task=_public(task), **history.evidence(task))
+        extra = await _successor(request, task)
+        evidence = history.evidence(task)
+        if 'task' in extra.get('canonicalSuccessor', {}):
+            task = extra['canonicalSuccessor']['task']
+            if extra['canonicalSuccessor'].get('deleted'):
+                return _err('not_found', 'Original task was deleted')
+        return _ok(task=_public(task), **evidence, **extra)
     except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
         return _history_error(exc)
 
 
 @router.patch("/tasks/{task_id}")
 async def update_task(task_id: str, data: dict, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    """局部更新：name / text / targetSessionId / schedule / enabled / paused / maxRuns / misfirePolicy。"""
+    from packages.jobs.final_api import actor
+    from packages.jobs import final_contracts as fc
+    from packages.plugins.lifecycle import io
+    from packages.scheduler import canonical_tasks
+    from packages.scheduler.json_handoff import project
+    service = getattr(request.app.state, 'job_final_service', None)
+    if service is None:
+        from packages.jobs.final_api import retired_legacy_write
+        return await retired_legacy_write(request)
+    try:
+        who = await actor(request, 'job', 'updateConfig')
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code, 'message': str(exc)}) from exc
+    if not isinstance(data, dict):
+        return _err("invalid_argument", "request body must be a JSON object")
+
+    patch: dict = {}
+    if "name" in data:
+        if not isinstance(data["name"], str):
+            return _err("invalid_argument", "name must be a string")
+        patch["name"] = data["name"]
+    if "description" in data:
+        if not isinstance(data["description"], str):
+            return _err("invalid_argument", "description must be a string")
+        patch["description"] = data["description"]
+    if "text" in data:
+        if not isinstance(data["text"], str) or not data["text"].strip():
+            return _err("invalid_argument", "text must be a non-empty string")
+        patch["text"] = data["text"]
+    if "targetSessionId" in data or "target_session_id" in data:
+        target = data.get("targetSessionId") or data.get("target_session_id")
+        if not isinstance(target, str) or not target.strip():
+            return _err("invalid_argument", "targetSessionId is required")
+        if not _session_exists(target):
+            return _err("session_not_found", f"Session {target} not found")
+        patch["target_session_id"] = target
+    if "schedule" in data:
+        spec, why = _validate_schedule(data["schedule"])
+        if why:
+            return _err("invalid_schedule", why)
+        patch["schedule"] = spec
+    if "enabled" in data:
+        patch["enabled"] = _as_bool(data["enabled"], False)
+    if "paused" in data:
+        patch["paused"] = _as_bool(data["paused"], False)
+    if "maxRuns" in data or "max_runs" in data:
+        max_runs, why = _validate_max_runs(data.get("maxRuns", data.get("max_runs")), "maxRuns")
+        if why:
+            return _err("invalid_argument", why)
+        patch["max_runs"] = max_runs
+    if "misfirePolicy" in data or "misfire_policy" in data:
+        policy = data.get("misfirePolicy", data.get("misfire_policy"))
+        if policy not in _MISFIRE_POLICIES:
+            return _err("invalid_argument",
+                        f"misfirePolicy must be one of {', '.join(_MISFIRE_POLICIES)}")
+        patch["misfire_policy"] = policy
+    if "appendSchedule" in data:
+        if not isinstance(data['appendSchedule'], list):
+            return _err('invalid_argument', 'appendSchedule must be a list')
+        specs, why = _validate_schedule(data['appendSchedule'])
+        if why:
+            return _err('invalid_schedule', why)
+        patch['append_schedule'] = specs
+    if 'insertIndex' in data:
+        if type(data['insertIndex']) is not int or data['insertIndex'] < 0:
+            return _err('invalid_argument', 'insertIndex must be a nonnegative integer')
+        patch['insert_index'] = data['insertIndex']
+    if "entryId" in data:
+        if not isinstance(data["entryId"], str) or not data["entryId"]:
+            return _err("invalid_argument", "entryId must be a non-empty string")
+        patch["entry_id"] = data["entryId"]
+    if "expectedEntryRevision" in data:
+        if type(data["expectedEntryRevision"]) is not int or data["expectedEntryRevision"] < 1:
+            return _err("invalid_argument", "expectedEntryRevision must be a positive integer")
+        patch["expected_entry_revision"] = data["expectedEntryRevision"]
+    if "entryEnabled" in data:
+        if type(data["entryEnabled"]) is not bool:
+            return _err("invalid_argument", "entryEnabled must be boolean")
+        patch["entry_enabled"] = data["entryEnabled"]
+    if "entryPaused" in data:
+        if type(data["entryPaused"]) is not bool:
+            return _err("invalid_argument", "entryPaused must be boolean")
+        patch["entry_paused"] = data["entryPaused"]
+    if "entryMisfirePolicy" in data:
+        if data["entryMisfirePolicy"] not in _MISFIRE_POLICIES:
+            return _err("invalid_argument", "entryMisfirePolicy must be fire_now or skip")
+        patch["entry_misfire_policy"] = data["entryMisfirePolicy"]
+    if "entryGraceSec" in data:
+        try:
+            grace = float(data["entryGraceSec"])
+        except (TypeError, ValueError):
+            return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
+        if isinstance(data["entryGraceSec"], bool) or not math.isfinite(grace) or not 0 <= grace <= 86400:
+            return _err("invalid_argument", "entryGraceSec must be a nonnegative number")
+        patch["entry_grace_seconds"] = grace
+    if "deleteEntry" in data:
+        if type(data["deleteEntry"]) is not bool:
+            return _err("invalid_argument", "deleteEntry must be boolean")
+        patch["delete_entry"] = data["deleteEntry"]
+
+    try:
+        operation = await io(canonical_tasks.update, service, task_id, patch, actor=who,
+            request_key=canonical_tasks.request_key(data.get('requestKey')), expected_revision=data.get('expectedRevision'))
+        task = (await io(project, service, task_id, actor=who))['task']
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code, 'message': str(exc)}) from exc
+    except ValueError as exc:
+        return _err("invalid_schedule", str(exc))
+    if task is None:
+        return _err("not_found", f"task {task_id} not found")
+    _emit_task("scheduler.task.updated", task)
+    return _ok(task=_public(task), operation=operation)
 
 
 @router.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, request: Request = None):
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    return await _json_lifecycle(task_id, 'delete', request)
+
+
+async def _json_lifecycle(task_id, operation, request):
+    from packages.jobs.final_api import actor, body, retired_legacy_write
+    from packages.jobs import final_contracts as fc
+    from packages.plugins.lifecycle import io
+    from packages.scheduler.json_handoff import control, project
+    try:
+        who = await actor(request, 'job', 'execute' if operation == 'run-now' else 'delete' if operation == 'delete' else 'lifecycle')
+        service = getattr(request.app.state, 'job_final_service', None)
+        if service is None:
+            return await retired_legacy_write(request)
+        # Original no-body aliases remain valid. CAS/key are additive controls.
+        value = await body(request) if request.headers.get('content-length', '0') != '0' else {}
+        if set(value) - ({'expectedRevision', 'requestKey', 'waitForDispatch'} if operation == 'run-now' else {'expectedRevision', 'requestKey'}):
+            raise fc.ContractError('invalid_schema', 'Only original revision/key controls are accepted')
+        if 'waitForDispatch' in value and type(value['waitForDispatch']) is not bool:
+            raise fc.ContractError('invalid_schema', 'waitForDispatch must be boolean')
+        result = await io(control, service, task_id, operation, actor=who,
+                          request_key=value.get('requestKey'), expected_revision=value.get('expectedRevision'))
+        if operation == 'run-now' and value.get('waitForDispatch', True) and not result.get('replayed') and result.get('runId'):
+            # Drive only this newly admitted original Run through the existing
+            # engine. A replay is query-only, including an unknown prior call.
+            with service.transaction(readonly=True) as db:
+                owned, _ = service._find_run(db, result['runId'])
+            async with service._dispatch_lock:
+                await service._drive_run(owned['jobId'], result['runId'])
+        current = await io(project, service, task_id, actor=who,
+                           capability='execute' if operation == 'run-now' else 'delete' if operation == 'delete' else 'lifecycle')
+        task = _public(current['task'])
+        payload = {'deleted': True} if operation == 'delete' else {}
+        if operation == 'run-now':
+            rid = result['result'].get('runId')
+            run = next((row for row in current['runs'] if row['runId'] == rid), None)
+            status = 'accepted' if run and run['state'] == 'queued' else run['state'] if run else 'skipped'
+            payload['run'] = {'ok': True, 'taskId': task['id'], 'dispatchKey': result['result'].get('dispatchKey'),
+                'status': status, 'run': {'run_id': rid, 'task_id': task['id'],
+                'fire_at': run['createdAt'] if run else None, 'actual_at': run.get('startedAt') if run else None,
+                'dispatch_key': result['result'].get('dispatchKey'), 'status': status,
+                'session_id': task.get('targetSessionId'), 'worker_id': None, 'error': None,
+                'result': {'operationId': result['operationId'], 'status': result['status']}}}
+            if value.get('waitForDispatch', True):
+                from packages.scheduler.json_handoff import manual_result
+                payload['run'] = await io(manual_result, service, task_id, result, actor=who)
+        _emit_task('scheduler.task.deleted' if operation == 'delete' else
+                   'scheduler.task.fired' if operation == 'run-now' else 'scheduler.task.updated', task,
+                   **({'run': payload['run']} if operation == 'run-now' else {}))
+        return _ok(task=task, operation=result, **payload)
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code}) from exc
 
 
 @router.post("/tasks/{task_id}/pause")
 async def pause_task(task_id: str, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    return await _json_lifecycle(task_id, 'pause', request)
 
 
 @router.post("/tasks/{task_id}/resume")
 async def resume_task(task_id: str, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    return await _json_lifecycle(task_id, 'resume', request)
 
 
 @router.post("/tasks/{task_id}/run-now")
 async def run_task_now(task_id: str, request: Request = None):
-    """Retired legacy producer; authentication and refusal precede all work."""
-    from packages.jobs.final_api import retired_legacy_write
-    return await retired_legacy_write(request)
+    return await _json_lifecycle(task_id, 'run-now', request)
 
 
 @router.get("/tasks/{task_id}/runs")
@@ -400,16 +715,45 @@ async def task_runs(task_id: str, limit: int = 100, request: Request = None, off
         return _err("invalid_argument", "limit must be between 1 and 500; offset must be nonnegative")
     try:
         history = _history(request)
-        task = history.get(task_id)
+        task = history.get(task_id) or await _canonical_record(request, task_id)
         if task is None:
             return _err("not_found", f"task {task_id} not found")
         source = task['history']['source']
         if not source.get('legacySchedulerCompat'):
             await require_job(request, source)
         runs = history.runs(task)
-        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs))
+        extra = await _successor(request, task, limit=limit, offset=offset)
+        if 'task' in extra.get('canonicalSuccessor', {}):
+            from packages.scheduler.json_handoff import legacy_runs
+            from packages.jobs.final_api import actor
+            from packages.plugins.lifecycle import io
+            current = await io(legacy_runs, request.app.state.job_final_service, task['id'], actor=await actor(request, 'job', 'read'))
+            known = {row.get('runId', row.get('run_id')) for row in current}
+            runs = current + [row for row in runs if row.get('runId', row.get('run_id')) not in known]
+        return _ok(runs=[_public_run(r) for r in runs[offset:offset + limit]], total=len(runs), **extra)
     except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
         return _history_error(exc)
+
+
+@router.post("/tasks/{task_id}/cancel")
+async def cancel_task(task_id: str, request: Request):
+    """Request cancellation of an explicitly reviewed successor Run only."""
+    from packages.jobs.final_api import actor, body
+    from packages.jobs import final_contracts as fc
+    from packages.scheduler import retained
+    try:
+        who = await actor(request, 'job', 'execute')
+        service = getattr(request.app.state, 'job_final_service', None)
+        if service is None:
+            raise HTTPException(503, 'Canonical service unavailable')
+        task = _history(request).get(task_id) or await _canonical_record(request, task_id)
+        if task is None:
+            return _err('not_found', 'Original Scheduler task not found')
+        return await retained.cancel(service, task, await body(request), actor=who)
+    except fc.ContractError as exc:
+        raise HTTPException(exc.status, {'code': exc.code}) from exc
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        raise HTTPException(503, 'Original Scheduler state unavailable; query original request') from exc
 
 
 @router.get("/next")
@@ -506,21 +850,22 @@ async def engine_status(request: Request = None):
 # R5: retire the old scheduler mutations at the route table.  Handler bodies
 # remain for R6 source removal; task reads and run history stay available.
 RETIRED_ROUTES = {
-    ("POST", "/tasks"),
-    ("PATCH", "/tasks/{task_id}"),
-    ("DELETE", "/tasks/{task_id}"),
-    ("POST", "/tasks/{task_id}/pause"),
-    ("POST", "/tasks/{task_id}/resume"),
-    ("POST", "/tasks/{task_id}/run-now"),
     ("POST", "/event-sources"),
     ("PUT", "/event-sources/{sid}"),
     ("DELETE", "/event-sources/{sid}"),
 }
 
 RETAINED_ROUTES = {
+    ("POST", "/tasks"),
+    ("PATCH", "/tasks/{task_id}"),
+    ("DELETE", "/tasks/{task_id}"),
+    ("POST", "/tasks/{task_id}/pause"),
+    ("POST", "/tasks/{task_id}/resume"),
+    ("POST", "/tasks/{task_id}/run-now"),
     ("GET", "/tasks"),
     ("GET", "/tasks/{task_id}"),
     ("GET", "/tasks/{task_id}/runs"),
+    ("POST", "/tasks/{task_id}/cancel"),
     ("GET", "/next"),
     ("GET", "/status"),
     ("GET", "/event-sources"),

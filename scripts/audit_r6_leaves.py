@@ -40,9 +40,9 @@ REPLACED = {
         "_legacy_action_job",
     ],
     "packages/jobs/api.py": ["create_job", "patch_job", "run_job_now"],
-    "packages/scheduler/api.py": [
-        "create_task", "update_task", "pause_task", "resume_task", "run_task_now",
-    ],
+    # P6 keeps the original Scheduler envelope as an owner-fenced
+    # compatibility adapter. It is no longer part of the R6 deleted-leaf
+    # inventory; its source/runtime boundary is covered by P6 config tests.
 }
 
 

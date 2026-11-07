@@ -257,25 +257,34 @@ def test_object_path_allowlist_is_canonical_plus_retained_reads():
                  '/api/jobs/action-jobs/j1/runs', '/api/jobs/action-references/a1',
                  '/api/jobs/job-templates', '/api/actions',
                  '/api/actions/session-operation-template', '/api/background-jobs',
-                 '/api/background-jobs/b1', '/api/scheduler/tasks',
-                 '/api/scheduler/tasks/t1', '/api/scheduler/tasks/t1/runs',
+                 '/api/background-jobs/b1',
+                 '/api/scheduler/tasks/t1/runs',
                  '/api/scheduler/next', '/api/scheduler/status'):
         for method in ('GET', 'HEAD', 'OPTIONS'):
             assert object_path(path, method), (path, method)
         for method in ('POST', 'PUT', 'DELETE', 'PATCH'):
             assert not object_path(path, method), (path, method)
+    # P6 retains the owner-fenced Scheduler compatibility adapter.
+    assert object_path('/api/scheduler/tasks', 'POST')
+    assert object_path('/api/scheduler/tasks/t1', 'PATCH')
+    assert object_path('/api/scheduler/tasks/t1', 'DELETE')
     # Explicit historical cancels remain the only retained legacy POST.
     for path in ('/api/jobs/action-jobs/j1/cancel', '/api/background-jobs/b1/cancel'):
         assert object_path(path, 'POST')
         assert not object_path(path, 'GET')
     # Retired legacy writes are not addressable at all.
+    # P6 restores only the named draft successor, under its original grants.
+    for kind in ('actions', 'groups'):
+        for op in ('put', 'delete'):
+            path = f'/api/action-drafts/{kind}/{op}'
+            assert object_path(path) and object_path(path, 'POST')
+            for method in ('GET', 'PUT', 'DELETE', 'PATCH'):
+                assert not object_path(path, method)
     for path in ('/api/actions/actions', '/api/actions/groups', '/api/automation/triggers',
-                 '/api/action-drafts/actions/put', '/api/action-drafts/actions/delete',
                  '/api/final/jobs', '/api/final/actions',
                  '/api/automation/runs/r1/cancel', '/api/session-message-jobs',
                  '/api/jobs/action-jobs/j1/run-now', '/api/jobs/action-jobs/j1/retry',
                  '/api/jobs/action-jobs/j1/lifecycle', '/api/jobs/job-templates/tl1/instantiate',
-                 '/api/scheduler/tasks/t1/pause', '/api/scheduler/tasks/t1/run-now',
                  '/api/background-jobs/b1/retry', '/api/automation/authorization/permissions',
                  '/api/main/exit', '/api/final/jobs/private/x'):
         assert not object_path(path), path
@@ -301,9 +310,9 @@ async def test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http(tmp_pat
         before = h.svc.ledger.read()
         for path in ('/api/jobs/action-jobs', '/api/jobs/job-templates',
                      '/api/jobs/action-jobs/old/retry', '/api/actions/actions',
-                     '/api/action-drafts/actions/put', '/api/automation/triggers',
+                     '/api/automation/triggers',
                      '/api/background-jobs', '/api/session-message-jobs',
-                     '/api/scheduler/tasks', '/api/final/jobs'):
+                     '/api/final/jobs'):
             result = await asyncio.to_thread(ipc_request, {
                 'session_id': SESSION_ID, 'operation': 'authorization_objects',
                 'method': 'POST', 'path': path, 'body': {}}, h.bridge.address)

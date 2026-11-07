@@ -11245,6 +11245,23 @@ async def api_background_job_list(targetSessionId: str | None = None, request: R
     if targetSessionId:
         jobs = [j for j in jobs if (j.get("targetSessionId") == targetSessionId
                                    or targetSessionId in (j.get("targetSessionIds") or []))]
+    service = getattr(getattr(request, "app", None), "state", None)
+    service = getattr(service, "job_final_service", None)
+    if service is not None:
+        try:
+            from packages.jobs.final_api import actor as canonical_actor
+            canonical_who = await canonical_actor(request, "job", "read")
+            page = await service.list("job", actor=canonical_who, cursor=None, limit=100)
+            for item in page.get("items", []):
+                try:
+                    projected = await asyncio.to_thread(service.legacy_background_view, item["id"],
+                                                        actor=canonical_who)
+                except Exception:
+                    continue
+                if not targetSessionId or projected.get("targetSessionId") == targetSessionId:
+                    jobs.append(projected)
+        except Exception:
+            pass
     return {"jobs": jobs}
 
 
@@ -11255,6 +11272,16 @@ async def api_background_job_get(job_id: str, request: Request = None):
     from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
     if is_legacy_action_job(job):
         job = legacy_view(job)
+    if job is None:
+        service = getattr(getattr(request, "app", None), "state", None)
+        service = getattr(service, "job_final_service", None)
+        if service is not None:
+            from packages.jobs.final_api import actor as canonical_actor
+            try:
+                return await asyncio.to_thread(service.legacy_background_view, job_id,
+                                               actor=await canonical_actor(request, "job", "read"))
+            except Exception:
+                pass
     return job or {"ok": False, "error": {"code": "job_not_found", "message": "job not found"}}
 
 
@@ -11276,7 +11303,16 @@ async def api_background_job_cancel(job_id: str, request: Request = None):
                     # Runner. Reuse the original PID/create-time guarded path.
                     await asyncio.to_thread(background_jobs.cancel, job_id, runtime.root)
                 return legacy_view(await runtime.cancel(job_id, job['configRevision']))
-        return background_jobs.cancel(job_id)
+        if job:
+            return background_jobs.cancel(job_id)
+        service = getattr(getattr(request, "app", None), "state", None)
+        service = getattr(service, "job_final_service", None)
+        if service is not None:
+            from packages.jobs.final_api import actor as canonical_actor
+            return await asyncio.to_thread(service.legacy_background_cancel, job_id,
+                                           actor=await canonical_actor(request, "job", "execute"),
+                                           request_key="legacy-background-cancel:" + job_id)
+        raise ValueError("job not found")
     except ValueError as exc:
         code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
         return {"ok": False, "error": {"code": code, "message": str(exc)}}

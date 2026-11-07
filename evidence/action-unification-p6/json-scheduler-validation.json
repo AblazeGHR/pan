@@ -1,0 +1,291 @@
+{
+  "baseline": "9807ec8febcaedb4b1a36640805b57eaaf95fbff",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSha256": {
+    "packages/automation/authorization.py": "6ee51fb2c49c6cc1e3dbeb357b474517c7a977b9a951fdce2b76ff8e668390b0",
+    "packages/jobs/final_service.py": "034550e6a9947c6f7276870ccfa999190c4ebcc9f92f8628f35346d8e52a7e27",
+    "packages/jobs/session_delivery_runtime.py": "94f29597fc62ee823b41e5be683362f6af28e338cd453260892d659a60a9c387",
+    "packages/mcp/server.py": "d5d76b910bfceb1dc0409c243c7ff79bdeec3386e735376596c23b5fdaf846dd",
+    "packages/scheduler/api.py": "02b2e8562e6d4d5754c747769ef006a396143ec410cd303733b931b78ecba0af",
+    "packages/scheduler/providers.py": "605921a9399c7aa8380d2ff2a4fdc95f13e9b91e72d54bb61726c5dd94ec5425",
+    "packages/scheduler/retained.py": "13cb31427785d3ded33a81d7e83ddf5306cd2e381249367049a828c20ad8f006",
+    "tests/test_job_final_clients.py": "a243a56b605dc3c986ba8116e0047988cbe9215996e8cb6bc8cf9c7d1cc3e89f",
+    "tests/test_job_final_retirement.py": "8acc5ac0d987309cc16d0bae0dbc8d775287ed9eddeb06f21bd7d237816e06a3",
+    "tests/test_runtime_owner_stuck.py": "663c208d443abbc0b4404724a6a57261176919f67b4fc1d7df2e0996a1a0998a",
+    "packages/scheduler/json_handoff.py": "776aacc0c37d103eb7b48b87161104611dd74e27c9855279f6d09aa84085e82a",
+    "tests/test_action_unification_p6_json_scheduler.py": "530c4ef1edd797b68879ec452e2794c7f5a6636754bfe2a0eaee1f0d7571c4d8"
+  },
+  "junit": [
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-alias-retirement-red.xml.gz",
+      "tests": 118,
+      "failures": 6,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "12fe17ba0a808a4df5242d2b0b2b8367d4d6ad739e3558d8f06994b891e2cad3",
+      "sha256": "b05f972e0d9297b21cdd4ca5915450580e2d1b8dbbc6b885dc42a9cbec04992b",
+      "redactedSha256": "12fe17ba0a808a4df5242d2b0b2b8367d4d6ad739e3558d8f06994b891e2cad3",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-calendar-boundary-red.xml.gz",
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "fcf8b8af8a782f69c2e96e507bfc5cbe208a1ef26f7c5ba8d50a55b7d9b4b02d",
+      "sha256": "9e970f479c9fcc56e753e77f0eb6b548c903e99ea10e91d9bc537b8acf85c3fb",
+      "redactedSha256": "fcf8b8af8a782f69c2e96e507bfc5cbe208a1ef26f7c5ba8d50a55b7d9b4b02d",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-canonical-final.xml",
+      "tests": 174,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "7f7a90205d86da83f3ebb650d084697836121a321325d657a0393d40e923f420",
+      "sha256": "7f7a90205d86da83f3ebb650d084697836121a321325d657a0393d40e923f420"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-canonical-regression.xml",
+      "tests": 148,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "1be4d9e082f55d5b15c6fbd6227270e5230136fa5dd560758d79f7fab3c60f25",
+      "sha256": "1be4d9e082f55d5b15c6fbd6227270e5230136fa5dd560758d79f7fab3c60f25"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-checkpoint-projection-harness-red.xml.gz",
+      "tests": 9,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "2efe916060ac09beada79bd56a12282f77ce861f807c207d579dbbdd05c7fb7a",
+      "sha256": "de0eb8d51f72e5b00f73003b9500380acac3b9c082c9a7be155ebe880cde4b4f",
+      "redactedSha256": "2efe916060ac09beada79bd56a12282f77ce861f807c207d579dbbdd05c7fb7a",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-checkpoint.xml",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "333629e7eddabb3a5e458c9ae5e07bacd92c2701c641a4c7e5efef6dc2cb3f14",
+      "sha256": "333629e7eddabb3a5e458c9ae5e07bacd92c2701c641a4c7e5efef6dc2cb3f14"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-clock.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "d76d6d638f07367a66bf94992637f4e9609ff59d57e9a451079bf6dfe9f02a6e",
+      "sha256": "d76d6d638f07367a66bf94992637f4e9609ff59d57e9a451079bf6dfe9f02a6e"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-combination-final.xml",
+      "tests": 162,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "d1bd0983ffaf480ceb9f0baec0e45e4dd52859cd91de519698c2347d3ac07302",
+      "sha256": "d1bd0983ffaf480ceb9f0baec0e45e4dd52859cd91de519698c2347d3ac07302"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-combination.xml.gz",
+      "tests": 160,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "340c65ecdeff9769152b9823f8312a5d99b1c3a4954e866d3a45809a98a5a07f",
+      "sha256": "e46d86d6cddc98b4adf6134cf883b68dc4546533602f0cfb7e3ebd6cff024fdf",
+      "redactedSha256": "340c65ecdeff9769152b9823f8312a5d99b1c3a4954e866d3a45809a98a5a07f",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-cursor-harness-red.xml.gz",
+      "tests": 7,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "c951c65a9a937c39e97d52080e8ad80fe1b716489ec344ee8f4715ddff60aac0",
+      "sha256": "2e607c8f5b6d6a48f0ff50986e4d378c1fdc10f0b344dca691b76e6c6cf23257",
+      "redactedSha256": "c951c65a9a937c39e97d52080e8ad80fe1b716489ec344ee8f4715ddff60aac0",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-disabled-manual.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "229f89f54da7b36cd6249525fb3218150566182fb2a645f01349e6c0690aa209",
+      "sha256": "229f89f54da7b36cd6249525fb3218150566182fb2a645f01349e6c0690aa209"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-dispatch.xml",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "e5823cf6c15b8fd482f906a00a226aeb1dea4d2703ed64383f2b7094c2e7fd83",
+      "sha256": "e5823cf6c15b8fd482f906a00a226aeb1dea4d2703ed64383f2b7094c2e7fd83"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-event-shape-harness-red.xml.gz",
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "31911acc5a31f7a0344332fc7e2b9b6508e78c1ac3830c35ec59f2493aa496cb",
+      "sha256": "573a4a9c7d8b0c1c30f7dee4f7905df2549baf0979c4ad72dc6d2dbce2abde2f",
+      "redactedSha256": "31911acc5a31f7a0344332fc7e2b9b6508e78c1ac3830c35ec59f2493aa496cb",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-final-focused.xml",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "230f6d083b767dac98b9d82fa8563d0b8657e4374aed7f7568299e07e509fa8b",
+      "sha256": "230f6d083b767dac98b9d82fa8563d0b8657e4374aed7f7568299e07e509fa8b"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-final-source.xml",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "e8130d5c901e25201c3bc3cbc89d4f468e0c8b376d3185da4fb366436d012716",
+      "sha256": "e8130d5c901e25201c3bc3cbc89d4f468e0c8b376d3185da4fb366436d012716"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-focused.xml",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "b80dad95eb709d9634495781a89707e7c78bd8a0ad8f903cc0b32580264cc9fb",
+      "sha256": "b80dad95eb709d9634495781a89707e7c78bd8a0ad8f903cc0b32580264cc9fb"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-http-stdio.xml",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "bafcb6a7a3c04dd3313fdafe59ad79d1bf592e2d60198efd7b3468f6ea1e8502",
+      "sha256": "bafcb6a7a3c04dd3313fdafe59ad79d1bf592e2d60198efd7b3468f6ea1e8502"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-original-gap-red.xml.gz",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "bf3d6fed309e7ca3c92bbab1b935c8e9acbe0bc7084ff9545942162f941bd1c4",
+      "sha256": "249d29e33e80dc3abff471826271b56f2dbc26075dc7c0a6512f1776a5d6930f",
+      "redactedSha256": "bf3d6fed309e7ca3c92bbab1b935c8e9acbe0bc7084ff9545942162f941bd1c4",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-policy-harness-red.xml.gz",
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "c7d04984714fa91f27d7d8cfbcc3f21c66f188f0fbef04e5bea8ec38673a6dff",
+      "sha256": "d98b72ed395cb8c59aaa4f9467f729701431f80a60ffd7ab5b491a7ddfd85de3",
+      "redactedSha256": "c7d04984714fa91f27d7d8cfbcc3f21c66f188f0fbef04e5bea8ec38673a6dff",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-stdio-discovery-red.xml.gz",
+      "tests": 11,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "ab4d30386eff298e5d156238eaed08a3ecf3b0d817ff70e130c1638203ffd670",
+      "sha256": "7298c1355b7188d1030dbb5c1f43a51e647b394035e4d50724141a7d8a80fb77",
+      "redactedSha256": "ab4d30386eff298e5d156238eaed08a3ecf3b0d817ff70e130c1638203ffd670",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-worker-direct.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "fe384a1c85a3e62daf79d16d5cf2c184a73feab06f6cf955c324214c168ab8ed",
+      "sha256": "fe384a1c85a3e62daf79d16d5cf2c184a73feab06f6cf955c324214c168ab8ed"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-worker-original-red.xml.gz",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "95b834aed07df0157dc9ad06506a09982b1611dfba46f0efa8394651c5858fc8",
+      "sha256": "5373728ad4e15f9af006d644c32d4b428b850b082a4c7492ab7c840ee3f93a41",
+      "redactedSha256": "95b834aed07df0157dc9ad06506a09982b1611dfba46f0efa8394651c5858fc8",
+      "redaction": "ephemeral synthetic token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-final-verified.xml",
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "78366a3cf75c93fd95113d0c9a8ade348480b8552d011b531732d37c61f9df91"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-final-verified2.xml",
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "c4a2f2de3fe4ecb2a49fc40489bb1ca98d6a1d31592eeb22cd5a004d1ee9c93f"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-scheduler-delivery-final.xml",
+      "tests": 22,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ac5cceb13fd8fb3d2ce5f6c7e5668f3304e6cbf758fbe05000b4f8ce9e2e42a3"
+    }
+  ],
+  "interpreter": "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+  "timezoneData": "PYTHONTZPATH=E:/software/python-userbase/Python312/site-packages/tzdata/zoneinfo",
+  "checks": {
+    "ast": "passed",
+    "finalContracts": "isolated python -m packages.jobs.final_contracts --check passed",
+    "diffCheck": "passed"
+  },
+  "proxyObservation": {
+    "proxyPatternCount": 2,
+    "hasGlobalProxy": true,
+    "localhostBypassPresent": false,
+    "proxyValuesRecorded": false
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "scope": "partial P6; no push/deployment/real migration/remote CI/human acceptance",
+  "commands": {
+    "combination": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_action_unification_p6_json_scheduler.py tests/test_action_unification_p6_scheduler_retained.py tests/test_action_unification_p6_trigger_handoff.py tests/test_action_unification_p6_active_source.py tests/test_scheduler_api.py tests/test_scheduler_mcp.py tests/test_job_final_retirement.py tests/test_runtime_owner_stuck.py -q --junitxml=evidence/action-unification-p6/json-scheduler-combination-final.xml",
+    "canonical": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_job_final_http_service.py tests/test_job_final_clients.py tests/test_scheduler_source_migration.py tests/test_scheduler_canonical_migration.py tests/test_job_runtime_owner.py tests/test_retirement_session_runtime.py -q --junitxml=evidence/action-unification-p6/json-scheduler-canonical-final.xml",
+    "finalSource": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_action_unification_p6_json_scheduler.py -q --junitxml=evidence/action-unification-p6/json-scheduler-delivery-final.xml",
+    "baselineGap": "P6_JSON_BASELINE=1; scripts/run_tests_isolated.py -- <python> -m pytest tests/test_action_unification_p6_json_scheduler.py -k P6_JSON_01 -q --junitxml=evidence/action-unification-p6/json-scheduler-original-gap-red.xml",
+    "workerRedGreen": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_runtime_owner_stuck.py::test_concurrent_starts_over_random_port_with_real_owned_processes -q --junitxml=<worker-original-red or worker-direct artifact>",
+    "syntax": "ast.parse every changed/new Python source; git diff --check",
+    "contracts": "scripts/run_tests_isolated.py -- <python> -m packages.jobs.final_contracts --check",
+    "note": "<python> is recorded absolute interpreter; broad groups use recorded PYTHONTZPATH; failed XMLs subsequently sanitized/compressed."
+  },
+  "reportSha256": "d2c38bd386e86b784d0c3d6f6ed04ce75337606c0655e6f3d11aceec8b5b3a8c"
+}

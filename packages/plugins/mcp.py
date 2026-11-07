@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import json
 import os
+import uuid
 
 from mcp import types
 from mcp.server import Server
@@ -37,6 +38,15 @@ def create_server(view, plugin=None, core=False, rpc=None):
         from packages.mcp.server import mcp
         core_mcp = mcp
     core_names = set()
+    connection_id = uuid.uuid4().hex
+
+    def transport_key():
+        context = server.request_context
+        meta = context.meta.model_dump() if context.meta else {}
+        # Optional protocol metadata is outside the unchanged flat business
+        # schema. A business field called requestKey is never consumed here.
+        return (meta['panRequestKey'] if 'panRequestKey' in meta
+                else 'legacy-' + connection_id + '-' + str(context.request_id))
 
     async def send(operation, **payload):
         message = {"session_id": os.environ.get("PAN_AGENT_SESSION_ID", ""),
@@ -44,6 +54,39 @@ def create_server(view, plugin=None, core=False, rpc=None):
         if rpc:
             return await rpc(message)
         return await asyncio.to_thread(ipc.request, message)
+
+    async def scheduler_core():
+        # Core Pan is not an upstream plugin provider. Its legacy scheduler
+        # capabilities use the same trusted core IPC, never an extra provider.
+        if not core_mcp or not (await send('core_enabled')).get('enabled'):
+            return {}
+        return {'pan.' + tool.name: tool for tool in await core_mcp.list_tools()
+                if tool.name.startswith('scheduler_')}
+
+    async def discover_scheduler(arguments, available):
+        from .runtime import digest
+        name, query = arguments.get('name'), arguments.get('query', '').casefold()
+        selected = [(key, tool) for key, tool in available.items()
+                    if (not name or key == name) and (not query or query in
+                        (key + ' ' + (tool.description or '')).casefold())]
+        generation = digest([[key, tool.model_dump()] for key, tool in available.items()])
+        scope = digest([generation, name, query, bool(arguments.get('include_schema'))])
+        offset = 0
+        if arguments.get('cursor'):
+            version, offset_text = arguments['cursor'].rsplit(':', 1)
+            if version != scope or not offset_text.isdecimal():
+                raise ValueError('Directory cursor expired; discover again')
+            offset = int(offset_text)
+        limit = max(1, min(100, arguments.get('limit', 20)))
+        items = []
+        for key, tool in selected[offset:offset + limit]:
+            item = {'name': key, 'plugin': 'pan', 'description': tool.description or '',
+                    'contract_version': '1', 'contract_digest': digest(tool.model_dump())}
+            if name or arguments.get('include_schema'):
+                item['inputSchema'] = tool.inputSchema
+            items.append(item)
+        return {'tools': items, 'generation': generation,
+                'next_cursor': f'{scope}:{offset + limit}' if offset + limit < len(selected) else None}
 
     @server.list_tools()
     async def list_tools():
@@ -77,6 +120,17 @@ def create_server(view, plugin=None, core=False, rpc=None):
                     if name in available:
                         return await core_mcp.call_tool(name, arguments)
             if view == "gateway":
+                if name == 'api_discover' and (arguments.get('plugin') == 'pan'
+                        or arguments.get('name', '').startswith('pan.scheduler_')):
+                    return await discover_scheduler(arguments, await scheduler_core())
+                if name == 'api_call' and arguments.get('name', '').startswith('pan.scheduler_'):
+                    from .runtime import digest
+                    tool = (await scheduler_core()).get(arguments['name'])
+                    if tool is None:
+                        return types.CallToolResult.model_validate(error('tool_unavailable', 'Core scheduler unavailable'))
+                    if arguments.get('expected_contract_digest') not in (None, digest(tool.model_dump())):
+                        return types.CallToolResult.model_validate(error('contract_changed', 'Discover the current schema'))
+                    return await core_mcp.call_tool(tool.name, arguments.get('arguments', {}))
                 if name == "api_discover":
                     response = await send("discover", **arguments)
                     if response.get("isError"):
@@ -84,9 +138,9 @@ def create_server(view, plugin=None, core=False, rpc=None):
                     return response
                 if name != "api_call":
                     return types.CallToolResult.model_validate(error("tool_unavailable", "Unknown gateway tool"))
-                result = await send("call", **arguments)
+                result = await send("call", **arguments, transport_request_key=transport_key())
             else:
-                result = await send("call", name=name, arguments=arguments)
+                result = await send("call", name=name, arguments=arguments, transport_request_key=transport_key())
             return types.CallToolResult.model_validate(result)
         except Exception as exc:
             return types.CallToolResult.model_validate(error("execution_unconfirmed", str(exc)))

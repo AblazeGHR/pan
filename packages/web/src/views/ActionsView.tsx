@@ -8,7 +8,8 @@ import {
   useActionRegistryStore,
   useActionSessionDetailStore,
 } from '@/stores/actionRegistryStore';
-import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
+import type { Action, ActionGroup, ActionRegistry, CanonicalLegacyAction } from '@/types/actions';
+import { CanonicalDefinitionEditor } from '@/components/actions/CanonicalDefinitionEditor';
 import {
   EFFECT_LABELS,
   actionEditorState,
@@ -27,6 +28,7 @@ import {
   type EditorState,
 } from '@/components/actions/actionsModel';
 import { ActionEditorPage, GroupEditorPage } from '@/components/actions/ActionGroupEditors';
+import { MappedActionPanel } from '@/components/actions/MappedActionPanel';
 import { UseInSessionDialog } from '@/components/actions/UseInSessionDialog';
 import {
   Badge,
@@ -52,6 +54,8 @@ import {
   Pencil,
   Play,
   Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   RotateCcw,
   Search,
@@ -60,6 +64,7 @@ import {
   X,
 } from 'lucide-react';
 import './actions.css';
+export { default } from './UnifiedActionsView';
 
 type Tab = 'actions' | 'groups';
 type ConfirmState =
@@ -70,7 +75,7 @@ type ActionRegistryWithItem = import('@/types/actions').ActionRegistry & {
   item?: Action | ActionGroup;
 };
 
-export default function ActionsView() {
+export function LegacyActionsView() {
   const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
   const registry = useActionRegistryStore((state) => state.registry);
   const hasLoaded = useActionRegistryStore((state) => state.hasLoaded);
@@ -84,6 +89,10 @@ export default function ActionsView() {
 
   const [tab, setTab] = useState<Tab>('actions');
   const [editor, setEditor] = useState<EditorState | null>(null);
+  const [canonicalEditor, setCanonicalEditor] = useState<(CanonicalLegacyAction & { legacyId: string }) | null>(null);
+  const [canonicalNew, setCanonicalNew] = useState(false);
+  const [canonicalDuplicateIntent, setCanonicalDuplicateIntent] = useState(false);
+  const [canonicalDirty, setCanonicalDirty] = useState(false);
   const [editorError, setEditorError] = useState('');
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [useGroupId, setUseGroupId] = useState<string | null>(null);
@@ -102,17 +111,17 @@ export default function ActionsView() {
   }, [authorizationToken]);
 
   useEffect(() => {
-    if (!editor || !isEditorDirty(editor)) return;
+    if (!canonicalDirty && (!editor || !isEditorDirty(editor))) return;
     const handler = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [editor]);
+  }, [editor, canonicalDirty]);
 
   useEffect(() => {
-    if (!editor || confirm || useGroupId) return;
+    if ((!editor && !canonicalEditor && !canonicalNew) || confirm || useGroupId) return;
     const handler = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
@@ -135,13 +144,41 @@ export default function ActionsView() {
 
   function openAction(action: Action) {
     if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
+    const mapped = registry.canonicalActions?.[action.id];
+    if (mapped) {
+      // Keep the observed revision while editing. A concurrent refresh must
+      // not silently attach an old draft body to a newer CAS revision.
+      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
+      setCanonicalDuplicateIntent(false);
+      setCanonicalDirty(false);
+      return;
+    }
+    const preserved = registry.preservedActions?.find((item) => item.id === action.id);
+    if (preserved) {
+      notify(
+        `This Action is preserved because its definition cannot be represented by the old editor: ${preserved.reason}. Editing is blocked; use the unified catalog.`,
+        'warning',
+      );
+      return;
+    }
     setEditor(actionEditorState(action, 'edit'));
     setEditorError('');
   }
 
   function newAction() {
     setTab('actions');
+    setCanonicalNew(false);
     setEditor(actionEditorState(emptyActionDraft(), 'new'));
+    setEditorError('');
+  }
+
+  function newAdvancedAction() {
+    setTab('actions');
+    setEditor(null);
+    setCanonicalEditor(null);
+    setCanonicalDuplicateIntent(false);
+    setCanonicalNew(true);
+    setCanonicalDirty(false);
     setEditorError('');
   }
 
@@ -164,12 +201,26 @@ export default function ActionsView() {
   function closeEditor() {
     const kind = editor?.kind;
     setEditor(null);
+    setCanonicalEditor(null);
+    setCanonicalNew(false);
+    setCanonicalDuplicateIntent(false);
+    setCanonicalDirty(false);
     setEditorError('');
     if (kind === 'group') setTab('groups');
     if (kind === 'action') setTab('actions');
   }
 
   function requestCloseEditor() {
+    if (canonicalNew) {
+      if (canonicalDirty) setConfirm({ kind: 'discard' });
+      else closeEditor();
+      return;
+    }
+    if (canonicalEditor) {
+      if (canonicalDirty) setConfirm({ kind: 'discard' });
+      else closeEditor();
+      return;
+    }
     if (!editor) return;
     if (isEditorDirty(editor)) {
       setConfirm({ kind: 'discard' });
@@ -264,6 +315,57 @@ export default function ActionsView() {
     }
   }
 
+  async function syncCanonicalEditor(legacyId: string) {
+    await useActionRegistryStore.getState().ensureRegistry({ force: true });
+    const next = useActionRegistryStore.getState().registry.canonicalActions?.[legacyId];
+    if (next) setCanonicalEditor({ ...structuredClone(next), legacyId });
+  }
+
+  function openCanonicalCopy(object: Record<string, unknown>, definition: Record<string, unknown>) {
+    setCanonicalEditor({
+      object,
+      definition,
+      reason: 'Canonical copy created from the old entry; it is not bound to a legacy alias.',
+      legacyId: String(object.id),
+    });
+    setCanonicalDuplicateIntent(false);
+    setCanonicalDirty(false);
+    setEditorError('');
+    notify(
+      `Canonical Action duplicated · ${String(object.id)}. Manage it in the unified catalog.`,
+      'info',
+    );
+  }
+
+  async function toggleActionEnabled(action: Action) {
+    if (action.system) {
+      notify('System Actions are maintained by the product.', 'error');
+      return;
+    }
+    const mapped = registry.canonicalActions?.[action.id];
+    if (mapped) {
+      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
+      setCanonicalDuplicateIntent(false);
+      notify('Use the canonical lifecycle controls to enable or disable this Action.', 'info');
+      return;
+    }
+    if (registry.preservedActions?.some((item) => item.id === action.id)) {
+      notify('This Action is preserved and cannot change lifecycle through the old editor.', 'error');
+      return;
+    }
+    try {
+      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistry>(`actions/actions/${encodeURIComponent(action.id)}/lifecycle`, 'POST', {
+          enabled: !action.enabled,
+          expectedRevision,
+        }),
+      );
+      notify(action.enabled ? 'Action disabled' : 'Action enabled', 'info');
+    } catch (caught) {
+      notify(`Couldn’t change Action lifecycle: ${messageOf(caught)}`, 'error');
+    }
+  }
+
   function invalidateReleaseDetails(group: ActionGroup | undefined) {
     useActionCatalogStore.getState().invalidateCatalog();
     if (!group) return;
@@ -324,6 +426,13 @@ export default function ActionsView() {
 
   function requestDeleteAction(action: Action) {
     if (action.system) { notify('System Actions cannot be deleted.', 'error'); return; }
+    if (
+      !registry.canonicalActions?.[action.id] &&
+      registry.preservedActions?.some((item) => item.id === action.id)
+    ) {
+      notify('This Action is preserved; deletion through the old catalog is blocked.', 'error');
+      return;
+    }
     const usage = usedByGroups(registry, action.id);
     if (usage.length) {
       notify(
@@ -336,6 +445,18 @@ export default function ActionsView() {
   }
 
   async function duplicateAction(action: Action) {
+    const mapped = registry.canonicalActions?.[action.id];
+    if (mapped) {
+      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
+      setCanonicalDuplicateIntent(true);
+      setCanonicalDirty(false);
+      setEditorError('');
+      return;
+    }
+    if (registry.preservedActions?.some((item) => item.id === action.id)) {
+      notify('This Action is preserved and cannot be duplicated through the old editor.', 'error');
+      return;
+    }
     if (duplicateInFlight.current || mutationPending) return;
     duplicateInFlight.current = true;
     setDuplicating(true);
@@ -478,7 +599,39 @@ export default function ActionsView() {
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
-      {editor ? (
+      {canonicalNew ? (
+        <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
+          <h2 className="text-lg font-semibold">New advanced Action</h2>
+          <p className="my-3 text-sm">
+            完整 canonical 定义支持多命令、环境与高级字段。保存创建草稿，不发布、不执行；副本与新建项属于统一目录。
+          </p>
+          <CanonicalDefinitionEditor
+            onDirtyChange={setCanonicalDirty}
+            onChanged={async () => {
+              await useActionRegistryStore.getState().refreshRegistry();
+              closeEditor();
+              notify('Canonical Action created. Manage it in the unified catalog.', 'info');
+            }}
+          />
+          <Button className="mt-4" onClick={requestCloseEditor}>
+            返回旧目录
+          </Button>
+        </section>
+      ) : canonicalEditor ? (
+        <MappedActionPanel
+          key={canonicalEditor.legacyId}
+          mapped={canonicalEditor}
+          legacyAction={registry.actions.find((action) => action.id === canonicalEditor.legacyId)}
+          existingNames={registry.actions.map((action) => action.name)}
+          defaultDuplicateOpen={canonicalDuplicateIntent}
+          onClose={requestCloseEditor}
+          onChanged={() => syncCanonicalEditor(canonicalEditor.legacyId)}
+          onOpenCopy={openCanonicalCopy}
+          onRequestDelete={requestDeleteAction}
+          error={editorError}
+          onDirtyChange={setCanonicalDirty}
+        />
+      ) : editor ? (
         editor.kind === 'action' ? (
           <ActionEditorPage
             state={editor}
@@ -565,9 +718,17 @@ export default function ActionsView() {
               </span>
               <Button
                 type="button"
-                variant="primary"
                 size="sm"
                 className="ml-auto max-sm:w-full max-sm:justify-center"
+                onClick={newAdvancedAction}
+              >
+                <Braces size={13} /> New advanced Action
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="max-sm:w-full max-sm:justify-center"
                 onClick={tab === 'actions' ? newAction : newGroup}
               >
                 <Plus size={13} /> {tab === 'actions' ? 'New Action' : 'New Group'}
@@ -703,6 +864,8 @@ export default function ActionsView() {
                           onDelete={() => requestDeleteAction(action)}
                           onCopy={() => copyText(action.id, 'Action ID')}
                           onDuplicate={() => void duplicateAction(action)}
+                          onToggleEnabled={() => void toggleActionEnabled(action)}
+                          mapped={Boolean(registry.canonicalActions?.[action.id])}
                           duplicateDisabled={duplicating || mutationPending}
                         />
                       ))}
@@ -835,6 +998,8 @@ function ActionRow({
   onDelete,
   onCopy,
   onDuplicate,
+  onToggleEnabled,
+  mapped,
   duplicateDisabled,
 }: {
   action: Action;
@@ -843,6 +1008,8 @@ function ActionRow({
   onDelete: () => void;
   onCopy: () => void;
   onDuplicate: () => void;
+  onToggleEnabled: () => void;
+  mapped: boolean;
   duplicateDisabled: boolean;
 }) {
   const [menu, setMenu] = useState(false);
@@ -938,6 +1105,25 @@ function ActionRow({
                     }}
                   >
                     <CopyPlus size={13} /> Duplicate Action
+                  </MenuItem>
+                  <MenuItem
+                    disabled={action.system}
+                    title={
+                      action.system
+                        ? 'System Actions are maintained by the product.'
+                        : mapped
+                          ? 'Open the canonical lifecycle controls'
+                          : action.enabled
+                            ? 'Disable this Action'
+                            : 'Enable this Action'
+                    }
+                    onClick={() => {
+                      setMenu(false);
+                      onToggleEnabled();
+                    }}
+                  >
+                    {action.enabled ? <PowerOff size={13} /> : <Power size={13} />}{' '}
+                    {mapped ? 'Canonical lifecycle…' : action.enabled ? 'Disable Action' : 'Enable Action'}
                   </MenuItem>
                   <MenuItem
                     onClick={() => {

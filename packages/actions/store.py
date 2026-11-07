@@ -244,7 +244,8 @@ class Store:
                 time.sleep(.01)
 
     def mutate(self, change, expected=None, *, versioned=True):
-        with _lock:
+        from .group_migration import legacy_writer
+        with _lock, legacy_writer(self.root):
             state = self.read(effective=False)
             if expected is not None and (type(expected) is not int or state['revision'] != expected):
                 raise ValueError('Action registry changed; reload before saving')
@@ -314,6 +315,9 @@ class Store:
         if not isinstance(raw, dict) or set(raw) - {'id', 'name', 'action_ids'}:
             raise ValueError('Unknown Group fields')
         gid = identifier(raw.get('id'))
+        from .group_catalog import owns
+        if owns(gid):
+            raise ValueError('Group is canonical-owned; use the canonical Group API')
         if not isinstance(raw.get('name'), str) or not raw['name'].strip():
             raise ValueError('Group name is required')
         ids = raw.get('action_ids')
@@ -384,7 +388,12 @@ class Store:
 def extend_catalog(catalog):
     """Built Groups are ordinary API plugins, using all three generic projections."""
     from packages.plugins.catalog import Plugin
+    from .group_catalog import extend
+    extend(catalog)
     for group in Store().read()['groups'].values():
+        from .group_catalog import owns
+        if owns(group['id']):
+            continue
         build = group.get('build')
         if not build:
             continue

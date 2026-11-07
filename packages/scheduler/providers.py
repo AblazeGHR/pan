@@ -429,9 +429,11 @@ class TimeProvider:
             rule = next(rule for rule in item["config"]["rules"] if rule["ruleId"] == rule_id)
             basis = timestamp(max(instant(at), instant(scheduled)))
             following = self.next_after(rule, basis)
-            late = instant(at) - instant(scheduled) > Decimal(item["config"]["graceSeconds"])
-            outcome = misfire_outcome(rule["type"], item["config"]["misfirePolicy"],
-                                      instant(at) - instant(scheduled), Decimal(item["config"]["graceSeconds"]))
+            late = instant(at) - instant(scheduled) > Decimal(rule.get("graceSeconds", item["config"]["graceSeconds"]))
+            policy = rule.get("misfirePolicy", item["config"]["misfirePolicy"])
+            grace = Decimal(rule.get("graceSeconds", item["config"]["graceSeconds"]))
+            outcome = misfire_outcome(rule["type"], policy,
+                                      instant(at) - instant(scheduled), grace)
             reason = "backfill" if late else "scheduled"
             occurrence = cursor.get("nextOccurrence") or {
                 "timezone": "UTC", "wallTime": scheduled, "fold": 0, "ordinal": 0, "gap": "none"
@@ -645,6 +647,15 @@ def legacy_source_plan(source, *, timezone_name, rule_id="legacy"):
     published = source.get("publishCursor")
     if source.get("pending") or published and published.get("eventStoreReleased") is not True:
         raise contracts.ContractError("pending_publication", "Legacy source publication is unsettled; history only")
+    return legacy_schedule_plan(source, timezone_name=timezone_name, rule_id=rule_id)
+
+
+def legacy_schedule_plan(source, *, timezone_name, rule_id="legacy"):
+    """Pure shared calendar/cursor conversion; grants no writer authority.
+
+    Each source adapter validates its own schema, original ownership and
+    pending publication/dispatch before using this existing time calculation.
+    """
     provider = TimeProvider()
     zone = provider.zone(timezone_name)
 
@@ -674,6 +685,8 @@ def legacy_source_plan(source, *, timezone_name, rule_id="legacy"):
                     dstPolicy="gap-shift-fold-first")
     else:
         raise contracts.ContractError("capability_unsupported", "Unsupported legacy source rule")
+    rule["misfirePolicy"] = source["misfirePolicy"]
+    rule["graceSeconds"] = str(source["graceSec"])
     config = {"rules": [rule], "misfirePolicy": source["misfirePolicy"],
               "graceSeconds": str(source["graceSec"]), "pausePolicy": "advance"}
     provider.validate_config(config)

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.674" timestamp="2026-11-07T11:07:39.851808+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_11_bulk_mixed_insert_delete_cold_receipts" time="0.492"><failure message="ValueError: schedule 必须是对象">tests\test_action_unification_p6_task_config.py:480: in test_P6_CONFIG_11_bulk_mixed_insert_delete_cold_receipts
+    value = canonical_tasks.update(h.service, tid, body, actor=USER,
+packages\scheduler\canonical_tasks.py:203: in update
+    return service._operation(db, actor, 'update', request_key,
+packages\jobs\final_service.py:552: in _operation
+    result, refs, pending = mutate(operation_id)
+                            ^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\canonical_tasks.py:165: in mutate
+    source.update(store.plan_update(source, patch, root=service.owner.root / 'background_jobs'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\scheduler\store.py:331: in plan_update
+    schedule = _normalize_schedule(patch.get("schedule"))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages\jobs\schedule_calculations.py:60: in _normalize_schedule
+    raise ValueError("schedule 必须是对象")
+E   ValueError: schedule 必须是对象</failure></testcase></testsuite></testsuites>

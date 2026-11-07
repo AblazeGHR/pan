@@ -1,0 +1,4 @@
+ACTION_UNIFICATION_20261104-P6 revision 4 — first remaining slice
+Baseline: 6d997d689a50d57d0c16c6eb63b34c2bfad2f803
+Original gap observation: before this slice, POST /api/jobs/job-templates with an authenticated old-shape item returned HTTP 410 retired from the legacy boundary; MCP job_config_drafts only exposed draft PUT/list and did not transfer instantiate/delete.
+This is preserved as a gap identity; no real data/profile was used.

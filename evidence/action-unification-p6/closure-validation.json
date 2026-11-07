@@ -1,0 +1,249 @@
+{
+  "baseline": "ed55d259fc3214b361a8296a9da60436d96a001f",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSha256": {
+    "packages/automation/api.py": "5c5eac8ccdabb79f8c87d9eb199f82519ca0bc9094466ddaa6efa2f38739338e",
+    "packages/automation/retained_handoff.py": "8b7313e1f4dd058d6e210768045836ac655a54e18df8d3316d18809d17e64c60",
+    "packages/jobs/action_api.py": "7d65c60268a3ddc3425aef0fe89757d58065e8a95b42c41672fa306c8f916b1b",
+    "packages/jobs/final_api.py": "397614b69a01f941e54a2101f6aba7faf4a8abf478854c4513363b6007617cc0",
+    "packages/jobs/final_service.py": "3e69dd740d05b739b89b64618790859e27981e606f91c2fd10e25c5a1fd6381a",
+    "packages/jobs/runtime_owner.py": "a051fcf5cabbf32c80c019ac5e7ee7993d9b943827906bbd1f748cb5e021d6cc",
+    "packages/scheduler/source_migration.py": "1bb97024ca5988077dcb20d079e22be070042b0ae48c64a2c755f1bc94f8f3bd",
+    "tests/test_action_unification_p6_trigger_handoff.py": "377372e131fba9b5f1160f05ede9f50a07b215d791d236dcdb5bf5da63682328",
+    "tests/test_action_unification_p6_active_source.py": "5d98999ac7397cd5f48b57c5318f2f0d0f8cd3a62d8b2ea3184f5a81436dca4a",
+    "tests/test_action_unification_p6_template_http_compat.py": "155448ed3fb265f26c734ad86bc5fca6264de3311ab98fd9848e4669a15bafc2",
+    "tests/test_job_final_http_service.py": "7e1b536261dd190457808c8306b7c3382bebb51917e9a6df88437b73c2560048",
+    "tests/support/p6_closure_baseline_probe.py": "e6118022351388ddac79510f16751f4ae5ab7687b91f82ba4470f96a3e408833"
+  },
+  "junit": [
+    {
+      "artifact": "evidence/action-unification-p6/active-source-initial-red.xml.gz",
+      "tests": 3,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "3f18c870bf06656df4f1ccdfc40f9686f72c3cab17d779066132ec640f0269a8",
+      "sha256": "d6a10757ad87d2b04d3d3a70c10b7e5bd6597da38431051175ff26e5e0880b71",
+      "redactedSha256": "3f18c870bf06656df4f1ccdfc40f9686f72c3cab17d779066132ec640f0269a8",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-baseline-environment-red.xml.gz",
+      "tests": 4,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "7ba34f05adc9770246db72bb09f3f66b2691b7ed2725172fc0ba32e523637aab",
+      "sha256": "6d2bd13f071be38bac35b1ba7ab2a4d7ef04aa323c4071adee4176b4daefc7bc",
+      "redactedSha256": "7ba34f05adc9770246db72bb09f3f66b2691b7ed2725172fc0ba32e523637aab",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-combination-corrected-final.xml",
+      "tests": 155,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "f03fc50a6a643b2d872eac890fa1f42b636ef8736c0b7d3a98cb1e81f8299750",
+      "sha256": "f03fc50a6a643b2d872eac890fa1f42b636ef8736c0b7d3a98cb1e81f8299750"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-combination-final.xml.gz",
+      "tests": 154,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "77d14e9dfd884c22dcc63f5501bd85105b1a0ada752d67018063dc9f84ddb7e0",
+      "sha256": "0359accdbb7b8184e08b55c73173bdf59e063bdc4abba32fac37be265a548ae9",
+      "redactedSha256": "77d14e9dfd884c22dcc63f5501bd85105b1a0ada752d67018063dc9f84ddb7e0",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-focused-final.xml",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "966aea325cdd25fa98beeda313d3d23e7e21f1bc48540530406021cac5a8eb9e",
+      "sha256": "966aea325cdd25fa98beeda313d3d23e7e21f1bc48540530406021cac5a8eb9e"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-owner-transport-corrected-final.xml",
+      "tests": 115,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "5bc007d6e9d52dfc3bd388c15cdf76bd71a613f3350c44823451555d8217abc5",
+      "sha256": "5bc007d6e9d52dfc3bd388c15cdf76bd71a613f3350c44823451555d8217abc5"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-owner-transport-final.xml.gz",
+      "tests": 121,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "91dad68dc04522a29b4229ea3264a195837e41f5e837027423c9e22e625cde46",
+      "sha256": "9d67d1388be2681d31076c0ce873cffa863859b5c9fb941255169a3e39081ac7",
+      "redactedSha256": "91dad68dc04522a29b4229ea3264a195837e41f5e837027423c9e22e625cde46",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/closure-tzdata-corrected.xml",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "7a9f1552c4a0a434d89df4850cb34eae115ac8456318cda0595d2b308841550a",
+      "sha256": "7a9f1552c4a0a434d89df4850cb34eae115ac8456318cda0595d2b308841550a"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/handoff-combination-final.xml",
+      "tests": 47,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "a8ef03d34f3aab0e93f98c6d125ce09ca493c0ddf16c1b0b1efaa82b1b1cec9f",
+      "sha256": "a8ef03d34f3aab0e93f98c6d125ce09ca493c0ddf16c1b0b1efaa82b1b1cec9f"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/source-trigger-focused-final.xml",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "52ff3a8facd68398905d37152b6f74b7f53aee25e15c050617fb008b68d480b6",
+      "sha256": "52ff3a8facd68398905d37152b6f74b7f53aee25e15c050617fb008b68d480b6"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/template-boundary-focused.xml",
+      "tests": 116,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "1c9cb50218cfc3d529f37b43e235d64ce194effe7bf1fe39b1cd484178769fc0",
+      "sha256": "1c9cb50218cfc3d529f37b43e235d64ce194effe7bf1fe39b1cd484178769fc0"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/template-boundary-initial-red.xml.gz",
+      "tests": 116,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "aa6eec7abc8fc9eaa2894cf6be3fa9d1d9573d930af12645ddd0cf54cda41c9f",
+      "sha256": "af28d0144ad64637055bbbe1804a18ae64eb9a8f1742b2597abc7eafa265fa95",
+      "redactedSha256": "1d5e45851c9691739531a23a298b34c07eaf39c7804760f64987e35474a5c11e",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/template-immutable-focused.xml",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "f032edf27dfa166e81b749d4eefe1ef96805cba4215b6d017f525da15be0a54d",
+      "sha256": "f032edf27dfa166e81b749d4eefe1ef96805cba4215b6d017f525da15be0a54d"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/template-immutable-original-red.xml.gz",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "01aa39572b5e224d35ff29d9878cf955927ad3fe12237a7c5d90e4c9c736bcce",
+      "sha256": "2e1a1f3875f6fcc09a00e1e55983496b9e4e9c3222cde367ce1b4fc38cdd51cb",
+      "redactedSha256": "763afcd240a7fa1925159e47618b657713d385a638f935373646a14d3a108a96",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-final-source-owner.xml",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "49f9c3825b5959d5bcc84d87aa446bfa460dcb3a6d9baf8bdcaacb3c52b29b85",
+      "sha256": "49f9c3825b5959d5bcc84d87aa446bfa460dcb3a6d9baf8bdcaacb3c52b29b85"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-final-source.xml",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "2c9f97e7307f2778202439b7821a57f2ddb57defb90d221182fef04557be3a26",
+      "sha256": "2c9f97e7307f2778202439b7821a57f2ddb57defb90d221182fef04557be3a26"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-focused.xml",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "3a833485433fca15877f9bd21ebf82388b0e558474ea943ba7094957a49332ca",
+      "sha256": "3a833485433fca15877f9bd21ebf82388b0e558474ea943ba7094957a49332ca"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-original-red.xml.gz",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "840b28208c351ebdce7ffa5e50af05269dca1697b4db161f17631829bd654ccc",
+      "sha256": "8c4cf0c8b51c5776ead91ac9eb36598813678691961a652d9f04fa20e321d0d5",
+      "redactedSha256": "840b28208c351ebdce7ffa5e50af05269dca1697b4db161f17631829bd654ccc",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-unknown-harness-red.xml.gz",
+      "tests": 9,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "87d11b39c087d353012f95dbceefd5aa10cd194786a2c7e2005a0635593b4512",
+      "sha256": "b904aad1299b43e2ca7e979c9a3ba29331b1dcfc114b70ce62782d7feec9ef25",
+      "redactedSha256": "87d11b39c087d353012f95dbceefd5aa10cd194786a2c7e2005a0635593b4512",
+      "redaction": "ephemeral owned-test token repr only"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-template-combination.xml",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "rawSha256": "93b6112b3fb778d63f256570637e79c1a114991653581bc2c1ca381ceb6ebed7",
+      "sha256": "93b6112b3fb778d63f256570637e79c1a114991653581bc2c1ca381ceb6ebed7"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/trigger-handoff-final-verified.xml",
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5353b50222f9c440db4a768276e84fc5938ac964a8f7c5bb9b7c871de4962ed2"
+    }
+  ],
+  "syntax": "ast.parse all changed/new Python files passed",
+  "contracts": "isolated python -m packages.jobs.final_contracts --check passed",
+  "environment": {
+    "interpreter": "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+    "correctedTimezones": "PYTHONTZPATH=E:/software/python-userbase/Python312/site-packages/tzdata/zoneinfo",
+    "installedGlobalDependencies": false
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "scope": "partial P6 candidate; no push/deploy/real migration/human acceptance",
+  "finalTriggerSourceVerification": {
+    "tests": 12,
+    "passed": true
+  },
+  "commands": {
+    "combination": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_action_unification_p6_trigger_handoff.py tests/test_action_unification_p6_active_source.py tests/test_action_unification_p6_template_http_compat.py tests/test_action_unification_p6_templates.py tests/test_action_unification_p6_scheduler_retained.py tests/test_job_final_retirement.py tests/test_job_final_http_service.py -q --junitxml=evidence/action-unification-p6/closure-combination-corrected-final.xml",
+    "ownerTransport": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_scheduler_source_migration.py tests/test_scheduler_canonical_migration.py tests/test_job_runtime_owner.py tests/test_job_final_clients.py -q --junitxml=evidence/action-unification-p6/closure-owner-transport-corrected-final.xml",
+    "finalTrigger": "scripts/run_tests_isolated.py -- <python> -m pytest tests/test_action_unification_p6_trigger_handoff.py -q --junitxml=evidence/action-unification-p6/trigger-handoff-final-verified.xml",
+    "contract": "scripts/run_tests_isolated.py -- <python> -m packages.jobs.final_contracts --check",
+    "baselineEnvironment": "scripts/run_tests_isolated.py -- <python> tests/support/p6_closure_baseline_probe.py <four exact failures listed in report> -q --junitxml=evidence/action-unification-p6/closure-baseline-environment-red.xml.gz",
+    "note": "<python> is the absolute interpreter in environment; red XML output was subsequently token-redacted and compressed. Corrected combination/ownerTransport used the recorded PYTHONTZPATH."
+  },
+  "reportSha256": "cfb2eaba1391002df9a28e520aec0e55c8c44cb39a03996cc653b2d98cfc8de7"
+}

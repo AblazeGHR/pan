@@ -16,8 +16,10 @@ def test_removed_mcp_job_tools_have_structured_unsupported_dispositions():
 def test_compatibility_disposition_is_pure_and_unknown_shape_fails_closed(monkeypatch):
     monkeypatch.setattr(server, "_api", lambda *args, **kwargs: (_ for _ in ()).throw(
         AssertionError("legacy compatibility must not call HTTP")))
-    assert server.legacy_mcp_compatibility("scheduler_run_now", {"task_id": "old"})["error"]["code"] == "capability_unsupported"
-    assert server.legacy_mcp_compatibility("scheduler_run_now", []) ["error"]["code"] == "invalid_schema"
+    # Scheduler write names remain P6 compatibility tools and therefore are
+    # not part of the retired-disposition table.
+    assert server.legacy_mcp_compatibility("scheduler_run_now", {"task_id": "old"})["error"]["code"] == "invalid_tool"
+    assert server.legacy_mcp_compatibility("scheduler_run_now", []) ["error"]["code"] == "invalid_tool"
     assert server.legacy_mcp_compatibility("not-a-tool", {})["error"]["code"] == "invalid_tool"
 
 

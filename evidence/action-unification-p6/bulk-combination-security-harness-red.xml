@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="95" time="131.158" timestamp="2026-11-07T11:20:29.127945+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write" time="3.263" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_02_adopted_edit_atomic_replay_disable_schedule_and_pin" time="1.004" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_03_publication_and_owner_fence_rollback" time="0.869" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_04_old_relative_cwd_normalizes_omitted_is_validation_error" time="0.008" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync[core]" time="33.256"><failure message="AssertionError(&quot;{'ok': False, 'error': {'code': 403, 'message': {'code': 'authorization_denied', 'message': 'Object capability denied'}}}\nassert 403 == 'authorization_denied'&quot;) [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 241, in test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync
+  |     asyncio.run(scenario())
+  |     ~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+  |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+    |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+    |                                                 ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 230, in scenario
+      |     assert denied['error']['code'] == 'authorization_denied', denied
+      | AssertionError: {'ok': False, 'error': {'code': 403, 'message': {'code': 'authorization_denied', 'message': 'Object capability denied'}}}
+      | assert 403 == 'authorization_denied'
+      +------------------------------------</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync[native]" time="1.090"><failure message="AssertionError('CallToolResult(meta=None, content=[TextContent(type=\'text\', text=\'Plugin directory unavailable: {&quot;content&quot;: [{&quot;type&quot;: ...ed/mode for plugin pan\\\\&quot;}}&quot;}], &quot;isError&quot;: true}\', annotations=None, meta=None)], structuredContent=None, isError=True)\nassert not True\n +  where True = CallToolResult(meta=None, content=[TextContent(type=\'text\', text=\'Plugin directory unavailable: {&quot;content&quot;: [{&quot;type&quot;: ...ed/mode for plugin pan\\\\&quot;}}&quot;}], &quot;isError&quot;: true}\', annotations=None, meta=None)], structuredContent=None, isError=True).isError') [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 241, in test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync
+  |     asyncio.run(scenario())
+  |     ~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+  |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+    |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+    |                                                 ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 177, in scenario
+      |     created = unpack(await call_tool('scheduler_create', args))
+      |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_job_final_clients.py", line 39, in unpack
+      |     assert not result.isError, result
+      | AssertionError: CallToolResult(meta=None, content=[TextContent(type='text', text='Plugin directory unavailable: {"content": [{"type": ...ed/mode for plugin pan\\"}}"}], "isError": true}', annotations=None, meta=None)], structuredContent=None, isError=True)
+      | assert not True
+      |  +  where True = CallToolResult(meta=None, content=[TextContent(type='text', text='Plugin directory unavailable: {"content": [{"type": ...ed/mode for plugin pan\\"}}"}], "isError": true}', annotations=None, meta=None)], structuredContent=None, isError=True).isError
+      +------------------------------------</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync[gateway]" time="1.080"><failure message="IndexError('list index out of range') [single exception in ExceptionGroup]">+ Exception Group Traceback (most recent call last):
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 241, in test_P6_CONFIG_05_real_standalone_stdio_create_update_default_sync
+  |     asyncio.run(scenario())
+  |     ~~~~~~~~~~~^^^^^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 204, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py", line 127, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py", line 719, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+  |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+  |                ~~~~~~~~~~~~^^^^^^^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 183, in stdio_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Exception Group Traceback (most recent call last):
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\client\stdio\__init__.py", line 189, in stdio_client
+    |     yield read_stream, write_stream
+    |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 165, in scenario
+    |     async with stdio_client(params) as streams, ClientSession(*streams) as c:
+    |                                                 ~~~~~~~~~~~~~^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\mcp\shared\session.py", line 238, in __aexit__
+    |     return await self._task_group.__aexit__(exc_type, exc_val, exc_tb)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\anyio\_backends\_asyncio.py", line 811, in __aexit__
+    |     raise BaseExceptionGroup(
+    |         "unhandled errors in a TaskGroup", self._exceptions
+    |     ) from None
+    | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+    +-+---------------- 1 ----------------
+      | Traceback (most recent call last):
+      |   File "D:\project\pan-worktrees\action-unification-p6-20261106\tests\test_action_unification_p6_task_config.py", line 174, in scenario
+      |     assert schema['tools'][0]['name'] == 'pan.scheduler_update', schema
+      |            ~~~~~~~~~~~~~~~^^^
+      | IndexError: list index out of range
+      +------------------------------------</failure></testcase><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05B_real_http_flat_multi_entry_policy_cursor_cas" time="3.838" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule0]" time="2.169" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule1]" time="2.223" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule2]" time="2.243" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule3]" time="2.638" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_05C_invalid_entry_fields_do_not_create[schedule4]" time="2.567" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_06_actual_original_process_relative_receipt_and_live_handoff[False]" time="1.517" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_06_actual_original_process_relative_receipt_and_live_handoff[True]" time="1.449" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_07_multi_entry_identity_cursor_and_dispatch_key" time="0.853" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_08_multi_entry_heterogeneous_policy_rule_override_and_cas" time="0.698" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_09_entry_lifecycle_permission_fence" time="0.681" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_10_mixed_entry_patch_is_atomic" time="0.733" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_11_bulk_mixed_insert_delete_cold_receipts" time="0.977" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_12_real_http_concurrent_revision_owner_lease" time="4.173" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay[False]" time="0.952" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_13_multi_entry_real_notice_cold_no_replay[True]" time="0.727" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_14_real_http_bulk_insert_mixed_final_delete" time="2.848" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_15_original_jobs_bulk_entry_transfers_to_same_graph" time="2.821" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_16_last_entry_delete_unsettled_rolls_back_all_fields" time="0.582" /><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_17_inserted_entry_real_tick_original_receipt_no_replay" time="0.827" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_SHELL_01_actual_shell_args_running_pin_logs_cold_once" time="1.028" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_01_existing_original_dispatch_actual_receipt_adopt_no_new_run" time="1.354" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[locator]" time="1.063" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[log-unknown]" time="1.324" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[receipt-unknown]" time="1.472" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[count]" time="1.267" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[pending]" time="1.232" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[notice]" time="1.180" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[lease]" time="1.195" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_02_unproven_outcomes_preserve_no_new_identity[checkpoint]" time="1.191" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_SHELL_02_actual_running_resource_is_query_only_not_readopted" time="1.051" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_04_disabled_sibling_pending_intent_blocks_profile_cutover[terminalOutbox]" time="0.500" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_04_disabled_sibling_pending_intent_blocks_profile_cutover[pendingRuns]" time="0.571" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_04_disabled_sibling_pending_intent_blocks_profile_cutover[execution]" time="0.518" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_04_disabled_sibling_pending_intent_blocks_profile_cutover[chainRecovery]" time="0.425" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_OPERATOR_01_real_cli_dry_run_apply_status_cold_no_effect" time="2.836" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_SHELL_03_real_http_original_running_return_no_replay" time="3.055" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_SHELL_04_real_standalone_stdio_original_running_return" time="5.812" /><testcase classname="tests.test_action_unification_p6_json_receipts" name="test_P6_JSON_RECEIPT_03_actual_local_queue_original_locator_no_resend" time="0.593" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_01_active_original_id_cursor_limit_and_single_writer" time="0.489" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[unknown]" time="0.378" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[uncertain]" time="0.354" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[dispatch]" time="0.376" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[count]" time="0.360" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[mismatch-cursor]" time="0.384" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_02_missing_identity_unknown_complex_preserve[complex]" time="0.395" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_03_real_lease_and_crash_resume" time="0.477" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_04_manual_original_dispatch_count_cursor_pause_unknown_no_replay" time="0.672" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_05_original_run_attempt_effect_checkpoint_survives_cold_unknown[unknown]" time="0.636" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_05_original_run_attempt_effect_checkpoint_survives_cold_unknown[queued]" time="0.626" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_06_real_http_taskwide_pause_resume_manual_and_delete" time="2.451" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_07_real_standalone_stdio_lifecycle_aliases" time="9.763" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_08_paused_grid_event_original_dispatch_limit_and_cold_query" time="1.365" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_09_disabled_manual_intent_does_not_enable_clock" time="0.576" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_10_fence_refusals_do_not_dispatch[source-bytes]" time="0.433" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_10_fence_refusals_do_not_dispatch[owner-nonce]" time="0.432" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_10_fence_refusals_do_not_dispatch[revision]" time="0.461" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_10_fence_refusals_do_not_dispatch[grant]" time="0.763" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_10_fence_refusals_do_not_dispatch[unknown-writer]" time="0.581" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_11_unknown_lease_and_unselected_live_task_block_profile_cutover" time="0.504" /><testcase classname="tests.test_action_unification_p6_json_scheduler" name="test_P6_JSON_12_concurrent_lifecycle_cas_and_read_queries" time="0.793" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-POST-/tasks]" time="0.128" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-PATCH-/tasks/{id}]" time="0.120" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-DELETE-/tasks/{id}]" time="0.128" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-POST-/tasks/{id}/pause]" time="0.101" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-POST-/tasks/{id}/resume]" time="0.112" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-POST-/tasks/{id}/run-now]" time="0.111" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-POST-/event-sources]" time="0.143" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-PUT-/event-sources/{id}]" time="0.125" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[False-DELETE-/event-sources/{id}]" time="0.097" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-POST-/tasks]" time="0.102" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-PATCH-/tasks/{id}]" time="0.126" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-DELETE-/tasks/{id}]" time="0.138" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-POST-/tasks/{id}/pause]" time="0.144" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-POST-/tasks/{id}/resume]" time="0.129" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-POST-/tasks/{id}/run-now]" time="0.101" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-POST-/event-sources]" time="0.106" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-PUT-/event-sources/{id}]" time="0.123" /><testcase classname="tests.test_scheduler_api" name="test_retained_writes_refuse_before_validation_or_any_effect[True-DELETE-/event-sources/{id}]" time="0.101" /><testcase classname="tests.test_scheduler_api" name="test_list_get_and_runs_preserve_historical_camel_case" time="0.161" /><testcase classname="tests.test_scheduler_api" name="test_unknown_history_is_not_found[]" time="0.116" /><testcase classname="tests.test_scheduler_api" name="test_unknown_history_is_not_found[/runs]" time="0.112" /><testcase classname="tests.test_scheduler_api" name="test_runs_rejects_bad_limit[0]" time="0.109" /><testcase classname="tests.test_scheduler_api" name="test_runs_rejects_bad_limit[501]" time="0.103" /><testcase classname="tests.test_scheduler_api" name="test_next_preview_rejects_bad_count[0]" time="0.126" /><testcase classname="tests.test_scheduler_api" name="test_next_preview_rejects_bad_count[99]" time="0.110" /><testcase classname="tests.test_scheduler_api" name="test_status_and_next_preview" time="0.126" /><testcase classname="tests.test_scheduler_api" name="test_on_event_supports_async_broadcast" time="0.117" /></testsuite></testsuites>

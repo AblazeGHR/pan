@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="16.942" timestamp="2026-11-06T21:34:45.176929+08:00" hostname="ablaze"><testcase classname="tests.test_plugin_platform" name="test_existing_http_and_sse_mcp_are_upstream_sources[http]" time="2.474"><failure message="RuntimeError: unhandled errors in a TaskGroup (1 sub-exception)">tests\test_plugin_platform.py:302: in test_existing_http_and_sse_mcp_are_upstream_sources
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_platform.py:293: in run
+    assert (await runtime.directory(session.id, "gateway"))[0]["name"] == "remote.lookup"
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;baseline runtime&gt;:186: in directory
+    ???
+&lt;baseline runtime&gt;:123: in snapshot
+    ???
+&lt;baseline runtime&gt;:144: in _snapshot
+    ???
+packages\plugins\providers.py:107: in request
+    return await asyncio.shield(future)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: unhandled errors in a TaskGroup (1 sub-exception)</failure></testcase><testcase classname="tests.test_plugin_platform" name="test_existing_http_and_sse_mcp_are_upstream_sources[sse]" time="4.486"><failure message="RuntimeError: unhandled errors in a TaskGroup (1 sub-exception)">tests\test_plugin_platform.py:302: in test_existing_http_and_sse_mcp_are_upstream_sources
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_platform.py:293: in run
+    assert (await runtime.directory(session.id, "gateway"))[0]["name"] == "remote.lookup"
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;baseline runtime&gt;:186: in directory
+    ???
+&lt;baseline runtime&gt;:123: in snapshot
+    ???
+&lt;baseline runtime&gt;:144: in _snapshot
+    ???
+packages\plugins\providers.py:107: in request
+    return await asyncio.shield(future)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: unhandled errors in a TaskGroup (1 sub-exception)</failure></testcase><testcase classname="tests.test_plugin_platform" name="test_existing_http_api_document_uses_only_its_declared_route[GET]" time="4.596"><failure message="httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'http://127.0.0.1:61973/lookup?key=abc'&#10;For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502">tests\test_plugin_platform.py:416: in test_existing_http_api_document_uses_only_its_declared_route
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_platform.py:408: in run
+    result = await runtime.invoke(session.id, "gateway", "lookup.find", {"key": "abc"})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;baseline runtime&gt;:208: in invoke
+    ???
+&lt;baseline runtime&gt;:230: in _invoke_resolved
+    ???
+packages\plugins\providers.py:194: in request
+    response.raise_for_status()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\httpx\_models.py:829: in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+E   httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'http://127.0.0.1:61973/lookup?key=abc'
+E   For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502</failure></testcase><testcase classname="tests.test_plugin_platform" name="test_existing_http_api_document_uses_only_its_declared_route[POST]" time="4.591"><failure message="httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'http://127.0.0.1:59806/lookup'&#10;For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502">tests\test_plugin_platform.py:416: in test_existing_http_api_document_uses_only_its_declared_route
+    asyncio.run(run())
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:204: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\runners.py:127: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\asyncio\base_events.py:719: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests\test_plugin_platform.py:408: in run
+    result = await runtime.invoke(session.id, "gateway", "lookup.find", {"key": "abc"})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+&lt;baseline runtime&gt;:208: in invoke
+    ???
+&lt;baseline runtime&gt;:230: in _invoke_resolved
+    ???
+packages\plugins\providers.py:194: in request
+    response.raise_for_status()
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\site-packages\httpx\_models.py:829: in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+E   httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'http://127.0.0.1:59806/lookup'
+E   For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502</failure></testcase></testsuite></testsuites>

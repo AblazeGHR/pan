@@ -4,6 +4,18 @@
 
 **交付性质：设计与计划，待实现。** 本文没有修改产品代码，没有运行迁移、服务、构建或外部效果。用户已明确终局约束，并确认 D1：应为 **Event Creator，Scheduler 实例是一个 Event Creator**；D2 选择 A：**所有 Trigger 的效果执行收敛到统一 Job，删除直接 Trigger→Action 的独立执行生命周期**。D3 已确认区分 Retry/Run again/Clone and run；D6 已采用用户替代方案：简单实例脚本迁移，复杂实例明确不兼容、原状保留且不迁移，建议手动新建。其余具体模型是实施建议，D4 已定由 Scheduler 实例拥有全部时间/skip/补发政策，实际驱动时发 Event；D5 的重复政策选择已撤回，沿用现有 Authorization 授权矩阵，具体接线待实现。卡片创建成功只证明问题已持久化，不证明选择获批。
 
+> **2026-11-06 P0 修订：U01/U02/U11 的取代范围**
+>
+> 用户 2026-11-04 确认的 U01/U02/U11 取代本文以下三处文字：
+>
+> 1. §2.2 **Action** 行"调用一定归 Step Attempt"；
+> 2. §2.2 "D2 已定的执行边界"中"直接 Action 的编辑体验可创建可见的受管单步 Job""所有运行和控制统一关联 Job/Run"；
+> 3. §3 **M15** 行"Trigger 统一引用 `targetJobId`"。
+>
+> 取代后的边界：直接调用 Action 执行后返回输出，不自动生成 Job/Run/Step；Action 可把声明参数填入完整 Job 创建配置并返回 Job 身份；Trigger 可准入固定版本 Action 或 Job，直接 Action 一次执行，不建立自动重试/恢复编排。
+>
+> 原文保留以便追溯。未标注取代的部分（Job 内 Step/Attempt、admission 冻结、D3 三操作、D6 实例处置、Run ledger 唯一性）继续有效。逐项对照见 [P0 覆盖矩阵](../action-unification/ACTION_UNIFICATION_P0_CAPABILITY_MATRIX_20261106.md)。
+
 ## 0. 目标、依据与状态边界
 
 终局必须同时成立：全部旧 Job 能力由 Action / Event / Trigger / Event Creator / 统一 Job / Template 组合表达；表达不了就修改这些抽象；旧链路、旧入口、旧代码最后彻底删除，全部调用经过新抽象。兼容投影、旧 kind 下挂 system Action、保留旧 dispatcher 或双轨页面，均不能作为完成标准。
@@ -105,7 +117,7 @@ flowchart LR
 
 | 对象 | 身份与 schema 核心 | 生命周期、所有权及冻结 | 并发、完成与权限边界 |
 |---|---|---|---|
-| **Action** | `actionId`；input/output JSON Schema；providerRef/releaseDigest；execution descriptor；effect class；requiredCapabilities；completionContract；cancel/reconcile/retry declarations | 产品 system Action 不可用户改写定义；用户 Action 草稿→发布 immutable revision→retired。disabled 是实时撤权 gate，退休不改历史快照。Run 入场固定每步完整 release/参数映射；effect 前查当前授权和禁用 | 不拥有定时、循环、Run 或全局通知；调用一定归 Step Attempt。幂等声明不是自动重投许可证。provider 只实现操作，不决定 Job 终态。内部系统操作同样有 schema/output/error/receipt |
+| **Action** | `actionId`；input/output JSON Schema；providerRef/releaseDigest；execution descriptor；effect class；requiredCapabilities；completionContract；cancel/reconcile/retry declarations | 产品 system Action 不可用户改写定义；用户 Action 草稿→发布 immutable revision→retired。disabled 是实时撤权 gate，退休不改历史快照。Run 入场固定每步完整 release/参数映射；effect 前查当前授权和禁用 | 不拥有定时、循环、Run 或全局通知；调用一定归 Step Attempt（2026-11-04 U01 取代：直接调用 Action 直接返回输出、不生成 Run/Step；Job 内调用仍归 Step Attempt）。幂等声明不是自动重投许可证。provider 只实现操作，不决定 Job 终态。内部系统操作同样有 schema/output/error/receipt |
 | **Event** | `eventId, eventType, schemaRevision, creatorId, creatorRevision, occurrenceKey, occurredAt, emittedAt, receivedAt, payload, trustedSystem, factDigest`；Scheduler payload 含 driveId/driveReason，原计划点 scheduledAt 仅为来源解释信息 | 不可变的**驱动发生事实**（已定 D4）；`occurredAt` 是本次实际驱动发生时间，补发不倒填成未实际驱动的历史时刻。同 ID+不同 factDigest 冲突。已持久化→订阅结算→满足保留条件后 GC；独立 receipt/pins/去重 tombstone 控制删除 | Event 无 pause/retry/cancel；来源决定是否新产生驱动，已有 Event 的发布/投递重试保持原 ID/内容。用户 replay 带 replayRequestId/原因，不改原事实；不触发 unknown effect 重放。`persisted` 不等于 Job 成功 |
 | **Trigger** | `triggerId`；eventType/schema/creator selector；纯 filter/condition；参数绑定；`targetJobId`；managedByComposition 可选；admission policy | 草稿→enabled/paused/disabled→retired；用户或 plugin release 所有。接纳固定 Trigger revision、条件观察值、Event、Job revision及授权。Job 编辑器生成的 Trigger 可见且有来源，可导向 owner 编辑 | 只负责匹配和准入，**不执行 Action，不持有第二套效果 retry**（D2）。一个 `(eventId,triggerId)` 仅一次业务准入；revision 不进入唯一键，编辑不重新触发旧事实；多个 Trigger 指向同 Job 的多个 Run 以 triggerId 区分，不被 eventId-only 去重吞掉 |
 | **Event Creator** | `creatorId` 标识来源实例；provider `{type:time/core/plugin,id,release,generation}` 标识实现；config/schemaRef；eventTypes；configRevision；ownerEpoch；cursor/pendingPublication；capabilities/health/links。Scheduler config 持有完整时间/暂停/skip/补发/产生次数政策及 drive ledger | **通用对象与 Scheduler 实例关系已定（D1/D4）**；草稿→enabled/paused/disabled→retired，配置更新发布新 revision。Scheduler 实例复用原调度规则和推进/恢复逻辑，将执行出口替换为持久发布 Event。同一时间但 skip/补发策略不同是不同 Scheduler 实例；策略相同可显式共享。系统/插件使用同一来源契约；owner 元数据属实例，操作权限沿 profile 矩阵，不建立实例 ACL | 以驱动事实的持久 Event receipt 结算来源，不 await Action 或随下游失败生成新驱动。skip 不产生业务 Event；补发由该来源维护并产生新的实际驱动。事件产生次数按已持久化唯一 Event 计数，发布重试不增次数。每来源有 fence publisher，generation 不符拒绝 |
@@ -117,6 +129,7 @@ flowchart LR
 例如，“每天 09:00” Scheduler 实例 `creator_daily_9` 按规则产生一次到点 Event；Trigger A 匹配它并准入提醒 Job，Trigger B 可独立匹配同一 Event 并准入统计 Job。来源实例不因订阅数复制，也不等待两个 Job 完成；暂停 Trigger A 只暂停该订阅的准入，暂停来源则控制未来事件产生，已发布事实不撤回。此处实例/事件/订阅关系按 D1，执行归属按 D2；时间及暂停积压归来源（已定 D4）。授权沿既有矩阵，不由事件或 owner 授予；具体 provider wire/schema 仍是待实现设计。
 
 **D2 已定的执行边界**：用户在原卡提交 `choiceId=one`（A），已核验 `status=responded`、revision=1，response=`response_e0b1da75c319d58283839595d8438395d42ccfe0aea6df5de03237b097104f16`，提交时间 `2026-10-25T13:05:25.639984+00:00`。直接 Action 的编辑体验可创建可见的受管单步 Job，链创建受管多步 Job；Trigger 统一引用 `targetJobId`，不再保有 Action executor、效果重试、执行终态或独立通知生产者。所有运行和控制统一关联 Job/Run；简单可迁的旧 TriggerRun 历史保留原身份与 provenance，复杂实例按 §5.4 原状保留；活执行按 §5 排空或安全交接，不能为收敛账本重做已发生效果。独立进程/远端服务仍可承载 executor，但不能另建一套 Job 生命周期。重试身份按已定 D3；权限沿既有矩阵，迁移不扩大授权。旧复杂 Trigger 实例按已定 D6 原状保留、不迁移并排除执行；D2 不要求为其开发复杂转换。
+（2026-11-04 U01/U11 修订：其中"直接 Action 必创建可见受管单步 Job""所有运行和控制统一关联 Job/Run""Trigger 统一引用 `targetJobId`"三句已被取代。直接 Action 直接返回输出、不建 Run；Trigger 目标可为固定 ActionRef 或 Job。Job 内部的 Run/Step/Attempt 收敛、单一账本与"不得另建 Job 生命周期"继续有效。见文首修订说明。）
 
 ### 2.3 Run / Step / Attempt / Effect / Operation receipt
 
@@ -223,7 +236,7 @@ completion 由 Action 契约定义，Job/Step 只能选择它声明支持的契�
 | M12 | pause、misfire/grace、undeliveredFires/maxRuns、manual run_now；S02/S08 | C=Scheduler 来源持有暂停/skip/补发及事件产生上限；Trigger 只做 Event 匹配准入；Job 持有业务执行/overlap/recovery；U=计数域与生效边界；L=drive/event/admission/run 分层计数 | X=每层明确 scope；R=Event 发布交接恢复与 D3 效果重试分开；P=来源与 Job 分开；N=跳过/过期为来源诊断，实际补发驱动广播新 Event | D4 已定：同一 drive 的发布重试不增事件数，新补发 drive 产生新 Event；来源不因 Action 失败重复驱动。旧目标缺失积压移至 Job 业务恢复，不保留来源内 dispatcher；旧业务 runCount 不能直接冒充事件数；手动 Job Run 不移动周期 cursor |
 | M13 | list/get/edit/cancel/delete/retry/pause/runs、pin/五类 retention；E01/E04/S13 | C=通用 composition；U=按对象归属和 CAS；L=唯一可分页事实源+非执行 provenance，原 Job ID 保留或审计 alias | X=Job/Run/Step 明确 scope；R=D3；P=§2.5；N=一个 outbox、原通知对象。delete 先 retire、清理资源和引用，满足保留再 purge | Job metadata/pin 不参与执行权；五规则 completed/failed/timed_out/cancelled/logs 映射通用 outcome/日志 retention，unknown/cleanup_pending 不自动过期；不能因旧 kind 删除而丢此能力 |
 | M14 | Schedule 模板、完整 Job Template、draft CRUD；E05、`action_templates.Templates`、`job_config_drafts` | C=完整 Template，可保存整链和全部 composition；U=新 revision；L=检索/引用/digest；实例化固定版本与新 Job ID | X=取消未激活 composition 操作；R=原实例化 key 查原结果；P=模板无运行返回 unsupported；N=实例化 receipt 与 Job completion 分开 | 可简单确定补齐的旧 schedule-only 模板脚本转完整配置；不能确定则按 D6 保留原数据、告知不兼容并手动新建，不能暗藏必填洞。新增 Creator create/reference 的冻结和幂等组合意图 |
-| M15 | 旧直接 Trigger→Action/steps 与新 Job event trigger 双路径；`Engine.run_attempt/Runtime.event_targets` | C=Trigger + 可见受管单步/链 Job；U=分对象 revision；L=一套 Run/Step/Attempt，旧 Run 挂历史证据 | X/R/P/N=归 Job；Trigger 仅控制准入。每订阅独立成功/失败；已禁用订阅记录 skipped/disabled，无效果 Attempt；具体 retry 身份按已定 D3 | **已定 D2-A**：删除直接 Action executor 和 Job 内嵌事件扫描，统一 Trigger admission。新增多 Trigger 同 Job 的 admission identity，避免当前 eventId-only eventReceipts 误去重 |
+| M15 | 旧直接 Trigger→Action/steps 与新 Job event trigger 双路径；`Engine.run_attempt/Runtime.event_targets` | C=Trigger + 可见受管单步/链 Job；U=分对象 revision；L=一套 Run/Step/Attempt，旧 Run 挂历史证据 | X/R/P/N=归 Job；Trigger 仅控制准入。每订阅独立成功/失败；已禁用订阅记录 skipped/disabled，无效果 Attempt；具体 retry 身份按已定 D3 | **已定 D2-A**：删除直接 Action executor 和 Job 内嵌事件扫描，统一 Trigger admission。新增多 Trigger 同 Job 的 admission identity，避免当前 eventId-only eventReceipts 误去重（2026-11-04 U11 修订：Trigger 目标增加固定 ActionRef，直接 Action 不进入 Job 账本） |
 
 M01 的 monitoring/recovery 与混合链由 §2.6 的逐步 completion 契约覆盖；M14 中 Action 引用固定 Template 的现存能力继续表达为 `job.instantiate-template` Action，完成于新 Job composition 已持久提交，返回 createdJobId，不伪称子 Job 已执行完成。需要等待子 Run 时用显式关联 receipt/后续 Step；引用图继续验证循环/深度与授权，不恢复旧后台 child Job。
 

@@ -1,0 +1,12 @@
+{
+  "packages/actions/api.py": "5ac2e18515e53bf35bf9c80b12e46191ccef0d4a32a99ed3a709beb3a0578f81",
+  "packages/actions/command_execution.py": "16aefa49226240a556c3dcf460599f92b47f3695de5e24a3b106139ca8fedd5e",
+  "packages/actions/group_migration.py": "4df37d1f7b85e7d150845c1b844678a58e49f975ab0e5b086c3d00490ee8e6ef",
+  "packages/actions/groups.py": "68619c45f76c70232e2bf372bc030727df5d2808057733640cbe1c961bef3d15",
+  "packages/actions/invocation.py": "96c93bb40df866e49d6646c4fa01cfd640b2f31c7c3db6f07916bd7689bec3d8",
+  "packages/automation/authorization.py": "bab34656bb6417573902fbfb7090eb46473d6be4a53868d47508c1cecdd8e6c3",
+  "packages/jobs/final_service.py": "aa0db7291d3b774efc9781e925868aa93a890ac138b4415521cc20abd98e02cc",
+  "packages/mcp/server.py": "c7146c6c48457d1e023046aae2fa52581c6767005a6edb4bcb146a7c564441e4",
+  "tests/test_action_unification_p6_compat.py": "a3d8d9a7bf8123b4a9da7bbcc68f50148c06ce215f8357c799299550e3aa5b20",
+  "tests/test_authorization_mcp.py": "384aad6c2e30986003b1393e95d5ddf6eb016161962f81304e9389f07713766a"
+}

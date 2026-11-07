@@ -1,0 +1,204 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/Pan/data/workdirs/action-unification-ui-20261107-baseline/packages/web/src[39m
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1 · two ordered turns land in order and a repeated identical delta is idempotent
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1a · resync replay frames without task scope are quarantined per Session
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mdoes not permanently quarantine an unscoped live frame without replay marker
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mexact native item wins over an earlier tool alias when the assistant final arrives
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mmoves an open text delta behind a later tool completion and keeps it there
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mkeeps a tool that started before assistant completion ahead of that completed body
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mpreserves an assistant completed before a later tool starts
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mreconnect snapshot finalizes a partial answer when its terminal frame was lost
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2muses the cumulative body when the first observed frame starts mid-item
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1b · Codex delta and final tool envelope with one item renders once
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1c · repeated non-delta full item and same-item multi-block replay are idempotent
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1d · consecutive tasks with identical text remain two ordered messages
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE1e · full lifecycle keeps user→thinking/tool→assistant→DONE across A/B switching
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] selectSession fresh-history fetch failed B
+[sessionStore] selectSession fresh-history fetch failed A
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mbackground report and delivered user row stay in B transcript across selection and fresh history
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mlate history page cannot replace selected result summary with the local DONE marker
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE2 · a tool block streamed before the assistant text keeps its position after result
+[22m[39m[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE3 · a history refresh after result does not duplicate the tool row
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE4 · two consecutive DONE rounds keep every block and its position
+[22m[39m[sessionStore] loadSessions failed
+
+ [31m❯[39m hooks/reaudit.orderedEvents.test.tsx [2m([22m[2m20 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 71[2mms[22m[39m
+[31m   [31m×[31m reaudit · ordered event pipeline[2m > [22mE1b · Codex delta and final tool envelope with one item renders once[90m 7[2mms[22m[31m[39m
+[31m     → expected [ { role: 'tool', …(3) } ] to deeply equal [ { role: 'tool', …(2) } ][39m
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx[2m > [22m[2mreaudit · ordered event pipeline[2m > [22m[2mE5 · an older DONE stays at its completed task boundary through delivery, later blocks, history, and A/B/A
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] selectSession fresh-history fetch failed A
+
+[90mstderr[2m | hooks/reaudit.orderedEvents.test.tsx
+[22m[39m[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+[sessionStore] loadSessions failed
+
+ [31m❯[39m demo/mockBackend.test.ts [2m([22m[2m13 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1441[2mms[22m[39m
+[31m   [31m×[31m frontend mock backend[2m > [22mrejects handoff instead of pretending relationship transfer succeeded[90m 67[2mms[22m[31m[39m
+[31m     → expected [Function] to throw error including '演示模式不支持替身交接' but got 'Session handoff is unavailable in dem…'[39m
+   [33m[2m✓[22m[39m frontend mock backend[2m > [22mserves the existing queue API contract for mock send and queue actions [33m372[2mms[22m[39m
+ [31m❯[39m views/AutomationWorkspace.test.tsx [2m([22m[2m21 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 2574[2mms[22m[39m
+[31m   [31m×[31m selects shared Creator IDs and submits the reviewed source revision with a canonical Trigger[90m 56[2mms[22m[31m[39m
+[31m     → expected { definition: { …(4) }, …(3) } to match object { …(2) }
+(7 matching properties omitted from actual)[39m
+   [33m[2m✓[22m[39m retains invalid local JSON across explicit canonical conflict comparison/rebase and can load the server [33m301[2mms[22m[39m
+[31m   [31m×[31m creates a Job from Action and typed binding controls then links a Trigger through source and condition controls[33m 301[2mms[22m[31m[39m
+[31m     → expected { definition: { …(5) }, …(3) } to match object { …(2) }
+(8 matching properties omitted from actual)[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 4 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m demo/mockBackend.test.ts[2m > [22mfrontend mock backend[2m > [22mrejects handoff instead of pretending relationship transfer succeeded
+[31m[1mAssertionError[22m: expected [Function] to throw error including '演示模式不支持替身交接' but got 'Session handoff is unavailable in dem…'[39m
+
+Expected: [32m"演示模式不支持替身交接"[39m
+Received: [31m"Session handoff is unavailable in demo mode. Connect to an independent Pan instance."[39m
+
+[36m [2m❯[22m demo/mockBackend.test.ts:[2m39:5[22m[39m
+    [90m 37| [39m
+    [90m 38| [39m  [34mit[39m([32m'rejects handoff instead of pretending relationship transfer succ[39m…
+    [90m 39| [39m    [35mawait[39m [34mexpect[39m([34mhandoffSession[39m([32m'mock-alpha'[39m[33m,[39m { handoffPrompt[33m:[39m [32m'brief'[39m…
+    [90m   | [39m    [31m^[39m
+    [90m 40| [39m  })[33m;[39m
+    [90m 41| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m hooks/reaudit.orderedEvents.test.tsx[2m > [22mreaudit · ordered event pipeline[2m > [22mE1b · Codex delta and final tool envelope with one item renders once
+[31m[1mAssertionError[22m: expected [ { role: 'tool', …(3) } ] to deeply equal [ { role: 'tool', …(2) } ][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  Array [[22m
+[2m    Object {[22m
+[2m      "content": "Command({\"command\":\"echo hi\"})",[22m
+[2m      "nativeItemId": "exec-X",[22m
+[2m      "role": "tool",[22m
+[31m+     "turnId": "T",[39m
+[2m    },[22m
+[2m  ][22m
+
+[36m [2m❯[22m hooks/reaudit.orderedEvents.test.tsx:[2m384:56[22m[39m
+    [90m382| [39m    })[33m;[39m
+    [90m383| [39m
+    [90m384| [39m    [34mexpect[39m(useSessionStore[33m.[39m[34mgetState[39m()[33m.[39mcurrentMessages)[33m.[39m[34mtoEqual[39m([
+    [90m   | [39m                                                       [31m^[39m
+    [90m385| [39m      { role[33m:[39m [32m'tool'[39m[33m,[39m content[33m:[39m [32m'Command({"command":"echo hi"})'[39m[33m,[39m nativ…
+    [90m386| [39m    ])[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m views/AutomationWorkspace.test.tsx[2m > [22mselects shared Creator IDs and submits the reviewed source revision with a canonical Trigger
+[31m[1mAssertionError[22m: expected { definition: { …(4) }, …(3) } to match object { …(2) }
+(7 matching properties omitted from actual)[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  Object {[22m
+[2m    "definition": Object {[22m
+[2m      "creatorSelector": Object {[22m
+[2m        "ids": Array [[22m
+[2m          "creator_shared",[22m
+[2m        ],[22m
+[2m        "mode": "ids",[22m
+[2m      },[22m
+[2m      "eventTypes": Array [[22m
+[2m        "scheduler.time.v2",[22m
+[2m      ],[22m
+[32m-     "targetJobId": "job_review",[39m
+[2m    },[22m
+[2m    "expectedCreatorRevisions": Object {[22m
+[2m      "creator_shared": 7,[22m
+[2m    },[22m
+[2m  }[22m
+
+[36m [2m❯[22m views/AutomationWorkspace.test.tsx:[2m115:77[22m[39m
+
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m views/AutomationWorkspace.test.tsx[2m > [22mcreates a Job from Action and typed binding controls then links a Trigger through source and condition controls
+[31m[1mAssertionError[22m: expected { definition: { …(5) }, …(3) } to match object { …(2) }
+(8 matching properties omitted from actual)[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  Object {[22m
+[2m    "definition": Object {[22m
+[2m      "condition": Object {[22m
+[2m        "field": "workers.runningCount",[22m
+[2m        "op": "eq",[22m
+[2m        "value": 0,[22m
+[2m      },[22m
+[2m      "creatorSelector": Object {[22m
+[2m        "ids": Array [[22m
+[2m          "creator_shared",[22m
+[2m        ],[22m
+[2m        "mode": "ids",[22m
+[2m      },[22m
+[32m-     "targetJobId": "job_new",[39m
+[2m    },[22m
+[2m    "expectedCreatorRevisions": Object {[22m
+[2m      "creator_shared": 7,[22m
+[2m    },[22m
+[2m  }[22m
+
+[36m [2m❯[22m views/AutomationWorkspace.test.tsx:[2m167:855[22m[39m
+
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m3 failed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m50 passed[39m[22m[90m (54)[39m
+[2m   Start at [22m 01:56:43
+[2m   Duration [22m 4.88s[2m (transform 562ms, setup 46ms, collect 1.25s, tests 4.09s, environment 1.58s, prepare 370ms)[22m
+

@@ -1,0 +1,256 @@
+{
+  "baseline": "f2045961aba8719742c188b3752bcd5774d4b616",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSHA256": {
+    "packages/jobs/api.py": "7217ed9772c84d61385c9cf030efc058bbdc08421958ceb4604207f5f696b29d",
+    "packages/jobs/final_api.py": "731e19a53c99920c0af23f1f35eedd27d3f0fe79df9d107ea5fca0fed10dff86",
+    "packages/mcp/server.py": "e66e827a056aa0ff230541d288bd56e71fe5219c70dc4c8b65108f1cce527e4b",
+    "packages/plugins/mcp.py": "ae714446368b9ba081577eef609ba7ec17151b0a341f98263464a56c1b6a359d",
+    "packages/scheduler/api.py": "6a123735a27695092fa1e237ad881f06ed633720700eaed3306da2502ad75042",
+    "packages/scheduler/canonical_tasks.py": "466bcdb67c6bb88109247f4b184fe965a3c06d2b06e4a3a766b848ed0404b69f",
+    "packages/scheduler/json_handoff.py": "f7d1ffb83c787d4554a8a61db839ecd85cf18a682df82479b8caafe1f794d138",
+    "packages/web/e2e/frontend-full.e2e.mjs": "e695ac05da1a5ff83de47a581eb65484e887e33945826d01602d01bd3e6dcb7c",
+    "packages/web/src/stores/sessionStore.terminalTransient.test.ts": "fa91f1f3cdd85f9f6cafa6998b3ead30cf04c7a307d687681d8fd699e69c4bb7",
+    "packages/web/src/stores/sessionStore.ts": "1e1f2ffdd8c4660076cda55b44ea805cfa7f8f8f800bd96367f5caa8760f52d9",
+    "tests/test_action_unification_p6_task_config.py": "396fa2552c6369ef5074b4aa23ad95b0a0b40835a7f487af7d2ae254af8df967",
+    "tests/test_job_final_retirement.py": "b551ddf5fc45125d5c99bf751ad35f9c1824b072f7b8263bf1c4062ea3be9b2b"
+  },
+  "junit": {
+    "bulk-api-r5-contract-red.xml": {
+      "tests": 105,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-api-route-regression.xml": {
+      "tests": 107,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-browser-prior-tests-control.xml": {
+      "tests": 32,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-browser-terminal-green.xml": {
+      "tests": 35,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-browser-terminal-original-red.xml": {
+      "tests": 34,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-combination-pre-lifecycle-fix.xml": {
+      "tests": 101,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-combination-security-harness-red.xml": {
+      "tests": 95,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-execution-boundaries.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-final-combination-first.xml": {
+      "tests": 91,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-final-combination.xml": {
+      "tests": 102,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-focused-first.xml": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-gateway-original-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-http-final-delete.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-incomplete-controls-red.xml": {
+      "tests": 3,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-jobs-green.xml": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-jobs-original-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-lease-notice-first.xml": {
+      "tests": 3,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-lease-notice-green.xml": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-live-lifecycle-green.xml": {
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-live-lifecycle-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-named-f204-original-red.xml": {
+      "tests": 3,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-original-red.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-production-mount-green.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-production-mount-red.xml": {
+      "tests": 2,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-projection-regression.xml": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-stdio-first.xml": {
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-stdio-invalid-binding-harness-red.xml": {
+      "tests": 3,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-stdio-security-debug.xml": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "bulk-stdio-security-green.xml": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "artifacts": {
+    "bulk-api-r5-contract-red.xml": "c949f805fcb9c4b0c1345c58c9faedd0e6f46ac54ad6963098c8b97d8a71d864",
+    "bulk-api-route-regression.xml": "14061a2337d178f36525da82a1677396db4c01aef5fa09cfbd143ab93acd3a91",
+    "bulk-browser-prior-tests-control.xml": "d8907d319094f2ea25e4ffd621c45aa4ca6b9a3e292907db4859ebef8c338825",
+    "bulk-browser-terminal-green.xml": "119af08ab87fd122e1bc0ddaf1cd5f535f495a37ddeedece7aedf4bbc84b2437",
+    "bulk-browser-terminal-original-red.xml": "893d9e0a94356006f36d280077d08edbcde0b52b2f7192fab70d7d6317e74c71",
+    "bulk-build-provenance.json": "f7ece03a46276d3a51e70a1b7079e85bb504fd586cef8a3fc24e98ae375e855f",
+    "bulk-chromium-baseline-red.json": "a3e03a53217d8de29c401e3d37844cb01026b0b8699d75ca3873f6ad38a3226d",
+    "bulk-chromium-bounded-proof-red.json": "79873ae5309416a4afb050a604a9d1216e64a0d58b5d2fde6611ebba4c4fff0e",
+    "bulk-chromium-green.json": "2f8541f7ae6f86a879998bd60e31267e52760af18236324ef993b58451305d4e",
+    "bulk-chromium-terminal-fixture-red.json": "9f0e28e75cf990b3f3f5c973194b346466152003bd4c166b3579015b018b3b7d",
+    "bulk-combination-pre-lifecycle-fix.xml": "996ef9564be423465935761c9893e3c3ef001f01e1fda4c15d1cd22d21083fc9",
+    "bulk-combination-security-harness-red.xml": "2ace8c2b6f580cfdd7a1f3d93b88652ee7c36cf9d489d52d85daafbb470cf961",
+    "bulk-execution-boundaries.xml": "e949954878ec1b0bc44d8e9127e8e14ed45e9ef1b751c0b9ed5e303c2b1dcc6d",
+    "bulk-final-combination-first.xml": "f04bfac36a82a8acac84b5d3337871cfc2f82d5cbb6e6eeb1fedfa13b9a0abde",
+    "bulk-final-combination.xml": "5bfd3f355d6d6bed41691ba52f8e92ab2c78556c46bddf4d7ada0da2a16566a3",
+    "bulk-final-source-hashes.json": "0604293d871d5ea64145fe7bc6121789feeb34b51d80a80a13ebc28210d08860",
+    "bulk-focused-first.xml": "5977b9658cdc5f7a4b1aa6b604be6dc059894a044e5d35c73f6523658c1b07e9",
+    "bulk-gateway-original-red.xml": "eda8e60a687074d1f2c0e63059eab2ef4b7914b409509b803664aa3b445a862e",
+    "bulk-http-final-delete.xml": "141c6f5379a87614dbe662ec16383c8e06872e3793576c883ed81672b42a22d2",
+    "bulk-incomplete-controls-red.xml": "a29a6d6cf60f805320cba09d771a1a3f843488fe97c31c085d54d470a6c3eb80",
+    "bulk-jobs-green.xml": "ba0d35858746d3d962ae04bbc9fe02b1792acc303155018e7d97c8b7a1b6d103",
+    "bulk-jobs-original-red.xml": "ee46c81231eaed1cf23af0b1efa7be82847476d79732d2a07183e1407ba020bb",
+    "bulk-lease-notice-first.xml": "b595aa9738921ee5f9440a920fb7a092021d13ebbd3126e4ddbce0e23ec52c15",
+    "bulk-lease-notice-green.xml": "6f2eb418b92e7fb4b7709f164c1c6783f62cd646bc9468eb80a6ba61c3daa0a3",
+    "bulk-live-lifecycle-green.xml": "a1871839235aae50ee67912063e4a86d765ee8663638481921a118d8adb9b3cd",
+    "bulk-live-lifecycle-red.xml": "a31f50c544e953b96654c208566299f981717918b5ed4332bb1a9554342c63cf",
+    "bulk-named-f204-original-red.xml": "febbbbbc7f8eceebd3546c34f7b1f36862a37d33c33389f755483b580d14c7f7",
+    "bulk-original-red.xml": "9bfb120c4aba081ec69c2ed3b855e2a68a46ae4d8e0e89f4bdbc13ed797c0f06",
+    "bulk-production-mount-green.xml": "df4b24f7fb65546d9825087d377489fbe9fd42035c9f97d1a5cb3a6d798131b4",
+    "bulk-production-mount-red.xml": "2b9aa3ae821a9f720f6405dc1d78ba8f11b466af0efdf1d4ae9bb7e74c26b870",
+    "bulk-projection-regression.xml": "1bc6bd334a3ccdee738c7d659d7bad17e3f873f5a4fd42e21cf648e595be6b91",
+    "bulk-stdio-first.xml": "7cf298b9bc181fbb218609cebec8ff37165e6c7c9ace24a73b4f157d99c7f358",
+    "bulk-stdio-invalid-binding-harness-red.xml": "799552d5de3087cb131bfc51158fce2112ae5be6d08af4ceaec7a3a7a1fa80ed",
+    "bulk-stdio-security-debug.xml": "577e4b05ea1c7a1297153b0ffead7b94bc63ea6bd24cd783dac7b28511f57aa2",
+    "bulk-stdio-security-green.xml": "87316d1ca2723e8a0fb515124f7dbbedd1681faa3c3f1e858c6bfd059db80365"
+  },
+  "commands": {
+    "backend": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_task_config.py tests/test_action_unification_p6_json_receipts.py tests/test_action_unification_p6_json_scheduler.py tests/test_scheduler_api.py -q --tb=short",
+    "apiRegression": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_http_service.py tests/test_job_final_retirement.py -q --tb=short",
+    "build": "pnpm build (packages/web)",
+    "chromium": "PAN_E2E_PYTHON=.tmp/p6-env/Scripts/python.exe pnpm e2e:frontend-full (packages/web)",
+    "frontend": "pnpm exec vitest run src/stores/sessionStore.terminalTransient.test.ts src/components/chat/HistoryTerminal.test.tsx",
+    "python": "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+    "timezone": "PYTHONTZPATH=E:/software/python-userbase/Python312/site-packages/tzdata/zoneinfo"
+  },
+  "unverified": [
+    "remote CI",
+    "Linux",
+    "macOS",
+    "real external provider and QQ/model CLI",
+    "real data migration",
+    "deployment",
+    "manual acceptance"
+  ],
+  "notes": [
+    "Intermediate and final test counts overlap; do not sum them.",
+    "102-test combination preceded the final narrow production PATCH mount; two mounted HTTP cases and 107 route/HTTP regressions verify that final change.",
+    "Ephemeral fixture token reprs redacted and trailing whitespace normalized in red JUnit; failure content and identities retained.",
+    "An additional stdio rerun XML appeared during work with no command provenance in this TA run; left untracked and excluded from candidate/gates."
+  ],
+  "namedScopeStatus": "all_green"
+}

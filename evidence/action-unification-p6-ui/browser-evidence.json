@@ -1,0 +1,20 @@
+{
+  "port": 50385,
+  "checks": [
+    "owned service PID, checkout and runtime verified",
+    "old UI mapped advanced Action opens the canonical compatibility panel",
+    "canonical duplicate preserves both commands, timeout and a fresh requestKey",
+    "duplicated canonical copy opens with the full definition and discard guard",
+    "delete is blocked for a Group-referenced Action without a delete request",
+    "disable/enable use canonical CAS and the observed state revision",
+    "old source bytes, Group release and effect side effects remain unchanged",
+    "canonical Template duplicate preserves the complete advanced definition",
+    "Template publish uses canonical revision/stateRevision",
+    "Template delete retires only the selected revision with observed CAS",
+    "Template new uses the canonical definition and appears in the complete list",
+    "production viewport 1280: Action and Template flows fit without horizontal overflow",
+    "production viewport 390: Action and Template flows fit without horizontal overflow"
+  ],
+  "errors": [],
+  "status": "passed"
+}

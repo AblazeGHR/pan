@@ -119,6 +119,7 @@ OPERATION_STATES = ("accepted", "pending", "completed", "rejected", "unknown")
 
 #: Every operation name the canonical service may accept (§10.4).
 OPERATIONS = (
+    "invoke",
     "create",
     "update",
     "publish",
@@ -859,6 +860,11 @@ class ReferenceResolver(Protocol):
 
     def __call__(self, kind: str, object_id: str) -> Mapping[str, Any] | None: ...
 
+    # Optional resolver extension used by the versioned Action directory.
+    # Older callers may provide only ``__call__`` and continue to resolve the
+    # current logical head.
+    def resolve_ref(self, kind: str, ref: Mapping[str, Any]) -> Mapping[str, Any] | None: ...
+
 
 # ── JSON Schema generation ─────────────────────────────────────────────────
 
@@ -1071,7 +1077,7 @@ def _trigger_definition() -> dict[str, Any]:
     }
     return {
         "title": "Trigger definition",
-        "description": "Pure matching and admission. It never executes an Action.",
+        "description": "Pure matching and durable admission to a Job or fixed Action.",
         **_obj(
             {
                 "name": _NAME,
@@ -1086,10 +1092,19 @@ def _trigger_definition() -> dict[str, Any]:
                 "condition": {"oneOf": [{"type": "null"}, _ref("Condition")]},
                 "arguments": {"type": "object", "additionalProperties": _ref("Binding")},
                 "targetJobId": _ID,
+                "target": {"oneOf": [
+                    _obj({"type": {"const": "action"}, "actionRef": _ref("Ref")}, ("type", "actionRef")),
+                    _obj({"type": {"const": "job"}, "jobId": _ID,
+                          "configRevision": {"type": "integer", "minimum": 1}}, ("type", "jobId", "configRevision")),
+                ]},
+                "concurrency": _obj({"maxActive": {"type": "integer", "minimum": 1, "maximum": 32},
+                    "maxPending": {"type": "integer", "minimum": 0, "maximum": 256}}, ("maxActive", "maxPending")),
                 "managedByComposition": {"type": "string", "minLength": 1, "maxLength": 200},
             },
-            ("name", "eventTypes", "creatorSelector", "targetJobId"),
+            ("name", "eventTypes", "creatorSelector"),
         ),
+        "oneOf": [{"required": ["targetJobId"], "not": {"required": ["target"]}},
+                  {"required": ["target"], "not": {"required": ["targetJobId"]}}],
     }
 
 
@@ -1354,6 +1369,14 @@ def _scheduler_config() -> dict[str, Any]:
     daily["properties"].pop("weekday")
     daily["required"].remove("weekday")
     rule["oneOf"].append(daily)
+    # Legacy scheduler entries can carry their own misfire/grace policy. Keep
+    # the Creator-level defaults for older callers, while allowing a rule to
+    # freeze an explicit per-entry override during migration.
+    for variant in rule["oneOf"]:
+        variant["properties"].update({
+            "misfirePolicy": {"enum": list(MISFIRE_POLICIES)},
+            "graceSeconds": _DURATION,
+        })
     return {
         "title": "Scheduler provider config",
         "description": "Time provider config consumed by Event Creator instances (design §10.3).",
@@ -1422,6 +1445,8 @@ def _object_document(kind: str) -> dict[str, Any]:
         "description": "Server envelope plus definition. Writes send only the definition.",
         **_obj(properties, required),
     }
+    if "oneOf" in definition:
+        document["oneOf"] = copy.deepcopy(definition["oneOf"])
     if "$defs" in definition:
         # Nested definitions reference ``#/$defs/...``; keep them resolvable in
         # the merged object document.
@@ -2294,6 +2319,8 @@ def normalize_definition(kind: str, definition: Any) -> dict[str, Any]:
     _validate_name_semantics(value, kind=kind, path="definition")
     value.setdefault("description", "")
     if kind == "trigger":
+        if "target" not in value and "targetJobId" not in value:
+            raise ContractError("invalid_schema", "Trigger target is required", path="target", details={"reason": "missing_field"})
         value.setdefault("eventFilter", {})
         value.setdefault("condition", None)
         value.setdefault("arguments", {})
@@ -2713,7 +2740,10 @@ def _check_action_ref(
     resolver: ReferenceResolver,
     require_enabled: bool,
 ) -> Mapping[str, Any]:
-    record = _resolve(resolver, "action", ref["id"], path=f"{path}.id")
+    resolve_ref = getattr(resolver, "resolve_ref", None)
+    record = (resolve_ref("action", ref) if callable(resolve_ref) else None)
+    if record is None:
+        record = _resolve(resolver, "action", ref["id"], path=f"{path}.id")
     if record.get("state") != "published":
         raise ContractError(
             "reference_conflict",
@@ -2810,7 +2840,10 @@ def _check_job_references(
                 path=f"{path}.triggerLinks.{index}.triggerId",
                 details={"reason": "retired", "id": link["triggerId"]},
             )
-        target = (record.get("definition") or {}).get("targetJobId") or record.get("targetJobId")
+        target_definition = record.get("definition") or record
+        target = target_definition.get("targetJobId", target_definition.get("target", {}).get("jobId"))
+        if target_definition.get("target", {}).get("type") == "action":
+            raise ContractError("reference_conflict", "Job link requires a Job-target Trigger")
         if target is not None and owner_job_id is not None and target != owner_job_id:
             raise ContractError(
                 "reference_conflict",
@@ -2857,13 +2890,21 @@ def validate_references(
             )
         )
     elif kind == "trigger":
-        job = _resolve(resolver, "job", definition["targetJobId"], path="targetJobId")
+        target = definition.get("target", {})
+        if target.get("type") == "action":
+            checked.append(_check_action_ref(target["actionRef"], path="target.actionRef", completion=None,
+                completion_path="", resolver=resolver, require_enabled=require_enabled))
+            return checked
+        job_id = target.get("jobId", definition.get("targetJobId"))
+        job = _resolve(resolver, "job", job_id, path="targetJobId")
+        if target and job.get("configRevision") != target["configRevision"]:
+            raise ContractError("reference_conflict", "Trigger Job configRevision changed")
         if job.get("state") in {"draft", "retired"}:
             raise ContractError(
                 "reference_conflict",
                 "Trigger target Job must be enabled, paused or disabled",
                 path="targetJobId",
-                details={"reason": "target_unavailable", "id": definition["targetJobId"], "state": job.get("state")},
+                details={"reason": "target_unavailable", "id": job_id, "state": job.get("state")},
             )
         checked.append(job)
     elif kind == "template":

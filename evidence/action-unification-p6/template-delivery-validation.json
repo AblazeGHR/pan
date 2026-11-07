@@ -1,0 +1,490 @@
+{
+  "task": "ACTION-UNIFICATION-20261104-P6",
+  "revision": 4,
+  "date": "2026-11-07",
+  "parent": "502ed4556a0959c09af3871a788c7c48f7b07682",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceHashes": {
+    "packages/actions/api.py": "396dbd26f1f00b39e591d46cc6b9f161ab84962e1c976b2af2c93afe416d18d0",
+    "packages/actions/group_migration.py": "4ac8eb4965e4177768e14051e2be8669a55dfefcd099f613b5774007f3f03346",
+    "packages/actions/invocation.py": "f12d25169c0f9694c8ac806ab1439a0095db1a443018d6746e48157aa143ff74",
+    "packages/actions/typed_executor.py": "72013b8f000a3721e171a06530609005165bb9280d82642f51d3804e32acc629",
+    "packages/actions/family_execution.py": "59e86395bbb5c7802844e6d6b20d0d026ba195a92ac1ce243e67a4e5c743ef84",
+    "packages/actions/legacy_templates.py": "9d21e0d65f8e8a6aa91d1641b52cb543e66834223820c95722385cffebb56462",
+    "packages/jobs/action_trigger.py": "900f95b58c9c8e1e0ac1340d0d668f592efec84c982ad26cc2c07e878df9f9fe",
+    "packages/jobs/final_service.py": "f237f5d6407e6d02bb46d40848e14c8113853ec2d09e56e48149b3d594ed15c4",
+    "scripts/job_final_migration/mapping.py": "fddaa36eebd9d729d474c600c64bbf1caede93a5866ee80803e7eaee368cadab",
+    "packages/web/src/components/actions/CanonicalDefinitionEditor.tsx": "ce8a8853e7d6af775246240eac89f33d9a771fc039c92a08582a155e86d64d3a",
+    "packages/web/src/types/actions.ts": "24aaeb18a235f761c0c41d86b81d985e829a51a5fe6a234114983251162ebbd5",
+    "packages/web/src/views/ActionsView.tsx": "9d38a4444c7d381c2f35508ac6ae02d7a77f9ac59a9064c0cff1a675514439b4",
+    "packages/web/src/views/ActionsMappedView.test.tsx": "b60c29e5100eef52d341998a73a5c7674ef9683e7a8403b0f77fc0e42755a9be",
+    "tests/test_action_unification_p6_templates.py": "9f36aa3f09f2fa52fdf5dd5ccd57efa5b0e22064dec3d9340340feb42c04f24a",
+    "tests/test_action_unification_p6_delivery.py": "46f6234da5ca45801fa399fae05e52bfae0948048babbd496478b0f0719a8be4",
+    "tests/test_action_unification_p6_families.py": "b1b6e89bc428fabb8dfdda43bc172a116c80263a22cc920643edbbc6356ba05d",
+    "tests/test_job_migration_runtime_contract.py": "330f04119e146ca077ed9ababb8cfe8329aae4740a72748d0b1d54befea18c86",
+    "tests/support/job_migration_readiness_rehearsal.py": "1a2e6d6f949f38c760920317b3f07430b66af180cc5c4013b0d9a4a6298aede1",
+    "packages/web/e2e/action-p6-server.py": "667830fb96ac33b5a111bc61a27e9b89977c0c6e7186f89aa1e6b9728bba3b76",
+    "packages/web/e2e/action-p6-mapped.e2e.mjs": "3bdf23bee4e4b0b99d477caf9c0295da81097d1ff497a494d3d2528c2094208c"
+  },
+  "finalGroups": {
+    "templates-final-a.xml": 90,
+    "templates-final-b.xml": 137,
+    "templates-final-d.xml": 93,
+    "templates-final-family-schema.xml": 47
+  },
+  "pytestTotal": 367,
+  "frontendTotal": 28,
+  "finalEvidence": [
+    "templates-final-a.xml",
+    "templates-final-b.xml",
+    "templates-final-d.xml",
+    "templates-final-family-schema.xml",
+    "templates-malformed-reviewed.xml",
+    "mapped-ui-final.xml",
+    "mapped-browser-final.json",
+    "mapped-ui-build.log.gz"
+  ],
+  "results": {
+    "delivery-history-final.xml": [
+      {
+        "name": "pytest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "17.363"
+      }
+    ],
+    "delivery-history.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "10",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "14.630"
+      }
+    ],
+    "delivery-initial.xml": [
+      {
+        "name": "pytest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "5.650"
+      }
+    ],
+    "delivery-ipc-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "6",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "9.807"
+      }
+    ],
+    "delivery-ipc.xml": [
+      {
+        "name": "pytest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "8.443"
+      }
+    ],
+    "delivery-qq-cancel.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "9",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "15.047"
+      }
+    ],
+    "delivery-qq-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "8",
+        "failures": "0",
+        "errors": "2",
+        "skipped": "0",
+        "time": "10.646"
+      }
+    ],
+    "delivery-trigger-final.xml": [
+      {
+        "name": "pytest",
+        "tests": "11",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "17.593"
+      }
+    ],
+    "mapped-ui-final.xml": [
+      {
+        "name": "views/ActionsMappedView.test.tsx",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.1644457"
+      },
+      {
+        "name": "views/ActionsView.test.tsx",
+        "tests": "16",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.9132598"
+      },
+      {
+        "name": "views/UnifiedActionsView.test.tsx",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.5313172"
+      }
+    ],
+    "mapped-ui-initial.xml.gz": [
+      {
+        "name": "views/ActionsMappedView.test.tsx",
+        "tests": "2",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.1475448"
+      }
+    ],
+    "mapped-ui.xml": [
+      {
+        "name": "views/ActionsMappedView.test.tsx",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.1691592"
+      },
+      {
+        "name": "views/ActionsView.test.tsx",
+        "tests": "16",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "2.2807096"
+      },
+      {
+        "name": "views/UnifiedActionsView.test.tsx",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "0.5491297"
+      }
+    ],
+    "templates-delivery-final.xml": [
+      {
+        "name": "pytest",
+        "tests": "41",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "59.487"
+      }
+    ],
+    "templates-delivery-frozen.xml": [
+      {
+        "name": "pytest",
+        "tests": "41",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "51.962"
+      }
+    ],
+    "templates-family-final.xml": [
+      {
+        "name": "pytest",
+        "tests": "44",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "55.731"
+      }
+    ],
+    "templates-family-refactor.xml": [
+      {
+        "name": "pytest",
+        "tests": "57",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "63.997"
+      }
+    ],
+    "templates-final-a.xml": [
+      {
+        "name": "pytest",
+        "tests": "90",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "39.218"
+      }
+    ],
+    "templates-final-b.xml": [
+      {
+        "name": "pytest",
+        "tests": "137",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "83.942"
+      }
+    ],
+    "templates-final-c.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "42",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "52.878"
+      }
+    ],
+    "templates-final-d.xml": [
+      {
+        "name": "pytest",
+        "tests": "93",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "71.713"
+      }
+    ],
+    "templates-final-families.xml": [
+      {
+        "name": "pytest",
+        "tests": "45",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "59.332"
+      }
+    ],
+    "templates-final-family-schema.xml": [
+      {
+        "name": "pytest",
+        "tests": "47",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "57.993"
+      }
+    ],
+    "templates-graph.xml": [
+      {
+        "name": "pytest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "5.207"
+      }
+    ],
+    "templates-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "5",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "5.493"
+      }
+    ],
+    "templates-malformed-reviewed.xml": [
+      {
+        "name": "pytest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "1.978"
+      }
+    ],
+    "templates-mapper-auth-fixed.xml": [
+      {
+        "name": "pytest",
+        "tests": "93",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "67.940"
+      }
+    ],
+    "templates-mapper-auth.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "93",
+        "failures": "19",
+        "errors": "0",
+        "skipped": "0",
+        "time": "53.600"
+      }
+    ],
+    "templates-nested.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "34",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "44.658"
+      }
+    ],
+    "templates-p4.xml": [
+      {
+        "name": "pytest",
+        "tests": "27",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "16.876"
+      }
+    ],
+    "templates-regression-a.xml": [
+      {
+        "name": "pytest",
+        "tests": "90",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "44.773"
+      }
+    ],
+    "templates-regression-b.xml": [
+      {
+        "name": "pytest",
+        "tests": "137",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "94.740"
+      }
+    ],
+    "templates-schedules-initial.xml.gz": [
+      {
+        "name": "pytest",
+        "tests": "9",
+        "failures": "1",
+        "errors": "0",
+        "skipped": "0",
+        "time": "12.607"
+      }
+    ],
+    "templates-schedules.xml": [
+      {
+        "name": "pytest",
+        "tests": "9",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "time": "11.593"
+      }
+    ]
+  },
+  "losslessRedCompression": {
+    "delivery-history.xml.gz": {
+      "rawSha256": "99d0dbc23ff6499e02c324e8a901d36240487eed0936fa8042898be046aa3d6b",
+      "rawBytes": 2864
+    },
+    "delivery-ipc-initial.xml.gz": {
+      "rawSha256": "56d71426dd435ceaed9943f5d13323a813b2af9bceff30d6087ba2a1486d5541",
+      "rawBytes": 3555
+    },
+    "delivery-qq-cancel.xml.gz": {
+      "rawSha256": "7ce1ad4f73d81c6d6832103285bf0d92c42958ab837fa8af1613235ea29195a3",
+      "rawBytes": 5672
+    },
+    "delivery-qq-initial.xml.gz": {
+      "rawSha256": "8bb609ed54181e9ff114294dd4dc222f443f5d2359df7bbfff2331034f4f87e3",
+      "rawBytes": 2642
+    },
+    "mapped-ui-initial.xml.gz": {
+      "rawSha256": "9ee08625b3639aebc75c2d0d49536eb94afe4cbf4ff881842d9d1cb366d33f90",
+      "rawBytes": 913
+    },
+    "templates-final-c.xml.gz": {
+      "rawSha256": "2e92ae017fafc3278e26cf3f5eda8f2e6d8e4f76ebb225b30cd00932be611b5d",
+      "rawBytes": 9770
+    },
+    "templates-initial.xml.gz": {
+      "rawSha256": "75e3da18cc9c0059473e56d0693055f23e56ef25df8e77b48a90316c499a0c19",
+      "rawBytes": 4104
+    },
+    "templates-mapper-auth.xml.gz": {
+      "rawSha256": "449e11a1106ca61fb92cdf7ec3efc89a5f768b42b10fb80a7a173a8f62630639",
+      "rawBytes": 51689
+    },
+    "templates-nested.xml.gz": {
+      "rawSha256": "5ea9ccd3a4c1b5c7a194021bb67de10f6be156706d54ec40c09ac5f51a12b42f",
+      "rawBytes": 10635
+    },
+    "templates-schedules-initial.xml.gz": {
+      "rawSha256": "7b7884233af96125253b0d1d5aa9335e0565071164d98da63e8825944b6b9f5b",
+      "rawBytes": 12810
+    }
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "environment": {
+    "python": "D:\\project\\pan-worktrees\\action-unification-p6-20261106\\.tmp\\p6-env\\Scripts\\python.exe",
+    "pythonVersion": "3.14.5",
+    "packages": {
+      "pytest": "9.1.1",
+      "httpx": "0.28.1",
+      "nonebot2": "2.5.0",
+      "nonebot-adapter-onebot": "2.4.6",
+      "tzdata": "2026.6"
+    },
+    "dependencies": "Owned ignored .tmp/p6-env --system-site-packages; QQ requirements and tzdata installed only here; pnpm frozen/offline install in worktree",
+    "browserPython": "Direct Python314 interpreter to preserve exact child/service PID identity; owned e2e roots only",
+    "NO_PROXY": "127.0.0.1,localhost,::1"
+  },
+  "checks": {
+    "serverImport": "passed with isolated runner",
+    "productionBuild": "passed: tsc -b, vite build, 90 compressed assets",
+    "normalHook": "required on candidate commit",
+    "productionBrowser": "passed: owned HTTP, no API interception, exact PID/checkout/runtime checks, 1280/390, no effects, source bytes and release unchanged",
+    "remoteCI": "not run",
+    "realDataMigration": "not run",
+    "realCliConsumption": "not run; actual original durable queue and IPC tested",
+    "QQNetwork": "not run; real local HTTP/plugin/OneBot path with synthetic gateway tested",
+    "deployment": "not run"
+  },
+  "commands": {
+    "pytestPrefix": "<owned-python> scripts/run_tests_isolated.py -- <owned-python> -m pytest",
+    "A": "tests/test_action_unification_p1.py tests/test_action_unification_p2.py tests/test_action_unification_p3.py tests/test_action_unification_p3_review.py tests/test_action_unification_p34.py tests/test_job_final_executors.py tests/test_job_system_actions.py -q",
+    "B": "tests/test_action_unification_p4.py tests/test_action_unification_p6.py tests/test_action_unification_p6_compat.py tests/test_action_groups.py tests/test_action_ids.py tests/test_action_persistence.py -q",
+    "D": "tests/test_job_final_migration_apply.py tests/test_job_migration_runtime_contract.py tests/test_authorization_mcp.py tests/test_plugin_platform.py tests/test_plugin_session_config.py -q",
+    "families": "tests/test_action_unification_p6_templates.py tests/test_action_unification_p6_delivery.py tests/test_action_unification_p6_families.py -q",
+    "reviewedMalformed": "tests/test_action_unification_p6_templates.py -k revision_bool-or-generation_bool -q (actual expression: revision_bool or generation_bool)",
+    "frontend": "pnpm exec vitest run src/views/ActionsMappedView.test.tsx src/views/ActionsView.test.tsx src/views/UnifiedActionsView.test.tsx",
+    "build": "pnpm build",
+    "browser": "PAN_E2E_PYTHON=<direct-python314> node e2e/action-p6-mapped.e2e.mjs"
+  },
+  "status": "independent candidate; P6 overall incomplete; see Template/Delivery report",
+  "buildLog": {
+    "artifact": "mapped-ui-build.log.gz",
+    "rawSha256": "806a9cc90642b89d47a61b6afd78fd2dd54285c901ba79325d097cd39eebfea3",
+    "rawBytes": 15146,
+    "note": "Raw Vite output including trailing whitespace preserved losslessly"
+  }
+}

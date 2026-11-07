@@ -295,7 +295,8 @@ class SessionDelivery:
             action = plan['frozen']['actions'][step['actionRef']['id']]
             try:
                 self.service._guard_effect(db, job, self.run_id, plan['frozen'], action)
-                blocked = (job['canonical']['state'] != 'enabled' or plan.get('pauseRequested')
+                from packages.scheduler.json_handoff import manual_intent
+                blocked = (job['canonical']['state'] != 'enabled' and not manual_intent(self.service, db, job, self.run_id) or plan.get('pauseRequested')
                     or self.run_id in state.get('cancellations', {}))
             except ContractError:
                 blocked = True

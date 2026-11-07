@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.295" timestamp="2026-11-07T05:11:06.212379+08:00" hostname="ablaze"><testcase classname="tests.test_action_unification_p6_task_config" name="test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write" time="1.450"><failure message="AssertionError: {&quot;detail&quot;:{&quot;code&quot;:&quot;retired&quot;,&quot;message&quot;:&quot;Legacy scheduler write entrypoint retired; use canonical event/job operations&quot;}}&#10;assert 410 == 200&#10; +  where 410 = &lt;Response [410 Gone]&gt;.status_code">h = namespace(app=&lt;fastapi.applications.FastAPI object at 0x000001F70CA20590&gt;, service=&lt;packages.jobs.final_service.FinalS...[], 'recipients': []}, 'retention': {'policyRef': 'owned-test'}}}, token='oYLq-xDdN2jo2MBDVGbTc7XKa6uGMfQZB-JuDIPdrAk')
+tcp = 'http://127.0.0.1:51008'
+
+    def test_P6_CONFIG_01_actual_http_create_patch_cold_cursor_count_no_legacy_write(h, tcp):
+        original = (h.root / h.mapping['sourceFile']).read_bytes()
+        payload = {'targetSessionId': h.source['targetSessionId'], 'text': 'created task body',
+            'schedule': {'kind': 'interval', 'intervalSec': 60, 'anchor': '2030-01-01T00:00:00', 'timezone': 'Asia/Shanghai'},
+            'name': 'Created through old HTTP', 'requestKey': 'old-create-once'}
+        with client(h, tcp) as c:
+            first = c.post('/api/scheduler/tasks', json=payload)
+&gt;           assert first.status_code == 200, first.text
+E           AssertionError: {"detail":{"code":"retired","message":"Legacy scheduler write entrypoint retired; use canonical event/job operations"}}
+E           assert 410 == 200
+E            +  where 410 = &lt;Response [410 Gone]&gt;.status_code
+
+tests\test_action_unification_p6_task_config.py:53: AssertionError</failure></testcase></testsuite></testsuites>

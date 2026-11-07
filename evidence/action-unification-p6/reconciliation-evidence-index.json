@@ -1,0 +1,41 @@
+{
+  "baseline": "f2244b22ad66c89787676ee0f69f193d830ef7d3",
+  "scope": "legacy Scheduler/Trigger/JSON reconciliation and lifecycle",
+  "junit": {
+    "reconcile-final-combination.xml": {
+      "tests": 33,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "af806b36a0bebd55861cdd09e88399383c0a204b2c905f41437f02d65d2d81d0"
+    },
+    "reconcile-receipts-final.xml": {
+      "tests": 52,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "e0cd307c2852cfccfc2e5b34227a86fdb9d0b79793ee8af89208b89e8ac42de2"
+    },
+    "bulk-final-combination.xml": {
+      "tests": 102,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "5bfd3f355d6d6bed41691ba52f8e92ab2c78556c46bddf4d7ada0da2a16566a3"
+    },
+    "bulk-api-route-regression.xml": {
+      "tests": 107,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "14061a2337d178f36525da82a1677396db4c01aef5fa09cfbd143ab93acd3a91"
+    }
+  },
+  "report": "docs/reports/ACTION_UNIFICATION_P6_RECONCILIATION_20261107.md",
+  "notes": [
+    "Counts are independent runs; do not sum with bulk Chromium slice.",
+    "Untracked bulk-stdio-rerun-20261107.xml is intentionally excluded because its provenance is unknown.",
+    "Unknown/complex/no-durable-receipt records remain preserve/blocked; no replay."
+  ],
+  "status": "all_named_reconciliation_lifecycle_gates_green"
+}

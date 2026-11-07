@@ -1239,12 +1239,19 @@ function convergeCompletedRuns(transcript: SessionTranscript): SessionTranscript
       // an explicit final-item identity at this versioned end, plus a loaded
       // user boundary, proves a bounded canonical region for the sealed run.
       // Without either proof retain the runtime (including paginated tails).
-      const last = window.rows.get(end - 1);
+      let finalOffset = end - 1;
+      const tail = window.rows.get(finalOffset);
+      // A durable terminal is execution metadata appended after the final
+      // assistant. It does not replace the exact final-item identity proof.
+      if (tail?.role === 'terminal' && tail.kind === 'terminal' && tail.terminal?.eventId) {
+        finalOffset -= 1;
+      }
+      const last = window.rows.get(finalOffset);
       const finalIds = explicitIdentityOf(run.finalRow);
       if (!last || last.role !== 'assistant' || !finalIds.length
           || !explicitIdentityOf(last).some(id => finalIds.includes(id))) return true;
       let boundary: number | undefined;
-      for (let offset = end - 2; offset >= window.start!; offset -= 1) {
+      for (let offset = finalOffset - 1; offset >= window.start!; offset -= 1) {
         const row = window.rows.get(offset);
         if (!row) return true;
         if (row.role === 'user') {

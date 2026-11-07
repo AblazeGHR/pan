@@ -30,7 +30,7 @@ COOKIE_NAME = "pan_user"
 KINDS = {"jobs": "job", "triggers": "trigger", "event-creators": "event_creator",
          "job-templates": "template"}
 GRANT_KINDS = {"job": "job", "trigger": "trigger", "event_creator": "eventCreator",
-               "template": "jobTemplate"}
+               "template": "jobTemplate", "action": "action"}
 
 
 class CanonicalUserAuth(UserAuth):
@@ -90,6 +90,16 @@ class CanonicalService(Protocol):
     async def control_run_postcommit(self, run_id: str, body: dict, *, actor: Mapping[str, Any]): ...
     def operation(self, operation_id: str, *, actor: Mapping[str, Any]): ...
     def operation_for_key(self, operation: str, request_key: str, *, actor: Mapping[str, Any]): ...
+    def actions(self, *, actor: Mapping[str, Any]): ...
+    async def invoke_action(self, action_id: str, body: dict, *, actor: Mapping[str, Any]): ...
+    def action_job_references(self, action_id: str, *, actor, cursor=None, limit=100): ...
+    def preview_action_references(self, body: dict, *, actor): ...
+    def apply_action_references(self, body: dict, *, actor): ...
+    def job_provenance(self, job_id: str, *, actor): ...
+    def action_versions(self, action_id: str, *, actor: Mapping[str, Any]): ...
+    def action_ref(self, action_id: str, *, actor: Mapping[str, Any], revision: int | None = None,
+                   digest: str | None = None, latest: bool = False): ...
+    def action_alias(self, legacy_id: str, *, actor: Mapping[str, Any]): ...
 
 
 def reject(code, message, *, path=None):
@@ -119,6 +129,66 @@ async def retired_legacy_write(request: Request):
 retired_legacy_write.retirement_boundary = True
 
 
+async def legacy_template_list(request: Request):
+    who = await actor(request, "template", "read")
+    return await invoke(request, "legacy_template_list", actor=who)
+
+
+async def _legacy_template_write(request, template_id=None):
+    who = await actor(request, "template", "create" if template_id is None else "updateConfig")
+    # Resolve the canonical port before validating old payloads. Never fall
+    # back to ActionRuntime/Templates when activation is missing or failed.
+    if not callable(getattr(getattr(request.app.state, "job_final_service", None), "legacy_template_write", None)):
+        reject("provider_unavailable", "Canonical Template service unavailable")
+    value = await body(request)
+    fields(value, {"item", "expectedRevision"}, {"item", "expectedRevision"})
+    if type(value["expectedRevision"]) is not int or value["expectedRevision"] < (0 if template_id is None else 1):
+        reject("invalid_schema", "Invalid expectedRevision")
+    if not isinstance(value["item"], dict):
+        reject("invalid_schema", "Template item must be an object")
+    item = dict(value["item"])
+    if template_id is not None:
+        if item.get("id", template_id) != template_id:
+            reject("reference_conflict", "Template path and payload identity differ")
+        item["id"] = template_id
+    key = "legacy-template-" + ("create:" if template_id is None else "update:")
+    key += str(item.get("id", "new")) + ":" + str(value["expectedRevision"])
+    return await invoke(request, "legacy_template_write", item, value["expectedRevision"], key, actor=who)
+
+
+async def legacy_template_create(request: Request):
+    return await _legacy_template_write(request)
+
+
+async def legacy_template_update(template_id: str, request: Request):
+    return await _legacy_template_write(request, template_id)
+
+
+async def legacy_template_delete(template_id: str, request: Request):
+    who = await actor(request, "template", "delete")
+    raw = request.query_params.get("expectedRevision", "")
+    if (set(request.query_params) != {"expectedRevision"}
+            or len(request.query_params.getlist("expectedRevision")) != 1
+            or not re.fullmatch(r"0|[1-9][0-9]{0,18}", raw)):
+        reject("invalid_schema", "One expectedRevision is required")
+    expected = int(raw)
+    return await invoke(request, "legacy_template_delete", template_id, expected,
+                        "legacy-template-delete:" + template_id + ":" + raw, actor=who)
+
+
+async def legacy_template_instantiate(template_id: str, request: Request):
+    who = await actor(request, "template", "use")
+    await actor(request, "job", "create")
+    if not callable(getattr(getattr(request.app.state, "job_final_service", None), "legacy_template_instantiate", None)):
+        reject("provider_unavailable", "Canonical Template service unavailable")
+    value = await body(request)
+    fields(value, {"expectedRevision", "idempotencyKey", "overrides"}, {"expectedRevision", "idempotencyKey"})
+    revision(value["expectedRevision"])
+    contracts.check_request_key(value["idempotencyKey"])
+    return await invoke(request, "legacy_template_instantiate", template_id, value["expectedRevision"],
+                        value["idempotencyKey"], value.get("overrides"), actor=who, activate=False)
+
+
 def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
     """Whether an old facade route was an effectful write.
 
@@ -126,6 +196,11 @@ def _is_retired_legacy_route(suffix: str, methods: set[str]) -> bool:
     until P6 removes the legacy UI: a legacy Job that still owns a process must
     remain inspectable and cancellable.  Every other old mutation is refused.
     """
+    # P6 compatibility handoff: the old Template CRUD/instantiate shape is
+    # admitted only through this canonical boundary, which calls the same
+    # FinalService owner fence and operation receipt as /api/job-templates.
+    if suffix.startswith("/job-templates"):
+        return False
     if methods <= {"GET", "HEAD", "OPTIONS"}:
         return False
     if suffix.endswith("/cancel"):
@@ -367,8 +442,152 @@ def definition_routes(base, kind):
 
 @router.get("/jobs/actions")
 async def action_catalog(request: Request):
-    who = await actor(request)
+    who = await actor(request, "action", "read")
     return await invoke(request, "actions", actor=who)
+
+
+async def _action_write_body(request, *, create=False):
+    value = await body(request)
+    fields(value, {"definition", "expectedRevision", "requestKey", "requestDigest"},
+           {"definition", "expectedRevision", "requestKey"})
+    revision(value["expectedRevision"], "expectedRevision") if not create else (
+        None if type(value["expectedRevision"]) is int and value["expectedRevision"] == 0
+        else reject("invalid_schema", "Create expectedRevision must be zero", path="expectedRevision")
+    )
+    contracts.check_request_key(value["requestKey"])
+    return value
+
+
+@router.post("/jobs/actions")
+async def action_create(request: Request):
+    who = await actor(request, "action", "create")
+    value = await _action_write_body(request, create=True)
+    return write_result(await invoke(request, "write", "action", None, value, actor=who), created=True)
+
+
+@router.get("/jobs/actions/aliases/{legacy_id}")
+async def action_alias(legacy_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_alias", legacy_id, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/job-references")
+async def action_job_references(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_job_references", action_id, actor=who, **page(request))
+
+
+@router.post("/jobs/action-references/preview")
+async def preview_action_references(request: Request):
+    who = await actor(request, "job", "updateConfig")
+    return await invoke(request, "preview_action_references", await body(request), actor=who)
+
+
+@router.post("/jobs/action-references/apply")
+async def apply_action_references(request: Request):
+    who = await actor(request, "job", "updateConfig")
+    return await invoke(request, "apply_action_references", await body(request), actor=who)
+
+
+@router.get("/jobs/{job_id}/provenance")
+async def job_provenance(job_id: str, request: Request):
+    who = await actor(request, "job", "read")
+    return await invoke(request, "job_provenance", job_id, actor=who)
+
+
+@router.post("/jobs/actions/{action_id}/invocations")
+async def action_invoke(action_id: str, request: Request):
+    who = await actor(request, "action", "invoke")
+    value = await body(request)
+    fields(value, {"actionRef", "arguments", "requestKey"}, {"actionRef", "arguments", "requestKey"})
+    contracts.check_request_key(value["requestKey"])
+    if not isinstance(value["arguments"], dict):
+        reject("invalid_schema", "arguments must be an object")
+    return await invoke(request, "invoke_action", action_id, value, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/versions")
+async def action_versions(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return await invoke(request, "action_versions", action_id, actor=who)
+
+
+@router.get("/jobs/actions/{action_id}/versions/{revision_value}")
+async def action_version(action_id: str, revision_value: str, request: Request):
+    who = await actor(request, "action", "read")
+    try:
+        revision_value = int(revision_value)
+    except ValueError:
+        reject("invalid_schema", "Invalid Action revision")
+    if revision_value < 1:
+        reject("invalid_schema", "Invalid Action revision")
+    digest = request.query_params.get("digest")
+    value = await invoke(request, "action_ref", action_id, actor=who, revision=revision_value, digest=digest)
+    versions = await invoke(request, "action_versions", action_id, actor=who)
+    item = next((item for item in versions["items"] if item["revision"] == revision_value), None)
+    if item is None:
+        reject("not_found", "Action version not found")
+    if digest is not None and digest != item["digest"]:
+        reject("reference_conflict", "Action digest does not match the fixed reference")
+    return {**item, "ref": value}
+
+
+@router.get("/jobs/actions/{action_id}")
+async def action_detail(action_id: str, request: Request):
+    who = await actor(request, "action", "read")
+    return contracts.validate_object("action", await invoke(request, "get", "action", action_id, actor=who))
+
+
+@router.put("/jobs/actions/{action_id}")
+async def action_update(action_id: str, request: Request):
+    who = await actor(request, "action", "updateConfig")
+    value = await _action_write_body(request)
+    return write_result(await invoke(request, "write", "action", action_id, value, actor=who))
+
+
+@router.post("/jobs/actions/{action_id}/operations")
+async def action_control(action_id: str, request: Request):
+    who = await actor(request)
+    value = await body(request)
+    fields(value, {"operation", "expectedRevision", "expectedStateRevision", "requestKey", "parameters"},
+           {"operation", "expectedRevision", "expectedStateRevision", "requestKey", "parameters"})
+    contracts.check_operation("action", value["operation"])
+    revision(value["expectedRevision"])
+    revision(value["expectedStateRevision"], "expectedStateRevision")
+    contracts.check_request_key(value["requestKey"])
+    if not isinstance(value["parameters"], dict):
+        reject("invalid_schema", "parameters must be an object")
+    who = await actor(request, "action", "lifecycle")
+    return write_result(await invoke(request, "control", "action", action_id, value, actor=who))
+
+
+@router.delete("/jobs/actions/{action_id}")
+async def action_retire(action_id: str, request: Request):
+    who = await actor(request, "action", "lifecycle")
+    value = await body(request)
+    fields(value, {"expectedRevision", "expectedStateRevision", "requestKey", "parameters"},
+           {"expectedRevision", "expectedStateRevision", "requestKey"})
+    revision(value["expectedRevision"])
+    revision(value["expectedStateRevision"], "expectedStateRevision")
+    contracts.check_request_key(value["requestKey"])
+    parameters = value.get("parameters", {})
+    if not isinstance(parameters, dict):
+        reject("invalid_schema", "parameters must be an object")
+    control = {**value, "operation": "retire", "parameters": parameters}
+    return write_result(await invoke(request, "control", "action", action_id, control, actor=who))
+
+
+@router.post("/jobs/actions/{action_id}/aliases")
+async def action_alias_create(action_id: str, request: Request):
+    who = await actor(request, "action", "updateConfig")
+    value = await body(request)
+    fields(value, {"legacyId", "revision", "digest", "source", "requestKey"},
+           {"legacyId", "revision", "digest", "source", "requestKey"})
+    revision(value["revision"])
+    contracts.check_request_key(value["requestKey"])
+    return write_result(await invoke(request, "register_action_alias", value["legacyId"], action_id,
+                                     value["revision"], value["digest"], source=value["source"],
+                                     actor=who, request_key=value["requestKey"]))
 
 
 @router.post("/job-templates/{template_id}/instantiate")
@@ -542,9 +761,17 @@ def _remount_legacy(facade, legacy_routers, facade_prefix):
             _copy_legacy_route(facade, route, path)
 
 
+def _is_scheduled_compat_patch(route):
+    # Only this adapter can transfer an already-adopted scheduled-task. It
+    # authenticates and refuses unbound records before any old writer is used.
+    from packages.jobs.api import patch_job
+    return route.endpoint is patch_job and set(route.methods) == {'PATCH'}
+
+
 def _copy_legacy_route(target, route, path):
-    """Add a facade copy of a pre-canonical route: reads keep, writes refuse."""
-    if route.methods <= {"GET", "HEAD", "OPTIONS"}:
+    """Retain reads and canonical Template adapters; refuse other old writes."""
+    template_compat = "/job-templates" in route.path
+    if route.methods <= {"GET", "HEAD", "OPTIONS"} or template_compat or _is_scheduled_compat_patch(route):
         target.add_api_route(
             path, route.endpoint, methods=sorted(route.methods),
             name="legacy_" + route.name,
@@ -582,6 +809,10 @@ def install(app, *legacy_routers):
       and its effectful routes answer 410 after authenticating the caller.
     * old reads keep both addresses, because Job history/listing queries are
       retained until R6 and moving them would break audit reads for no gain.
+    * P6 adopted scheduled-task PATCH transfers through the canonical owner at
+      both addresses; it cannot restore an unbound JSON writer.
+    * P6 Template CRUD/instantiate keeps its original shape at both addresses,
+      owned by this module with no legacy runtime fallback.
     * a canonical path always wins; an old write address that canonical does not
       serve answers 410 instead of a bare 404, so a stale client learns it is
       retired rather than that the path never existed.
@@ -612,6 +843,9 @@ def install(app, *legacy_routers):
         for route in old.routes:
             suffix = route.path.removeprefix("/api/jobs")
             retired = _is_retired_legacy_route(suffix, set(route.methods))
+            if _is_scheduled_compat_patch(route):
+                _copy_legacy_route(retained, route, route.path)
+                continue
             if retired:
                 if suffix in {"", "/"} or is_canonical(route.path) or canonical_serves(route.path):
                     continue
@@ -620,6 +854,8 @@ def install(app, *legacy_routers):
                 _copy_legacy_route(retained, route, route.path)
     app.include_router(retained)
     app.include_router(router, prefix=API_PREFIX)
+    from packages.actions.group_api import router as group_router
+    app.include_router(group_router, prefix=API_PREFIX)
     # The catalog cannot replace the existing /api/actions legacy registry.
     # Keep its original URL while sharing the new /api/jobs/actions handler.
     aliases = APIRouter(route_class=ContractRoute)

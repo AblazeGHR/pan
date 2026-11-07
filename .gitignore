@@ -143,3 +143,7 @@ packages/web/test-results/
 /audit/cc-switch-panel-cache-20261019/tmp/
 /audit/cc-switch-non-manual-gate-20261025/vite-cache/
 /audit/cc-switch-non-manual-gate-20261025/tmp/
+
+# Owned Action unification HTTP/Chromium profiles contain disposable auth keys.
+/.tmp/p5-http-*/
+/.tmp/p6-http-*/

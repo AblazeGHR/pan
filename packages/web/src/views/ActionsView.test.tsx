@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import ActionsView from './ActionsView';
+import { LegacyActionsView as ActionsView } from './ActionsView';
 import { actionRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';

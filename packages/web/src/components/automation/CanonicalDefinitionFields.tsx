@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { canonicalError, canonicalJobs } from '@/services/canonicalJobs';
+import { canonicalRequest } from '@/services/api';
 import { newId } from '@/types/automationJobs';
 import type { CanonicalKind, CanonicalObject, JsonObject } from '@/types/canonicalJobs';
 import type { Condition } from '@/types/automation';
@@ -22,7 +23,7 @@ function initialLiteral(schema: JsonObject): unknown {
   return '';
 }
 
-function TypedValue({
+export function TypedValue({
   label,
   value,
   schema,
@@ -301,6 +302,18 @@ export function CanonicalDefinitionFields({
   const [catalog, setCatalog] = useState<Catalog>({ items: [], references: {} });
   const [error, setError] = useState('');
   const [eventName, setEventName] = useState('');
+  const [triggerAction, setTriggerAction] = useState<JsonObject>({});
+  const triggerRef = obj(obj(value.target).actionRef);
+  useEffect(() => {
+    let active = true;
+    setTriggerAction({});
+    if (kind === 'triggers' && triggerRef.id && triggerRef.digest) {
+      void canonicalRequest<{ items: JsonObject[] }>(`jobs/actions/${encodeURIComponent(String(triggerRef.id))}/versions`)
+        .then(page => { if (active) setTriggerAction(obj(page.items.find(v => v.revision === triggerRef.revision && v.digest === triggerRef.digest)?.definition)); })
+        .catch(e => { if (active) setError(canonicalError(e)); });
+    }
+    return () => { active = false; };
+  }, [kind, triggerRef.id, triggerRef.revision, triggerRef.digest]);
   const catalogGeneration = useRef(0);
   const loadCatalog = useCallback(async () => {
     const generation = ++catalogGeneration.current;
@@ -728,7 +741,7 @@ export function CanonicalDefinitionFields({
           <h3>Trigger parameter bindings</h3>
           <Bindings
             trigger
-            schema={obj(targetJob?.inputSchema)}
+            schema={obj(obj(value.target).type === 'action' ? triggerAction.inputSchema : targetJob?.inputSchema)}
             value={obj(value.arguments)}
             onChange={(argumentsValue) => onChange({ ...value, arguments: argumentsValue })}
           />

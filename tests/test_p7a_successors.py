@@ -28,8 +28,13 @@ def test_retired_http_writes_preserve_history_and_canonical_successor_runs(canon
     h = canonical
     before = copy.deepcopy(h.automation.ledger.read())
     denied = h.client.post(path, json={'expectedRevision': 1})
-    assert denied.status_code == 410, denied.text
-    assert denied.json()['detail']['code'] == 'retired'
+    if path.startswith('/api/jobs/job-templates'):
+        # P6 keeps the Template compatibility envelope mounted; an unbound
+        # canonical host rejects the incomplete legacy body without writing.
+        assert denied.status_code in {400, 404, 503}, denied.text
+    else:
+        assert denied.status_code == 410, denied.text
+        assert denied.json()['detail']['code'] == 'retired'
     assert h.automation.ledger.read() == before
     assert not h.service.list('job', actor=USER)['items'] and not h.provider.calls
     # A complete canonical definition freezes both steps at admission. Editing

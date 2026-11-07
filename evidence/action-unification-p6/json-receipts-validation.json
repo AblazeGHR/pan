@@ -1,0 +1,291 @@
+{
+  "baseline": "d9660dd6c3aa77258417969314e2f05de04fc2ca",
+  "branch": "implement/action-unification-p6-20261106",
+  "sourceSha256": {
+    "packages/scheduler/json_handoff.py": "0f95e4a5758f20440f722bb59b65415ee757debba364e3d33a440b4c0f7143f7",
+    "packages/scheduler/json_dispatch_receipts.py": "cf732898f116a6b369bd9fd1e52d2b7b940499ed8f353b3109fa569fbde76aed",
+    "packages/scheduler/api.py": "182e0132d3b466522e322624cf4b125bbe17bea63f734a8d0049dd0e6c9dd070",
+    "packages/mcp/server.py": "f9725630965c3ed1008c8b8ccdf3c306b7dbe49d061c32577d2f336f075c4e68",
+    "scripts/migrate_json_scheduler.py": "5314c127ce7dbe0d29c2cd758546fabb6e5c8aa38718a319c825164d2bcae920",
+    "tests/test_action_unification_p6_json_receipts.py": "4036f9b27de8255f77554bc3364b646099a13596f15f5e953fff04361095e100"
+  },
+  "junit": [
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-boundaries.xml",
+      "tests": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "aefd4678b7706fdfc692637d98ab86716e5dd585d50e15415fb61b4412addcf3",
+      "sha256": "aefd4678b7706fdfc692637d98ab86716e5dd585d50e15415fb61b4412addcf3"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-canonical.xml.gz",
+      "tests": 118,
+      "failures": 14,
+      "errors": 0,
+      "skipped": 1,
+      "classes": [
+        "tests.test_job_final_clients",
+        "tests.test_job_final_http_service",
+        "tests.test_job_process_logs",
+        "tests.test_job_process_pending",
+        "tests.test_scheduler_source_migration"
+      ],
+      "skipReasons": [
+        "POSIX lost-leader process log/owned subtree boundary"
+      ],
+      "rawSha256": "f16bf0c279cf267ba0b31b77ba2aae4ffb78a70ceb4f295ac7d4982d644b2478",
+      "redactedSha256": "f16bf0c279cf267ba0b31b77ba2aae4ffb78a70ceb4f295ac7d4982d644b2478",
+      "sha256": "3353729e236769debeab30a97391eee4b685c5f703f21818d776bee4067daafb"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-combination.xml",
+      "tests": 163,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts",
+        "tests.test_action_unification_p6_json_scheduler",
+        "tests.test_action_unification_p6_scheduler_retained",
+        "tests.test_job_final_retirement",
+        "tests.test_runtime_owner_stuck",
+        "tests.test_scheduler_api",
+        "tests.test_scheduler_mcp"
+      ],
+      "skipReasons": [],
+      "rawSha256": "0117eb9a5a5651db28207aea0c8c62d959763f97d5fd49921cd2ed2f32b71d6e",
+      "sha256": "0117eb9a5a5651db28207aea0c8c62d959763f97d5fd49921cd2ed2f32b71d6e"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-completion-shape-red.xml.gz",
+      "tests": 2,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "8b4cf4d0a4ada9471a136f2437be13891e5c524c08d77ca1bd676c4bfaca2426",
+      "redactedSha256": "8b4cf4d0a4ada9471a136f2437be13891e5c524c08d77ca1bd676c4bfaca2426",
+      "sha256": "52979327fff7d17c2c993468c630e1b716d0a6d7366826c1d5053c912fa76a0a"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-final-source.xml",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "e96133304d310ce7309e421c7f5335bcaacb6e24150f74c01761b5e81994c812",
+      "sha256": "e96133304d310ce7309e421c7f5335bcaacb6e24150f74c01761b5e81994c812"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-final.xml",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "dd639b5cca120743fab5ba6e6bce967923628bd0e78cde4e17ad45f8df55d80d",
+      "sha256": "dd639b5cca120743fab5ba6e6bce967923628bd0e78cde4e17ad45f8df55d80d"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-focused-final.xml",
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "e728be733274496e17c83a560b5caa79b65969721690fa241d848672af1fbaf6",
+      "sha256": "e728be733274496e17c83a560b5caa79b65969721690fa241d848672af1fbaf6"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-focused.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "9e639b589cc10b3ff2d28a57399455a2cbdf8634999ff48aa9c1f1984e7b40f7",
+      "sha256": "9e639b589cc10b3ff2d28a57399455a2cbdf8634999ff48aa9c1f1984e7b40f7"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-local-queue.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "d7ed014a7d0e59395d307538f790b9c8aad9286ffdc9f046b25e0159a702bb5a",
+      "sha256": "d7ed014a7d0e59395d307538f790b9c8aad9286ffdc9f046b25e0159a702bb5a"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-logs-direct.xml",
+      "tests": 21,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "classes": [
+        "tests.test_job_process_logs"
+      ],
+      "skipReasons": [
+        "POSIX lost-leader process log/owned subtree boundary"
+      ],
+      "rawSha256": "5c2703ed4be69980355e2ef761fd06f27011197ebb7fe576ba102bc722136e0a",
+      "sha256": "5c2703ed4be69980355e2ef761fd06f27011197ebb7fe576ba102bc722136e0a"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-operator-harness-red.xml.gz",
+      "tests": 1,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "classes": [
+        ""
+      ],
+      "skipReasons": [],
+      "rawSha256": "4a9d266e99fa8ef60a9e19732bca9f333bbe54650762d2bdd6c0285dcab3ac60",
+      "redactedSha256": "4a9d266e99fa8ef60a9e19732bca9f333bbe54650762d2bdd6c0285dcab3ac60",
+      "sha256": "c730d855384b020219f0a332d00b9267feb0cdecd3a1e64fd5ba2e76fef4b9e9"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-operator.xml",
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "deb9ce4cbfabf7a1bed8294adc0f2cb505f24d619adf09417bfcdb4902da1f5f",
+      "sha256": "deb9ce4cbfabf7a1bed8294adc0f2cb505f24d619adf09417bfcdb4902da1f5f"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-shell-original-red.xml.gz",
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "97a1128e7d9f586518a7dc7593bd53bcf3afb9168552b4542c042c9f5b3b174b",
+      "redactedSha256": "97a1128e7d9f586518a7dc7593bd53bcf3afb9168552b4542c042c9f5b3b174b",
+      "sha256": "f0d8f3938c80344c70a50c77392df03fb2dc39b4b9e599e1cc2936ba24200587"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-supervisor-red.xml.gz",
+      "tests": 2,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "adf27cf199c4c6abc565b7607a84df17e34adc00b0aacef351311651a831c37c",
+      "redactedSha256": "adf27cf199c4c6abc565b7607a84df17e34adc00b0aacef351311651a831c37c",
+      "sha256": "302c5ba9a5723ecd41c283c448cc77503b382e693e2eb024d7769706d68771dc"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-transports.xml",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts"
+      ],
+      "skipReasons": [],
+      "rawSha256": "b8f986d916c209ba95f070587d01673a8edd08a57be07e0e3b5e201e439520e4",
+      "sha256": "b8f986d916c209ba95f070587d01673a8edd08a57be07e0e3b5e201e439520e4"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-delivery-checkpoint.xml",
+      "tests": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts",
+        "tests.test_action_unification_p6_json_scheduler"
+      ],
+      "skipReasons": [],
+      "sha256": "97313af1e87cf97ebd08583ee765c985d199dc53bde5d3854dfc1ed95bcfd7a7"
+    },
+    {
+      "artifact": "evidence/action-unification-p6/json-receipts-delivery.xml",
+      "tests": 40,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": [
+        "tests.test_action_unification_p6_json_receipts",
+        "tests.test_action_unification_p6_json_scheduler"
+      ],
+      "skipReasons": [],
+      "sha256": "75ccb9e5b68f60c82dc6f95cc07455142690bea682746db90a885e9e23716d1d"
+    }
+  ],
+  "checks": {
+    "ast": "passed",
+    "final_contracts_check": "exit 0",
+    "git_diff_check": "exit 0"
+  },
+  "testEnvironment": {
+    "python": "C:/Users/14709/AppData/Local/Programs/Python/Python314/python.exe",
+    "wrapper": "scripts/run_tests_isolated.py",
+    "PYTHONTZPATH": "E:/software/python-userbase/Python312/site-packages/tzdata/zoneinfo",
+    "loopback_proxy_bypass": "NO_PROXY=127.0.0.1,localhost for logs-direct and final delivery only; no system proxy modification"
+  },
+  "commands": {
+    "focused": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_json_receipts.py -q --junitxml=evidence/action-unification-p6/json-receipts-final.xml",
+    "delivery": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_json_receipts.py tests/test_action_unification_p6_json_scheduler.py -q --junitxml=evidence/action-unification-p6/json-receipts-delivery.xml",
+    "logs-direct": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_process_logs.py -q --junitxml=evidence/action-unification-p6/json-receipts-logs-direct.xml",
+    "contracts": "python scripts/run_tests_isolated.py -- python -m packages.jobs.final_contracts --check",
+    "finalDelivery": "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_json_receipts.py tests/test_action_unification_p6_json_scheduler.py -q --junitxml=evidence/action-unification-p6/json-receipts-delivery-checkpoint.xml"
+  },
+  "claims": {
+    "productionBuild": "not run; no React or dist changes",
+    "chromium": "not run",
+    "remoteCI": "not run",
+    "realDataMigration": "not run",
+    "deployment": "not run",
+    "manualAcceptance": "pending MA"
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "finalDelivery": {
+    "artifact": "json-receipts-delivery-checkpoint.xml",
+    "passed": 41,
+    "newCases": 19,
+    "existingCases": 22,
+    "sourceAfterFinalGuards": true
+  }
+}

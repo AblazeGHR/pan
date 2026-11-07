@@ -414,3 +414,26 @@ it('converges a background superseded task without touching the selected Session
   expect(store().sessionTranscripts.A!.runtime.some(row => row.nativeItemId === 'background-orphan')).toBe(false);
   expect(store().sessionTranscripts.A!.runtime.some(row => row.nativeItemId === 'new')).toBe(true);
 });
+
+
+it.each([true, false])('bounds cold recovery across a durable terminal tail only with matching final identity (%s)', matches => {
+  const store = useSessionStore.getState;
+  useSessionStore.setState({
+    sessions: store().sessions.map(session => ({ ...session, history: [], historyTotal: 0 })),
+    sessionTranscripts: {}, currentMessages: [],
+  });
+  store().applyWorkerStatus('A', 'running', meta);
+  const assistant = { ...final[2]!, messageId: 'pan:canonical-final' };
+  const terminal: Message = { role: 'terminal', kind: 'terminal', content: '', messageId: 'terminal:owned',
+    terminal: { eventId: 'owned-terminal', status: 'done', occurredAt: '2026-01-01T00:00:00Z',
+      terminalKey: 'owned', order: 1, anchorMessageId: null, taskId: null, taskSeq: 1,
+      executionSeq: 1, workerId: 'worker-a', generation: 1 } };
+  store().applyHistoryPage('A', {
+    ...page([...final.slice(0, 2), assistant, terminal], 5004), total: 5004, start: 5000, hasMore: true,
+  });
+  store().applyLiveStream('A', [matches ? { ...assistant } : row('assistant', 'final answer', 'foreign-final'),
+    row('thinking', '', 'terminal-tail-orphan')], meta);
+  finish(5004);
+  expect(store().currentMessages.some(message => message.nativeItemId === 'terminal-tail-orphan')).toBe(!matches);
+  expect(store().currentMessages.some(message => message.terminal?.eventId === 'owned-terminal')).toBe(true);
+});

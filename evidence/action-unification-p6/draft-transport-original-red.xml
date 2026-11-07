@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.294" timestamp="2026-11-06T22:07:50.003324+08:00" hostname="ablaze"><testcase classname="tests.test_authorization_mcp" name="test_object_path_allowlist_is_canonical_plus_retained_reads" time="0.010"><failure message="AssertionError: /api/action-drafts/actions/put&#10;assert not True&#10; +  where True = object_path('/api/action-drafts/actions/put')">tests\test_authorization_mcp.py:281: in test_object_path_allowlist_is_canonical_plus_retained_reads
+    assert not object_path(path), path
+E   AssertionError: /api/action-drafts/actions/put
+E   assert not True
+E    +  where True = object_path('/api/action-drafts/actions/put')</failure></testcase><testcase classname="tests.test_authorization_mcp" name="test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http" time="0.560"><failure message="AssertionError: ('/api/action-drafts/actions/put', {'ok': False, 'error': {'code': 404, 'message': 'Not Found'}})&#10;assert 404 == 403">tests\test_authorization_mcp.py:310: in test_retired_writes_refuse_raw_ipc_and_never_fall_back_to_http
+    assert result['error']['code'] == 403, (path, result)
+E   AssertionError: ('/api/action-drafts/actions/put', {'ok': False, 'error': {'code': 404, 'message': 'Not Found'}})
+E   assert 404 == 403</failure></testcase></testsuite></testsuites>

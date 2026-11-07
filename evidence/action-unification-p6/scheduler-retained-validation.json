@@ -1,0 +1,141 @@
+{
+  "task": "ACTION-UNIFICATION-20261104-P6",
+  "revision": 4,
+  "baseline": "911935d95dc212af79398f1af684717f6a65e1e4",
+  "status": "partial candidate; old Trigger execution adoption and active retained Scheduler handoff are not complete",
+  "sourceHashes": {
+    "packages/automation/authorization.py": "47adc740d59e525e957c6f5aefdf4674c489f6c3996a392a757849d692cfe4bf",
+    "packages/jobs/final_service.py": "b35b5d970eb08e783cc2ffb87bb86a8fda28dbfaf1d069d7d1fcd93d4ec72a3a",
+    "packages/mcp/server.py": "dc2f9b45c1b31bf3f433a5d91d7f8e43034262fd114aa5b11a0024f17a983ec2",
+    "packages/scheduler/api.py": "10540327fb6104f5b5491118c62894cb9b47124e4a717390073434e90f8fe37b",
+    "packages/scheduler/retained.py": "eac349663482ff4fabab232e4c60d825e0ace0778365e960e8a6eb1afd00b9f3",
+    "tests/test_action_unification_p6_scheduler_retained.py": "25d258de11318d1c7f5b993cb5e7b88cf3312d476f2a6d99ab0f294d3b68b8ee",
+    "tests/test_job_mcp_config.py": "b83f0a4c4993e18cdc7425fe8e156735595443b88842ecdde2af58695a3a27fa",
+    "tests/test_job_final_clients.py": "7d3741a6fa678c7a2ace5e68fcc770d29625f41e764766cebc78acf143e3e7e7",
+    "tests/support/p6_scheduler_baseline_probe.py": "7030a5fc5e64a6c16f34d2259b5131cdcfca87d4edbd37c3cd489e029ed1ca11"
+  },
+  "junit": {
+    "scheduler-retained-focused-final.xml": {
+      "tests": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-focused.xml": {
+      "tests": 14,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-http-final.xml": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-stdio-regression.xml": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-baseline-retirement-red.xml.gz": {
+      "tests": 62,
+      "failures": 7,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-legacy-bridge-experiment-red.xml.gz": {
+      "tests": 8,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-combination-red.xml.gz": {
+      "tests": 252,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-focused-red.xml.gz": {
+      "tests": 8,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-harness-red.xml.gz": {
+      "tests": 1,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0
+    },
+    "scheduler-retained-original-red.xml.gz": {
+      "tests": 1,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "scheduler-retained-retirement-red.xml.gz": {
+      "tests": 94,
+      "failures": 6,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "protectedRefs": {
+    "main": "d08ac2678b2bf7a51af8b29aebc051c0a14354f1",
+    "practical": "4777a5e26e4c8c6ef1fd8f5c59a59e4934119429"
+  },
+  "validation": {
+    "static": "AST parse and git diff --check passed",
+    "focused": "15 passed; source-auth follow-up 1 passed; core/native stdio regression 2 passed; counts overlap",
+    "combination": "251 passed, 1 baseline Template failure",
+    "retirement": "88 passed, 6 baseline Template failures",
+    "baselineProbe": "55 passed, same 7 failed in unchanged assertions with parent product modules",
+    "http": "owned random-port TCP, no production host; existing tcp fixture joins listener thread",
+    "mcp": "actual core stdio -> owned IPC -> production routes; no Bearer in child environment",
+    "notice": "actual local session notice queue, paused owned target; synthetic work provider",
+    "build": "not run; no React source change",
+    "chromium": "not run",
+    "remoteCI": "not run",
+    "realMigration": "not run; provenance aliases are not adoption",
+    "humanAcceptance": "not run"
+  },
+  "commands": [
+    "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_scheduler_retained.py tests/test_job_mcp_config.py -q",
+    "python scripts/run_tests_isolated.py -- python -m pytest tests/test_action_unification_p6_scheduler_retained.py -k P6_SCHED_01 -q",
+    "python scripts/run_tests_isolated.py -- python -m pytest tests/test_job_final_clients.py -k test_real_stdio_crud_operations_permissions_and_legacy -q",
+    "python scripts/run_tests_isolated.py -- python -m pytest tests/test_scheduler_history_read.py tests/test_scheduler_api.py tests/test_scheduler_mcp.py tests/test_job_final_http_service.py tests/test_job_final_clients.py tests/test_job_process_pending.py -q",
+    "python scripts/run_tests_isolated.py -- python tests/support/p6_scheduler_baseline_probe.py tests/test_job_final_retirement.py tests/test_job_final_http_service.py -k \"test_old_write_reaches_no_effectful_handler or test_old_write_refuses_an_anonymous_caller_before_answering or test_retirement_is_implemented_at_the_route_table_not_by_hiding_paths or test_ft03_old_facade_retires_writes_and_keeps_reads\" -q"
+  ],
+  "losslessRedCompression": {
+    "scheduler-baseline-retirement-red.xml.gz": {
+      "rawSha256": "e5cc5456cc875be44cebde7fb604792d9c146902f7589ba3cd7c3fca3c230d88",
+      "rawBytes": 26188
+    },
+    "scheduler-legacy-bridge-experiment-red.xml.gz": {
+      "rawSha256": "cfb816c426c7135bb0660869020ccd9d651297c791bc774055574a45a07d875f",
+      "rawBytes": 2936
+    },
+    "scheduler-retained-combination-red.xml.gz": {
+      "rawSha256": "f43714bae3d74f3684ec13122d08cc0dbfe9819213dba6a4d8eee7946b0213d9",
+      "rawBytes": 37499
+    },
+    "scheduler-retained-focused-red.xml.gz": {
+      "rawSha256": "3ea304f2ad27e9fa6530cf32bad3b42882ea681b22f37c6705fc67e9d2a55bce",
+      "rawBytes": 5409
+    },
+    "scheduler-retained-harness-red.xml.gz": {
+      "rawSha256": "40ff775b23e39ce22b9f4555180cc9b23a1482e27d661d2fe8f23eb83530ccc2",
+      "rawBytes": 5383
+    },
+    "scheduler-retained-original-red.xml.gz": {
+      "rawSha256": "c8f934fef4a51a2f82eab50cd36017f0e875987e47359f27dbedddd3fa359499",
+      "rawBytes": 1621
+    },
+    "scheduler-retained-retirement-red.xml.gz": {
+      "rawSha256": "3b0fe4355d00bc49648e93c3d123de4bbdaf8b07257bfd6503e8bff25c4a23da",
+      "rawBytes": 28363
+    }
+  }
+}
