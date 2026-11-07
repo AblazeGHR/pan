@@ -76,6 +76,7 @@ try {
   await page.goto(base + '/react/actions');
   await page.getByLabel('Local user key').fill(key);
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Log out', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '旧定义与 Session 绑定' }).click();
   await page.getByRole('button', { name: 'Edit Owned old series', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Mapped canonical Action' })).toBeVisible();
