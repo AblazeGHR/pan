@@ -5,6 +5,8 @@ import { AppSettingsModal } from './AppSettingsModal';
 import { SETTINGS_CATEGORY_ORDER, SETTINGS_TABS } from './settingsCategories';
 import { useAppSettingsStore, DEFAULT_SETTINGS } from '@/stores/appSettingsStore';
 import { usePlatformStore } from '@/stores/platformStore';
+import { useAutomationAuth } from '@/stores/automationStore';
+import { SETTINGS_SEARCH_ENTRIES, findSettingsGroupHeading } from './settingsSearch';
 
 const {
   fetchCodexModelsMock,
@@ -148,6 +150,29 @@ describe('AppSettingsModal', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (input === '/api/notifications/error-types') {
         return { ok: true, json: async () => ({ types: [] }) };
+      }
+      if (input === '/api/automation/authorization' && (!init?.method || init.method === 'GET')) {
+        const capabilities = {
+          trigger: ['read', 'create', 'updateConfig', 'lifecycle', 'delete'],
+          action: ['read', 'create', 'updateConfig', 'lifecycle', 'delete', 'manageSystemActions'],
+          jobTemplate: ['read', 'create', 'updateConfig', 'use', 'delete'],
+          job: ['read', 'create', 'updateConfig', 'lifecycle', 'execute', 'delete'],
+        };
+        return {
+          ok: true,
+          json: async () => ({
+            configured: true,
+            revision: 'rev-1',
+            authorizationRevision: 1,
+            sessionDays: 0,
+            permissions: Object.fromEntries(
+              Object.entries(capabilities).map(([kind, values]) => [
+                kind,
+                Object.fromEntries(values.map((capability) => [capability, true])),
+              ]),
+            ),
+          }),
+        };
       }
       if (input === '/api/reminding-cards/settings') {
         const body = JSON.parse(String(init?.body ?? '{}'));
@@ -1989,5 +2014,197 @@ describe('AppSettingsModal', () => {
     expect(exitButton.textContent).toContain('Not available on this platform (macOS)');
     expect(restartMainServiceMock).not.toHaveBeenCalled();
     expect(exitMainServiceMock).not.toHaveBeenCalled();
+  });
+
+  describe('settings search', () => {
+    afterEach(() => {
+      useAutomationAuth.setState({ token: null, authenticated: false, expiresAt: 0, sessionDays: 0 });
+    });
+
+    function searchInput(): HTMLInputElement {
+      const element = document.body.querySelector<HTMLInputElement>(
+        '[data-testid="settings-search-input"]',
+      );
+      expect(element).toBeTruthy();
+      return element!;
+    }
+
+    function panelEl(): HTMLElement {
+      const element = document.getElementById('app-settings-tabpanel');
+      expect(element).toBeTruthy();
+      return element!;
+    }
+
+    function typeQuery(value: string) {
+      fireEvent.change(searchInput(), { target: { value } });
+    }
+
+    function hit(entryId: string): HTMLButtonElement | null {
+      return document.body.querySelector<HTMLButtonElement>(
+        `[data-testid="settings-search-hit-${entryId}"]`,
+      );
+    }
+
+    it('adds a right-hand search entry and leaves the tabbed UI untouched while empty', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      const input = searchInput();
+      expect(input.value).toBe('');
+      expect(input.getAttribute('placeholder')).toBe('Search settings');
+      expect(input.getAttribute('aria-label')).toBe('Search settings');
+
+      // The field is the last child of the tab bar row, after the tablist.
+      const field = document.body.querySelector<HTMLElement>('[data-testid="settings-search-field"]');
+      expect(field).toBeTruthy();
+      const fieldRow = field!.parentElement!;
+      const bar = fieldRow.parentElement!;
+      expect(bar.lastElementChild).toBe(fieldRow);
+      expect(bar.querySelector('[role="tablist"]')).toBeTruthy();
+      // Desktop keeps the field on the tab row; narrow screens wrap it full width.
+      expect(fieldRow.className).toContain('w-full');
+      expect(fieldRow.className).toContain('md:w-48');
+      expect(bar.className).toContain('flex-wrap');
+      expect(bar.querySelector('[role="tablist"]')!.className).toContain('overflow-x-auto');
+
+      // No results region and no cleared tab panel while the query is empty.
+      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
+      expect(document.getElementById('app-settings-tab-lifecycle')?.getAttribute('aria-selected'))
+        .toBe('true');
+      expect(cardEl().textContent).toContain('Restart Pan main service');
+    });
+
+    it('lists hits from every tab with their original group and tab', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('timeout');
+      expect(hit('worker-config')?.textContent).toContain('Worker configuration');
+      expect(hit('worker-config')?.textContent).toContain('Behavior');
+
+      typeQuery('retention');
+      expect(hit('jobs-retention')?.textContent).toContain('Automatic cleanup settings');
+      expect(hit('jobs-retention')?.textContent).toContain('Data');
+
+      typeQuery('shortcut');
+      expect(hit('shortcuts-keyboard')?.textContent).toContain('Shortcuts');
+
+      typeQuery('lan');
+      expect(hit('lan')?.textContent).toContain('普通局域网访问（LAN）');
+      expect(hit('lan')?.textContent).toContain('Remote');
+    });
+
+    it('opens the hit tab, clears the query and flashes the matched group', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('sidebar');
+      const sidebarHit = hit('sidebar');
+      expect(sidebarHit).toBeTruthy();
+
+      scrollIntoViewMock.mockClear();
+      fireEvent.click(sidebarHit!);
+
+      expect(searchInput().value).toBe('');
+      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
+      expect(document.getElementById('app-settings-tab-appearance')?.getAttribute('aria-selected'))
+        .toBe('true');
+
+      const heading = findSettingsGroupHeading(panelEl(), 'Sidebar');
+      expect(heading).toBeTruthy();
+      expect(heading!.classList.contains('ring-2')).toBe(true);
+      expect(scrollIntoViewMock).toHaveBeenCalled();
+      expect(scrollIntoViewMock.mock.contexts).toContain(heading);
+      // The original control keeps its own behavior and copy.
+      expect(panelEl().textContent).toContain('Show sidebar collapse handle');
+    });
+
+    it('shows an empty state for unknown text and restores the tabs when cleared', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('definitely-not-a-setting');
+      expect(
+        document.body.querySelector('[data-testid="settings-search-empty"]')?.textContent,
+      ).toContain('definitely-not-a-setting');
+
+      fireEvent.click(document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="settings-search-clear"]',
+      )!);
+      expect(searchInput().value).toBe('');
+      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
+      expect(cardEl().textContent).toContain('Restart Pan main service');
+    });
+
+    it('clears the query on Escape without closing the modal', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('queue');
+      fireEvent.keyDown(searchInput(), { key: 'Escape' });
+      expect(searchInput().value).toBe('');
+      expect(document.body.querySelector('.app-settings-overlay')).toBeTruthy();
+    });
+
+    it('leaves the tabs in charge: picking a tab drops the search results', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('queue');
+      clickTab('shortcuts');
+      expect(document.body.querySelector('[data-testid="settings-search-results"]')).toBeNull();
+      expect(searchInput().value).toBe('');
+      expect(panelEl().textContent).toContain('Keyboard shortcuts');
+    });
+
+    it('keeps permission-gated groups out until the config or login allows them', () => {
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      // Not logged in: the password/permission editors are not rendered at all.
+      typeQuery('change password');
+      expect(hit('change-password')).toBeNull();
+      expect(document.body.querySelector('[data-testid="settings-search-empty"]')).toBeTruthy();
+
+      // No enabled tunnel in config.json: the Remote / Tunnel group is hidden.
+      typeQuery('tunnel');
+      expect(hit('remote-tunnel')).toBeNull();
+    });
+
+    it('adds the tunnel group once the server reports it enabled', async () => {
+      fetchRemoteStatusMock.mockResolvedValue({ available: true, enabled: true, running: false });
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      await waitFor(() => expect(fetchRemoteStatusMock).toHaveBeenCalled());
+      typeQuery('tunnel');
+      await waitFor(() => expect(hit('remote-tunnel')).toBeTruthy());
+    });
+
+    it('adds the logged-in only Authorization groups after login', async () => {
+      useAutomationAuth.setState({ token: 'test-token', authenticated: true });
+      render(<AppSettingsModal open onClose={() => {}} />);
+
+      typeQuery('change password');
+      await waitFor(() => expect(hit('change-password')).toBeTruthy());
+
+      typeQuery('permissions');
+      await waitFor(() => expect(hit('agent-permissions')).toBeTruthy());
+    });
+
+    it('keeps every indexed group reachable in its own tab', async () => {
+      fetchRemoteStatusMock.mockResolvedValue({ available: true, enabled: true, running: false });
+      useAutomationAuth.setState({ token: 'test-token', authenticated: true });
+      render(<AppSettingsModal open onClose={() => {}} />);
+      await waitFor(() => expect(fetchRemoteStatusMock).toHaveBeenCalled());
+
+      const missing: string[] = [];
+      for (const tab of SETTINGS_CATEGORY_ORDER) {
+        clickTab(tab);
+        await waitFor(() =>
+          expect(document.getElementById(`app-settings-tab-${tab}`)?.getAttribute('aria-selected'))
+            .toBe('true'),
+        );
+        for (const entry of SETTINGS_SEARCH_ENTRIES) {
+          if (entry.tab !== tab || entry.jump === 'tab') continue;
+          if (!findSettingsGroupHeading(panelEl(), entry.group)) {
+            missing.push(`${tab}: ${entry.group}`);
+          }
+        }
+      }
+      expect(missing).toEqual([]);
+    });
   });
 });
