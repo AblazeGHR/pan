@@ -141,8 +141,10 @@ CAS（`expectedRevision` / `expectedStateRevision` / `expectedPluginRevision`）
   - 失败负控：浏览器打开组详情（revision 2）后，从外部用真实 API 把组改到
     revision 3，再点“保存草稿”——只发出 **1 次** PUT，返回
     `版本冲突… [revision_conflict]`，没有 `回执 completed`，也没有重试/重放。
-  - `--phase=before`（基线 worktree `D:/project/pan-worktrees/baseline-action-dir-20261108`
-    @ `0ba70483` 自建 dist）：同一 fixture 下确认基线只有整页
+  - `--phase=before`（临时基线 worktree，验证后已删除；复现：
+    `git worktree add --detach <path> 0ba70483` → 在 `<path>/packages/web` 执行
+    `pnpm install --offline --frozen-lockfile && pnpm build`，再以
+    `PAN_E2E_SOURCE_ROOT=<path>` 跑本脚本）：同一 fixture 下确认基线只有整页
     `统一目录 ⇄ 旧定义与 Session 绑定` 切换、canonical 侧没有 Groups 入口，
     Group 需切到旧系统才可见，见
     [before-evidence.json](../../evidence/action-group-ui-unified-20261108/before-evidence.json)
