@@ -123,6 +123,18 @@ CAS（`expectedRevision` / `expectedStateRevision` / `expectedPluginRevision`）
 - 聚焦 Vitest：`unifiedModel.test.ts`(9) + `UnifiedActionsView.test.tsx`(10) +
   `UnifiedDirectoryGroups.test.tsx`(8) = **27 passed**。
 - 完整 Vitest：**238 files / 2744 passed / 3 skipped / 0 failed**。
+- 完整后端套件（`tests/`）：**8675 个用例，8647 passed / 28 failed**。28 个失败
+  全部是环境依赖缺失，且用同样用例在基线 `0ba70483` 上逐条复现：
+  - 11 个 Python Playwright 浏览器可执行文件缺失
+    （`ms-playwright/chromium_headless_shell-1234` 未安装）；
+  - 5 个 `ModuleNotFoundError: tzlocal`；
+  - 6 个 `test_scheduler_time_templates` 既有正则断言不匹配；
+  - 3 个同族 `provider_unavailable`；
+  - 1 个 Playwright locator 超时、1 个 delegated-profile `503 == 403`；
+  - 1 个 xterm sidecar 依赖缺失（`@xterm/addon-serialize`、`@xterm/headless`）。
+  `tests/test_terminal_emulator.py` 与 `tests/test_terminal_tools_api.py` 在本机
+  ConPTY 下以 FAILED 列表结束且不产出汇总（基线同样如此），故完整套件统计来自
+  排除这两个文件后的运行；两者与本片改动的文件无交集。
 - `pnpm build`：TypeScript + Vite + 压缩资源校验通过，
   **90 个 production assets**。
 - 正常 hook：`core.hooksPath=scripts`，提交时 pre-commit 对
@@ -167,5 +179,7 @@ CAS（`expectedRevision` / `expectedStateRevision` / `expectedPluginRevision`）
   `_check` 抛 `revision_conflict`），这是产品既有行为，不是本片缺陷。该状态由
   单测覆盖（`unifiedModel.test.ts`、`UnifiedDirectoryGroups.test.tsx`）。
 - 未验证：远端 CI、Linux/macOS、真实 data/profile 迁移、真实模型 CLI/外部
-  provider、部署与人工验收。
+  provider、部署与人工验收。本机缺少 Python Playwright 浏览器、`tzlocal` 与
+  xterm sidecar 依赖，`tests/` 中 28 个用例因此在基线与本分支同样失败（见 §4），
+  不构成本片回归证据。
 - `LegacyActionsView` 仍保留但不再由该路由挂载；是否删除该组件留待 MA/用户决定。
