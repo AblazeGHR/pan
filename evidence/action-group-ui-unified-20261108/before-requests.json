@@ -1,0 +1,9 @@
+[
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:54417/api/automation/login",
+    "body": {
+      "key": "Y1_VHG95u0IM0SZyUFSeOkzyNEnUn32dADLvwD89bvc"
+    }
+  }
+]

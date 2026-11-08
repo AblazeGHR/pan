@@ -2,15 +2,23 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import UnifiedActionsView from './UnifiedActionsView';
-import { canonicalRequest, ApiRequestError } from '@/services/api';
+import { canonicalRequest, actionRequest, ApiRequestError } from '@/services/api';
 import { useAutomationAuth } from '@/stores/automationStore';
+import {
+  useActionCatalogStore,
+  useActionRegistryStore,
+  useActionSessionDetailStore,
+  useActionSessionsStore,
+} from '@/stores/actionRegistryStore';
 import { ReferenceUpdates } from '@/components/actions/ReferenceUpdates';
 import { TriggerTarget } from '@/components/automation/TriggerTarget';
 vi.mock('@/services/api', async (original) => ({
   ...(await original<typeof import('@/services/api')>()),
   canonicalRequest: vi.fn(),
+  actionRequest: vi.fn(),
 }));
 const request = vi.mocked(canonicalRequest);
+const legacyRequest = vi.mocked(actionRequest);
 const ref = (revision: number) => ({ id: 'echo', revision, digest: String(revision).repeat(64) });
 const definition = {
   name: 'Echo',
@@ -33,6 +41,17 @@ beforeEach(() => {
     authenticated: true,
     expiresAt: Date.now() + 600000,
   });
+  useActionRegistryStore.getState().reset();
+  useActionSessionsStore.getState().reset();
+  useActionCatalogStore.getState().reset();
+  useActionSessionDetailStore.setState({ entries: {} });
+  legacyRequest.mockReset();
+  legacyRequest.mockImplementation(async (path) => {
+    if (path === 'actions') return { revision: 1, actions: [], groups: [] };
+    if (path === 'sessions') return { sessions: [] };
+    if (path === 'mcp/servers') return { servers: [], loaded: true };
+    throw new Error(`Unhandled legacy ${path}`);
+  });
   request.mockReset();
   request.mockImplementation(async (path) => {
     if (path === 'jobs/actions')
@@ -42,6 +61,7 @@ beforeEach(() => {
           { id: 'system', name: 'System', system: true, state: 'published' },
         ],
         versions: { echo: { count: 2 }, system: { count: 1 } },
+        references: { echo: ref(2), system: ref(1) },
       };
     if (path === 'jobs/actions/echo/versions') return { items: versions };
     if (path === 'action-groups') return { items: [] };
@@ -51,10 +71,10 @@ beforeEach(() => {
 afterEach(cleanup);
 async function detail() {
   render(<UnifiedActionsView />);
-  fireEvent.click(await screen.findByRole('button', { name: /Echo 用户/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open Action Echo' }));
   await screen.findByRole('option', { name: 'v2 · published · enabled' });
 }
-it('aggregates logical Actions and changes only viewing version, with fixed ref and full definition', async () => {
+it('aggregates logical Actions into one entry and changes only the viewing version, with fixed ref and full definition', async () => {
   await detail();
   expect(screen.getByLabelText('Action version')).toHaveProperty('value', '2');
   fireEvent.change(screen.getByLabelText('Action version'), { target: { value: '1' } });

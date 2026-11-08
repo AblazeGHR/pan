@@ -1,0 +1,45 @@
+[
+  {
+    "method": "POST",
+    "url": "http://127.0.0.1:57338/api/automation/login",
+    "body": {
+      "key": "KLHNA4ctKOwNTbMRahCXN333WMv6hE9CYocMNu5nPs4"
+    }
+  },
+  {
+    "method": "PATCH",
+    "url": "http://127.0.0.1:57338/api/sessions/ses_100c6d7849aee423",
+    "body": {
+      "pluginBindings": [
+        {
+          "plugin_id": "action-group-uni-tools",
+          "enabled": true,
+          "mode": "gateway"
+        }
+      ],
+      "expectedPluginRevision": 0
+    }
+  },
+  {
+    "method": "PUT",
+    "url": "http://127.0.0.1:57338/api/action-groups/uni_tools",
+    "body": {
+      "group": {
+        "id": "uni_tools",
+        "name": "Renamed by browser",
+        "tools": [
+          {
+            "alias": "echo",
+            "actionRef": {
+              "digest": "187489067c43e80f790642b17555679eaffde330f6978bd4a9ad9ec4764744b3",
+              "id": "action_394bd33ceeaf4a2e89f49b44",
+              "revision": 1
+            }
+          }
+        ]
+      },
+      "expectedRevision": 2,
+      "requestKey": "0ffb2a0c-bac7-402d-86b7-115d48032f77"
+    }
+  }
+]

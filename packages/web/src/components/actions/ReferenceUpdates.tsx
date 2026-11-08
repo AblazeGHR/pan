@@ -17,12 +17,18 @@ const json = (v: unknown) => (
 export function ReferenceUpdates({
   actionRef,
   onInspect,
+  initialGroupId,
+  manageGroups = true,
 }: {
   actionRef?: JsonObject;
   onInspect?: (ref: JsonObject) => void;
+  /** Deep link from a Group entry: preselect its scope and load the catalog. */
+  initialGroupId?: string;
+  /** The unified Group entry owns draft/build controls; only升级 is rendered here. */
+  manageGroups?: boolean;
 }) {
   const [groups, setGroups] = useState<JsonObject[]>([]),
-    [groupId, setGroupId] = useState('');
+    [groupId, setGroupId] = useState(initialGroupId ?? '');
   const [jobs, setJobs] = useState<JsonObject[]>([]),
     [selected, setSelected] = useState<string[]>([]),
     [subscribers, setSubscribers] = useState<JsonObject[]>([]);
@@ -77,8 +83,13 @@ export function ReferenceUpdates({
       }
     }
   }
-  async function review(kind: 'group' | 'job', scope: JsonObject) {
-    setPreview(null);
+  useEffect(() => {
+    // A Group entry deep-links its own upgrade scope; load the catalog so the
+    // preview can be requested without a second click.
+    if (initialGroupId) void task(load);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGroupId]);
+  async function review(kind: 'group' | 'job', scope: JsonObject) {    setPreview(null);
     const value = await canonicalRequest<JsonObject>(
       kind === 'group'
         ? 'action-groups/preview-reference-update'
@@ -106,7 +117,9 @@ export function ReferenceUpdates({
       <Button disabled={busy || !!pending} onClick={() => void task(load)}>
         加载引用与 Groups
       </Button>
-      <CanonicalGroupEditor groups={groups} onChanged={load} onInspect={onInspect} />
+      {manageGroups && (
+        <CanonicalGroupEditor groups={groups} onChanged={load} onInspect={onInspect} />
+      )}
       <fieldset disabled={busy || !!pending} className="min-w-0 space-y-2">
         <legend>Group 升级范围</legend>
         <select

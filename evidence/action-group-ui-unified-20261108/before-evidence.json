@@ -1,0 +1,13 @@
+{
+  "phase": "before",
+  "port": 54417,
+  "sourceRoot": "D:\\project\\pan-worktrees\\baseline-action-dir-20261108",
+  "checks": [
+    "owned service PID, checkout and runtime verified",
+    "baseline: canonical catalog and legacy records are split by a whole-page toggle",
+    "baseline: the canonical surface has no Groups entry at all",
+    "baseline: Groups are only reachable after switching the whole page to the old system"
+  ],
+  "errors": [],
+  "status": "passed"
+}
