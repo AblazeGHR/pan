@@ -288,22 +288,29 @@ class Groups:
         with self.service.transaction(readonly=True) as db:
             return self.service._get(db, "action_group_release", version)
 
+    def _release_scope(self, actor):
+        # Same principal/profile scope the shared paging helper binds, so a
+        # cursor cannot be carried across a different reader.
+        return fc.digest({"principal": principal(actor), "profile": self.service.profile_id})
+
     @staticmethod
-    def _release_cursor(identity, offset):
-        raw = json.dumps({"groupId": identity, "offset": offset}, separators=(",", ":"))
+    def _release_cursor(identity, scope, offset):
+        raw = json.dumps({"groupId": identity, "scope": scope, "offset": offset},
+                         separators=(",", ":"))
         return base64.urlsafe_b64encode(raw.encode()).decode()
 
     @staticmethod
-    def _release_offset(identity, cursor):
-        # A cursor is bound to one Group: a page from another Group (or a
-        # hand-made offset) must never address this Group's history.
+    def _release_offset(identity, scope, cursor):
+        # A cursor is bound to one Group and one reader: a page from another
+        # Group, another principal or a hand-made offset must never address
+        # this Group's history.
         try:
             if not isinstance(cursor, str) or not cursor:
                 raise ValueError()
             token = json.loads(base64.urlsafe_b64decode(cursor))
-            if (not isinstance(token, dict) or set(token) != {"groupId", "offset"}
-                    or token["groupId"] != identity or type(token["offset"]) is not int
-                    or token["offset"] < 0):
+            if (not isinstance(token, dict) or set(token) != {"groupId", "scope", "offset"}
+                    or token["groupId"] != identity or token["scope"] != scope
+                    or type(token["offset"]) is not int or token["offset"] < 0):
                 raise ValueError()
             return token["offset"]
         except (ValueError, TypeError, KeyError):
@@ -318,9 +325,10 @@ class Groups:
         self.permit(actor, "read")
         if type(limit) is not int or not 1 <= limit <= 100:
             fail("invalid_schema", "Release limit must be 1..100")
+        scope = self._release_scope(actor)
         with self.service.transaction(readonly=True) as db:
             self.get(db, identity)  # Unknown Group keeps the existing not_found.
-            offset = 0 if cursor is None else self._release_offset(identity, cursor)
+            offset = 0 if cursor is None else self._release_offset(identity, scope, cursor)
             rows = db.execute(
                 "SELECT document FROM final_documents WHERE kind='action_group_release' "
                 "AND json_extract(document,'$.groupId')=? "
@@ -329,7 +337,8 @@ class Groups:
                 "ORDER BY json_extract(document,'$.revision') DESC, id DESC LIMIT ? OFFSET ?",
                 (identity, limit + 1, offset)).fetchall()
         items = [json.loads(row[0]) for row in rows[:limit]]
-        next_cursor = self._release_cursor(identity, offset + limit) if len(rows) > limit else None
+        next_cursor = (self._release_cursor(identity, scope, offset + limit)
+                       if len(rows) > limit else None)
         return {"items": items, "nextCursor": next_cursor}
 
     def legacy_bindings(self, *, actor, limit=100, cursor=None):

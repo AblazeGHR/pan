@@ -80,6 +80,10 @@ def test_group_release_history_is_group_scoped_and_bounded(action_http):
     cross = client.get(f'/api/action-groups/tools/releases?cursor={foreign}')
     assert cross.status_code == 400
     assert cross.json()['error']['code'] == 'invalid_schema'
+    # A cursor bound to the right Group but a forged reader scope is rejected too.
+    forged = base64.urlsafe_b64encode(json.dumps(
+        {'groupId': 'tools', 'scope': '0' * 64, 'offset': 0}, separators=(',', ':')).encode()).decode()
+    assert client.get(f'/api/action-groups/tools/releases?cursor={forged}').status_code == 400
     assert client.get('/api/action-groups/tools/releases?cursor=not-a-cursor').status_code == 400
 
 

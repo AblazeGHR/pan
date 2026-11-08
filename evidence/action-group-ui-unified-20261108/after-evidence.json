@@ -1,6 +1,6 @@
 {
   "phase": "after",
-  "port": 61557,
+  "port": 50593,
   "sourceRoot": "D:\\project\\pan-worktrees\\action-group-ui-unified-20261108",
   "checks": [
     "owned service PID, checkout and runtime verified",
