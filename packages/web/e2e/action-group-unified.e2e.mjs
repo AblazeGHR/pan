@@ -147,18 +147,22 @@ try {
 
     // Per-row adoption state from both authorities.
     await expect(page.getByText('统一目录').first()).toBeVisible();
-    await expect(page.getByText('旧记录').first()).toBeVisible();
-    // Known exposure gap: Group adoption writes legacy_action_binding documents
-    // but no route exposes legacyId -> canonicalId, so the alias row cannot be
-    // merged with its canonical head without inventing an unsound pairing.
-    const aliasProbe = await page.request.get(`${base}/api/jobs/actions/aliases/old_alias`);
+    // The adopted alias merges through the explicit projection only: exactly
+    // one row for the logical Action, badged as adopted.
+    const bindings = await page.request.get(`${base}/api/action-groups/legacy-action-bindings`);
+    assert.equal(bindings.status(), 200);
+    const bindingBody = await bindings.json();
+    const adopted = bindingBody.items.find((item) => item.legacyId === 'old_alias');
+    assert.ok(adopted, 'the adoption must publish an explicit legacy binding');
+    assert.equal(adopted.deleted, false);
+    assert.equal(Object.keys(adopted).sort().join(','), 'actionId,deleted,legacyId,sourceRoot');
     assert.equal(
-      aliasProbe.status(),
-      404,
-      'if this route starts answering for Group-adopted aliases, merge the rows',
+      await page.getByRole('button', { name: 'Open Action Owned old series' }).count(),
+      1,
+      'the adopted alias must merge into one logical Action row',
     );
-    evidence.gap = 'legacy_action_binding is not exposed: /api/jobs/actions/aliases/{legacyId} only reads final_action_aliases';
-    evidence.checks.push('canonical and legacy rows are labelled per row; alias link is missing server-side (recorded as a gap)');
+    await expect(page.getByText('已接管旧定义').first()).toBeVisible();
+    evidence.checks.push('explicit binding projection merges the adopted alias into one row with no inferred pairing');
     await shot('actions-1280');
     await fits('action list 1280');
 
@@ -199,6 +203,13 @@ try {
     await expect(page.getByLabel('Group fixed version')).toHaveValue('1');
     await expect(page.getByText(seed.release).first()).toBeVisible();
     await expect(page.getByText('固定引用与显式升级')).toBeVisible();
+    const history = page.getByRole('region', { name: 'Release history' });
+    await expect(history).toBeVisible();
+    await expect(history).toContainText(seed.release);
+    await expect(history).toContainText(seed.firstRelease);
+    await history.getByRole('button', { name: `查看 ${seed.firstRelease}` }).click();
+    await expect(page.getByText(seed.firstDigest).first()).toBeVisible();
+    evidence.checks.push('Group release history lists committed releases and opens an older immutable one');
     await expect(page.getByRole('button', { name: '预览此 Group 全部升级' })).toBeVisible();
     evidence.checks.push('Group entry exposes the fixed Action version, immutable release and the reference upgrade scope');
     await shot('group-1280');

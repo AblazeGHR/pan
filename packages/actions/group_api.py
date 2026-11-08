@@ -1,7 +1,7 @@
 """Group HTTP adapter; authorization and receipts reuse the canonical boundary."""
 from fastapi import APIRouter, Request
 
-from packages.jobs.final_api import ContractRoute, actor, body, fields, reject
+from packages.jobs.final_api import ContractRoute, actor, body, fields, page, reject
 from packages.plugins.lifecycle import coordinator, io, settled
 from .groups import Groups
 
@@ -43,6 +43,20 @@ async def delete(group_id: str, request: Request):
     value = await body(request)
     fields(value, {'expectedRevision', 'requestKey'}, {'expectedRevision', 'requestKey'})
     return await io(groups(request).delete, group_id, value['expectedRevision'], value['requestKey'], actor=who)
+
+
+@router.get('/action-groups/{group_id}/releases')
+async def releases(group_id: str, request: Request):
+    """Read-only history of committed releases; the single release read stays."""
+    who = await actor(request, 'action', 'read')
+    return await io(groups(request).releases, group_id, actor=who, **page(request))
+
+
+@router.get('/action-groups/legacy-action-bindings')
+async def legacy_bindings(request: Request):
+    """Explicit legacyId -> canonical Action projection written by adoption."""
+    who = await actor(request, 'action', 'read')
+    return await io(groups(request).legacy_bindings, actor=who, **page(request))
 
 
 @router.post('/action-groups/apply-reference-update')

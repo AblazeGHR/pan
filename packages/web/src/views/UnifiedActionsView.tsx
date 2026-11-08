@@ -135,43 +135,33 @@ function Directory() {
     if (tab === 'groups') void useActionSessionsStore.getState().ensureSessions();
   }, [tab]);
 
-  const canonicalIds = useMemo(
-    () => new Set(rows(page.items).map((item) => text(item.id))),
-    [page],
-  );
-  const unresolved = useMemo(
-    () =>
-      registry.actions
-        .map((action) => action.id)
-        .filter((id) => !canonicalIds.has(id) && !aliases[id])
-        .slice(0, 100),
-    // The alias map itself is a dependency: resolving one alias must not restart
-    // the remaining lookups.
-    [registry.actions, canonicalIds, aliases],
-  );
+  // One explicit projection: the canonical owner publishes legacyId -> actionId
+  // for adopted records only. Never infer a pairing from names or ordering, and
+  // never consult the singular alias route (a different table).
   useEffect(() => {
-    if (!unresolved.length) return;
     let active = true;
     void (async () => {
-      const resolved: Record<string, string> = {};
-      await Promise.all(
-        unresolved.map(async (legacyId) => {
-          try {
-            const value = await canonicalRequest<JsonObject>(
-              `jobs/actions/aliases/${encodeURIComponent(legacyId)}`,
-            );
-            if (typeof value.id === 'string') resolved[legacyId] = value.id;
-          } catch {
-            // No canonical successor: the record keeps its legacy writer state.
-          }
-        }),
-      );
-      if (active && Object.keys(resolved).length) setAliases((current) => ({ ...current, ...resolved }));
+      try {
+        const result = await canonicalRequest<JsonObject>(
+          'action-groups/legacy-action-bindings?limit=100',
+        );
+        if (!active) return;
+        const next: Record<string, string> = {};
+        for (const item of rows(result.items)) {
+          if (item.deleted === true) continue;
+          const legacyId = text(item.legacyId);
+          const actionId = text(item.actionId);
+          if (legacyId && actionId) next[legacyId] = actionId;
+        }
+        setAliases(next);
+      } catch {
+        // The projection is additive: without it legacy rows keep their own state.
+      }
     })();
     return () => {
       active = false;
     };
-  }, [unresolved]);
+  }, []);
 
   const catalog = useMemo(
     () =>

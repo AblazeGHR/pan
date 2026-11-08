@@ -1,15 +1,16 @@
 {
   "phase": "after",
-  "port": 57338,
+  "port": 61557,
   "sourceRoot": "D:\\project\\pan-worktrees\\action-group-ui-unified-20261108",
   "checks": [
     "owned service PID, checkout and runtime verified",
     "single directory: Actions and Groups share one navigation, no page-level legacy toggle",
-    "canonical and legacy rows are labelled per row; alias link is missing server-side (recorded as a gap)",
+    "explicit binding projection merges the adopted alias into one row with no inferred pairing",
     "creating a canonical Action draft is still reachable from the unified list",
     "one logical Action entry aggregates both published versions in the version selector",
     "switching the viewing version is read-only and shows the fixed ActionRef digest",
     "canonical and adopted Groups are listed together with per-row adoption state",
+    "Group release history lists committed releases and opens an older immutable one",
     "Group entry exposes the fixed Action version, immutable release and the reference upgrade scope",
     "all three MCP modes are offered, visible and laid out inside the binding dialog",
     "Session binding sends the plugin id, the chosen mode and the observed plugin CAS revision",
@@ -18,7 +19,6 @@
     "adopted legacy source bytes are unchanged by the whole browser flow"
   ],
   "errors": [],
-  "gap": "legacy_action_binding is not exposed: /api/jobs/actions/aliases/{legacyId} only reads final_action_aliases",
   "modeCards": [
     "Standalone MCP",
     "Pan native",

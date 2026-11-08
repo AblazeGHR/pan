@@ -55,10 +55,30 @@ export function CanonicalGroupPanel({
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<CanonicalReceipt | null>(null);
   const [release, setRelease] = useState<JsonObject | null>(null);
+  const [history, setHistory] = useState<JsonObject[]>([]);
   const [releaseId, setReleaseId] = useState('');
   const [binding, setBinding] = useState(false);
   const [pending, setPending] = useOperationIdentity(`group:${row.id}`);
   const lock = useRef(false);
+
+  // Committed history is a read-only projection; a new release or unbuild
+  // refreshes it without touching the draft.
+  const historySeq = useRef(0);
+  async function loadHistory() {
+    const seq = ++historySeq.current;
+    try {
+      const page = await canonicalRequest<JsonObject>(
+        `action-groups/${encodeURIComponent(row.id)}/releases?limit=20`,
+      );
+      if (seq === historySeq.current) setHistory(rows(page.items));
+    } catch {
+      if (seq === historySeq.current) setHistory([]);
+    }
+  }
+  useEffect(() => {
+    void loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id, row.release]);
 
   // Re-seed the draft only when the committed snapshot changes, so unrelated
   // renders (search, another row's mutation) cannot discard local edits.
@@ -364,10 +384,52 @@ export function CanonicalGroupPanel({
             {bindableSessions(row, sessions)}
           </p>
         </div>
+        <section role="region" aria-label="Release history" className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-xs font-semibold text-text-primary">已发布 release</h4>
+            <span className="text-[11px] text-text-tertiary">
+              最近 {history.length} 个 · 新到旧 · 不可变
+            </span>
+            <Button size="sm" className="ml-auto" disabled={busy} onClick={() => void loadHistory()}>
+              刷新
+            </Button>
+          </div>
+          {history.length === 0 ? (
+            <p className="text-[11px] text-text-tertiary">该 Group 还没有已发布的 release。</p>
+          ) : (
+            <ul className="space-y-1">
+              {history.map((item) => {
+                const version = text(item.version);
+                return (
+                  <li
+                    key={version}
+                    className="flex min-w-0 flex-wrap items-center gap-2 rounded border border-border-muted px-2 py-1.5 text-[11px]"
+                  >
+                    <span className="min-w-0 break-all font-mono">{version}</span>
+                    {version === row.release && <Badge tone="success">当前</Badge>}
+                    <span className="text-text-tertiary">
+                      revision {text(item.revision, '—')} · digest {text(item.digest).slice(0, 8)}
+                    </span>
+                    <span className="ml-auto">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`查看 ${version}`}
+                        onClick={() => void loadRelease(version)}
+                      >
+                        查看
+                      </Button>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
         <div className="flex flex-wrap items-end gap-2">
           <Field
             label="按版本号查看 release"
-            hint="服务端按版本号返回单个不可变 release；完整历史列表需要新的后端索引。"
+            hint="历史不可变；也可直接按已知版本号查看单个 release。"
             className="min-w-0 flex-1 basis-64"
           >
             <input

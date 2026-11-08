@@ -6,7 +6,7 @@
  * through the legacy writer surface instead of being hidden.
  */
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import UnifiedActionsView from './UnifiedActionsView';
 import { canonicalRequest, actionRequest } from '@/services/api';
 import { useAutomationAuth } from '@/stores/automationStore';
@@ -312,4 +312,126 @@ it('creates a canonical Action draft from the same directory without publishing 
   expect((posted[0]!.definition as { name: string }).name).toBe('Browser Action Draft');
   expect(typeof posted[0]!.requestKey).toBe('string');
   expect(posted[0]!).not.toHaveProperty('publish');
+});
+
+it('merges an adopted alias only through the explicit binding projection', async () => {
+  request.mockImplementation(async (rawPath) => {
+    const path = String(rawPath).split('?')[0];
+    if (path === 'jobs/actions')
+      return {
+        items: [
+          {
+            id: 'canon_adopted',
+            name: 'Adopted Canonical',
+            description: 'adopted head',
+            state: 'published',
+            enabled: true,
+            revision: 1,
+            stateRevision: 1,
+            inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+            execution: { operation: 'process.command', config: {} },
+            effectClass: 'read',
+          },
+        ],
+        versions: {},
+        references: {},
+      } as never;
+    if (path === 'action-groups/legacy-action-bindings')
+      return {
+        items: [
+          { legacyId: 'old_alias', actionId: 'canon_adopted', sourceRoot: 'C:/owned/source', deleted: false },
+          { legacyId: 'gone_alias', actionId: 'canon_adopted', sourceRoot: 'C:/owned/source', deleted: true },
+        ],
+        nextCursor: null,
+      } as never;
+    if (path === 'action-groups') return { items: [] } as never;
+    if (path === 'jobs/actions/canon_adopted/versions') return { items: [] } as never;
+    throw new Error(`Unhandled ${path}`);
+  });
+  legacyRequest.mockImplementation(async (path) => {
+    if (path === 'actions')
+      return {
+        revision: 1,
+        actions: [
+          {
+            id: 'old_alias',
+            name: 'Legacy alias name',
+            description: 'legacy',
+            enabled: true,
+            effect: 'read',
+            output_format: 'json',
+            input_schema: { type: 'object', properties: {}, additionalProperties: false },
+            execution: { kind: 'api', method: 'GET', path: '/api/sessions' },
+          },
+          {
+            id: 'gone_alias',
+            name: 'Gone alias',
+            description: 'legacy',
+            enabled: true,
+            effect: 'read',
+            output_format: 'json',
+            input_schema: { type: 'object', properties: {}, additionalProperties: false },
+            execution: { kind: 'api', method: 'GET', path: '/api/sessions' },
+          },
+        ],
+        groups: [],
+      } as never;
+    if (path === 'sessions') return { sessions: [] } as never;
+    if (path === 'mcp/servers') return { servers: [], loaded: true } as never;
+    throw new Error(`Unhandled legacy ${path}`);
+  });
+  render(<UnifiedActionsView />);
+  expect(await screen.findByText('已接管旧定义')).toBeTruthy();
+  // The live binding is merged into the canonical row; the deleted one keeps
+  // its legacy writer state instead of inheriting the canonical head.
+  expect(screen.getByRole('button', { name: 'Open Action Adopted Canonical' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Open Action Gone alias' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Open Action Legacy alias name' })).toBeNull();
+  // No inferred pairing: the singular alias endpoint is not consulted.
+  assertNoSingularAliasCalls();
+});
+
+function assertNoSingularAliasCalls() {
+  const calls = request.mock.calls.map(([path]) => String(path));
+  expect(calls.some((path) => path.startsWith('jobs/actions/aliases/'))).toBe(false);
+}
+
+it('lists a Group release history and opens one immutable release', async () => {
+  const first = {
+    version: 'rel-first-0001',
+    groupId: 'release_group',
+    name: 'Release Group',
+    revision: 4,
+    digest: 'a'.repeat(64),
+    tools: [{ alias: 'echo_tool', actionRef: ref(1) }],
+  };
+  const second = {
+    version: releaseVersion,
+    groupId: 'release_group',
+    name: 'Release Group',
+    revision: 5,
+    digest: 'b'.repeat(64),
+    tools: [{ alias: 'echo_tool', actionRef: ref(2) }],
+  };
+  request.mockImplementation(async (rawPath) => {
+    const path = String(rawPath).split('?')[0];
+    if (path === 'jobs/actions') return actionCatalog as never;
+    if (path === 'action-groups') return groups as never;
+    if (path === 'action-groups/legacy-action-bindings') return { items: [], nextCursor: null } as never;
+    if (path === 'action-groups/release_group/releases')
+      return { items: [second, first], nextCursor: null } as never;
+    if (path === 'action-groups/releases/rel-first-0001') return first as never;
+    if (path === 'jobs/actions/echo/versions') return { items: [] } as never;
+    throw new Error(`Unhandled ${path}`);
+  });
+  render(<UnifiedActionsView />);
+  fireEvent.click(await screen.findByRole('button', { name: /^Groups/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open Group Release Group' }));
+  const history = await screen.findByRole('region', { name: 'Release history' });
+  expect(history.textContent).toContain('rel-first-0001');
+  expect(history.textContent).toContain(releaseVersion);
+  fireEvent.click(within(history).getByRole('button', { name: '查看 rel-first-0001' }));
+  await waitFor(() =>
+    expect(request.mock.calls.some(([p]) => p === 'action-groups/releases/rel-first-0001')).toBe(true),
+  );
 });

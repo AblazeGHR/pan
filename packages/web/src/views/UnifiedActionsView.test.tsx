@@ -65,6 +65,7 @@ beforeEach(() => {
       };
     if (path === 'jobs/actions/echo/versions') return { items: versions };
     if (path === 'action-groups') return { items: [] };
+    if (String(path).startsWith('action-groups/legacy-action-bindings')) return { items: [], nextCursor: null };
     throw new Error(`Unhandled ${path}`);
   });
 });

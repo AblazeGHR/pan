@@ -5,6 +5,7 @@ invocations resolve their fixed ref into FinalService.invoke_action.
 """
 from __future__ import annotations
 
+import base64
 import copy
 from contextlib import contextmanager
 import json
@@ -286,6 +287,71 @@ class Groups:
         self.permit(actor, "read")
         with self.service.transaction(readonly=True) as db:
             return self.service._get(db, "action_group_release", version)
+
+    @staticmethod
+    def _release_cursor(identity, offset):
+        raw = json.dumps({"groupId": identity, "offset": offset}, separators=(",", ":"))
+        return base64.urlsafe_b64encode(raw.encode()).decode()
+
+    @staticmethod
+    def _release_offset(identity, cursor):
+        # A cursor is bound to one Group: a page from another Group (or a
+        # hand-made offset) must never address this Group's history.
+        try:
+            if not isinstance(cursor, str) or not cursor:
+                raise ValueError()
+            token = json.loads(base64.urlsafe_b64decode(cursor))
+            if (not isinstance(token, dict) or set(token) != {"groupId", "offset"}
+                    or token["groupId"] != identity or type(token["offset"]) is not int
+                    or token["offset"] < 0):
+                raise ValueError()
+            return token["offset"]
+        except (ValueError, TypeError, KeyError):
+            fail("invalid_schema", "Invalid release cursor")
+
+    def releases(self, identity, *, actor, limit=100, cursor=None):
+        """Committed releases of one Group, newest first.
+
+        Read-only projection of the same immutable documents the single-release
+        read returns; it never publishes, repoints or rewrites a release.
+        """
+        self.permit(actor, "read")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            fail("invalid_schema", "Release limit must be 1..100")
+        with self.service.transaction(readonly=True) as db:
+            self.get(db, identity)  # Unknown Group keeps the existing not_found.
+            offset = 0 if cursor is None else self._release_offset(identity, cursor)
+            rows = db.execute(
+                "SELECT document FROM final_documents WHERE kind='action_group_release' "
+                "AND json_extract(document,'$.groupId')=? "
+                # Each publish records the Group revision it observed, so the
+                # revision is the stable, storage-independent order key.
+                "ORDER BY json_extract(document,'$.revision') DESC, id DESC LIMIT ? OFFSET ?",
+                (identity, limit + 1, offset)).fetchall()
+        items = [json.loads(row[0]) for row in rows[:limit]]
+        next_cursor = self._release_cursor(identity, offset + limit) if len(rows) > limit else None
+        return {"items": items, "nextCursor": next_cursor}
+
+    def legacy_bindings(self, *, actor, limit=100, cursor=None):
+        """Explicit legacy-id to canonical-Action projection, identifiers only.
+
+        Group adoption stores these bindings; the projection never returns the
+        preserved legacy definition or any inferred (name/order) pairing.
+        """
+        self.permit(actor, "read")
+        if type(limit) is not int or not 1 <= limit <= 100:
+            fail("invalid_schema", "Binding limit must be 1..100")
+        with self.service.transaction(readonly=True) as db:
+            rows = db.execute(
+                "SELECT document FROM final_documents WHERE kind='legacy_action_binding'").fetchall()
+        items = []
+        for row in rows:
+            value = json.loads(row[0])
+            items.append({"legacyId": value["legacyId"], "actionId": value["actionId"],
+                          "sourceRoot": value.get("sourceRoot", ""),
+                          "deleted": bool(value.get("deleted"))})
+        items.sort(key=lambda item: item["legacyId"])
+        return self.service._page(items, "legacy_action_binding", cursor, limit, actor)
 
     def unbuild(self, identity, expected, key, *, actor):
         self.permit(actor, 'lifecycle')

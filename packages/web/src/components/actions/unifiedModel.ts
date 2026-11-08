@@ -110,6 +110,8 @@ export function buildUnifiedActions({
   aliases?: Record<string, string>;
 }): UnifiedActionRow[] {
   const rowsById = new Map<string, UnifiedActionRow>();
+  // Only an explicit, still-present canonical head may adopt a legacy alias.
+  const canonicalIds = new Set(catalog.map((item) => text(item.id)).filter(Boolean));
   const upsert = (row: UnifiedActionRow) => {
     if (!rowsById.has(row.key)) rowsById.set(row.key, row);
     return rowsById.get(row.key)!;
@@ -142,9 +144,12 @@ export function buildUnifiedActions({
 
   for (const action of registry.actions) {
     const mapped = registry.canonicalActions?.[action.id];
+    const bound = aliases[action.id];
     const canonicalId = mapped
       ? text(mapped.object.id, action.id)
-      : (aliases[action.id] ?? action.id);
+      : bound && canonicalIds.has(bound)
+        ? bound
+        : action.id;
     const existing = rowsById.get(`canonical:${canonicalId}`);
     const reason = preserved.get(action.id) ?? '';
     if (existing) {

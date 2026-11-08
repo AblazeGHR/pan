@@ -93,8 +93,13 @@ def run(server, *args, **kwargs):
                         'tools': [{'alias': 'echo', 'actionRef': ref_v1}]}, 0, 'unified-group', actor=who)
             with service.transaction(readonly=True) as db:
                 head = groups.get(db, 'uni_tools')
-            published = groups.publish('uni_tools', head['revision'], 'unified-group-build', actor=who)
-            release = published['result']['release']
+            first_build = groups.publish('uni_tools', head['revision'], 'unified-group-build', actor=who)
+            # A second committed release proves the history read is a real
+            # projection of immutable documents, not a pointer alias.
+            second_build = groups.publish('uni_tools', first_build['result']['group']['revision'],
+                                          'unified-group-build-2', actor=who)
+            published = second_build
+            release = second_build['result']['release']
 
             # 3. Adopted legacy pair (original compatibility projection).
             old = store.Store(root)
@@ -118,7 +123,9 @@ def run(server, *args, **kwargs):
                 'actionId': created['id'], 'ref': ref_v2, 'fixed': ref_v1,
                 'actionRevision': second['revision'], 'actionStateRevision': second['stateRevision'],
                 'groupId': 'uni_tools', 'groupRevision': published['result']['group']['revision'],
-                'release': release['version'], 'mappedRef': mapped_ref,
+                'release': release['version'], 'firstRelease': first_build['result']['release']['version'],
+                'firstDigest': first_build['result']['release']['digest'],
+                'mappedRef': mapped_ref,
                 'legacyRelease': built['version'], 'sourceSha': fc.digest(old.read()),
             }), 'utf-8')
         return await call_next(request)

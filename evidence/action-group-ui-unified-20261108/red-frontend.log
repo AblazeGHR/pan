@@ -1,0 +1,1188 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mD:/project/pan-worktrees/action-group-ui-unified-20261108/packages/web/src[39m
+
+ [31m❯[39m views/UnifiedDirectoryGroups.test.tsx [2m([22m[2m8 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 2591[2mms[22m[39m
+[31m   [31m×[31m merges an adopted alias only through the explicit binding projection[33m 1020[2mms[22m[31m[39m
+[31m     → Unable to find an element with the text: 已接管旧定义. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<section[31m
+      [33maria-label[31m=[32m"Actions Panel"[31m
+      [33mclass[31m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[31m
+      [36m>[31m
+        [36m<header[31m
+          [33mclass[31m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[31m
+            [36m>[31m
+              [0mPan / Automation[0m
+            [36m</p>[31m
+            [36m<h1[31m
+              [33mclass[31m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[31m
+            [36m>[31m
+              [0mActions & Groups[0m
+            [36m</h1>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[31m
+            [36m>[31m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[31m
+          [36m</div>[31m
+        [36m</header>[31m
+        [36m<section[31m
+          [33maria-label[31m=[32m"Job user authorization"[31m
+          [33mclass[31m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"flex items-center gap-2 font-medium"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33maria-hidden[31m=[32m"true"[31m
+                [33mclass[31m=[32m"size-1.5 rounded-full bg-success"[31m
+              [36m/>[31m
+              [0m已授权[0m
+            [36m</p>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[31m
+            [36m>[31m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[31m
+          [36m</div>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"shrink-0"[31m
+          [36m>[31m
+            [36m<button[31m
+              [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+            [36m>[31m
+              [0mLog out[0m
+            [36m</button>[31m
+          [36m</div>[31m
+        [36m</section>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"min-w-0 space-y-3"[31m
+        [36m>[31m
+          [36m<header[31m
+            [33mclass[31m=[32m"flex flex-wrap items-center gap-2"[31m
+          [36m>[31m
+            [36m<div[31m
+              [33maria-label[31m=[32m"Directory view"[31m
+              [33mclass[31m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[31m
+              [33mrole[31m=[32m"group"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"true"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mActions[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-secondary"[31m
+                [36m>[31m
+                  [0m3[0m
+                [36m</span>[31m
+              [36m</button>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"false"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mGroups[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-tertiary"[31m
+                [36m>[31m
+                  [0m0[0m
+                [36m</span>[31m
+              [36m</button>[31m
+            [36m</div>[31m
+            [36m<span[31m
+              [33maria-live[31m=[32m"polite"[31m
+              [33mclass[31m=[32m"tabular text-[11px] text-text-tertiary"[31m
+            [36m>[31m
+              [0m3 of 3 Actions[0m
+            [36m</span>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"ml-auto flex flex-wrap items-center gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-refresh-cw"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"13"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"13"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 3v5h-5"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 12a9 9 0 0 1...
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<section[31m
+      [33maria-label[31m=[32m"Actions Panel"[31m
+      [33mclass[31m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[31m
+      [36m>[31m
+        [36m<header[31m
+          [33mclass[31m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[31m
+            [36m>[31m
+              [0mPan / Automation[0m
+            [36m</p>[31m
+            [36m<h1[31m
+              [33mclass[31m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[31m
+            [36m>[31m
+              [0mActions & Groups[0m
+            [36m</h1>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[31m
+            [36m>[31m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[31m
+          [36m</div>[31m
+        [36m</header>[31m
+        [36m<section[31m
+          [33maria-label[31m=[32m"Job user authorization"[31m
+          [33mclass[31m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"flex items-center gap-2 font-medium"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33maria-hidden[31m=[32m"true"[31m
+                [33mclass[31m=[32m"size-1.5 rounded-full bg-success"[31m
+              [36m/>[31m
+              [0m已授权[0m
+            [36m</p>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[31m
+            [36m>[31m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[31m
+          [36m</div>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"shrink-0"[31m
+          [36m>[31m
+            [36m<button[31m
+              [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+            [36m>[31m
+              [0mLog out[0m
+            [36m</button>[31m
+          [36m</div>[31m
+        [36m</section>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"min-w-0 space-y-3"[31m
+        [36m>[31m
+          [36m<header[31m
+            [33mclass[31m=[32m"flex flex-wrap items-center gap-2"[31m
+          [36m>[31m
+            [36m<div[31m
+              [33maria-label[31m=[32m"Directory view"[31m
+              [33mclass[31m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[31m
+              [33mrole[31m=[32m"group"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"true"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mActions[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-secondary"[31m
+                [36m>[31m
+                  [0m3[0m
+                [36m</span>[31m
+              [36m</button>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"false"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mGroups[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-tertiary"[31m
+                [36m>[31m
+                  [0m0[0m
+                [36m</span>[31m
+              [36m</button>[31m
+            [36m</div>[31m
+            [36m<span[31m
+              [33maria-live[31m=[32m"polite"[31m
+              [33mclass[31m=[32m"tabular text-[11px] text-text-tertiary"[31m
+            [36m>[31m
+              [0m3 of 3 Actions[0m
+            [36m</span>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"ml-auto flex flex-wrap items-center gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-refresh-cw"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"13"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"13"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 3v5h-5"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 12a9 9 0 0 1...[39m
+[31m   [31m×[31m lists a Group release history and opens one immutable release[33m 1076[2mms[22m[31m[39m
+[31m     → Unable to find role="region" and name "Release history"
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<section[31m
+      [33maria-label[31m=[32m"Actions Panel"[31m
+      [33mclass[31m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[31m
+      [36m>[31m
+        [36m<header[31m
+          [33mclass[31m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[31m
+            [36m>[31m
+              [0mPan / Automation[0m
+            [36m</p>[31m
+            [36m<h1[31m
+              [33mclass[31m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[31m
+            [36m>[31m
+              [0mActions & Groups[0m
+            [36m</h1>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[31m
+            [36m>[31m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[31m
+          [36m</div>[31m
+        [36m</header>[31m
+        [36m<section[31m
+          [33maria-label[31m=[32m"Job user authorization"[31m
+          [33mclass[31m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"flex items-center gap-2 font-medium"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33maria-hidden[31m=[32m"true"[31m
+                [33mclass[31m=[32m"size-1.5 rounded-full bg-success"[31m
+              [36m/>[31m
+              [0m已授权[0m
+            [36m</p>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[31m
+            [36m>[31m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[31m
+          [36m</div>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"shrink-0"[31m
+          [36m>[31m
+            [36m<button[31m
+              [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+            [36m>[31m
+              [0mLog out[0m
+            [36m</button>[31m
+          [36m</div>[31m
+        [36m</section>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"min-w-0 space-y-3"[31m
+        [36m>[31m
+          [36m<header[31m
+            [33mclass[31m=[32m"flex flex-wrap items-center gap-2"[31m
+          [36m>[31m
+            [36m<div[31m
+              [33maria-label[31m=[32m"Directory view"[31m
+              [33mclass[31m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[31m
+              [33mrole[31m=[32m"group"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"false"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mActions[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-tertiary"[31m
+                [36m>[31m
+                  [0m1[0m
+                [36m</span>[31m
+              [36m</button>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"true"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mGroups[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-secondary"[31m
+                [36m>[31m
+                  [0m2[0m
+                [36m</span>[31m
+              [36m</button>[31m
+            [36m</div>[31m
+            [36m<span[31m
+              [33maria-live[31m=[32m"polite"[31m
+              [33mclass[31m=[32m"tabular text-[11px] text-text-tertiary"[31m
+            [36m>[31m
+              [0m2 of 2 Groups[0m
+            [36m</span>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"ml-auto flex flex-wrap items-center gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-refresh-cw"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"13"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"13"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 3v5h-5"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 12a9 9 0 0 1-...
+
+Ignored nodes: comments, script, style
+[36m<body>[31m
+  [36m<div>[31m
+    [36m<section[31m
+      [33maria-label[31m=[32m"Actions Panel"[31m
+      [33mclass[31m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[31m
+    [36m>[31m
+      [36m<div[31m
+        [33mclass[31m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[31m
+      [36m>[31m
+        [36m<header[31m
+          [33mclass[31m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[31m
+            [36m>[31m
+              [0mPan / Automation[0m
+            [36m</p>[31m
+            [36m<h1[31m
+              [33mclass[31m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[31m
+            [36m>[31m
+              [0mActions & Groups[0m
+            [36m</h1>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[31m
+            [36m>[31m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[31m
+          [36m</div>[31m
+        [36m</header>[31m
+        [36m<section[31m
+          [33maria-label[31m=[32m"Job user authorization"[31m
+          [33mclass[31m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[31m
+        [36m>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"min-w-0"[31m
+          [36m>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"flex items-center gap-2 font-medium"[31m
+            [36m>[31m
+              [36m<span[31m
+                [33maria-hidden[31m=[32m"true"[31m
+                [33mclass[31m=[32m"size-1.5 rounded-full bg-success"[31m
+              [36m/>[31m
+              [0m已授权[0m
+            [36m</p>[31m
+            [36m<p[31m
+              [33mclass[31m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[31m
+            [36m>[31m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[31m
+          [36m</div>[31m
+          [36m<div[31m
+            [33mclass[31m=[32m"shrink-0"[31m
+          [36m>[31m
+            [36m<button[31m
+              [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+            [36m>[31m
+              [0mLog out[0m
+            [36m</button>[31m
+          [36m</div>[31m
+        [36m</section>[31m
+        [36m<div[31m
+          [33mclass[31m=[32m"min-w-0 space-y-3"[31m
+        [36m>[31m
+          [36m<header[31m
+            [33mclass[31m=[32m"flex flex-wrap items-center gap-2"[31m
+          [36m>[31m
+            [36m<div[31m
+              [33maria-label[31m=[32m"Directory view"[31m
+              [33mclass[31m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[31m
+              [33mrole[31m=[32m"group"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"false"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mActions[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-tertiary"[31m
+                [36m>[31m
+                  [0m1[0m
+                [36m</span>[31m
+              [36m</button>[31m
+              [36m<button[31m
+                [33maria-pressed[31m=[32m"true"[31m
+                [33mclass[31m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[31m
+                [33mtype[31m=[32m"button"[31m
+              [36m>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"truncate"[31m
+                [36m>[31m
+                  [0mGroups[0m
+                [36m</span>[31m
+                [36m<span[31m
+                  [33mclass[31m=[32m"tabular text-[10px] text-text-secondary"[31m
+                [36m>[31m
+                  [0m2[0m
+                [36m</span>[31m
+              [36m</button>[31m
+            [36m</div>[31m
+            [36m<span[31m
+              [33maria-live[31m=[32m"polite"[31m
+              [33mclass[31m=[32m"tabular text-[11px] text-text-tertiary"[31m
+            [36m>[31m
+              [0m2 of 2 Groups[0m
+            [36m</span>[31m
+            [36m<div[31m
+              [33mclass[31m=[32m"ml-auto flex flex-wrap items-center gap-2"[31m
+            [36m>[31m
+              [36m<button[31m
+                [33mclass[31m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[31m
+              [36m>[31m
+                [36m<svg[31m
+                  [33maria-hidden[31m=[32m"true"[31m
+                  [33mclass[31m=[32m"lucide lucide-refresh-cw"[31m
+                  [33mfill[31m=[32m"none"[31m
+                  [33mheight[31m=[32m"13"[31m
+                  [33mstroke[31m=[32m"currentColor"[31m
+                  [33mstroke-linecap[31m=[32m"round"[31m
+                  [33mstroke-linejoin[31m=[32m"round"[31m
+                  [33mstroke-width[31m=[32m"2"[31m
+                  [33mviewBox[31m=[32m"0 0 24 24"[31m
+                  [33mwidth[31m=[32m"13"[31m
+                  [33mxmlns[31m=[32m"http://www.w3.org/2000/svg"[31m
+                [36m>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 3v5h-5"[31m
+                  [36m/>[31m
+                  [36m<path[31m
+                    [33md[31m=[32m"M21 12a9 9 0 0 1-...[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m views/UnifiedDirectoryGroups.test.tsx[2m > [22mmerges an adopted alias only through the explicit binding projection
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find an element with the text: 已接管旧定义. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Actions Panel"[39m
+      [33mclass[39m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[39m
+            [36m>[39m
+              [0mPan / Automation[0m
+            [36m</p>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[39m
+            [36m>[39m
+              [0mActions & Groups[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[39m
+            [36m>[39m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"flex items-center gap-2 font-medium"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"size-1.5 rounded-full bg-success"[39m
+              [36m/>[39m
+              [0m已授权[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[39m
+            [36m>[39m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+            [36m>[39m
+              [0mLog out[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-3"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-label[39m=[32m"Directory view"[39m
+              [33mclass[39m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"true"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mActions[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-secondary"[39m
+                [36m>[39m
+                  [0m3[0m
+                [36m</span>[39m
+              [36m</button>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"false"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mGroups[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-tertiary"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</span>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<span[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"tabular text-[11px] text-text-tertiary"[39m
+            [36m>[39m
+              [0m3 of 3 Actions[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"ml-auto flex flex-wrap items-center gap-2"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-refresh-cw"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"13"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 3v5h-5"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 12a9 9 0 0 1...
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Actions Panel"[39m
+      [33mclass[39m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[39m
+            [36m>[39m
+              [0mPan / Automation[0m
+            [36m</p>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[39m
+            [36m>[39m
+              [0mActions & Groups[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[39m
+            [36m>[39m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"flex items-center gap-2 font-medium"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"size-1.5 rounded-full bg-success"[39m
+              [36m/>[39m
+              [0m已授权[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[39m
+            [36m>[39m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+            [36m>[39m
+              [0mLog out[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-3"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-label[39m=[32m"Directory view"[39m
+              [33mclass[39m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"true"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mActions[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-secondary"[39m
+                [36m>[39m
+                  [0m3[0m
+                [36m</span>[39m
+              [36m</button>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"false"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mGroups[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-tertiary"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</span>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<span[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"tabular text-[11px] text-text-tertiary"[39m
+            [36m>[39m
+              [0m3 of 3 Actions[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"ml-auto flex flex-wrap items-center gap-2"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-refresh-cw"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"13"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 3v5h-5"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 12a9 9 0 0 1...
+[90m [2m❯[22m waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m86:33[22m[39m
+[36m [2m❯[22m views/UnifiedDirectoryGroups.test.tsx:[2m383:23[22m[39m
+    [90m381| [39m  })[33m;[39m
+    [90m382| [39m  [34mrender[39m([33m<[39m[33mUnifiedActionsView[39m [33m/[39m[33m>[39m)[33m;[39m
+    [90m383| [39m  [34mexpect[39m([35mawait[39m screen[33m.[39m[34mfindByText[39m([32m'已接管旧定义'[39m))[33m.[39m[34mtoBeTruthy[39m()[33m;[39m
+    [90m   | [39m                      [31m^[39m
+    [90m384| [39m  [90m// The live binding is merged into the canonical row; the deleted on[39m…
+    [90m385| [39m  [90m// its legacy writer state instead of inheriting the canonical head.[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m views/UnifiedDirectoryGroups.test.tsx[2m > [22mlists a Group release history and opens one immutable release
+[31m[1mTestingLibraryElementError[22m[39m: Unable to find role="region" and name "Release history"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Actions Panel"[39m
+      [33mclass[39m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[39m
+            [36m>[39m
+              [0mPan / Automation[0m
+            [36m</p>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[39m
+            [36m>[39m
+              [0mActions & Groups[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[39m
+            [36m>[39m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"flex items-center gap-2 font-medium"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"size-1.5 rounded-full bg-success"[39m
+              [36m/>[39m
+              [0m已授权[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[39m
+            [36m>[39m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+            [36m>[39m
+              [0mLog out[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-3"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-label[39m=[32m"Directory view"[39m
+              [33mclass[39m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"false"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mActions[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-tertiary"[39m
+                [36m>[39m
+                  [0m1[0m
+                [36m</span>[39m
+              [36m</button>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"true"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mGroups[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-secondary"[39m
+                [36m>[39m
+                  [0m2[0m
+                [36m</span>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<span[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"tabular text-[11px] text-text-tertiary"[39m
+            [36m>[39m
+              [0m2 of 2 Groups[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"ml-auto flex flex-wrap items-center gap-2"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-refresh-cw"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"13"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 3v5h-5"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 12a9 9 0 0 1-...
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"Actions Panel"[39m
+      [33mclass[39m=[32m"h-full min-h-0 overflow-y-auto bg-bg-primary text-text-primary [&_button]:min-h-9 max-sm:[&_button]:min-h-11"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"mx-auto w-full max-w-6xl px-4 pb-20 pt-14 sm:px-6 lg:px-8"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"flex flex-col gap-4 border-b border-border-muted pb-5 sm:flex-row sm:items-end sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary"[39m
+            [36m>[39m
+              [0mPan / Automation[0m
+            [36m</p>[39m
+            [36m<h1[39m
+              [33mclass[39m=[32m"mt-1 break-words text-2xl font-semibold tracking-tight"[39m
+            [36m>[39m
+              [0mActions & Groups[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-2xl text-sm leading-6 text-text-secondary"[39m
+            [36m>[39m
+              [0m统一目录：固定版本、发布、引用升级与 Session 绑定[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<section[39m
+          [33maria-label[39m=[32m"Job user authorization"[39m
+          [33mclass[39m=[32m"flex flex-col gap-3 rounded-xl border border-border-default bg-bg-secondary px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"min-w-0"[39m
+          [36m>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"flex items-center gap-2 font-medium"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"size-1.5 rounded-full bg-success"[39m
+              [36m/>[39m
+              [0m已授权[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"mt-1 max-w-3xl text-xs leading-5 text-text-secondary"[39m
+            [36m>[39m
+              [0mUser confirmation uses automation/user.key and the shared login session. Enabled Jobs keep their granted capability after logout.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+            [36m>[39m
+              [0mLog out[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</section>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"min-w-0 space-y-3"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"flex flex-wrap items-center gap-2"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-label[39m=[32m"Directory view"[39m
+              [33mclass[39m=[32m"inline-flex min-w-0 max-w-full flex-wrap rounded-md border border-border-default bg-bg-primary p-0.5"[39m
+              [33mrole[39m=[32m"group"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"false"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 text-text-secondary hover:text-text-primary"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mActions[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-tertiary"[39m
+                [36m>[39m
+                  [0m1[0m
+                [36m</span>[39m
+              [36m</button>[39m
+              [36m<button[39m
+                [33maria-pressed[39m=[32m"true"[39m
+                [33mclass[39m=[32m"inline-flex min-w-0 items-center justify-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 bg-bg-tertiary text-text-primary shadow-sm"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"truncate"[39m
+                [36m>[39m
+                  [0mGroups[0m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"tabular text-[10px] text-text-secondary"[39m
+                [36m>[39m
+                  [0m2[0m
+                [36m</span>[39m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<span[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"tabular text-[11px] text-text-tertiary"[39m
+            [36m>[39m
+              [0m2 of 2 Groups[0m
+            [36m</span>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"ml-auto flex flex-wrap items-center gap-2"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"inline-flex items-center gap-1 rounded border font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-bg-tertiary text-text-primary hover:bg-bg-tertiary/80 border-border-default px-2 py-1 text-xs "[39m
+              [36m>[39m
+                [36m<svg[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"lucide lucide-refresh-cw"[39m
+                  [33mfill[39m=[32m"none"[39m
+                  [33mheight[39m=[32m"13"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                  [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [33mwidth[39m=[32m"13"[39m
+                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                [36m>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 3v5h-5"[39m
+                  [36m/>[39m
+                  [36m<path[39m
+                    [33md[39m=[32m"M21 12a9 9 0 0 1-...
+[90m [2m❯[22m waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:[2m163:27[22m[39m
+[90m [2m❯[22m ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:[2m86:33[22m[39m
+[36m [2m❯[22m views/UnifiedDirectoryGroups.test.tsx:[2m428:32[22m[39m
+    [90m426| [39m  fireEvent[33m.[39m[34mclick[39m([35mawait[39m screen[33m.[39m[34mfindByRole[39m([32m'button'[39m[33m,[39m { name[33m:[39m [36m/^Groups/[39m …
+    [90m427| [39m  fireEvent[33m.[39m[34mclick[39m([35mawait[39m screen[33m.[39m[34mfindByRole[39m([32m'button'[39m[33m,[39m { name[33m:[39m [32m'Open Grou[39m…
+    [90m428| [39m  [35mconst[39m history [33m=[39m [35mawait[39m screen[33m.[39m[34mfindByRole[39m([32m'region'[39m[33m,[39m { name[33m:[39m [32m'Release h[39m…
+    [90m   | [39m                               [31m^[39m
+    [90m429| [39m  [34mexpect[39m(history[33m.[39mtextContent)[33m.[39m[34mtoContain[39m([32m'rel-first-0001'[39m)[33m;[39m
+    [90m430| [39m  [34mexpect[39m(history[33m.[39mtextContent)[33m.[39m[34mtoContain[39m(releaseVersion)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 22:52:16
+[2m   Duration [22m 4.78s[2m (transform 326ms, setup 11ms, collect 623ms, tests 2.59s, environment 447ms, prepare 101ms)[22m
+

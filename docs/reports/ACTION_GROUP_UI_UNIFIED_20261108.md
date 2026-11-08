@@ -12,10 +12,10 @@ data/profile、8767/8768；未 push、未部署、未启停既有服务。
   入口**：Group 必须切到旧系统才存在。
 - 后端已具备 canonical-only 的
   `Action → 固定版本 → Group build → 插件目录发现 → Session 绑定 → 三种 MCP`
-  全链路能力（逐项见 §1），因此本片是**前端缺口**，可以直接在 React 内完成。
-- 审计同时发现 **2 处真实后端暴露缺口**（§2）。两处都不是“纯显示问题”：前端
-  无法在不编造配对、不伪造历史的前提下满足验收，故相关子项按缺口暂停，其余
-  独立前端工作继续完成。
+  全链路能力（逐项见 §1）。
+- 首轮审计发现 2 处真实后端暴露缺口（Group 历史 release 不可枚举、
+  `legacy_action_binding` 无读取面）。**P7 已补齐两条只读契约**（§2），前端按
+  显式 `legacyId/actionId/sourceRoot` 合并，不含任何名称/顺序启发式。
 
 ## 1. 后端能力逐项核对（canonical-only 链路）
 
@@ -33,58 +33,48 @@ data/profile、8767/8768；未 push、未部署、未启停既有服务。
 | Group / Job 引用升级预览 + 应用 | `group_api.py:34/48`、`final_api.py:480/486` | 有 |
 | Action 的 Job 引用 | `GET /api/jobs/actions/{id}/job-references`（`final_api.py:474`） | 有 |
 | 旧记录投影（preserve / blocked / 使用情况 / 加载版本） | `GET /api/actions`（`packages/actions/api.py:107`）+ `group_migration.projection` | 有 |
+| **Group 历史 release 列表（P7 新增）** | `GET /api/action-groups/{group_id}/releases?limit=&cursor=`（`packages/actions/group_api.py`）→ `Groups.releases`（`packages/actions/groups.py`） | 有 |
+| **采纳绑定投影（P7 新增）** | `GET /api/action-groups/legacy-action-bindings?limit=&cursor=`（`group_api.py`）→ `Groups.legacy_bindings`（`groups.py`） | 有 |
 
 结论：**除 §2 两处暴露缺口外，canonical-only 主链路后端完整**，本片不需要、
 也未新增任何后端接口。
 
-## 2. 真实后端缺口（具名）
+## 2. 两处缺口与 P7 补齐（只读契约）
 
-### 缺口 A：Group 历史 release 不可枚举
+### A. Group 历史 release（原先不可枚举）
 
-- **现状符号**：`packages/actions/groups.py:152` 为每次发布写一条不可变
-  `final_documents(kind='action_group_release', id=operation_id)`，随后
-  `groups.py:153` 只把 `group["release"]` 指向最新一条；读取侧只有
-  `groups.py:285 Groups.release(version)` / `group_api.py:54`。
-  `final_api.py` 的 `KINDS`（`final_contracts.py:30`）不含
-  `action_group_release`，通用列表路由无法列出它。
-- **缺失的请求形状**：`GET /api/action-groups/{group_id}/releases?limit=…`
-  → `{items:[{version, digest, revision, createdAt, tools}]}`；或让
-  `Groups.list` 的组文档附带 `releases:[…]`（仍受 `LIMIT=100` 约束）。
-- **原方案验收为何遗漏**：详细方案 §11 只要求
-  “Group 一个条目含草稿与 release 版本视图”，P4/P6 验收只覆盖
-  `GET releases/{version}` 单读；旧 UI `CanonicalGroupEditor.tsx:91-114`
-  用“手工输入 release 版本号”绕过枚举，于是“看不到历史”被交互形式掩盖，
-  从未被列为验收项。
-- **影响**：统一目录只能显示当前 release，或按已知版本号查看某一个；
-  “历史 release 易发现”这条不能由前端单独满足。
-- **处置**：该子项暂停（未自造历史列表、未启发式猜测版本）。已保留原能力：
-  查看当前 release、按版本号查看、把某个 release 的固定版本复制回草稿
-  （都需要显式 Build 才生效）。
+- **原先缺在哪**：发布只写一条不可变
+  `final_documents(kind='action_group_release', id=<operation_id>)` 并把
+  `group["release"]` 指向最新；读取侧只有
+  `GET /api/action-groups/releases/{version}`，`final_contracts.KINDS` 也不含该
+  kind，通用列表路由列不出来。
+- **新增契约**：`GET /api/action-groups/{group_id}/releases?limit=1..100&cursor=`
+  → `{items:[<release document>], nextCursor}`，按 release 记录的
+  `revision` 新到旧排序。
+  - `items[]` 就是单版本读取返回的同一份不可变文档（含 `version/digest/tools`），
+    因此历史与单读可直接比对；
+  - cursor 绑定 `{groupId, offset}`，跨组使用或手工偏移一律
+    `invalid_schema`（仓库统一 400，未新造状态码）；
+  - 未知 Group 仍沿用 `404 not_found`；未发布 Group 返回空列表而不是错误；
+  - 权限沿用 `action:read`；读历史不发布、不重指、不改写任何 release。
+- **保留**：单版本读取、`build/unbuild` 语义、release 不可变与 Worker pin 均未改。
 
-### 缺口 B：Group 采纳产生的 `legacyId → actionId` 映射无读取面
+### B. `legacy_action_binding`（原先无读取面）
 
-- **现状符号**：Group 采纳写入 `legacy_action_binding`
-  （`packages/actions/group_migration.py:540`、`:638`，字段
-  `{sourceRoot, legacyId, actionId, raw, deleted}`）。公开读取端点只有
-  `GET /api/jobs/actions/aliases/{legacy_id}`（`final_api.py:468` →
-  `FinalService.action_alias` `final_service.py:2227`），它读的是**另一张表**
-  `final_action_aliases`，写入者是显式别名注册
-  （`final_api.py:580` → `final_service.py:2215`）。因此 Group 采纳出来的别名
-  在该端点上是 404（本片浏览器证据已记录该 404）。
-- **缺失的请求形状**：`GET /api/jobs/action-aliases?limit=…`
-  → `{items:[{legacyId, actionId, sourceRoot, deleted}]}`，或在
-  `GET /api/jobs/actions` 的 `items[]` 上补 `legacyAliases:[legacyId]`。
-- **原方案验收为何遗漏**：`canonicalActions`（`group_migration.py:855-860`）
-  只在 **preserve 分支**填充，P6 UI 只验收 mapped/preserved，从未把
-  “canonical + 旧投影”放进同一个列表。于是“一个逻辑 Action 一行”在跨来源
-  场景没被验收过；上游 `Groups._preview`（`groups.py:211-221`）自己也承认这种
-  引用只能报 `legacy_action_identity_unresolved`。
-- **影响**：被采纳过的 Action 在统一列表可能同时出现 canonical 行与别名行；
-  Action 级“已接管”徽标只能对 id 相同或已注册显式别名的情况显示；引用升级
-  预览对这类目标仍是 unresolved。
-- **处置**：不猜配对（不按名称/顺序推断）。已接官方别名端点：能解析的别名
-  会合并为同一行；解析不到的保持“旧记录”呈现，并在报告与证据中记录 404
-  观测。该子项待后端补读取面后再合并。
+- **原先缺在哪**：Group 采纳写入
+  `final_documents(kind='legacy_action_binding')`
+  （`packages/actions/group_migration.py:540` / `:638`），公开读取端点只有
+  `GET /api/jobs/actions/aliases/{legacy_id}`，而它读的是另一张表
+  `final_action_aliases`（显式别名注册写入），对采纳型别名恒为 404。
+- **新增契约**：`GET /api/action-groups/legacy-action-bindings?limit=1..100&cursor=`
+  → `{items:[{legacyId, actionId, sourceRoot, deleted}], nextCursor}`。
+  - 只返回标识，不返回被保留的旧定义 `raw`；
+  - `deleted: true` 的记录保留在投影里，由前端显式忽略（删除语义可见、可审计）；
+  - 按 `legacyId` 排序，cursor 由 `_page` 绑定 principal/profile/kind；
+  - 权限沿用 `action:read`；该读不触发采纳、不写入任何 binding。
+- **前端只用显式映射**：一条 binding 只有在 `actionId` 确实存在于当前 canonical
+  目录时才合并，`deleted: true` 不合并；未匹配到的旧记录保持自己的 writer 状态。
+  不存在名称/顺序/相似度推断。
 
 ## 3. 前端实现
 
@@ -97,11 +87,12 @@ data/profile、8767/8768；未 push、未部署、未启停既有服务。
 - `packages/web/src/components/actions/unifiedModel.ts`（新增）：把
   canonical 目录与旧 registry 投影合并成“一逻辑条目”，给出
   `canonical / adopted / legacy / preserved` 状态、组引用计数、build 阻断原因、
-  Session 绑定与运行中阻断。
+  Session 绑定与运行中阻断；别名合并只接受显式 binding，且要求目标 canonical
+  条目确实存在。
 - `packages/web/src/components/actions/CanonicalGroupPanel.tsx`（新增）：固定
-  工具（Action + 已发布版本）、保存草稿、Build / Unbuild、删除、当前与按版本号
-  查看 release、复制到草稿、组级引用升级入口、Session 绑定入口、原 Group 操作
-  查询。
+  工具（Action + 已发布版本）、保存草稿、Build / Unbuild、删除、**已发布
+  release 历史列表（最近 20 个，可逐个查看并标出“当前”）**、按版本号查看、
+  复制到草稿、组级引用升级入口、Session 绑定入口、原 Group 操作查询。
 - `packages/web/src/components/actions/LegacyRecordPanel.tsx`（新增）：旧记录
   的行内写入口，复用 `ActionEditorPage` / `GroupEditorPage` /
   `MappedActionPanel`；preserved 记录显示原因并阻断编辑；沿用 registry
@@ -120,10 +111,18 @@ CAS（`expectedRevision` / `expectedStateRevision` / `expectedPluginRevision`）
 
 ## 4. 验证
 
+- 红证据（先写测试再实现）：
+  [red-backend.log](../../evidence/action-group-ui-unified-20261108/red-backend.log)
+  7 个后端用例全部因 404 失败；
+  [red-frontend.log](../../evidence/action-group-ui-unified-20261108/red-frontend.log)
+  2 个 UI 用例失败（缺 binding 合并、缺 release 历史列表）。
+- 后端聚焦：`tests/test_action_group_directory_reads.py` **7 passed**；
+  相邻回归 `test_action_groups.py` + `test_action_unification_p1/p3/p34.py`
+  合计 **93 passed**。
 - `npx tsc -b --noEmit`：通过（0 错）。
 - 聚焦 Vitest：`unifiedModel.test.ts`(9) + `UnifiedActionsView.test.tsx`(10) +
-  `UnifiedDirectoryGroups.test.tsx`(6) = **25 passed**。
-- 完整 Vitest：**238 files / 2742 passed / 3 skipped / 0 failed**。
+  `UnifiedDirectoryGroups.test.tsx`(8) = **27 passed**。
+- 完整 Vitest：**238 files / 2744 passed / 3 skipped / 0 failed**。
 - `pnpm build`：TypeScript + Vite + 压缩资源校验通过，
   **90 个 production assets**。
 - 正常 hook：`core.hooksPath=scripts`，提交时 pre-commit 对
@@ -156,9 +155,13 @@ CAS（`expectedRevision` / `expectedStateRevision` / `expectedPluginRevision`）
 
 ## 5. 未验证 / 未声称
 
-- 缺口 A（历史 release 列表）与缺口 B（`legacy_action_binding` 读取面）未实现，
-  因此“历史 release 易发现”与“采纳型别名自动合并为一行”**未达成**；
-  也不声称已用前端绕过后端限制。
+- 历史 release 只提供**查看**：没有“回退到旧 release”的独立接口，回退仍等于
+  “把旧 release 的固定版本复制到草稿 + 显式 Build”（新增 release，不删旧
+  release）。UI 未把它标成“回退”，避免暗示原地重指。
+- 历史列表 UI 取最近 20 个；接口上限 100/页并提供 cursor，未做全量滚动加载。
+- `legacy_action_binding` 投影只覆盖 Group 采纳产生的绑定；显式注册的别名仍在
+  `final_action_aliases`（`GET /api/jobs/actions/aliases/{legacy_id}`），两条
+  契约保持分离，未合并成一条语义。
 - 浏览器证据里没有“旧记录（legacy-only）”行：owner epoch fence 在 cutover 后
   拒绝新的 legacy 写入（`packages/jobs/runtime_owner.py:170 legacy_pass` →
   `_check` 抛 `revision_conflict`），这是产品既有行为，不是本片缺陷。该状态由

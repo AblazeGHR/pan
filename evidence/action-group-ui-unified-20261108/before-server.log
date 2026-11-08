@@ -1,151 +1,158 @@
-INFO:     Started server process [41940]
+INFO:     Started server process [43760]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:54417 (Press CTRL+C to quit)
-[20:12:49] [Pan] Loaded 44 sessions from disk
-[20:12:49] [Pan] Loaded 0 session templates from manifest
-INFO:     127.0.0.1:54439 - "GET /__e2e/identity HTTP/1.1" 200 OK
-[20:12:50] GET  /__e2e/identity  → 200
-INFO:     127.0.0.1:54440 - "GET /__e2e/identity HTTP/1.1" 200 OK
-[20:12:50] GET  /__e2e/identity  → 200
-INFO:     127.0.0.1:62094 - "GET /react/actions HTTP/1.1" 200 OK
-[20:12:51] GET  /react/actions  → 200
-INFO:     127.0.0.1:62094 - "GET /react/assets/index-Yx1sw1KB-pc2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /react/assets/react-vendor-DNy7vAOG.js HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/index-Yx1sw1KB-pc2.js  → 200
-INFO:     127.0.0.1:63460 - "GET /react/assets/index-BCIy1qFG.css HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/index-BCIy1qFG.css  → 200
-[20:12:51] GET  /react/assets/react-vendor-DNy7vAOG.js  → 200
-INFO:     127.0.0.1:63460 - "GET /api/settings/ui HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /api/automation/session HTTP/1.1" 200 OK
-[20:12:51] GET  /api/settings/ui  → 200
-INFO:     127.0.0.1:62094 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
-[20:12:51] GET  /api/automation/session  → 200
-[20:12:51] GET  /api/job-maintenance/status  → 200
-INFO:     127.0.0.1:62094 - "GET /react/assets/ActionsView-CzJrUukM.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /react/assets/display-RjHl52AC.js HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/ActionsView-CzJrUukM.js  → 200
-INFO:     127.0.0.1:63460 - "GET /react/assets/SessionOperationFields-BnR_Vf-x.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61209 - "GET /react/assets/copy-DxjMbIae.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57380 - "GET /react/assets/check-B0fpR1fx.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59857 - "GET /react/assets/terminal-BEXuJVkH.js HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/display-RjHl52AC.js  → 200
-[20:12:51] GET  /react/assets/copy-DxjMbIae.js  → 200
-INFO:     127.0.0.1:62094 - "GET /react/assets/ActionsView-5rGcqsPE.css HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/terminal-BEXuJVkH.js  → 200
-INFO:     127.0.0.1:50969 - "GET /react/assets/arrow-left-BQ1qe7Gr.js HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/check-B0fpR1fx.js  → 200
-INFO:     127.0.0.1:61209 - "GET /react/assets/refresh-cw-CHo8QPSL.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60075 - "WebSocket /ws" [accepted]
+INFO:     Uvicorn running on http://127.0.0.1:56656 (Press CTRL+C to quit)
+[22:58:30] [Pan] Loaded 44 sessions from disk
+[22:58:30] [Pan] Loaded 0 session templates from manifest
+INFO:     127.0.0.1:51093 - "GET /__e2e/identity HTTP/1.1" 200 OK
+[22:58:32] GET  /__e2e/identity  → 200
+INFO:     127.0.0.1:51101 - "GET /__e2e/identity HTTP/1.1" 200 OK
+[22:58:32] GET  /__e2e/identity  → 200
+INFO:     127.0.0.1:51937 - "GET /react/actions HTTP/1.1" 200 OK
+[22:58:32] GET  /react/actions  → 200
+INFO:     127.0.0.1:51937 - "GET /react/assets/index-Yx1sw1KB-pc2.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61691 - "GET /react/assets/index-BCIy1qFG.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /react/assets/react-vendor-DNy7vAOG.js HTTP/1.1" 200 OK
+[22:58:32] GET  /react/assets/index-BCIy1qFG.css  → 200
+[22:58:32] GET  /react/assets/index-Yx1sw1KB-pc2.js  → 200
+INFO:     127.0.0.1:51937 - "GET /api/settings/ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /api/automation/session HTTP/1.1" 200 OK
+[22:58:32] GET  /api/settings/ui  → 200
+[22:58:32] GET  /api/automation/session  → 200
+INFO:     127.0.0.1:61691 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+[22:58:32] GET  /api/job-maintenance/status  → 200
+INFO:     127.0.0.1:61691 - "GET /react/assets/ActionsView-CzJrUukM.js HTTP/1.1" 200 OK
+[22:58:32] GET  /react/assets/ActionsView-CzJrUukM.js  → 200
+INFO:     127.0.0.1:51064 - "GET /react/assets/display-RjHl52AC.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65173 - "GET /react/assets/check-B0fpR1fx.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51937 - "GET /react/assets/SessionOperationFields-BnR_Vf-x.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62435 - "GET /react/assets/terminal-BEXuJVkH.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /react/assets/copy-DxjMbIae.js HTTP/1.1" 200 OK
+[22:58:32] GET  /react/assets/display-RjHl52AC.js  → 200
+INFO:     127.0.0.1:61691 - "GET /react/assets/ActionsView-5rGcqsPE.css HTTP/1.1" 200 OK
+[22:58:32] GET  /react/assets/terminal-BEXuJVkH.js  → 200
+[22:58:32] GET  /react/assets/check-B0fpR1fx.js  → 200
+[22:58:32] GET  /react/assets/SessionOperationFields-BnR_Vf-x.js  → 200
+[22:58:32] GET  /react/assets/copy-DxjMbIae.js  → 200
+INFO:     127.0.0.1:51064 - "GET /react/assets/arrow-left-BQ1qe7Gr.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65173 - "GET /react/assets/refresh-cw-CHo8QPSL.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62435 - "GET /react/assets/shield-check-CSrIwJ9M.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /react/assets/JobUserAuthorization-DuKeioUi.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51711 - "WebSocket /ws" [accepted]
 INFO:     connection open
-[20:12:51] GET  /react/assets/ActionsView-5rGcqsPE.css  → 200
-INFO:     127.0.0.1:63460 - "GET /react/assets/ScheduleListEditor-C7iundUQ.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59857 - "GET /react/assets/JobUserAuthorization-DuKeioUi.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57380 - "GET /react/assets/shield-check-CSrIwJ9M.js HTTP/1.1" 200 OK
-[20:12:51] GET  /react/assets/refresh-cw-CHo8QPSL.js  → 200
-INFO:     127.0.0.1:61209 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62094 - "GET /react/assets/power-AUHV9i8U.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /react/assets/play-llrIvXGN.js HTTP/1.1" 200 OK
-[20:12:51] GET  /api/locker-unread-summary  → 200
-INFO:     127.0.0.1:61209 - "GET /api/workspaces HTTP/1.1" 200 OK
-[20:12:51] GET  /api/workspaces  → 200
-[20:12:51] GET  /react/assets/ScheduleListEditor-C7iundUQ.js  → 200
-INFO:     127.0.0.1:57380 - "GET /api/cli/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63460 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-[20:12:51] GET  /api/cli/status  → 200
-INFO:     127.0.0.1:59857 - "GET /api/plugins/panels HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61209 - "GET /api/platform HTTP/1.1" 200 OK
-[20:12:51] GET  /api/main/startup-recovery  → 200
-INFO:     127.0.0.1:62094 - "GET /api/list HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /api/adapters HTTP/1.1" 200 OK
-[20:12:54] GET  /api/list  → 200
-INFO:     127.0.0.1:63460 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
-[20:12:54] GET  /api/adapter/config  → 200
-INFO:     127.0.0.1:59857 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62094 - "GET /api/list HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57380 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
-[20:12:54] GET  /api/legacy/jobs  → 200
-INFO:     127.0.0.1:63460 - "GET /api/list HTTP/1.1" 200 OK
-[20:12:54] GET  /api/sessions  → 200
-INFO:     127.0.0.1:62094 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-[20:12:54] GET  /api/sessions  → 304
-INFO:     127.0.0.1:62094 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-[20:12:54] GET  /api/sessions  → 304
-INFO:     127.0.0.1:61209 - "POST /api/automation/login HTTP/1.1" 200 OK
-[20:12:54] POST  /api/automation/login  → 200
-INFO:     127.0.0.1:61209 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
-[20:12:54] GET  /api/locker-unread-summary  → 200
-INFO:     127.0.0.1:62094 - "GET /api/jobs/actions HTTP/1.1" 200 OK
-[20:12:54] GET  /api/jobs/actions  → 200
-INFO:     127.0.0.1:61209 - "GET /api/jobs/actions HTTP/1.1" 200 OK
-[20:12:54] GET  /api/jobs/actions  → 200
-INFO:     127.0.0.1:61209 - "GET /api/actions HTTP/1.1" 200 OK
-[20:12:54] GET  /api/actions  → 200
-INFO:     127.0.0.1:61209 - "GET /react/actions HTTP/1.1" 304 Not Modified
-[20:12:54] GET  /react/actions  → 304
-INFO:     127.0.0.1:61209 - "GET /api/automation/session HTTP/1.1" 200 OK
-[20:12:54] GET  /api/automation/session  → 200
-INFO:     127.0.0.1:62094 - "GET /api/settings/ui HTTP/1.1" 200 OK
-[20:12:54] GET  /api/settings/ui  → 200
-INFO:     127.0.0.1:62094 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64101 - "WebSocket /ws" [accepted]
+INFO:     127.0.0.1:51937 - "GET /react/assets/ScheduleListEditor-C7iundUQ.js HTTP/1.1" 200 OK
+[22:58:32] GET  /react/assets/ActionsView-5rGcqsPE.css  → 200
+[22:58:32] GET  /react/assets/arrow-left-BQ1qe7Gr.js  → 200
+[22:58:32] GET  /react/assets/refresh-cw-CHo8QPSL.js  → 200
+INFO:     127.0.0.1:51064 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61691 - "GET /react/assets/power-AUHV9i8U.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65173 - "GET /react/assets/play-llrIvXGN.js HTTP/1.1" 200 OK
+[22:58:32] GET  /api/locker-unread-summary  → 200
+[22:58:32] GET  /react/assets/shield-check-CSrIwJ9M.js  → 200
+[22:58:32] GET  /react/assets/ScheduleListEditor-C7iundUQ.js  → 200
+INFO:     127.0.0.1:52389 - "GET /api/workspaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62435 - "GET /api/cli/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51937 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /api/plugins/panels HTTP/1.1" 200 OK
+[22:58:32] GET  /api/workspaces  → 200
+INFO:     127.0.0.1:52389 - "GET /api/platform HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51937 - "GET /api/list HTTP/1.1" 200 OK
+[22:58:35] GET  /api/platform  → 200
+INFO:     127.0.0.1:51064 - "GET /api/adapters HTTP/1.1" 200 OK
+[22:58:35] GET  /api/list  → 200
+[22:58:35] GET  /api/adapters  → 200
+[22:58:35] GET  /react/assets/power-AUHV9i8U.js  → 200
+INFO:     127.0.0.1:65173 - "GET /api/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
+[22:58:35] GET  /api/list  → 200
+[22:58:35] GET  /api/adapter/config  → 200
+INFO:     127.0.0.1:62435 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61691 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /api/list HTTP/1.1" 200 OK
+[22:58:35] GET  /api/sessions  → 200
+[22:58:35] GET  /api/legacy/jobs  → 200
+INFO:     127.0.0.1:52389 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+[22:58:35] GET  /api/sessions  → 304
+INFO:     127.0.0.1:52389 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+[22:58:35] GET  /api/sessions  → 304
+INFO:     127.0.0.1:52389 - "POST /api/automation/login HTTP/1.1" 200 OK
+[22:58:35] POST  /api/automation/login  → 200
+INFO:     127.0.0.1:52389 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
+[22:58:35] GET  /api/locker-unread-summary  → 200
+INFO:     127.0.0.1:51064 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:35] GET  /api/jobs/actions  → 200
+INFO:     127.0.0.1:52389 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:35] GET  /api/jobs/actions  → 200
+INFO:     127.0.0.1:51064 - "GET /api/actions HTTP/1.1" 200 OK
+[22:58:35] GET  /api/actions  → 200
+INFO:     127.0.0.1:51064 - "GET /react/actions HTTP/1.1" 304 Not Modified
+[22:58:35] GET  /react/actions  → 304
+INFO:     127.0.0.1:52389 - "GET /api/settings/ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /api/automation/session HTTP/1.1" 200 OK
+[22:58:35] GET  /api/settings/ui  → 200
+INFO:     127.0.0.1:51064 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+[22:58:35] GET  /api/job-maintenance/status  → 200
+INFO:     127.0.0.1:51064 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60744 - "WebSocket /ws" [accepted]
 INFO:     connection open
-[20:12:54] GET  /api/job-maintenance/status  → 200
-INFO:     127.0.0.1:62094 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
-[20:12:54] GET  /api/locker-unread-summary  → 200
-INFO:     127.0.0.1:61209 - "GET /api/workspaces HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63460 - "GET /api/cli/status HTTP/1.1" 200 OK
-[20:12:55] GET  /api/workspaces  → 200
-[20:12:55] GET  /api/cli/status  → 200
-INFO:     127.0.0.1:57380 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59857 - "GET /api/plugins/panels HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /api/platform HTTP/1.1" 200 OK
-[20:12:55] GET  /api/main/startup-recovery  → 200
-INFO:     127.0.0.1:61209 - "GET /api/list HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63460 - "GET /api/adapters HTTP/1.1" 200 OK
-[20:12:55] GET  /api/list  → 200
-INFO:     127.0.0.1:57380 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
-[20:12:55] GET  /api/adapters  → 200
-INFO:     127.0.0.1:62094 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:59857 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
-[20:12:55] GET  /api/sessions  → 304
-INFO:     127.0.0.1:50969 - "GET /api/list HTTP/1.1" 200 OK
-[20:12:55] GET  /api/list  → 200
-INFO:     127.0.0.1:62094 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-[20:12:55] GET  /api/sessions  → 304
-INFO:     127.0.0.1:62094 - "GET /api/jobs/actions HTTP/1.1" 200 OK
-[20:12:55] GET  /api/jobs/actions  → 200
-INFO:     127.0.0.1:50969 - "GET /api/jobs/actions HTTP/1.1" 200 OK
-[20:12:55] GET  /api/jobs/actions  → 200
-INFO:     127.0.0.1:50969 - "GET /api/actions HTTP/1.1" 200 OK
-[20:12:55] GET  /api/actions  → 200
-INFO:     127.0.0.1:50969 - "GET /react/actions HTTP/1.1" 304 Not Modified
-[20:12:55] GET  /react/actions  → 304
-INFO:     127.0.0.1:62094 - "GET /api/settings/ui HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /api/automation/session HTTP/1.1" 200 OK
-[20:12:55] GET  /api/settings/ui  → 200
-INFO:     127.0.0.1:59857 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59692 - "WebSocket /ws" [accepted]
+INFO:     127.0.0.1:52389 - "GET /api/workspaces HTTP/1.1" 200 OK
+[22:58:35] GET  /api/locker-unread-summary  → 200
+[22:58:35] GET  /api/workspaces  → 200
+INFO:     127.0.0.1:61691 - "GET /api/cli/status HTTP/1.1" 200 OK
+[22:58:36] GET  /api/cli/status  → 200
+INFO:     127.0.0.1:62435 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65173 - "GET /api/plugins/panels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51937 - "GET /api/platform HTTP/1.1" 200 OK
+[22:58:36] GET  /api/main/startup-recovery  → 200
+INFO:     127.0.0.1:51064 - "GET /api/list HTTP/1.1" 200 OK
+[22:58:36] GET  /api/list  → 200
+INFO:     127.0.0.1:61691 - "GET /api/adapters HTTP/1.1" 200 OK
+[22:58:36] GET  /api/adapters  → 200
+INFO:     127.0.0.1:62435 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51937 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
+[22:58:36] GET  /api/adapter/config  → 200
+[22:58:36] GET  /api/legacy/jobs  → 200
+INFO:     127.0.0.1:65173 - "GET /api/list HTTP/1.1" 200 OK
+[22:58:36] GET  /api/list  → 200
+INFO:     127.0.0.1:52389 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+[22:58:36] GET  /api/sessions  → 304
+INFO:     127.0.0.1:52389 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:36] GET  /api/jobs/actions  → 200
+INFO:     127.0.0.1:65173 - "GET /api/actions HTTP/1.1" 200 OK
+[22:58:36] GET  /api/actions  → 200
+INFO:     127.0.0.1:51937 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:36] GET  /api/jobs/actions  → 200
+INFO:     127.0.0.1:65173 - "GET /react/actions HTTP/1.1" 304 Not Modified
+[22:58:36] GET  /react/actions  → 304
+INFO:     127.0.0.1:51937 - "GET /api/settings/ui HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+[22:58:36] GET  /api/settings/ui  → 200
+[22:58:36] GET  /api/job-maintenance/status  → 200
+INFO:     127.0.0.1:65173 - "GET /api/automation/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50158 - "WebSocket /ws" [accepted]
 INFO:     connection open
-[20:12:55] GET  /api/job-maintenance/status  → 200
-INFO:     127.0.0.1:59857 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
-[20:12:55] GET  /api/locker-unread-summary  → 200
-INFO:     127.0.0.1:50969 - "GET /api/workspaces HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62094 - "GET /api/cli/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:63460 - "GET /api/plugins/panels HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57380 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61209 - "GET /api/platform HTTP/1.1" 200 OK
-[20:12:55] GET  /api/workspaces  → 200
-INFO:     127.0.0.1:59857 - "GET /api/list HTTP/1.1" 200 OK
-[20:12:55] GET  /api/list  → 200
-INFO:     127.0.0.1:62094 - "GET /api/adapters HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61209 - "GET /api/list HTTP/1.1" 200 OK
-[20:12:56] GET  /api/adapters  → 200
-[20:12:56] GET  /api/list  → 200
-INFO:     127.0.0.1:63460 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
-INFO:     127.0.0.1:57380 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50969 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-[20:12:56] GET  /api/adapter/config  → 200
-INFO:     127.0.0.1:50969 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
-[20:12:56] GET  /api/sessions  → 304
-INFO:     127.0.0.1:50969 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:36] GET  /api/automation/session  → 200
+INFO:     127.0.0.1:65173 - "GET /api/locker-unread-summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /api/workspaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51937 - "GET /api/cli/status HTTP/1.1" 200 OK
+[22:58:36] GET  /api/locker-unread-summary  → 200
+INFO:     127.0.0.1:62435 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61691 - "GET /api/plugins/panels HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51064 - "GET /api/platform HTTP/1.1" 200 OK
+[22:58:36] GET  /api/main/startup-recovery  → 200
+INFO:     127.0.0.1:51937 - "GET /api/adapters HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52389 - "GET /api/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62435 - "GET /api/adapter/config?adapter=cbc HTTP/1.1" 200 OK
+[22:58:36] GET  /api/adapters  → 200
+[22:58:36] GET  /api/adapter/config  → 200
+INFO:     127.0.0.1:61691 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65173 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+[22:58:36] GET  /api/legacy/jobs  → 200
+INFO:     127.0.0.1:51064 - "GET /api/list HTTP/1.1" 200 OK
+[22:58:36] GET  /api/list  → 200
+INFO:     127.0.0.1:61691 - "GET /api/sessions?summary=1 HTTP/1.1" 304 Not Modified
+[22:58:36] GET  /api/sessions  → 304
+INFO:     127.0.0.1:61691 - "GET /api/jobs/actions HTTP/1.1" 200 OK
+[22:58:36] GET  /api/jobs/actions  → 200
+INFO:     127.0.0.1:51064 - "GET /api/actions HTTP/1.1" 200 OK

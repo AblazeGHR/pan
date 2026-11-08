@@ -1,6 +1,6 @@
 {
   "phase": "before",
-  "port": 54417,
+  "port": 56656,
   "sourceRoot": "D:\\project\\pan-worktrees\\baseline-action-dir-20261108",
   "checks": [
     "owned service PID, checkout and runtime verified",

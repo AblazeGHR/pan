@@ -255,6 +255,8 @@ The HTTP adapter is `/api/action-groups`:
 | POST `/{id}/unbuild` | Same CAS envelope; running enabled Session blocks; idle bindings are detached; release history remains |
 | DELETE `/{id}` | Same CAS envelope; requires unbuild first; immutable releases remain readable |
 | GET `/releases/{version}` | Original immutable release, including fixed ActionRefs and input/output schemas |
+| GET `/{id}/releases?limit&cursor` | Read-only history of committed releases, newest first; each item is the same immutable document the single read returns, `cursor` is bound to that Group |
+| GET `/legacy-action-bindings?limit&cursor` | Read-only projection of adoption bindings: `{legacyId,actionId,sourceRoot,deleted}` only; the preserved legacy definition is never returned |
 | POST `/preview-reference-update` | `{scope:"action",actionRef}` for all Groups using that Action, or `{scope:"group",groupId}` for latest versions of all tools |
 | POST `/apply-reference-update` | `{selection,previewDigest,targets:[{groupId,expectedRevision}],requestKey}` |
 
@@ -268,6 +270,13 @@ capability, effect, provider or completion/cancel/reconcile/retry contract is an
 explicit blocker; edit the complete draft to confirm such a change. Executable
 configuration differences are shown but do not by themselves block an explicit
 version upgrade.
+
+Release history and adoption bindings are reads: they never publish, repoint,
+rewrite a release or create a binding. History is ordered by the Group revision
+each release observed and keeps its existing `401/403/404/invalid_schema`
+semantics. Adoption bindings are the only supported `legacyId -> actionId`
+source for merging legacy rows into the canonical directory; name or ordering
+similarity is never accepted as evidence.
 
 The batch limit is 100 Groups with at most 100 tools each. Above that limit the
 caller must make explicit batches using `groupIds` in the Action selection;

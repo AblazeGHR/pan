@@ -1,14 +1,14 @@
 [
   {
     "method": "POST",
-    "url": "http://127.0.0.1:57338/api/automation/login",
+    "url": "http://127.0.0.1:61557/api/automation/login",
     "body": {
-      "key": "KLHNA4ctKOwNTbMRahCXN333WMv6hE9CYocMNu5nPs4"
+      "key": "ttIqmTe-_zteUNq-1A7w3MdGVaj273y56Njn-IgwH3k"
     }
   },
   {
     "method": "PATCH",
-    "url": "http://127.0.0.1:57338/api/sessions/ses_100c6d7849aee423",
+    "url": "http://127.0.0.1:61557/api/sessions/ses_a1ed6c8863f08867",
     "body": {
       "pluginBindings": [
         {
@@ -22,7 +22,7 @@
   },
   {
     "method": "PUT",
-    "url": "http://127.0.0.1:57338/api/action-groups/uni_tools",
+    "url": "http://127.0.0.1:61557/api/action-groups/uni_tools",
     "body": {
       "group": {
         "id": "uni_tools",
@@ -31,15 +31,15 @@
           {
             "alias": "echo",
             "actionRef": {
-              "digest": "187489067c43e80f790642b17555679eaffde330f6978bd4a9ad9ec4764744b3",
-              "id": "action_394bd33ceeaf4a2e89f49b44",
+              "digest": "af74a25a6c317c41a2722a2a4bf03469986e11eb012acdbd88e63c774d8936ca",
+              "id": "action_5d6f099ca2d7452c9d934fae",
               "revision": 1
             }
           }
         ]
       },
-      "expectedRevision": 2,
-      "requestKey": "0ffb2a0c-bac7-402d-86b7-115d48032f77"
+      "expectedRevision": 3,
+      "requestKey": "d307a93f-862d-4995-b57a-ea9822986348"
     }
   }
 ]
