@@ -559,7 +559,10 @@ class Runtime:
         if self.closed or latest['mode']!='automatic' or latest['epoch']!=state['epoch']:
             raise ValueError('Quota policy changed during query')
         if account in latest['disabledAccountIds']:raise ValueError('Cannot monitor disabled account')
-        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+1,account,wake_target,actor)
+        # Keep a small admission margin for the real TCP/native path.  A
+        # one-second once timestamp can expire between the policy read, CAS,
+        # and composition transaction on a busy CI or hosted Windows runner.
+        return await io(self.ensure_job,state,kind,None if kind=='monitor95' else self.clock()+5,account,wake_target,actor)
 
     def ensure_job(self,state,purpose,at,account=None,wake_target=None,actor=None):
         if purpose=='monitor95':
