@@ -1,0 +1,26 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+F                                                                        [100%]
+================================== FAILURES ===================================
+________________ test_runtime_legacy_broadcast_cookie_assembly ________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7500/test_runtime_legacy_broadcast_0')
+
+    def test_runtime_legacy_broadcast_cookie_assembly(tmp_path):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        from packages.automation import api
+        api.install(SimpleNamespace(app=app))
+        with owned_http(app) as client:
+            info = client.get('/test/ready').json()
+            client.headers['Authorization'] = 'Bearer ' + info['token']
+            body = {'kind': 'session-broadcast', 'name': 'runtime broadcast', 'target': {'sessionIds': ['owned-a']}, 'text': 'runtime original', 'schedule': {'type': 'once', 'at': (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat()}, 'requestKey': 'runtime-fixture'}
+            response = client.post('/api/jobs/legacy-create', json=body)
+>           assert response.status_code == 200, response.text
+E           AssertionError: {"error":{"code":"provider_unavailable","message":"provider unavailable"}}
+E           assert 503 == 200
+E            +  where 503 = <Response [503 Service Unavailable]>.status_code
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:18: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_runtime_legacy_broadcast_cookie_assembly
+1 failed in 6.87s

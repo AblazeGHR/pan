@@ -1,0 +1,13 @@
+interpreter D:\project\pan-worktrees\jobs-owned-executor-20261109\.tmp\runtime-env\Scripts\python.exe userSite False hostZone Asia/Singapore
+fastapi 0.141.1 True
+uvicorn 0.52.4 True
+websockets 17.1 True
+psutil 7.2.2 True
+httpx 0.28.1 True
+mcp 1.28.1 True
+jsonschema 4.26.0 True
+PyJWT 2.13.0 True
+pywinpty 3.0.5 True
+tzdata 2026.6 True
+tzlocal 5.4.5 True
+pyte 0.8.2 True

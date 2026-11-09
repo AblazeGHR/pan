@@ -1,0 +1,5 @@
+Collecting tzdata>=2025.2
+  Downloading tzdata-2026.6-py2.py3-none-any.whl.metadata (1.4 kB)
+Downloading tzdata-2026.6-py2.py3-none-any.whl (348 kB)
+Installing collected packages: tzdata
+Successfully installed tzdata-2026.6

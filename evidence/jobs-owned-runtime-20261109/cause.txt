@@ -1,0 +1,8 @@
+Direct original compose_broadcast stack (owned root, original provisioned interpreter):
+packages/jobs/legacy_job_compat.py:339 compose_broadcast.mutate
+packages/scheduler/providers.py:660 legacy_schedule_plan -> provider.zone(timezone_name=None)
+packages/scheduler/providers.py:256 TimeProvider.zone -> self.host_zone()
+packages/core/platform/timezones.py:12 host_zone_name -> from tzlocal import reload_localzone
+ModuleNotFoundError: No module named 'tzlocal'
+Original ContractError: provider_unavailable / Current host timezone is unavailable / details reason host_timezone_unavailable.
+Fresh owned interpreter with tzlocal installed exposed the second minimal requirement gap: tzdata missing; ZoneInfoNotFoundError Asia/Singapore. Both are declared in minimal-requirements.txt. No timezone override applied.

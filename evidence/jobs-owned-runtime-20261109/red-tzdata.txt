@@ -1,0 +1,235 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+FF                                                                       [100%]
+================================== FAILURES ===================================
+____________ test_runtime_legacy_broadcast_cookie_assembly[bearer] ____________
+
+key = 'Asia/Singapore'
+
+    def load_tzdata(key):
+        from importlib import resources
+
+        components = key.split("/")
+        package_name = ".".join(["tzdata.zoneinfo"] + components[:-1])
+        resource_name = components[-1]
+
+        try:
+>           path = resources.files(package_name).joinpath(resource_name)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\zoneinfo\_common.py:12:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:46: in wrapper
+    return func(anchor)
+           ^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:56: in files
+    return from_package(resolve(anchor))
+                        ^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\functools.py:982: in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:82: in _
+    return importlib.import_module(cand)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'tzdata.zoneinfo.Asia', package = None
+
+    def import_module(name, package=None):
+        """Import a module.
+
+        The 'package' argument is required when performing a relative import. It
+        specifies the package to use as the anchor point from which to resolve the
+        relative import to an absolute import.
+
+        """
+        level = 0
+        if name.startswith('.'):
+            if not package:
+                raise TypeError("the 'package' argument is required to perform a "
+                                f"relative import for {name!r}")
+            for character in name:
+                if character != '.':
+                    break
+                level += 1
+>       return _bootstrap._gcd_import(name[level:], package, level)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ModuleNotFoundError: No module named 'tzdata'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: ModuleNotFoundError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7501/test_runtime_legacy_broadcast_0')
+auth_mode = 'bearer'
+
+    @pytest.mark.parametrize('auth_mode', ['bearer', 'cookie'])
+    def test_runtime_legacy_broadcast_cookie_assembly(tmp_path, auth_mode):
+        (tmp_path / '.jobs-owned-harness').touch()
+>       app = app_for(tmp_path)
+              ^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:13:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\jobs_owned_executor_server.py:49: in app_for
+    environment = runtime_environment()
+                  ^^^^^^^^^^^^^^^^^^^^^
+tests\support\jobs_owned_executor_server.py:35: in runtime_environment
+    zone = host_zone_name()
+           ^^^^^^^^^^^^^^^^
+packages\core\platform\timezones.py:15: in host_zone_name
+    zone = reload_localzone()
+           ^^^^^^^^^^^^^^^^^^
+.tmp\runtime-env\Lib\site-packages\tzlocal\win32.py:142: in reload_localzone
+    _cache_tz = zoneinfo.ZoneInfo(_cache_tz_name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+key = 'Asia/Singapore'
+
+    def load_tzdata(key):
+        from importlib import resources
+
+        components = key.split("/")
+        package_name = ".".join(["tzdata.zoneinfo"] + components[:-1])
+        resource_name = components[-1]
+
+        try:
+            path = resources.files(package_name).joinpath(resource_name)
+            # gh-85702: Prevent PermissionError on Windows
+            if path.is_dir():
+                raise IsADirectoryError
+            return path.open("rb")
+        except (ImportError, FileNotFoundError, UnicodeEncodeError, IsADirectoryError):
+            # There are four types of exception that can be raised that all amount
+            # to "we cannot find this key":
+            #
+            # ImportError: If package_name doesn't exist (e.g. if tzdata is not
+            #   installed, or if there's an error in the folder name like
+            #   Amrica/New_York)
+            # FileNotFoundError: If resource_name doesn't exist in the package
+            #   (e.g. Europe/Krasnoy)
+            # UnicodeEncodeError: If package_name or resource_name are not UTF-8,
+            #   such as keys containing a surrogate character.
+            # IsADirectoryError: If package_name without a resource_name specified.
+>           raise ZoneInfoNotFoundError(f"No time zone found with key {key}")
+E           zoneinfo._common.ZoneInfoNotFoundError: 'No time zone found with key Asia/Singapore'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\zoneinfo\_common.py:29: ZoneInfoNotFoundError
+____________ test_runtime_legacy_broadcast_cookie_assembly[cookie] ____________
+
+key = 'Asia/Singapore'
+
+    def load_tzdata(key):
+        from importlib import resources
+
+        components = key.split("/")
+        package_name = ".".join(["tzdata.zoneinfo"] + components[:-1])
+        resource_name = components[-1]
+
+        try:
+>           path = resources.files(package_name).joinpath(resource_name)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\zoneinfo\_common.py:12:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:46: in wrapper
+    return func(anchor)
+           ^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:56: in files
+    return from_package(resolve(anchor))
+                        ^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\functools.py:982: in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\resources\_common.py:82: in _
+    return importlib.import_module(cand)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'tzdata.zoneinfo.Asia', package = None
+
+    def import_module(name, package=None):
+        """Import a module.
+
+        The 'package' argument is required when performing a relative import. It
+        specifies the package to use as the anchor point from which to resolve the
+        relative import to an absolute import.
+
+        """
+        level = 0
+        if name.startswith('.'):
+            if not package:
+                raise TypeError("the 'package' argument is required to perform a "
+                                f"relative import for {name!r}")
+            for character in name:
+                if character != '.':
+                    break
+                level += 1
+>       return _bootstrap._gcd_import(name[level:], package, level)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ModuleNotFoundError: No module named 'tzdata'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\importlib\__init__.py:88: ModuleNotFoundError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7501/test_runtime_legacy_broadcast_1')
+auth_mode = 'cookie'
+
+    @pytest.mark.parametrize('auth_mode', ['bearer', 'cookie'])
+    def test_runtime_legacy_broadcast_cookie_assembly(tmp_path, auth_mode):
+        (tmp_path / '.jobs-owned-harness').touch()
+>       app = app_for(tmp_path)
+              ^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:13:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\support\jobs_owned_executor_server.py:49: in app_for
+    environment = runtime_environment()
+                  ^^^^^^^^^^^^^^^^^^^^^
+tests\support\jobs_owned_executor_server.py:35: in runtime_environment
+    zone = host_zone_name()
+           ^^^^^^^^^^^^^^^^
+packages\core\platform\timezones.py:15: in host_zone_name
+    zone = reload_localzone()
+           ^^^^^^^^^^^^^^^^^^
+.tmp\runtime-env\Lib\site-packages\tzlocal\win32.py:142: in reload_localzone
+    _cache_tz = zoneinfo.ZoneInfo(_cache_tz_name)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+key = 'Asia/Singapore'
+
+    def load_tzdata(key):
+        from importlib import resources
+
+        components = key.split("/")
+        package_name = ".".join(["tzdata.zoneinfo"] + components[:-1])
+        resource_name = components[-1]
+
+        try:
+            path = resources.files(package_name).joinpath(resource_name)
+            # gh-85702: Prevent PermissionError on Windows
+            if path.is_dir():
+                raise IsADirectoryError
+            return path.open("rb")
+        except (ImportError, FileNotFoundError, UnicodeEncodeError, IsADirectoryError):
+            # There are four types of exception that can be raised that all amount
+            # to "we cannot find this key":
+            #
+            # ImportError: If package_name doesn't exist (e.g. if tzdata is not
+            #   installed, or if there's an error in the folder name like
+            #   Amrica/New_York)
+            # FileNotFoundError: If resource_name doesn't exist in the package
+            #   (e.g. Europe/Krasnoy)
+            # UnicodeEncodeError: If package_name or resource_name are not UTF-8,
+            #   such as keys containing a surrogate character.
+            # IsADirectoryError: If package_name without a resource_name specified.
+>           raise ZoneInfoNotFoundError(f"No time zone found with key {key}")
+E           zoneinfo._common.ZoneInfoNotFoundError: 'No time zone found with key Asia/Singapore'
+
+C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\zoneinfo\_common.py:29: ZoneInfoNotFoundError
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_runtime_legacy_broadcast_cookie_assembly[bearer]
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_runtime_legacy_broadcast_cookie_assembly[cookie]
+2 failed in 0.60s

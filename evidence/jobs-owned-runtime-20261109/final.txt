@@ -1,0 +1,3 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+............                                                             [100%]
+12 passed in 81.27s (0:01:21)

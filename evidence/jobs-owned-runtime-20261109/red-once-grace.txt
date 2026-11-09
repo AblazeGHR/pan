@@ -1,0 +1,47 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____________ test_scheduler_original_runtime_assign_clock_pulse ______________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7507/test_scheduler_original_runtim0')
+
+    def test_scheduler_original_runtime_assign_clock_pulse(tmp_path):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        from packages.automation import api
+        from packages.jobs.final_service import definition
+        api.install(SimpleNamespace(app=app))
+        with owned_http(app) as client:
+            info = client.get('/test/ready').json()
+            client.headers['Authorization'] = 'Bearer ' + info['token']
+            at = (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+            response = client.post('/api/jobs/legacy-create', json={'kind': 'scheduled-task', 'name': 'owned clock assign', 'target': {'sessionId': 'owned-a'}, 'text': 'clock consumed', 'action': {'api': 'assign'}, 'schedule': [{'kind': 'once', 'at': at}], 'requestKey': 'clock-runtime'})
+            assert response.status_code == 200, response.text
+            jid = response.json()['job']['jobId']
+            job = app.state.owned.service.get('job', jid, actor={'type': 'user', 'id': 'local'})
+            cfg = definition('job', job)
+            assert cfg['steps'][0]['actionRef']['id'] == 'product_assign_runtime_v1'
+            assert cfg['deliveryRuntime']['phase'] == 'before-reservation'
+>           rows = wait(lambda: client.get('/api/jobs/' + jid + '/runs').json()['items'], bool)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:120:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+read = <function test_scheduler_original_runtime_assign_clock_pulse.<locals>.<lambda> at 0x000001D8D785F690>
+predicate = <class 'bool'>, timeout = 20
+
+    def wait(read, predicate, timeout=20):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            value = read()
+            if predicate(value):
+                return value
+            time.sleep(.03)
+>       raise AssertionError("process log deadline: " + repr(value))
+E       AssertionError: process log deadline: []
+
+tests\test_job_process_logs.py:38: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_scheduler_original_runtime_assign_clock_pulse
+1 failed in 26.87s

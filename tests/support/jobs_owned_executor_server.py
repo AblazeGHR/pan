@@ -15,7 +15,10 @@ class ConsumingProvider:
         self.calls = []
 
     async def send_session(self, session_id, text, *, effect_key, source, **kwargs):
-        if session_id not in ('owned-a', 'owned-b', 'owned-unknown'):
+        target = (self.root / 'sessions' / (session_id + '.json')).resolve()
+        owned_session = (target.parent == (self.root / 'sessions').resolve() and target.is_file()
+                         and json.loads(target.read_text(encoding='utf-8')).get('id') == session_id)
+        if session_id not in ('owned-a', 'owned-b', 'owned-unknown') and not owned_session:
             return {'status': 'rejected', 'code': 'not_owned'}
         row = dict(sessionId=session_id, text=text, effectKey=dict(effect_key), source=source)
         with (self.root / 'consumed.jsonl').open('a', encoding='utf-8') as stream:
@@ -27,6 +30,23 @@ class ConsumingProvider:
         return {'status': 'succeeded', 'messageId': f'owned-{len(self.calls)}', 'consumption': 'confirmed'}
 
 
+    async def assign(self, session_id, text, *, task_id, effect_key, source, **kwargs):
+        result = await self.send_session(session_id, text, effect_key=effect_key, source=source, **kwargs)
+        return {**result, 'taskId': task_id}
+
+
+def runtime_environment():
+    """Fail before assembly when the provisioned calendar dependency is absent."""
+    from packages.core.platform.timezones import host_zone_name
+    from zoneinfo import ZoneInfoNotFoundError
+    try:
+        import tzlocal
+        zone = host_zone_name()
+    except (ImportError, RuntimeError, NotImplementedError, ZoneInfoNotFoundError) as exc:
+        raise RuntimeError('Owned runtime harness needs minimal-requirements.txt calendar dependencies in its interpreter; use the provisioned owned runtime-env, never replace runtime Actions or force UTC') from exc
+    return {'interpreter': sys.executable, 'hostZone': zone, 'tzlocal': str(Path(tzlocal.__file__).resolve())}
+
+
 def app_for(root):
     from fastapi import FastAPI
     from packages.automation.service import Service
@@ -35,6 +55,7 @@ def app_for(root):
     from packages.jobs.action_api import router as actions
     from packages.jobs.api import router as jobs
     from types import SimpleNamespace
+    environment = runtime_environment()
     root = Path(root).resolve()
     if not (root / '.jobs-owned-harness').is_file():
         raise ValueError('Explicit owned harness marker required')
@@ -55,6 +76,7 @@ def app_for(root):
     # Keep the original default TypedExecutor identity: process dispatch must
     # continue selecting FinalService._external_adapter / ProcessOwner.
     service.executor.session_provider = provider
+    service.executor.assign_provider = provider
     app.state.automation = automation
     app.state.owned = SimpleNamespace(service=service, provider=provider, auth=automation.auth)
     install(app, actions, jobs)
@@ -86,10 +108,18 @@ def app_for(root):
     @app.get('/test/ready')
     def ready():
         from packages.jobs.final_service import object_ref
-        refs = {a['id']: object_ref('action', a) for a in service.actions(actor={'type': 'user', 'id': 'local'})['items']
-                if a['id'] in ('product_process_cleanup_v1', 'product_session_broadcast_v2')}
+        actions = service.actions(actor={'type': 'user', 'id': 'local'})['items']
+        refs = {a['id']: object_ref('action', a) for a in actions}
+        time_provider = service.creators.registry.providers[('time', 'scheduler')]
+        time_ref = {'type': time_provider.provider_type, 'id': time_provider.provider_id,
+                    'generation': time_provider.generation, 'releaseDigest': time_provider.release_digest}
+        assert service.creators.registry.get(time_ref) is time_provider
         return {'ready': True, 'token': automation.auth.login(automation.auth.key()),
-                'actionRefs': refs, 'scripts': scripts, 'cwd': str(root), 'targets': ['owned-a', 'owned-b', 'owned-unknown'],
+                'environment': environment, 'actions': actions, 'actionRefs': refs,
+                'timeProvider': {'ref': time_ref, 'health': time_provider.health()},
+                'bindings': {'sameService': automation.final_jobs is app.state.job_final_service is service,
+                             'sameAuth': service.auth is automation.auth, 'profileId': service.profile_id,
+                             'defaultExecutor': service.executor is service._product_executor}, 'scripts': scripts, 'cwd': str(root), 'targets': ['owned-a', 'owned-b', 'owned-unknown'],
                 'consumed': provider.calls, 'owner': service.owner.status(), 'diagnostics': service.diagnostics}
     return app
 

@@ -1,0 +1,113 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+FF                                                                       [100%]
+================================== FAILURES ===================================
+____________ test_runtime_legacy_broadcast_cookie_assembly[bearer] ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7502/test_runtime_legacy_broadcast_0')
+auth_mode = 'bearer'
+
+    @pytest.mark.parametrize('auth_mode', ['bearer', 'cookie'])
+    def test_runtime_legacy_broadcast_cookie_assembly(tmp_path, auth_mode):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        from packages.automation import api
+        from packages.jobs.final_service import definition, FinalService
+        api.install(SimpleNamespace(app=app))
+        service = app.state.owned.service
+        automation = app.state.automation
+        registry = service.creators.registry
+        assert automation.final_jobs is app.state.job_final_service is service
+        assert automation.auth is service.auth is app.state.owned.auth
+        assert service.executor is service._product_executor
+        with owned_http(app) as client:
+            assert service.task is not None and not service.task.done()
+            assert service.creators.registry is registry
+            if auth_mode == 'bearer':
+                info = client.get('/test/ready').json()
+                client.headers['Authorization'] = 'Bearer ' + info['token']
+            else:
+                login = client.post('/api/automation/login', json={'key': automation.auth.key()})
+                assert login.status_code == 200
+                assert 'pan_automation_session' in client.cookies
+                client.headers['Origin'] = str(client.base_url).rstrip('/')
+                assert 'Authorization' not in client.headers
+            body = {'kind': 'session-broadcast', 'name': 'runtime broadcast', 'target': {'sessionIds': ['owned-a', 'owned-b', 'owned-unknown']}, 'text': 'runtime original', 'schedule': {'type': 'once', 'at': (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat()}, 'requestKey': 'runtime-fixture'}
+            response = client.post('/api/jobs/legacy-create', json=body)
+            assert response.status_code == 200, response.text
+            jid = response.json()['job']['jobId']
+            job = service.get('job', jid, actor={'type': 'user', 'id': 'local'})
+            cfg = definition('job', job)
+            assert job['profileId'] == service.profile_id
+            assert job['createdBy'] == {'type': 'user', 'id': 'local'}
+            assert cfg['steps'][0]['actionRef']['id'] == 'product_session_broadcast_runtime_v1'
+            assert cfg['deliveryRuntime']['phase'] == 'before-reservation'
+            assert cfg['steps'][0]['arguments']['text'] == {'from': 'input', 'path': 'delivery.text'}
+            with service.transaction(readonly=True) as db:
+                assert service._references(db, 'job', cfg, enabled=True)
+            again = client.post('/api/jobs/legacy-create', json=body)
+            assert again.status_code == 200 and again.json()['job']['jobId'] == jid
+            assert app.state.owned.provider.calls == []  # schedule has not fired
+            response = client.post('/api/jobs/' + jid + '/runs', json={'expectedRevision': job['configRevision'], 'requestKey': 'manual-owned-runtime', 'input': {}, 'cause': {'type': 'manual'}})
+>           assert response.status_code == 202, response.text
+E           AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E           assert 400 == 202
+E            +  where 400 = <Response [400 Bad Request]>.status_code
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:52: AssertionError
+____________ test_runtime_legacy_broadcast_cookie_assembly[cookie] ____________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7502/test_runtime_legacy_broadcast_1')
+auth_mode = 'cookie'
+
+    @pytest.mark.parametrize('auth_mode', ['bearer', 'cookie'])
+    def test_runtime_legacy_broadcast_cookie_assembly(tmp_path, auth_mode):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        from packages.automation import api
+        from packages.jobs.final_service import definition, FinalService
+        api.install(SimpleNamespace(app=app))
+        service = app.state.owned.service
+        automation = app.state.automation
+        registry = service.creators.registry
+        assert automation.final_jobs is app.state.job_final_service is service
+        assert automation.auth is service.auth is app.state.owned.auth
+        assert service.executor is service._product_executor
+        with owned_http(app) as client:
+            assert service.task is not None and not service.task.done()
+            assert service.creators.registry is registry
+            if auth_mode == 'bearer':
+                info = client.get('/test/ready').json()
+                client.headers['Authorization'] = 'Bearer ' + info['token']
+            else:
+                login = client.post('/api/automation/login', json={'key': automation.auth.key()})
+                assert login.status_code == 200
+                assert 'pan_automation_session' in client.cookies
+                client.headers['Origin'] = str(client.base_url).rstrip('/')
+                assert 'Authorization' not in client.headers
+            body = {'kind': 'session-broadcast', 'name': 'runtime broadcast', 'target': {'sessionIds': ['owned-a', 'owned-b', 'owned-unknown']}, 'text': 'runtime original', 'schedule': {'type': 'once', 'at': (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat()}, 'requestKey': 'runtime-fixture'}
+            response = client.post('/api/jobs/legacy-create', json=body)
+            assert response.status_code == 200, response.text
+            jid = response.json()['job']['jobId']
+            job = service.get('job', jid, actor={'type': 'user', 'id': 'local'})
+            cfg = definition('job', job)
+            assert job['profileId'] == service.profile_id
+            assert job['createdBy'] == {'type': 'user', 'id': 'local'}
+            assert cfg['steps'][0]['actionRef']['id'] == 'product_session_broadcast_runtime_v1'
+            assert cfg['deliveryRuntime']['phase'] == 'before-reservation'
+            assert cfg['steps'][0]['arguments']['text'] == {'from': 'input', 'path': 'delivery.text'}
+            with service.transaction(readonly=True) as db:
+                assert service._references(db, 'job', cfg, enabled=True)
+            again = client.post('/api/jobs/legacy-create', json=body)
+            assert again.status_code == 200 and again.json()['job']['jobId'] == jid
+            assert app.state.owned.provider.calls == []  # schedule has not fired
+            response = client.post('/api/jobs/' + jid + '/runs', json={'expectedRevision': job['configRevision'], 'requestKey': 'manual-owned-runtime', 'input': {}, 'cause': {'type': 'manual'}})
+>           assert response.status_code == 202, response.text
+E           AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E           assert 400 == 202
+E            +  where 400 = <Response [400 Bad Request]>.status_code
+
+tests\test_jobs_owned_runtime_broadcast_harness.py:52: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_runtime_legacy_broadcast_cookie_assembly[bearer]
+FAILED tests/test_jobs_owned_runtime_broadcast_harness.py::test_runtime_legacy_broadcast_cookie_assembly[cookie]
+2 failed in 15.69s

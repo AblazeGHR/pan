@@ -1,0 +1,5 @@
+Collecting tzlocal<6,>=5.3
+  Downloading tzlocal-5.4.5-py3-none-any.whl.metadata (7.7 kB)
+Downloading tzlocal-5.4.5-py3-none-any.whl (18 kB)
+Installing collected packages: tzlocal
+Successfully installed tzlocal-5.4.5
