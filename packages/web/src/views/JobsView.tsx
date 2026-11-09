@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
-  ListChecks,
   MoreHorizontal,
   Pause,
   Pin,
@@ -489,8 +488,9 @@ export default function JobsView() {
   const allJobs = useJobStore((s) => s.jobs);
   // /api/jobs is a mixed read facade. Compatibility projections never confer
   // Action execution ownership on a legacy record.
-  const jobs = useMemo(() => allJobs.filter((job) =>
-    tab === 'legacy' ? !isUnifiedJob(job) : isUnifiedJob(job)), [allJobs, tab]);
+  // One list: canonical rows and rows that still live in the old registry are
+  // both shown; their source is a row-level fact, not a separate product tab.
+  const jobs = useMemo(() => allJobs, [allJobs]);
   const loading = useJobStore((s) => s.loading);
   const error = useJobStore((s) => s.error);
   const pinMetadataUnavailable = useJobStore((s) => s.pinMetadataUnavailable);
@@ -1029,41 +1029,9 @@ export default function JobsView() {
       <div className="flex gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
         <button
           type="button"
-          aria-pressed={tab === 'list'}
+          onClick={() => setLegacyCreateOpen(true)}
           disabled={bulkAction !== null}
-          onClick={() => {
-            requestTab('list');
-            setSelectionMode(false);
-            clearSelectionForViewChange();
-          }}
-          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-            tab === 'list'
-              ? 'border-accent/50 bg-accent/10 text-accent'
-              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-          }`}
-        >
-          <ListChecks size={12} />
-          Unified Jobs
-        </button>
-        <button type="button" aria-pressed={tab === 'legacy'} disabled={bulkAction !== null}
-          onClick={() => { requestTab('legacy'); setSelectionMode(false); clearSelectionForViewChange(); setSelectedJobId(null); }}
-          className={`rounded border px-2.5 py-1 text-xs ${tab === 'legacy' ? 'border-accent/50 text-accent' : 'border-border-default text-text-secondary'}`}>
-          Legacy Jobs / 旧 Job
-        </button>
-        <button
-          type="button"
-          aria-pressed={tab === 'create'}
-          disabled={bulkAction !== null}
-          onClick={() => {
-            requestTab('create');
-            setSelectionMode(false);
-            clearSelectionForViewChange();
-          }}
-          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-            tab === 'create'
-              ? 'border-accent/50 bg-accent/10 text-accent'
-              : 'border-border-default bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-          }`}
+          className="inline-flex items-center gap-1 rounded border border-accent/50 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent"
         >
           <Plus size={12} />
           New Job
@@ -1088,15 +1056,10 @@ export default function JobsView() {
         </button>
       </div>
 
-      {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
-        {tab === 'legacy'
-          ? '旧 Job · background_jobs registry / legacy scheduler · 旧 runner 与原始 Job 状态。与新 Job 可共用存储目录；不迁移、不自动转换。删除走原安全取消/清理路径；退出未确认时保留 cleanup_pending，须显式再次核对。'
-          : '统一新 Job · Action-reference registry records / Action runtime · Run / Attempt 状态。存储目录可与旧 Job 共用；此处仅展示新执行语义。'}
+      {tab !== 'settings' && tab !== 'create' && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
+        统一 Job 列表 · 新记录与仍在旧 registry 的记录按 jobId 合并展示；来源与阻断原因在行内标注。
       </p>}
-      {tab === 'legacy' && <div className="shrink-0 px-4 pb-2">
-        <Button size="sm" onClick={() => setLegacyCreateOpen(true)} disabled={bulkAction !== null}>New legacy Job</Button>
-      </div>}
-      {tab === 'list' || tab === 'legacy' ? (
+      {tab !== 'settings' && tab !== 'create' ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Keep filters, search, selection actions, and counts visible while rows scroll. */}
           <div className="shrink-0 border-b border-border-muted bg-bg-primary">
@@ -1418,7 +1381,7 @@ export default function JobsView() {
         </div>
       </Modal>
 
-      <Modal open={legacyCreateOpen} onClose={() => { if (!submitting) setLegacyCreateOpen(false); }} title="New legacy Job" size="lg">
+      <Modal open={legacyCreateOpen} onClose={() => { if (!submitting) setLegacyCreateOpen(false); }} title="New Job" size="lg">
         <p className="mb-3 text-xs text-text-secondary">创建旧 registry 记录，使用旧 runner / scheduler；不会转换为新 Action Job。</p>
         {legacyCreateOpen && <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleLegacyCreate(input)} />}
       </Modal>

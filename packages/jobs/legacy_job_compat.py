@@ -134,7 +134,17 @@ def job_view(service, job, *, legacy=None, pinned=False, run_count=0):
         "updatedAt": item.get("updatedAt"),
         "runCount": run_count,
         "pinned": bool(pinned),
-        "target": legacy.get("target") or {},
+        "source": {"type": "user", "sessionId": legacy.get("creatorSessionId")},
+        "target": ({"type": "sessions", "sessionIds": (legacy.get("target") or {}).get("sessionIds")}
+                   if kind == "session-broadcast"
+                   else {"type": "session", "sessionId": (legacy.get("target") or {}).get("sessionId")}),
+        "action": {
+            "api": {"background-process": "shell", "session-message": "send_session",
+                    "session-broadcast": "send_session", "scheduled-task": "assign"}.get(kind, "assign"),
+            "args": ({"argv": legacy.get("argv"), "cwd": legacy.get("cwd")}
+                     if kind == "background-process"
+                     else {"text": legacy.get("text")}),
+        },
         "text": legacy.get("text"),
         "argv": legacy.get("argv"),
         "cwd": legacy.get("cwd"),
