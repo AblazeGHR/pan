@@ -342,13 +342,17 @@ class FinalService:
             item["enabled"] = True
         return fc.validate_object(kind, item)
 
-    _OBJECT_KINDS = {"action", "job", "template", "trigger", "event_creator"}
+    #: User-visible objects keep their public schema.
+    _OBJECT_KINDS = frozenset({"action", "job", "template", "trigger", "event_creator"})
+    #: Compatibility documents stored beside objects. They are never projected
+    #: to a public surface; anything outside both sets stays an error.
+    _INTERNAL_KINDS = frozenset({
+        "json_scheduler_handoff", "legacy_template_alias", "migration_receipt",
+        "trigger_receipt_handoff", "runtime_activation", "runtime_archive",
+    })
 
     def _public(self, kind, item):
-        if kind not in self._OBJECT_KINDS:
-            # Compatibility documents (scheduler handoff, legacy bindings,
-            # pins) are internal: they are stored and read, never validated as
-            # user-visible object kinds.
+        if kind in self._INTERNAL_KINDS:
             return copy.deepcopy(item)
         if kind == "job":
             item = item["canonical"]
