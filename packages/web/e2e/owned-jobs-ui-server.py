@@ -31,7 +31,25 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 app = module.app_for(owned)
 
+# Synthetic Sessions for the designed target selectors (owned root only).
+from packages.core import session as session_store  # noqa: E402
+session_store.SESSION_DIR = owned / "sessions"
+session_store._cache.clear()
+session_store._all_loaded = False
+for name in ("Owned Alpha", "Owned Beta"):
+    session_store.create(name, adapter="cbc", workdir=str(owned))
+
 app.mount("/react/assets", StaticFiles(directory=dist / "assets"), name="react-assets")
+
+
+@app.post("/api/automation/login")
+def automation_login(payload: dict):
+    """Test-only assembly of the product login endpoint over the owned auth."""
+    key = (payload or {}).get("key")
+    if not isinstance(key, str) or not key:
+        raise uvicorn.http.HTTPException(status_code=400, detail="key required") if False else ValueError("key required")
+    token = app.state.automation.auth.login(key)
+    return {"token": token, "expiresIn": 86400}
 
 
 @app.get("/api/job-maintenance/status")

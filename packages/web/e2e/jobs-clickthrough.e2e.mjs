@@ -92,6 +92,7 @@ try {
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.on('pageerror', (error) => evidence.errors.push(error.message));
+  // The product login form authenticates against the owned auth service.
   await page.goto(base + '/react/automation');
   await page.getByLabel('Local user key').fill(key);
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
