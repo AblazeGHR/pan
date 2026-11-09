@@ -691,8 +691,12 @@ export function LegacyActionsView() {
     );
   }
 
-  const actionCount = hasLoaded ? registry.actions.length : 0;
-  const groupCount = hasLoaded ? registry.groups.length : 0;
+  const canonicalOnlyTotal = canonicalCatalog.filter((row) => row.adoption === 'canonical').length;
+  const canonicalGroupOnlyTotal = canonicalGroupRows.filter(
+    (row) => row.adoption === 'canonical',
+  ).length;
+  const actionCount = hasLoaded ? registry.actions.length + canonicalOnlyTotal : 0;
+  const groupCount = hasLoaded ? registry.groups.length + canonicalGroupOnlyTotal : 0;
   const useGroup = registry.groups.find((group) => group.id === useGroupId) ?? null;
   const liveGroup =
     editor?.kind === 'group' && editor.originalId
@@ -763,14 +767,13 @@ export function LegacyActionsView() {
     if (groupFilter === 'unbuilt') return !row.release;
     return true;
   });
+  // User-owned rows first; product-managed system rows stay visible below.
+  canonicalOnlyActions.sort((left, right) => Number(left.system) - Number(right.system));
   const visibleCount =
     tab === 'actions'
       ? filteredActions.length + canonicalOnlyActions.length
       : filteredGroups.length + canonicalOnlyGroups.length;
-  const totalCount =
-    tab === 'actions'
-      ? actionCount + canonicalCatalog.filter((row) => row.adoption === 'canonical').length
-      : groupCount + canonicalGroupRows.filter((row) => row.adoption === 'canonical').length;
+  const totalCount = tab === 'actions' ? actionCount : groupCount;
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
