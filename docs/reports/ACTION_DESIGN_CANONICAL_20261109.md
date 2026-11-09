@@ -63,31 +63,26 @@ data/profile、8767/8768；未 push。
 
 ## 5. 未完成 / 需集中报告（不阻塞以上范围）
 
-1. **Jobs 设计页（唯一未完成项，已核对原语，不是“无等价模型”）**
-   - 原语确认：`POST /api/jobs/{job_id}/runs` = 手动 Run（[final_api.py:659]），
-     进入 `FinalService.create_run` → `_admit`（[final_service.py:1425]/:1371），
-     `cause={type:'manual'}`，不推进 schedule cursor；重复 `requestKey` 由
-     `final_operations` 回放，不重放副作用。canonical Job 创建走通用
-     `POST /api/jobs` → `FinalService.write`（[final_api.py:388]）。
-   - 实测（临时用例，已删除）：`product_process` + literal 绑定
-     `{from:'literal',value:…}` 的 Job definition 可创建、enable、`create_run`
-     完成，`/runs` 可读。故 background-process 的映射确实是薄映射。
-   - 阻塞在**地址与投影**，不是“没有模型”：`/api/jobs` 现为 canonical 列表，
-     旧门面只在 `/api/legacy/jobs`（[final_api.py:809-866]）；旧列表/详情/pin/删除
-     都基于 `_find_job` 的旧 runtime（[api.py:81]）与 `pins` 侧车，
-     看不到 canonical Job。
-   - 仍需新建的不是“执行引擎”，而是：
-     (a) 一份 **Job 兼容投影模块**：canonical Job → 旧形状（jobId/kind/status/
-         config/pin/runCount/nextRunAt），并把 `/api/legacy/jobs` 的列表/详情/
-         pin/删除改为“旧 runtime ∪ canonical”；
-     (b) 四种 kind 的表单 → Job definition 映射：background-process 已证可行；
-         session-message / session-broadcast 需要 `deliveryRuntime` 声明
-         （[final_contracts.py:2118] 起校验）才能保持原投递语义；
-         scheduled-task 需要 Creator/Trigger 组合（`instantiate_template` 路径）；
-     (c) practical `JobsView.tsx`(1512 行) 与其 api 客户端移植，并把
-         `runJobNow` 指到 `POST /api/jobs/{id}/runs`。
-   - 以上 (a)(b)(c) 是同一片工作的三个部分，缺一即回归（页面打不开或创建 410），
-     因此本片未以半成品形式落地；Actions/Groups 已全部完成并验证。
+1. **Jobs：后端兼容面已完成并通过隔离 HTTP 验证；页面移植待完成**
+   - 新增 `packages/jobs/legacy_job_compat.py`（投影边界，不是第二运行时）：
+     把 background-process / session-message / session-broadcast 的旧创建体映射为
+     **普通 canonical Job definition**（复用 `product_process` /
+     `product_session_message_v2` / `product_session_broadcast_v2` 与 literal 绑定），
+     并把 canonical Job 反向投影为旧形状（kind/status/target/text/argv/pin）。
+   - 新增 canonical 静态路由（注册在动态 `/jobs/{id}` 之前）：
+     `POST /api/jobs/legacy-create`、`GET /api/jobs/legacy-list`、
+     `GET|PATCH /api/jobs/legacy/{id}`、`POST /api/jobs/{id}/run-now`、
+     `PUT /api/jobs/{id}/pin`、`DELETE /api/jobs/{id}`。
+     run-now 走 `FinalService.create_run`（`cause=manual`，不推进 cursor，
+     同一 `requestKey` 只回放）；delete 走 `control retire`（CAS）；pin 沿用
+     `pins` 侧车；全部经原 `actor` 授权，不回退旧 writer。
+   - 隔离 HTTP 测试 `tests/test_legacy_job_compat.py` **3 passed**：
+     创建/列表/详情/pin/改名/删除、手动 Run 幂等且不产生 schedule cursor、
+     `scheduled-task` 明确 `unsupported_operation`、session-message 创建成功。
+   - 仍未完成：practical `JobsView.tsx` 的页面移植与 api 客户端指向
+     （`/api/jobs/legacy-*`、`/runs` 用 `items`），以及四 kind 的
+     `deliveryRuntime`（session 定时投递）与 `scheduled-task` 的 Creator/Trigger
+     组合——后者需要复用 `instantiate_template` 的既有组合语义，尚未接入。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。

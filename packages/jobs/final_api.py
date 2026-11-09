@@ -7,6 +7,7 @@ old payload, dispatcher, or an in-memory imitation of a durable operation.
 """
 from __future__ import annotations
 
+import asyncio
 import copy
 import inspect
 import re
@@ -100,6 +101,11 @@ class CanonicalService(Protocol):
     def action_ref(self, action_id: str, *, actor: Mapping[str, Any], revision: int | None = None,
                    digest: str | None = None, latest: bool = False): ...
     def action_alias(self, legacy_id: str, *, actor: Mapping[str, Any]): ...
+
+
+def _service(request):
+    """The single FinalService instance of this app (never a legacy runtime)."""
+    return getattr(getattr(request.app, "state", None), "job_final_service", None)
 
 
 def reject(code, message, *, path=None):
@@ -638,6 +644,148 @@ async def resolve_time_input(request: Request):
 async def creator_references(creator_id: str, request: Request):
     who = await actor(request, "event_creator", "read")
     return await invoke(request, "creator_references", creator_id, actor=who)
+
+
+# -- Legacy-shaped Job facade over the canonical authority ------------------
+# The designed Jobs page speaks the old shape. These routes accept that shape,
+# build an ordinary canonical Job definition from the existing product Actions
+# and run it through create_run/admission. They never write the retired JSON
+# writer and never create a second executor.
+
+
+@router.post("/jobs/legacy-create")
+async def legacy_job_create(request: Request):
+    who = await actor(request, "job", "create")
+    data = await body(request)
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    definition, legacy = legacy_job_compat.definition_for(service, who, data)
+    key = legacy_job_compat._request_key(request, data)
+    created = await invoke(request, "write", "job", None,
+                           {"definition": definition, "expectedRevision": 0,
+                            "requestKey": key}, actor=who)
+    job = created["result"]["object"]
+    await asyncio.to_thread(legacy_job_compat.save_binding, service, job["id"],
+                            data.get("kind"), legacy)
+    if data.get("enabled", True) and job["state"] == "draft":
+        job = (await invoke(request, "control", "job", job["id"], {
+            "operation": "enable", "expectedRevision": job["configRevision"],
+            "expectedStateRevision": job["stateRevision"], "parameters": {},
+            "requestKey": key + ":enable"}, actor=who))["result"]["object"]
+    return {"ok": True, "job": legacy_job_compat.job_view(service, job, legacy=legacy)}
+
+
+@router.get("/jobs/legacy-list")
+async def legacy_job_list(request: Request):
+    who = await actor(request, "job", "read")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    items = []
+    for item in legacy_job_compat.canonical_jobs(service, who):
+        binding = legacy_job_compat.load_binding(service, item["id"]) or {}
+        items.append(legacy_job_compat.job_view(service, item, legacy=binding.get("fields")))
+    return {"ok": True, "jobs": items, "pinMetadataStatus": "available"}
+
+
+@router.get("/jobs/legacy/{job_id}")
+async def legacy_job_detail(job_id: str, request: Request):
+    who = await actor(request, "job", "read")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    binding = legacy_job_compat.load_binding(service, job_id) or {}
+    return {"ok": True, "job": legacy_job_compat.job_view(service, job,
+                                                          legacy=binding.get("fields"))}
+
+
+@router.patch("/jobs/legacy/{job_id}")
+async def legacy_job_patch(job_id: str, request: Request):
+    who = await actor(request, "job", "updateConfig")
+    data = await body(request)
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    binding = legacy_job_compat.load_binding(service, job_id) or {}
+    kind = binding.get("kind") or "background-process"
+    definition = legacy_job_compat.patch_definition(service, job, data, kind)
+    key = legacy_job_compat._request_key(request, data)
+    if set(data) - {"paused", "enabled"}:
+        job = (await invoke(request, "write", "job", job_id, {
+            "definition": definition, "expectedRevision": job["configRevision"],
+            "requestKey": key}, actor=who))["result"]["object"]
+    operation = None
+    if data.get("paused") is True and job["state"] == "enabled":
+        operation = "pause"
+    elif data.get("paused") is False and job["state"] == "paused":
+        operation = "resume"
+    elif data.get("enabled") is False and job["state"] == "enabled":
+        operation = "disable"
+    elif data.get("enabled") is True and job["state"] == "draft":
+        operation = "enable"
+    if operation:
+        job = (await invoke(request, "control", "job", job_id, {
+            "operation": operation, "expectedRevision": job["configRevision"],
+            "expectedStateRevision": job["stateRevision"], "parameters": {},
+            "requestKey": key + ":lifecycle"}, actor=who))["result"]["object"]
+    return {"ok": True, "job": legacy_job_compat.job_view(service, job,
+                                                          legacy=binding.get("fields"))}
+
+
+@router.post("/jobs/{job_id}/run-now")
+async def legacy_job_run_now(job_id: str, request: Request):
+    who = await actor(request, "job", "execute")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    key = legacy_job_compat._request_key(request)
+    receipt = await invoke(request, "create_run", job_id, {
+        "expectedRevision": job["configRevision"], "requestKey": key,
+        "input": {}, "cause": {"type": "manual"}}, actor=who)
+    binding = legacy_job_compat.load_binding(service, job_id) or {}
+    return {"ok": True,
+            "job": legacy_job_compat.job_view(service, job, legacy=binding.get("fields")),
+            "run": {"status": receipt.get("status"), "result": receipt.get("result")}}
+
+
+@router.put("/jobs/{job_id}/pin")
+async def legacy_job_pin(job_id: str, request: Request):
+    who = await actor(request, "job", "updateConfig")
+    value = await body(request)
+    if set(value) != {"pinned"} or type(value.get("pinned")) is not bool:
+        reject("invalid_schema", "pinned must be the only boolean field")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    from packages.jobs import pins
+    from packages.core.platform.data_paths import job_root
+    await asyncio.to_thread(pins.set_pin, job_root(), job_id, value["pinned"])
+    binding = legacy_job_compat.load_binding(service, job_id) or {}
+    view = legacy_job_compat.job_view(service, job, legacy=binding.get("fields"))
+    view["pinned"] = value["pinned"]
+    return {"ok": True, "job": view}
+
+
+@router.delete("/jobs/{job_id}")
+async def legacy_job_delete(job_id: str, request: Request):
+    who = await actor(request, "job", "lifecycle")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    await invoke(request, "control", "job", job_id, {
+        "operation": "retire", "expectedRevision": job["configRevision"],
+        "expectedStateRevision": job["stateRevision"], "parameters": {},
+        "requestKey": legacy_job_compat._request_key(request) + ":retire"}, actor=who)
+    return {"ok": True, "deleted": True, "jobId": job_id}
 
 
 for _path, _kind in KINDS.items():
