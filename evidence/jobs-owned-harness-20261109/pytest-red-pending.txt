@@ -1,0 +1,56 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+.....F                                                                   [100%]
+================================== FAILURES ===================================
+____________________ test_http_pulse_process_and_broadcast ____________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7486/test_http_pulse_process_and_br0')
+
+    def test_http_pulse_process_and_broadcast(tmp_path):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        with owned_http(app) as client:
+            info = client.get('/test/ready').json()
+            client.headers['Authorization'] = 'Bearer ' + info['token']
+            service = app.state.owned.service
+            rid = submit(client, service, {'argv': info['scripts']['quick'], 'cwd': info['cwd']}, 'process', 'process')
+            run = wait(lambda: client.get('/api/job-runs/' + rid).json(), lambda r: r['state'] == 'completed')
+            logs = client.get('/api/job-runs/' + rid + '/logs').json()['items']
+            assert len(logs) == 1
+            assert client.get(logs[0]['href']).json()['text'] == 'owned stdout\nowned stderr\n'
+            long_id = submit(client, service, {'argv': info['scripts']['long'], 'cwd': info['cwd']}, 'process', 'long')
+>           long_logs = wait(lambda: client.get('/api/job-runs/' + long_id + '/logs').json()['items'], bool)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_executor_harness.py:103:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_job_process_logs.py:34: in wait
+    value = read()
+            ^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   long_logs = wait(lambda: client.get('/api/job-runs/' + long_id + '/logs').json()['items'], bool)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'items'
+
+tests\test_jobs_owned_executor_harness.py:103: KeyError
+---------------------------- Captured stderr call -----------------------------
+ERROR:    Traceback (most recent call last):
+  File "D:\project\Pan\.venv\Lib\site-packages\starlette\routing.py", line 648, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+               ~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "C:\Users\14709\AppData\Local\Programs\Python\Python314\Lib\contextlib.py", line 221, in __aexit__
+    await anext(self.gen)
+  File "D:\project\pan-worktrees\jobs-owned-executor-20261109\tests\support\jobs_owned_executor_server.py", line 80, in lifespan
+    ExecutionHost(store).cleanup_execution(doc['effectId'], doc['attempt'])
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\jobs-owned-executor-20261109\packages\jobs\independent_executor.py", line 550, in cleanup_execution
+    return self.store.request_cleanup(identity, attempt)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "D:\project\pan-worktrees\jobs-owned-executor-20261109\packages\jobs\independent_executor.py", line 351, in request_cleanup
+    raise ExecutionConflict("original supervisor/owned handle unavailable; cleanup unknown")
+packages.jobs.independent_executor.ExecutionConflict: original supervisor/owned handle unavailable; cleanup unknown
+
+ERROR:    Application shutdown failed. Exiting.
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_executor_harness.py::test_http_pulse_process_and_broadcast
+1 failed, 5 passed in 46.06s

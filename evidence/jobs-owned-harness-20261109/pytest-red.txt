@@ -1,0 +1,70 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+....FF                                                                   [100%]
+================================== FAILURES ===================================
+__________________ test_permission_revocation_and_owner_loss __________________
+
+live = namespace(service=<packages.jobs.final_service.FinalService object at 0x000001BB5D770CD0>, client=<httpx.Client object...b59e26127dfa6f197af98', url='/api/job-runs/run_26719b7a300e4f3599595ce0/attempts/attempt_d582cd469e274334a3541248/log')
+
+    def test_permission_revocation_and_owner_loss(live):
+        from packages.jobs import final_contracts as fc
+        from packages.jobs.runtime_owner import OwnerFence
+        c = live
+        start(c, "import os;os.write(1,b'private')")
+        terminal(c)
+        grants = c.auth._default_permissions()
+        grants['job']['read'] = True
+        c.auth.change_permissions(grants, 0)
+        actor = {'type': 'agent', 'id': 'owned-agent', 'revision': 1}
+        assert asyncio.run(c.service.read_process_log(c.rid, c.aid, actor=actor))['text'] == 'private'
+        grants['job']['read'] = False
+        c.auth.change_permissions(grants, 1)
+        with pytest.raises(fc.ContractError, match='revoked'):
+            asyncio.run(c.service.read_process_log(c.rid, c.aid, actor=actor))
+        c.service.owner.release()
+        with pytest.raises(fc.ContractError):
+            with c.service.owner.writer(canonical=True):
+>               pytest.fail('lost owner must not enter canonical write')
+E               Failed: lost owner must not enter canonical write
+
+tests\test_jobs_owned_executor_harness.py:69: Failed
+____________________ test_http_pulse_process_and_broadcast ____________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7480/test_http_pulse_process_and_br0')
+
+    def test_http_pulse_process_and_broadcast(tmp_path):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        with TestClient(app) as client:
+            info = client.get('/test/ready').json()
+            client.headers['Authorization'] = 'Bearer ' + info['token']
+            service = app.state.owned.service
+>           rid = submit(client, service, {'argv': info['scripts']['quick'], 'cwd': info['cwd']}, 'process', 'process')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_executor_harness.py:95:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_jobs_owned_executor_harness.py:76: in submit
+    action = next(a for a in service.actions(actor={'type': 'user', 'id': 'local'})['items'] if a['operation'] == operation)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <list_iterator object at 0x000001BB56D30E80>
+
+>   action = next(a for a in service.actions(actor={'type': 'user', 'id': 'local'})['items'] if a['operation'] == operation)
+                                                                                                ^^^^^^^^^^^^^^
+E   KeyError: 'operation'
+
+tests\test_jobs_owned_executor_harness.py:76: KeyError
+============================== warnings summary ===============================
+..\..\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_executor_harness.py::test_permission_revocation_and_owner_loss
+FAILED tests/test_jobs_owned_executor_harness.py::test_http_pulse_process_and_broadcast

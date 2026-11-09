@@ -1,0 +1,52 @@
+Isolated test child: inherited PAN_* removed; cwd=D:\project\pan-worktrees\jobs-owned-executor-20261109
+.....F                                                                   [100%]
+================================== FAILURES ===================================
+____________________ test_http_pulse_process_and_broadcast ____________________
+
+tmp_path = WindowsPath('C:/Users/14709/AppData/Local/Temp/pytest-of-ablaze/pytest-7481/test_http_pulse_process_and_br0')
+
+    def test_http_pulse_process_and_broadcast(tmp_path):
+        (tmp_path / '.jobs-owned-harness').touch()
+        app = app_for(tmp_path)
+        with owned_http(app) as client:
+            info = client.get('/test/ready').json()
+            client.headers['Authorization'] = 'Bearer ' + info['token']
+            service = app.state.owned.service
+            rid = submit(client, service, {'argv': info['scripts']['quick'], 'cwd': info['cwd']}, 'process', 'process')
+            run = wait(lambda: client.get('/api/job-runs/' + rid).json(), lambda r: r['state'] == 'completed')
+            logs = client.get('/api/job-runs/' + rid + '/logs').json()['items']
+            assert len(logs) == 1
+            assert client.get(logs[0]['href']).json()['text'] == 'owned stdout\nowned stderr\n'
+>           rid = submit(client, service, {'sessionIds': ['owned-a', 'owned-b', 'owned-a'], 'text': 'pulse broadcast'}, 'session-broadcast', 'broadcast')
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_jobs_owned_executor_harness.py:102:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+client = <starlette.testclient.TestClient object at 0x00000107FAE0A5D0>
+service = <packages.jobs.final_service.FinalService object at 0x00000107FB3442D0>
+arguments = {'sessionIds': ['owned-a', 'owned-b', 'owned-a'], 'text': 'pulse broadcast'}
+operation = 'session-broadcast', request = 'broadcast'
+
+    def submit(client, service, arguments, operation, request):
+        from packages.jobs.final_service import object_ref
+        action = next(a for a in service.actions(actor={'type': 'user', 'id': 'local'})['items'] if a['execution']['operation'] == operation)
+        response = client.post('/api/jobs', json={'definition': {'name': request, 'steps': [{'stepId': 'owned', 'actionRef': object_ref('action', action), 'arguments': {k: {'from': 'literal', 'value': v} for k, v in arguments.items()}, 'completion': {'contract': 'process-exit' if operation == 'process' else 'durable-queue-accepted'}}], 'retention': {'policyRef': 'test'}}, 'expectedRevision': 0, 'requestKey': request})
+>       assert response.status_code == 201, response.text
+E       AssertionError: {"error":{"code":"invalid_schema","message":"invalid schema"}}
+E       assert 400 == 201
+E        +  where 400 = <Response [400 Bad Request]>.status_code
+
+tests\test_jobs_owned_executor_harness.py:80: AssertionError
+============================== warnings summary ===============================
+..\..\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\project\Pan\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\Pan\.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\project\Pan\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_jobs_owned_executor_harness.py::test_http_pulse_process_and_broadcast

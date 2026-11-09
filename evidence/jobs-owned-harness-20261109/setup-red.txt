@@ -1,0 +1,3 @@
+Initial acceptance: 3 passed, 1 failed. Harness test requested /api/actions (404); canonical route is /api/jobs/actions. No product change.
+Environment: D:/project/Pan/.venv/Scripts/python.exe; ENABLE_USER_SITE=False; imports fastapi uvicorn httpx pytest jsonschema mcp psutil verified. minimal-requirements.txt read. No installation.
+Second acceptance: permission revocation passed. Owner loss negative test failed because reused process-log live fixture is pre-cutover (no owner was claimed). Correct fixture setup is claim(0), set_state(active), then release. Product guard intentionally permits pre-cutover fixture writes. Assertion retained with correct setup.
