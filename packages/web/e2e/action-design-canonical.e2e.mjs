@@ -238,7 +238,8 @@ try {
   assert.equal(created.status(), 200, await created.text());
   const job = (await created.json()).job;
   assert.equal(job.kind, 'background-process');
-  assert.equal(job.status, 'scheduled');
+  // A legacy background process starts with its creation.
+  assert.equal(job.status, 'starting');
   const listed = await page.request.get(base + '/api/jobs/legacy-list');
   const rows = (await listed.json()).jobs;
   assert.equal(rows.filter((row) => row.jobId === job.jobId).length, 1);
@@ -325,8 +326,10 @@ try {
   evidence.checks.push('broadcast composition is atomic and replays by requestKey');
 
   const spare = await page.request.post(base + '/api/jobs/legacy-create', {
-    data: { kind: 'background-process', name: 'Browser Spare', target: { sessionId },
-            argv: ['cmd', '/c', 'echo', 'bye'], cwd: runtime },
+    // A draft has no immediate Run, so retirement is not blocked by an active
+    // process; the separate check above already covers the active-Run rule.
+    data: { kind: 'background-process', name: 'Browser Spare', enabled: false,
+            target: { sessionId }, argv: ['cmd', '/c', 'echo', 'bye'], cwd: runtime },
     headers: { 'x-pan-request-key': 'browser-job-spare', Origin: base },
   });
   const spareJob = (await spare.json()).job;

@@ -105,10 +105,38 @@ export async function fetchJobRuns(jobId: string, limit = 50): Promise<JobRunRec
   const data = await call<{ items?: Array<Record<string, unknown>> }>(
     `jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`,
   );
+  // Canonical Run records use camelCase; the designed drawer reads the old
+  // snake_case fields. Keep both so Run history and the attempt log share one
+  // identity (`run_id` -> canonical runId).
   return (data.items || []).map((row) => ({
     ...(row as unknown as JobRunRecord),
-    status: String(row.status ?? row.state ?? 'unknown'),
+    run_id: typeof row.runId === 'string' ? row.runId : (row.run_id as string | undefined),
+    status: String(row.state ?? row.status ?? 'unknown'),
+    fire_at: (row.createdAt as string | undefined) ?? (row.fire_at as string | undefined) ?? null,
+    actual_at: (row.startedAt as string | undefined) ?? (row.actual_at as string | undefined) ?? null,
+    exit_code: typeof row.exitCode === 'number' ? row.exitCode : (row.exit_code as number | null | undefined) ?? null,
   }));
+}
+
+export interface RunLogReference {
+  attemptId: string;
+  status: string;
+  href?: string | null;
+  reason?: string;
+}
+
+export async function fetchRunLogReferences(runId: string): Promise<RunLogReference[]> {
+  const data = await call<{ items?: RunLogReference[] }>(
+    `job-runs/${encodeURIComponent(runId)}/logs?limit=100`,
+  );
+  return data.items || [];
+}
+
+export async function fetchRunLogText(runId: string, attemptId: string): Promise<string> {
+  const data = await call<{ text?: string | null }>(
+    `job-runs/${encodeURIComponent(runId)}/attempts/${encodeURIComponent(attemptId)}/log`,
+  );
+  return typeof data.text === 'string' ? data.text : '';
 }
 
 export async function cancelJob(jobId: string): Promise<void> {

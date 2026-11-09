@@ -48,6 +48,17 @@ from packages.automation import api as automation_api  # noqa: E402
 automation_api.install(SimpleNamespace(app=app))
 
 
+# A long process that only writes its completion marker after the sleep. A
+# cancelled Run must never contain that marker.
+long_script = owned / "long_done.py"
+long_script.write_text(
+    "import os,time\n"
+    "os.write(1,b'owned stdout\\n');os.write(2,b'owned stderr\\n')\n"
+    "time.sleep(300)\n"
+    "os.write(1,b'owned completion marker\\n')\n",
+    encoding="utf-8")
+
+
 # Shell bootstrap routes the full Pan UI calls; the owned harness only mounts
 # the Jobs/automation surface, so these test-host equivalents read the same
 # owned roots instead of inventing product state.

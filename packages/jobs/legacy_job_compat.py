@@ -112,20 +112,47 @@ _STATUS = {
     "retired": "retired",
 }
 
+#: Canonical Run states that mean the same thing as an active legacy Job.
+_RUN_STATUS = {
+    "queued": "starting",
+    "running": "running",
+    "paused_at_boundary": "running",
+    "retry_wait": "running",
+    "cancelling": "running",
+    "settling": "running",
+    "uncertain": "unknown",
+}
 
-def job_view(service, job, *, legacy=None, pinned=False, run_count=0):
-    """Project one canonical Job to the legacy shape; never invents success."""
+
+def job_view(service, job, *, legacy=None, pinned=False, run_count=0, actor=None):
+    """Project one canonical Job to the legacy shape; never invents success.
+
+    A background process keeps its last Run's real state (running/completed/
+    cancelled) instead of a synthetic ``scheduled`` label, so the designed
+    row actions follow the original status rules. Reads go through the existing
+    read-only background projection; no second runtime is created.
+    """
     item = job.get("canonical", job)
     legacy = copy.deepcopy(legacy or {})
     kind = legacy.get("kind") or "background-process"
     state = item.get("state")
+    status = _STATUS.get(state, state)
+    if kind == "background-process" and actor is not None:
+        try:
+            live = service.legacy_background_view(item["id"], actor=actor)
+        except Exception:
+            live = None
+        if live:
+            run_count = len(live.get("runs") or [])
+            if live.get("status"):
+                status = _RUN_STATUS.get(live["status"], live["status"])
     return {
         "jobId": item["id"],
         "id": item["id"],
         "kind": kind,
         "name": item.get("name") or DEFAULT_NAMES.get(kind, "Job"),
         "description": item.get("description") or "",
-        "status": _STATUS.get(state, state),
+        "status": status,
         "enabled": state == "enabled",
         "paused": state == "paused",
         "retired": state == "retired",

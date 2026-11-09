@@ -37,3 +37,24 @@ carries its own receipt and a deterministic digest key
 resolves against the original Job/Run instead of starting a second one. A
 rejected start returns `phase: "enabled"` with `start.code` and no Run; it never
 reports the process as started.
+
+## Final scope — 2026-11-09 (logs, cancel, tree cleanup)
+
+The earlier green only covered creation/row actions. This run adds the missing
+UI evidence on the same owned harness:
+
+- detail drawer loads the original Attempt output, asserting `owned stdout` and
+  `owned stderr` for a completed background process (screenshot
+  `process-output.png`);
+- a second long process is created through the same New Job dialog, started for
+  real (the drawer reads `owned stdout` before cancel), then cancelled through
+  the row's `Cancel job` control; the drawer shows `cancelled` and only the
+  markers, never `owned completion marker` (screenshot `cancelled-output.png`);
+- `verify_job_execution.py` reads the owned execution document for that Run:
+  receipt `outcome=rejected`, `cleanupProof.ownedTree.confirmed=true` with
+  `remaining=[]`, supervisor exit `confirmed` (`pid_absent`), and every recorded
+  PID absent. The full object is in `evidence.json.execution`.
+
+`status` is `passed` for the named scope `Jobs designed UI click chain`, with an
+empty blocked list. The earlier partial and claimed-passed JSON files remain
+unchanged.

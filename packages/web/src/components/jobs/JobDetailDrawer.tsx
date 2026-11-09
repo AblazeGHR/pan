@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
+import { Check, Copy, FileText, Pause, Pencil, Play, Target, Trash2, X } from 'lucide-react';
 import { scheduleEntries, type Job, type JobRunRecord, type JobSource, type JobTimestamp } from '@/types/jobs';
+import { fetchRunLogReferences, fetchRunLogText } from '@/services/legacyJobs';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -137,6 +138,28 @@ function scheduleKindLabel(kind: string): string {
 function RunRow({ run }: { run: JobRunRecord }) {
   const result = run.result;
   const hasDetails = result != null || !!run.log_path || run.exit_code != null;
+  // Canonical runs expose their original Attempt log here, inside the designed
+  // drawer. A summary or a `completed` badge is never presented as the output.
+  const [output, setOutput] = useState<string | null>(null);
+  const [attemptStatus, setAttemptStatus] = useState<string | null>(null);
+  const [logState, setLogState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [logError, setLogError] = useState('');
+  const loadOutput = async () => {
+    if (!run.run_id || logState === 'loading') return;
+    setLogState('loading');
+    setLogError('');
+    try {
+      const refs = await fetchRunLogReferences(run.run_id);
+      const ref = refs.find((item) => item.href) ?? refs[0];
+      if (!ref) throw new Error('No attempt log reference yet');
+      setAttemptStatus(ref.status);
+      setOutput(await fetchRunLogText(run.run_id, ref.attemptId));
+      setLogState('done');
+    } catch (caught) {
+      setLogError(caught instanceof Error ? caught.message : String(caught));
+      setLogState('error');
+    }
+  };
   return (
     <div className="flex flex-col gap-1 rounded border border-border-default bg-bg-primary px-2 py-1.5 text-[11px]">
       <div className="flex items-center justify-between gap-2">
@@ -146,6 +169,32 @@ function RunRow({ run }: { run: JobRunRecord }) {
         </div>
         <StatusBadge status={run.status ?? 'unknown'} />
       </div>
+      {run.run_id && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadOutput}
+              disabled={logState === 'loading'}
+              aria-label={`View output for run ${run.run_id}`}
+              className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+            >
+              <FileText size={11} />
+              {logState === 'loading' ? 'Loading…' : 'View output'}
+            </button>
+            {attemptStatus && <span className="text-text-tertiary">attempt {attemptStatus}</span>}
+          </div>
+          {logState === 'error' && <span className="text-danger">{logError}</span>}
+          {output !== null && (
+            <pre
+              aria-label={`Run output for ${run.run_id}`}
+              className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-bg-tertiary p-2 font-mono text-text-secondary"
+            >
+              {output || '(no output yet)'}
+            </pre>
+          )}
+        </div>
+      )}
       {hasDetails && (
         <details className="text-text-tertiary">
           <summary className="cursor-pointer">Execution details</summary>

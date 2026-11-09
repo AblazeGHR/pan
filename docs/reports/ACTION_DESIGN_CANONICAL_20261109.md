@@ -63,45 +63,42 @@ data/profile、8767/8768；未 push。
 
 ## 5. 未完成 / 需集中报告（不阻塞以上范围）
 
-1. **Jobs：后端兼容面已完成并通过隔离 HTTP 验证；页面移植待完成**
-   - 新增 `packages/jobs/legacy_job_compat.py`（投影边界，不是第二运行时）：
-     把 background-process / session-message / session-broadcast 的旧创建体映射为
-     **普通 canonical Job definition**（复用 `product_process` /
-     `product_session_message_v2` / `product_session_broadcast_v2` 与 literal 绑定），
-     并把 canonical Job 反向投影为旧形状（kind/status/target/text/argv/pin）。
-   - 新增 canonical 静态路由（注册在动态 `/jobs/{id}` 之前）：
-     `POST /api/jobs/legacy-create`、`GET /api/jobs/legacy-list`、
-     `GET|PATCH /api/jobs/legacy/{id}`、`POST /api/jobs/{id}/run-now`、
-     `PUT /api/jobs/{id}/pin`、`DELETE /api/jobs/{id}`。
-     run-now 走 `FinalService.create_run`（`cause=manual`，不推进 cursor，
-     同一 `requestKey` 只回放）；delete 走 `control retire`（CAS）；pin 沿用
-     `pins` 侧车；全部经原 `actor` 授权，不回退旧 writer。
-   - 隔离 HTTP 测试 `tests/test_legacy_job_compat.py` **3 passed**：
-     创建/列表/详情/pin/改名/删除、手动 Run 幂等且不产生 schedule cursor、
-     `scheduled-task` 明确 `unsupported_operation`、session-message 创建成功。
-   - 页面已移植：`packages/web/src/views/JobsView.tsx` + `services/legacyJobs.ts`，
-     `/jobs` 路由指向它；list/detail/create/patch/run/pin/delete 走
-     `/api/jobs/legacy-*`、`/run-now`、`/pin`、`/runs`。
-   - 浏览器（隔离真实 HTTP + 生产 Chromium）新增 4 checks：旧形状创建/列表不重复、
-     同键手动 Run 不产生第二个 Run、活动 Run 阻断 retire 且取消后历史仍可读、
-     无活动 Run 的 Job 删除返回 `retired` 且历史仍可读（共 15 checks）。
-   - **pin 红已修复**：根因是旧 `pins.set_pin` 走 `legacy_pass`，cutover 后 owner
-     fence 拒绝（`Job runtime owner epoch fence rejected writer`）。改为在 canonical
-     store 写 `job_pin` 投影（同 owner 事务），浏览器 cookie 断言恢复并通过。
-   - 取消改为逐 Run 记录：先 `get_run` 取当前 `stateRevision` 再 `control_run`；任一
-     失败返回 409，body 同时带 `cancelled[]` / `failed[]`，不丢成功事实。
-   - 列表按显式 `jobId` 合并旧 registry 行与 canonical 行；旧行沿用既有 `pins`
-     事实（测试断言旧 pin 不丢、且同 id 只出现一行）。
-   - **scheduled-task 已完成**：走既有 `scheduler.canonical_tasks.create`
-     （`legacy_compat` 的调度转换 + `JsonTaskHandoff`），生成 Job + time Creator +
-     Trigger；手动 Run 后 `nextRunAt` 不变（浏览器断言）。
-   - **session-message 定时**：同一适配器（`send_session` + `_schedule` 转换），
-     保留 `deliveryRuntime` 组合；浏览器断言创建成功。
-   - 修复了一处真实缺陷：`_save` 的 committed projection 会对内部文档
-     （`json_scheduler_handoff` 等）调用对象校验并抛 `Unknown object kind`；
-     `_public` 现对内部 kind 直接返回文档，不再校验。
-   - 仍未完成：session-broadcast（多目标）在既有调度适配器中无对等创建路径；
-     JobsView 点击级流程；可执行 worker 的日志验证。
+1. **Jobs：设计页、四 kind、真实运行/日志、取消与权限/owner 负控全部完成**
+   - `packages/jobs/legacy_job_compat.py` 仍是投影边界（不是第二运行时）：
+     旧创建体映射为普通 canonical Job（`product_process` /
+     `product_session_message_v2` / `product_session_broadcast_v2`），并反向投影旧形状。
+   - 静态兼容路由（注册在动态 `/jobs/{id}` 之前）：`legacy-create`、`legacy-list`、
+     `legacy/{id}`、`run-now`、`legacy/{id}/pin`、`DELETE /jobs/{id}`、`/cancel`。
+   - **创建即启动**（background-process）：`write → enable → create_run`，每步独立
+     receipt 与派生 key；响应丢失/冷服务同 key 只回放原 Job/Run；start 被拒返回
+     `phase: enabled` 与 `start.code`，无 Run，不谎报已执行。
+   - **取消**走 `control_run_postcommit`（真实 owned-tree cleanup）；此前直接调用
+     `control_run` 只写 cancelling intent，Run 会永久停在 cancelling，这是本轮修的
+     真实缺陷。取消批次逐 Run 记录，失败返回 409 + `cancelled[]`/`failed[]`。
+   - **状态投影**：background-process 显示最后 Run 的真实状态
+     （running/completed/cancelled），不再固定 `scheduled`；行内按钮按原规则显示。
+   - **详情抽屉日志**：每条 canonical Run 新增 `View output`，读取
+     `/api/job-runs/{id}/logs` 与原始 attempt 日志，显示真实 stdout/stderr 正文；
+     不是状态摘要。浏览器断言 `owned stdout` / `owned stderr`。
+   - **真实取消长进程**：UI 行内 `Cancel job` → Run `cancelled`；抽屉输出保留已写
+     markers 且没有完成 marker；`verify_job_execution.py` 读 owned execution 文档：
+     `outcome=rejected`、`cleanupProof.ownedTree.confirmed=true`、`remaining=[]`、
+     supervisor exit `confirmed(pid_absent)`、所有记录 PID 不在。
+   - **权限/owner 负控**（`tests/test_legacy_job_compat.py`）：
+     agent 撤权后 create/start/cancel/日志分别 `authorization_denied`；执行被撤时
+     创建返回 `enabled` 且不启动；owner epoch 被另一 owner 推进后 create/start/cancel
+     均 `revision_conflict`，Run 保持原状，只读列表/日志发现仍可用（owner fence 是
+     writer 排除，不是读权限）。
+   - **验证**：后端组合 **65 passed**（jobs-compat 14 + owned executor 6 +
+     owned broadcast 6 + definition-preview 5 + directory-reads 7 + scheduler-api 27）；
+     前端 **239 files / 2749 passed / 3 skipped**；`tsc`/build 通过。
+   - **浏览器**（隔离真实 HTTP + 生产 dist + Chromium）：Jobs **9 checks**、四 kind
+     全部经 `New Job` 创建、编辑/Pin/删除、真实日志、真实取消与整树证明；
+     Actions/Groups 既有 e2e 仍 `passed`（17 checks）。证据：
+     `evidence/jobs-clickthrough-20261109/`（含 `process-output.png` /
+     `cancelled-output.png`、历史 partial/claimed-passed JSON 与 `CORRECTIONS.md`）。
+   - 未覆盖：远端 CI、Linux/macOS、真实 data/profile 迁移、真实模型 CLI、部署；
+     未知 effect 的 no-replay 由 Codex owned harness 的既有用例覆盖（不在本片重复）。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。

@@ -666,7 +666,7 @@ async def legacy_job_create(request: Request):
         job = await asyncio.to_thread(service.get, "job", composed["result"]["jobId"], actor=who)
         binding = legacy_job_compat.load_binding(service, job["id"]) or {}
         return {"ok": True, "job": legacy_job_compat.job_view(service, job,
-                                                              legacy=binding.get("fields"))}
+                                                              legacy=binding.get("fields"), actor=who)}
     if data.get("kind") in {"scheduled-task", "session-message"} and data.get("schedule"):
         # Scheduled kinds use the accepted scheduler adapter: it builds the
         # Job + time Creator + Trigger graph and keeps the delivery runtime.
@@ -681,7 +681,7 @@ async def legacy_job_create(request: Request):
                                                    "text": payload["text"],
                                                    "schedule": payload["schedule"]})
         return {"ok": True, "job": legacy_job_compat.job_view(
-            service, job, legacy=legacy_job_compat.load_binding(service, job["id"])["fields"])}
+            service, job, legacy=legacy_job_compat.load_binding(service, job["id"])["fields"], actor=who)}
     definition, legacy = legacy_job_compat.definition_for(service, who, data)
     created = await invoke(request, "write", "job", None,
                            {"definition": definition, "expectedRevision": 0,
@@ -711,16 +711,16 @@ async def legacy_job_create(request: Request):
             # Draft/enable already committed. Report the exact phase and keep the
             # receipt queryable; never claim the process was started.
             reason = getattr(exc, "code", None) or type(exc).__name__
-            view = legacy_job_compat.job_view(service, job, legacy=legacy)
+            view = legacy_job_compat.job_view(service, job, legacy=legacy, actor=who)
             view["status"] = "scheduled"
             return {"ok": True, "job": view, "phase": "enabled",
                     "start": {"status": "rejected", "code": reason}}
-        view = legacy_job_compat.job_view(service, job, legacy=legacy)
+        view = legacy_job_compat.job_view(service, job, legacy=legacy, actor=who)
         view["runCount"] = 1
         view["status"] = "starting"
         return {"ok": True, "phase": "started", "job": view,
                 "run": {"status": run.get("status"), "result": run.get("result")}}
-    return {"ok": True, "job": legacy_job_compat.job_view(service, job, legacy=legacy)}
+    return {"ok": True, "job": legacy_job_compat.job_view(service, job, legacy=legacy, actor=who)}
 
 
 @router.get("/jobs/legacy-list")
@@ -741,7 +741,7 @@ async def legacy_job_list(request: Request):
         if item["id"] in seen:
             continue
         binding = legacy_job_compat.load_binding(service, item["id"]) or {}
-        view = legacy_job_compat.job_view(service, item, legacy=binding.get("fields"))
+        view = legacy_job_compat.job_view(service, item, legacy=binding.get("fields"), actor=who)
         view["pinned"] = legacy_job_compat.get_pin(service, item["id"])
         items.append(view)
     return {"ok": True, "jobs": items, "pinMetadataStatus": "available"}
@@ -761,7 +761,7 @@ async def legacy_job_detail(job_id: str, request: Request):
         raise KeyError(job_id)
     binding = legacy_job_compat.load_binding(service, job_id) or {}
     return {"ok": True, "job": legacy_job_compat.job_view(service, job,
-                                                          legacy=binding.get("fields"))}
+                                                          legacy=binding.get("fields"), actor=who)}
 
 
 @router.patch("/jobs/legacy/{job_id}")
@@ -796,7 +796,7 @@ async def legacy_job_patch(job_id: str, request: Request):
             "expectedStateRevision": job["stateRevision"], "parameters": {},
             "requestKey": key + ":lifecycle"}, actor=who))["result"]["object"]
     return {"ok": True, "job": legacy_job_compat.job_view(service, job,
-                                                          legacy=binding.get("fields"))}
+                                                          legacy=binding.get("fields"), actor=who)}
 
 
 @router.post("/jobs/{job_id}/run-now")
@@ -813,7 +813,7 @@ async def legacy_job_run_now(job_id: str, request: Request):
         "input": {}, "cause": {"type": "manual"}}, actor=who)
     binding = legacy_job_compat.load_binding(service, job_id) or {}
     return {"ok": True,
-            "job": legacy_job_compat.job_view(service, job, legacy=binding.get("fields")),
+            "job": legacy_job_compat.job_view(service, job, legacy=binding.get("fields"), actor=who),
             "run": {"status": receipt.get("status"), "result": receipt.get("result")}}
 
 
@@ -832,7 +832,7 @@ async def legacy_job_pin(job_id: str, request: Request):
     # cutover, so the pin lives beside the canonical document instead.
     await asyncio.to_thread(legacy_job_compat.set_pin, service, job_id, value["pinned"])
     binding = legacy_job_compat.load_binding(service, job_id) or {}
-    view = legacy_job_compat.job_view(service, job, legacy=binding.get("fields"))
+    view = legacy_job_compat.job_view(service, job, legacy=binding.get("fields"), actor=who)
     view["pinned"] = value["pinned"]
     return {"ok": True, "job": view}
 
@@ -862,7 +862,7 @@ async def legacy_job_delete(job_id: str, request: Request):
         "requestKey": legacy_job_compat._request_key(request) + ":retire"}, actor=who))["result"]["object"]
     return {"ok": True, "retired": True, "jobId": job_id,
             "job": legacy_job_compat.job_view(service, retired,
-                                              legacy=(legacy_job_compat.load_binding(service, job_id) or {}).get("fields"))}
+                                              legacy=(legacy_job_compat.load_binding(service, job_id) or {}).get("fields"), actor=who)}
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -883,7 +883,13 @@ async def legacy_job_cancel(job_id: str, request: Request):
             # Re-read the Run: the list projection can be older than the
             # admission transition, and cancel must use the observed revision.
             current = await invoke(request, "get_run", row["runId"], actor=who)
-            await invoke(request, "control_run", row["runId"], {
+            # The post-commit path performs the owned-tree cleanup; plain
+            # control_run only persists the cancelling intent and would leave
+            # the Run waiting forever.
+            method = ("control_run_postcommit"
+                      if callable(getattr(service, "control_run_postcommit", None))
+                      else "control_run")
+            await invoke(request, method, row["runId"], {
                 "operation": "cancel",
                 "expectedStateRevision": current.get("stateRevision", 1),
                 "requestKey": legacy_job_compat._request_key(request) + ":cancel:" + row["runId"],

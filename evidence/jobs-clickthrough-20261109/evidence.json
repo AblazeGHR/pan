@@ -2,10 +2,12 @@
   "checks": [
     "single unified Jobs list with one New Job entry",
     "background-process starts immediately and reaches completed in the detail",
+    "detail drawer shows the real stdout/stderr markers for a completed Run",
+    "cancelled long Run keeps its real output and never reaches the completion marker",
+    "cancellation receipt, owned-tree cleanup and supervisor exit are proven for the Run",
     "created all four kinds through New Job: background-process, session-message, session-broadcast, scheduled-task",
     "edited the Job name from the designed detail",
     "pin from the row menu",
-    "cancel control reachable on the active row",
     "delete removes the row after confirmation"
   ],
   "kinds": [
@@ -36,7 +38,53 @@
     ]
   },
   "processStatus": "completed",
-  "drawerText": "Click process Job\nscheduled\nCancel job\nChange target\nDelete\nEdit\nOVERVIEW\nClick process Job description\nKind\n后台进程\nSource\nuser\nTarget\nowned-a\nLegacy execution count\n0\nCreated\n2026-11-09 17:57\nUpdated\n2026-11-09 17:57\nEXECUTION\nMode\nPan server shell\nRuns under the Pan service account. The command is not sent to a Session.\nCommand\nWorking directory\nD:\\project\\pan-worktrees\\action-group-design-canonical-20261109\\.tmp\\jobs-click-1794218242555\nSCHEDULE\n—\nLAST RESULT\n—\nLEGACY EXECUTION HISTORY\n—\ncompleted\nLoad more",
+  "drawerText": "Click process Job\ncompleted\nChange target\nDelete\nEdit\nOVERVIEW\nClick process Job description\nKind\n后台进程\nSource\nuser\nTarget\nowned-a\nLegacy execution count\n1\nCreated\n2026-11-09 20:01\nUpdated\n2026-11-09 20:01\nEXECUTION\nMode\nPan server shell\nRuns under the Pan service account. The command is not sent to a Session.\nCommand\nWorking directory\nD:\\project\\pan-worktrees\\action-group-design-canonical-20261109\\.tmp\\owned-jobs-1794225674280\nSCHEDULE\n—\nLAST RESULT\n—\nLEGACY EXECUTION HISTORY\n2026-11-09 20:01\ncompleted\nView output\nLoad more",
+  "longStarted": true,
+  "longStatus": "cancelled",
+  "execution": {
+    "runId": "run_5f18660f75ea40cdb4d5c8b1",
+    "outcome": "rejected",
+    "receiptKeys": [
+      "executionTiming",
+      "exitCode",
+      "logRef",
+      "processIdentity"
+    ],
+    "receiptCode": null,
+    "exitCode": 1,
+    "cleanupTree": {
+      "owned": [
+        10236,
+        11396,
+        32160
+      ],
+      "remaining": [],
+      "confirmed": true,
+      "detail": "TerminateJobObject + active==0 双证据"
+    },
+    "supervisorExit": {
+      "confirmed": true,
+      "reason": "pid_absent",
+      "identity": {
+        "schema": "pan.process-identity/1",
+        "platform": "windows",
+        "pid": 34496,
+        "kind": "filetime",
+        "birth": "134386992816595025",
+        "boot_id": null,
+        "pgid": null,
+        "image": null
+      }
+    },
+    "pids": {
+      "supervisor": 34496,
+      "effect": 32160,
+      "owned-10236": 10236,
+      "owned-11396": 11396,
+      "owned-32160": 32160
+    },
+    "logText": "owned stdout\nowned stderr\n"
+  },
   "broadcast": "no explicit alert",
   "scheduled": "no explicit alert",
   "drawerHasEdit": true,
@@ -44,7 +92,6 @@
     "Pin",
     "Delete"
   ],
-  "cancelControl": 3,
   "scope": "Jobs designed UI click chain",
   "blocked": [],
   "status": "passed"

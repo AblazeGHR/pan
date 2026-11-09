@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium, expect } from '@playwright/test';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -27,9 +27,12 @@ const base = `http://127.0.0.1:${port}`;
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('PAN_')));
 Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_PORT: String(port), PYTHONPATH: root });
 const ownedRoot = path.join(root, '.tmp', `owned-jobs-${Date.now()}`);
+const ownedPython = process.env.PAN_E2E_PYTHON
+  || 'D:/project/pan-worktrees/jobs-owned-executor-20261109/.tmp/runtime-env/Scripts/python.exe';
+const longScript = path.join(ownedRoot, 'long_done.py');
 await fs.mkdir(ownedRoot, { recursive: true });
 await fs.writeFile(path.join(ownedRoot, '.jobs-owned-harness'), '');
-const child = spawn(process.env.PAN_E2E_PYTHON || 'D:/project/pan-worktrees/jobs-owned-executor-20261109/.tmp/runtime-env/Scripts/python.exe',
+const child = spawn(ownedPython,
   [path.join(import.meta.dirname, 'owned-jobs-ui-server.py')],
   { cwd: root, env: { ...env, PAN_OWNED_ROOT: ownedRoot }, windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'] });
@@ -102,11 +105,13 @@ try {
   await expect(page.getByRole('button', { name: /Unified Jobs|Legacy Jobs/ })).toHaveCount(0);
   evidence.checks.push('single unified Jobs list with one New Job entry');
 
-  // background-process
+  // background-process: the owned quick script writes both markers.
   let dialog = await openCreate();
   await chooseKind(dialog, 'background-process', 'Click process Job');
-  await dialog.getByLabel(/^Executable/).fill('cmd');
-  await dialog.getByLabel(/^Working directory/).fill(runtime);
+  await dialog.getByLabel(/^Executable/).fill(ownedPython);
+  await dialog.getByRole('button', { name: 'Add argument' }).click();
+  await dialog.getByLabel(/^Argument 1/).fill(path.join(ownedRoot, 'quick.py'));
+  await dialog.getByLabel(/^Working directory/).fill(readyPayload.cwd);
   await pickSingleTarget(dialog);
   await submit(dialog);
   await expect(page.getByText('Click process Job', { exact: false }).first()).toBeVisible();
@@ -138,8 +143,111 @@ try {
   if (processStatus === 'completed') {
     evidence.checks.push('background-process starts immediately and reaches completed in the detail');
   }
+  // The drawer must show the original stdout/stderr body, not a status summary.
+  const processOutputButton = processDrawer.getByRole('button', { name: /^View output for run/ }).first();
+  await expect(processOutputButton).toBeVisible();
+  await processOutputButton.click();
+  const processOutput = processDrawer.getByLabel(/^Run output for /).first();
+  await expect(processOutput).toBeVisible();
+  await expect(processOutput).toContainText('owned stdout');
+  await expect(processOutput).toContainText('owned stderr');
+  evidence.checks.push('detail drawer shows the real stdout/stderr markers for a completed Run');
+  await page.screenshot({ path: path.join(runtime, 'process-output.png'), fullPage: true });
   await page.keyboard.press('Escape');
   await expect(processDrawer).toHaveCount(0);
+
+  // Long process: starts for real, then cancel through the designed row control.
+  dialog = await openCreate();
+  await chooseKind(dialog, 'background-process', 'Click long Job');
+  await dialog.getByLabel(/^Executable/).fill(ownedPython);
+  await dialog.getByRole('button', { name: 'Add argument' }).click();
+  await dialog.getByLabel(/^Argument 1/).fill(longScript);
+  await dialog.getByLabel(/^Working directory/).fill(readyPayload.cwd);
+  await pickSingleTarget(dialog);
+  await submit(dialog);
+  await expect(page.getByText('Click long Job', { exact: false }).first()).toBeVisible();
+
+  // Wait until the original log proves the process is actually running.
+  await page.getByText('Click long Job', { exact: false }).first().click();
+  const longDrawer = page.getByRole('dialog', { name: 'Job detail' });
+  await expect(longDrawer).toBeVisible();
+  let longOutput = longDrawer.getByLabel(/^Run output for /).first();
+  let started = false;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const view = longDrawer.getByRole('button', { name: /^View output for run/ }).first();
+    if (await view.count()) {
+      await view.click();
+      await page.waitForTimeout(350);
+      if (await longOutput.count()) {
+        const text = await longOutput.innerText();
+        if (text.includes('owned stdout')) { started = true; break; }
+      }
+    }
+    await page.waitForTimeout(350);
+  }
+  evidence.longStarted = started;
+  assert.ok(started, 'the long process must actually start before cancellation');
+  await page.keyboard.press('Escape');
+  await expect(longDrawer).toHaveCount(0);
+
+  const listed = await page.request.get(base + '/api/jobs/legacy-list');
+  const longJob = (await listed.json()).jobs.find((item) => item.name === 'Click long Job');
+  assert.ok(longJob, 'the long Job must be listed');
+  const longRow = page.locator('div').filter({ hasText: 'Click long Job' })
+    .filter({ has: page.getByRole('button', { name: /^Cancel job$/ }) }).first();
+  await expect(longRow).toBeVisible();
+  await longRow.getByRole('button', { name: /^Cancel job$/ }).click();
+  await expect(page.getByText('Cancellation requested', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Cancel job$/ })).toHaveCount(0, { timeout: 30000 });
+
+  // The drawer reads history once per open; wait for the original Run to settle
+  // before reopening it, then assert the designed history shows cancelled.
+  let longStatus = '';
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const runsNow = await page.request.get(`${base}/api/jobs/${longJob.jobId}/runs`);
+    longStatus = (await runsNow.json()).items[0]?.state ?? '';
+    if (['cancelled', 'failed', 'uncertain'].includes(longStatus)) break;
+    await page.waitForTimeout(500);
+  }
+  evidence.longStatus = longStatus;
+  assert.equal(longStatus, 'cancelled', 'the cancelled Run must settle as cancelled');
+  if (await longDrawer.count() === 0) {
+    await page.getByText('Click long Job', { exact: false }).first().click();
+    await expect(longDrawer).toBeVisible();
+  }
+  // The drawer starts from the previous empty history; its own fetch fills the
+  // run list. Wait for the real control instead of sampling the first render.
+  await expect(longDrawer.getByRole('button', { name: /^View output for run/ }).first())
+    .toBeVisible({ timeout: 15000 });
+  const longHistory = await longDrawer.innerText();
+  assert.ok(/CANCELLED|cancelled/.test(longHistory), 'the designed history must show the cancelled Run');
+  const cancelledOutputButton = longDrawer.getByRole('button', { name: /^View output for run/ }).first();
+  await expect(cancelledOutputButton).toBeVisible();
+  await cancelledOutputButton.click();
+  longOutput = longDrawer.getByLabel(/^Run output for /).first();
+  await expect(longOutput).toBeVisible();
+  await expect(longOutput).toContainText('owned stdout');
+  await expect(longOutput).toContainText('owned stderr');
+  await expect(longOutput).not.toContainText('owned completion marker');
+  evidence.checks.push('cancelled long Run keeps its real output and never reaches the completion marker');
+  await page.screenshot({ path: path.join(runtime, 'cancelled-output.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await expect(longDrawer).toHaveCount(0);
+
+  // One process tree proof for the cancelled Run: receipt, owned-tree cleanup,
+  // supervisor exit and every recorded PID are checked in the owned store.
+  const longRuns = await page.request.get(`${base}/api/jobs/${longJob.jobId}/runs`);
+  const cancelledRun = (await longRuns.json()).items.find((item) => item.state === 'cancelled');
+  assert.ok(cancelledRun, 'the cancelled Run must be listed');
+  const verified = spawnSync(ownedPython, [
+    path.join(import.meta.dirname, 'verify_job_execution.py'),
+    '--root', ownedRoot, '--run', cancelledRun.runId, '--expect', 'cancelled',
+    '--require', 'owned stdout', '--require', 'owned stderr',
+    '--forbid', 'owned completion marker',
+  ], { cwd: root, env: { ...env, PYTHONPATH: root }, encoding: 'utf8' });
+  assert.equal(verified.status, 0, verified.stderr || verified.stdout);
+  evidence.execution = JSON.parse(verified.stdout);
+  evidence.checks.push('cancellation receipt, owned-tree cleanup and supervisor exit are proven for the Run');
 
   // session-message (multi-target checkboxes)
   dialog = await openCreate();
@@ -221,10 +329,15 @@ try {
     await expect(drawer).toHaveCount(0);
   }
 
-  // Menu actions: open once, read the real items, close through the backdrop
-  // exactly like a user click (no forced clicks).
+  // Menu actions: scope to this row (the list sorts active rows first, so a
+  // bare `.first()` would act on another Job). Open once, read the real items,
+  // close through the backdrop exactly like a user click (no forced clicks).
+  const editedRow = page.locator('div')
+    .filter({ hasText: 'Click process Job edited' })
+    .filter({ has: page.getByRole('button', { name: 'Job actions' }) })
+    .last();
   const openMenu = async () => {
-    await page.getByRole('button', { name: 'Job actions' }).first().click();
+    await editedRow.getByRole('button', { name: 'Job actions' }).click();
     return page.getByRole('menuitem').allInnerTexts();
   };
   const closeMenu = async () => {
@@ -239,12 +352,6 @@ try {
     await closeMenu();
   }
 
-  // Cancel appears only for active rows; assert the control's presence rule.
-  evidence.cancelControl = await page.getByRole('button', { name: /Cancel job/ }).count();
-  if (evidence.cancelControl) {
-    await page.getByRole('button', { name: /Cancel job/ }).first().click();
-    evidence.checks.push('cancel control reachable on the active row');
-  }
 
   await openMenu();
   if (await page.getByRole('menuitem', { name: /^Delete$/ }).count()) {
@@ -253,7 +360,8 @@ try {
     if (await confirm.count()) {
       const dangerous = confirm.getByRole('button', { name: /Delete|删除/ }).last();
       if (await dangerous.count()) await dangerous.click();
-      await expect(page.getByText(rowName, { exact: false })).toHaveCount(0);
+      // The toast quotes the deleted name; assert the row title itself is gone.
+      await expect(page.getByText('Click process Job edited', { exact: true })).toHaveCount(0);
       evidence.checks.push('delete removes the row after confirmation');
     }
   } else {

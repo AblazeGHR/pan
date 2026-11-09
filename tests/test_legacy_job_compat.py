@@ -326,3 +326,126 @@ def test_cold_recovery_after_enable(job_http):
     assert replay.json()['job']['jobId'] == job['id']
     runs = cold.get(f"/api/jobs/{job['id']}/runs").json()['items']
     assert len(runs) == 1
+
+
+# ── Authorization / owner fencing ────────────────────────────────────────
+
+class _Delegated:
+    """The trusted local bridge marker, as used by the MCP transport.
+
+    Test-only wrapper: it exercises the same ``actor()`` boundary the real
+    bridge uses instead of patching permission checks in the product.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        from packages.automation import authorization
+        scope['pan.authorization.transport'] = authorization._MARKER
+        await self.app(scope, receive, send)
+
+
+def _delegated_client(client):
+    from fastapi.testclient import TestClient
+    return TestClient(_Delegated(client.app), raise_server_exceptions=False)
+
+
+def _grant(auth, **job):
+    state = auth.permissions_status()
+    grants = state['permissions']
+    grants['job'] = {key: True for key in ('read', 'create', 'updateConfig', 'lifecycle', 'execute', 'delete')}
+    grants['job'].update(job)
+    grants['action']['read'] = True
+    grants['action']['manageSystemActions'] = True
+    return auth.change_permissions(grants, state['revision'])
+
+
+def _enabled_process(session_id, name='Fenced process'):
+    return {'kind': 'background-process', 'name': name, 'target': {'sessionId': session_id},
+            'argv': ['cmd', '/c', 'echo', 'hi'], 'cwd': 'C:/owned', 'enabled': True}
+
+
+def test_agent_capabilities_gate_create_start_cancel_and_logs(job_http):
+    client, service, session_id, canonical_root = job_http
+    delegated = _delegated_client(client)
+    _grant(service.auth)
+    created = delegated.post('/api/jobs/legacy-create', json=_enabled_process(session_id, 'Permission process'),
+                              headers={'x-pan-request-key': 'perm-1'})
+    assert created.status_code == 200, created.text
+    job = created.json()['job']
+    assert created.json()['phase'] == 'started'
+    run_id = delegated.get(f"/api/jobs/{job['jobId']}/runs").json()['items'][0]['runId']
+
+    # Revoked create: no new Job may appear.
+    _grant(service.auth, create=False)
+    refused = delegated.post('/api/jobs/legacy-create', json=_enabled_process(session_id, 'No create'),
+                             headers={'x-pan-request-key': 'perm-2'})
+    assert refused.status_code == 403
+    assert refused.json()['error']['code'] == 'authorization_denied'
+
+    # Revoked execute: the Job can be written/enabled, but start is refused and
+    # the response never claims the process started.
+    _grant(service.auth)
+    _grant(service.auth, execute=False)
+    phase = delegated.post('/api/jobs/legacy-create', json=_enabled_process(session_id, 'No start'),
+                           headers={'x-pan-request-key': 'perm-3'})
+    assert phase.status_code == 200, phase.text
+    assert phase.json()['phase'] == 'enabled'
+    assert phase.json()['start']['status'] == 'rejected'
+    assert phase.json()['start']['code'] == 'authorization_denied'
+    no_start_job = phase.json()['job']['jobId']
+    assert delegated.get(f'/api/jobs/{no_start_job}/runs').json()['items'] == []
+    assert delegated.post(f'/api/jobs/{job["jobId"]}/cancel', json={}).status_code == 403
+
+    # Revoked read: list and log reads are denied before any execution lookup.
+    _grant(service.auth)
+    _grant(service.auth, read=False)
+    assert delegated.get('/api/jobs/legacy-list').status_code == 403
+    log = delegated.get(f'/api/job-runs/{run_id}/attempts/attempt_missing/log')
+    assert log.status_code == 403
+    assert delegated.get(f'/api/job-runs/{run_id}/logs').status_code == 403
+
+    # Restored read: the same log address reaches the execution boundary (404
+    # for an unknown attempt, not 403).
+    _grant(service.auth)
+    assert delegated.get(f'/api/job-runs/{run_id}/attempts/attempt_missing/log').status_code == 404
+    assert delegated.post(f'/api/jobs/{job["jobId"]}/cancel', json={}).status_code == 200
+
+
+def test_owner_epoch_blocks_writes_and_cancel_but_not_reads(job_http):
+    client, service, session_id, canonical_root = job_http
+    delegated = _delegated_client(client)
+    _grant(service.auth)
+    created = delegated.post('/api/jobs/legacy-create', json=_enabled_process(session_id, 'Owner process'),
+                              headers={'x-pan-request-key': 'owner-1'})
+    assert created.status_code == 200, created.text
+    job_id = created.json()['job']['jobId']
+    run_id = delegated.get(f'/api/jobs/{job_id}/runs').json()['items'][0]['runId']
+
+    from packages.jobs.runtime_owner import OwnerFence
+    # The runtime owner lives one level above the canonical store (profile root).
+    other = OwnerFence(canonical_root.parent)
+    epoch = (service.owner.status() or {'epoch': 0})['epoch']
+    other.claim(epoch)
+    other.set_state('active')
+    try:
+        # A different owner epoch fences every canonical write, with no partial
+        # Job/Run/cleanup left behind.
+        write = delegated.post('/api/jobs/legacy-create', json=_enabled_process(session_id, 'No owner'),
+                               headers={'x-pan-request-key': 'owner-2'})
+        assert write.status_code == 409
+        assert write.json()['error']['code'] == 'revision_conflict'
+        assert delegated.post(f'/api/jobs/{job_id}/run-now', json={}).status_code == 409
+        cancel = delegated.post(f'/api/jobs/{job_id}/cancel', json={})
+        assert cancel.status_code == 409
+        assert cancel.json()['failed'][0]['code'] == 'revision_conflict'
+        runs = delegated.get(f'/api/jobs/{job_id}/runs').json()['items']
+        assert runs[0]['state'] == 'queued', 'a fenced cancel must not change the Run'
+        # Reads (list, history, log discovery) stay available: the owner fence
+        # excludes writers, it is not a read permission.
+        assert delegated.get('/api/jobs/legacy-list').status_code == 200
+        refs = delegated.get(f'/api/job-runs/{run_id}/logs')
+        assert refs.status_code == 200
+    finally:
+        other.release()
