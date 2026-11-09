@@ -91,9 +91,15 @@ def test_production_legacy_process_reference(tmp_path):
         jid = response.json()['job']['jobId']
         job = app.state.owned.service.get('job', jid, actor={'type': 'user', 'id': 'local'})
         assert definition('job', job)['steps'][0]['actionRef']['id'] == 'product_process'
-        response = client.post('/api/jobs/' + jid + '/runs', json={'expectedRevision': job['configRevision'], 'requestKey': 'process-run', 'input': {}, 'cause': {'type': 'manual'}})
-        assert response.status_code == 202, response.text
-        rid = response.json()['runId']
+        # A legacy background process starts on creation; reuse that Run when
+        # present instead of admitting a second one under overlap=forbid.
+        existing = client.get('/api/jobs/' + jid + '/runs').json()['items']
+        if existing:
+            rid = existing[0]['runId']
+        else:
+            response = client.post('/api/jobs/' + jid + '/runs', json={'expectedRevision': job['configRevision'], 'requestKey': 'process-run', 'input': {}, 'cause': {'type': 'manual'}})
+            assert response.status_code == 202, response.text
+            rid = response.json()['runId']
         wait(lambda: client.get('/api/job-runs/' + rid).json(), lambda r: r['state'] == 'completed')
         rows = client.get('/api/job-runs/' + rid + '/logs').json()['items']
         assert len(rows) == 1

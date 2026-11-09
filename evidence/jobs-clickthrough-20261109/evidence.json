@@ -2,7 +2,7 @@
   "checks": [
     "single unified Jobs list with one New Job entry",
     "background-process starts immediately and reaches completed in the detail",
-    "created all four kinds through New Job: background-process, session-message",
+    "created all four kinds through New Job: background-process, session-message, session-broadcast, scheduled-task",
     "edited the Job name from the designed detail",
     "pin from the row menu",
     "cancel control reachable on the active row",
@@ -10,31 +10,42 @@
   ],
   "kinds": [
     "background-process",
-    "session-message"
+    "session-message",
+    "session-broadcast",
+    "scheduled-task"
   ],
   "errors": [],
   "ready": {
     "actions": [
+      "job.create",
+      "process.command",
+      "process.shell",
+      "product_assign_runtime_v1",
+      "product_assign_v2",
+      "product_process",
       "product_process_cleanup_v1",
-      "product_session_broadcast_v2"
+      "product_process_logs_v1",
+      "product_resume_legal_running_v1",
+      "product_session_broadcast",
+      "product_session_broadcast_runtime_v1",
+      "product_session_broadcast_v2",
+      "product_session_message",
+      "product_session_message_runtime_v1",
+      "product_session_message_v2",
+      "system_quota_query_v1"
     ]
   },
   "processStatus": "completed",
-  "drawerText": "Click process Job\nscheduled\nCancel job\nChange target\nDelete\nEdit\nOVERVIEW\nClick process Job description\nKind\n后台进程\nSource\nuser\nTarget\nowned-a\nLegacy execution count\n0\nCreated\n2026-11-09 17:45\nUpdated\n2026-11-09 17:45\nEXECUTION\nMode\nPan server shell\nRuns under the Pan service account. The command is not sent to a Session.\nCommand\nWorking directory\nD:\\project\\pan-worktrees\\action-group-design-canonical-20261109\\.tmp\\jobs-click-1794217534761\nSCHEDULE\n—\nLAST RESULT\n—\nLEGACY EXECUTION HISTORY\n—\ncompleted\nLoad more",
+  "drawerText": "Click process Job\nscheduled\nCancel job\nChange target\nDelete\nEdit\nOVERVIEW\nClick process Job description\nKind\n后台进程\nSource\nuser\nTarget\nowned-a\nLegacy execution count\n0\nCreated\n2026-11-09 17:57\nUpdated\n2026-11-09 17:57\nEXECUTION\nMode\nPan server shell\nRuns under the Pan service account. The command is not sent to a Session.\nCommand\nWorking directory\nD:\\project\\pan-worktrees\\action-group-design-canonical-20261109\\.tmp\\jobs-click-1794218242555\nSCHEDULE\n—\nLAST RESULT\n—\nLEGACY EXECUTION HISTORY\n—\ncompleted\nLoad more",
   "broadcast": "no explicit alert",
-  "broadcastBlocked": true,
   "scheduled": "no explicit alert",
-  "scheduledBlocked": true,
   "drawerHasEdit": true,
   "menuItems": [
     "Pin",
     "Delete"
   ],
-  "cancelControl": 2,
+  "cancelControl": 3,
   "scope": "Jobs designed UI click chain",
-  "blocked": [
-    "broadcast create (harness provider)",
-    "scheduled-task create (harness scheduler provider)"
-  ],
-  "status": "partial"
+  "blocked": [],
+  "status": "passed"
 }

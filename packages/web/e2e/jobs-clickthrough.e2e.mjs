@@ -29,7 +29,7 @@ Object.assign(env, { PAN_E2E_RUNTIME: runtime, PAN_PORT: String(port), PYTHONPAT
 const ownedRoot = path.join(root, '.tmp', `owned-jobs-${Date.now()}`);
 await fs.mkdir(ownedRoot, { recursive: true });
 await fs.writeFile(path.join(ownedRoot, '.jobs-owned-harness'), '');
-const child = spawn(process.env.PAN_E2E_PYTHON || 'D:/project/Pan/.venv/Scripts/python.exe',
+const child = spawn(process.env.PAN_E2E_PYTHON || 'D:/project/pan-worktrees/jobs-owned-executor-20261109/.tmp/runtime-env/Scripts/python.exe',
   [path.join(import.meta.dirname, 'owned-jobs-ui-server.py')],
   { cwd: root, env: { ...env, PAN_OWNED_ROOT: ownedRoot }, windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'] });
