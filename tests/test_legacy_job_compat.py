@@ -153,14 +153,19 @@ def _broadcast_body(session_id, text='broadcast hello'):
 
 def test_broadcast_same_key_with_different_input_conflicts(job_http):
     client, service, session_id, canonical_root = job_http
-    # The broadcast runtime product needs the owned delivery provider, which
-    # this unit fixture does not mount; the gate is recorded here and the
-    # success path lives in the owned harness.
     body = _broadcast_body(session_id)
-    refused = client.post('/api/jobs/legacy-create', json=body,
-                          headers={'x-pan-request-key': 'bc-key'})
-    assert refused.status_code == 503
-    assert refused.json()['error']['code'] == 'provider_unavailable'
+    first = client.post('/api/jobs/legacy-create', json=body,
+                        headers={'x-pan-request-key': 'bc-key'})
+    assert first.status_code == 200, first.text
+    job_id = first.json()['job']['jobId']
+    conflict = client.post('/api/jobs/legacy-create', json={**body, 'text': 'other text'},
+                           headers={'x-pan-request-key': 'bc-key'})
+    assert conflict.status_code == 409, conflict.text
+    assert conflict.json()['error']['code'] == 'idempotency_conflict'
+    replay = client.post('/api/jobs/legacy-create', json=body,
+                         headers={'x-pan-request-key': 'bc-key'})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['job']['jobId'] == job_id
 
 
 def test_broadcast_failure_rolls_back_the_whole_graph(job_http, monkeypatch):
@@ -173,9 +178,7 @@ def test_broadcast_failure_rolls_back_the_whole_graph(job_http, monkeypatch):
     monkeypatch.setattr(service.creators, 'create', boom)
     response = client.post('/api/jobs/legacy-create', json=_broadcast_body(session_id, 'rollback'),
                            headers={'x-pan-request-key': 'bc-rollback'})
-    # Provider gate precedes composition in this fixture; either way nothing is
-    # persisted. The owned harness covers the real rollback path.
-    assert response.status_code in (500, 503)
+    assert response.status_code == 500
     after = {item['id'] for item in service.list('job', actor={'type': 'user', 'id': 'local'})['items']}
     assert after == before, 'a failed composition must not leave a partial Job'
     rows = []
