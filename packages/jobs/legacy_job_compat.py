@@ -381,3 +381,12 @@ def compose_broadcast(service, actor, data, request_key):
         # a different text/target/schedule is a conflict, never a silent replay.
         return service._operation(db, actor, "create", request_key,
                                   {"broadcastCompose": copy.deepcopy(data)}, "job", mutate)
+
+
+def stage_key(key, stage):
+    """Deterministic per-stage key under one creation identity.
+
+    A plain suffix would let ``a`` and ``a:start`` collide with other keys; the
+    digest binds the caller key, the stage and the creation purpose.
+    """
+    return fc.digest(["legacy-job-create", stage, key])

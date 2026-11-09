@@ -693,23 +693,33 @@ async def legacy_job_create(request: Request):
         job = (await invoke(request, "control", "job", job["id"], {
             "operation": "enable", "expectedRevision": job["configRevision"],
             "expectedStateRevision": job["stateRevision"], "parameters": {},
-            "requestKey": key + ":enable"}, actor=who))["result"]["object"]
+            "requestKey": legacy_job_compat.stage_key(key, "enable")},
+            actor=who))["result"]["object"]
     if data.get("kind") == "background-process" and job["state"] == "enabled":
         # A legacy background process starts immediately. The Run carries its own
         # deterministic key, so a lost response is resolved by re-issuing the same
         # creation request (the Job and Run operations replay) and a cold reader
         # can query the original Run instead of starting a second one.
-        run = await invoke(request, "create_run", job["id"], {
-            "expectedRevision": job["configRevision"],
-            "requestKey": key + ":start",
-            "input": {},
-            "cause": {"type": "manual"},
-        }, actor=who)
+        try:
+            run = await invoke(request, "create_run", job["id"], {
+                "expectedRevision": job["configRevision"],
+                "requestKey": legacy_job_compat.stage_key(key, "start"),
+                "input": {},
+                "cause": {"type": "manual"},
+            }, actor=who)
+        except Exception as exc:
+            # Draft/enable already committed. Report the exact phase and keep the
+            # receipt queryable; never claim the process was started.
+            reason = getattr(exc, "code", None) or type(exc).__name__
+            view = legacy_job_compat.job_view(service, job, legacy=legacy)
+            view["status"] = "scheduled"
+            return {"ok": True, "job": view, "phase": "enabled",
+                    "start": {"status": "rejected", "code": reason}}
         view = legacy_job_compat.job_view(service, job, legacy=legacy)
         view["runCount"] = 1
         view["status"] = "starting"
-        return {"ok": True, "job": view, "run": {"status": run.get("status"),
-                                                 "result": run.get("result")}}
+        return {"ok": True, "phase": "started", "job": view,
+                "run": {"status": run.get("status"), "result": run.get("result")}}
     return {"ok": True, "job": legacy_job_compat.job_view(service, job, legacy=legacy)}
 
 

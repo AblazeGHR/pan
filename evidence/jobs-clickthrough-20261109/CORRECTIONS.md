@@ -27,3 +27,13 @@ item was removed from the blocked list because the run is now proven in the UI
 (`processStatus: completed`). Logs were read from the canonical log route in the
 separate process probe (attempt + logRef), not yet asserted inside the drawer.
 Still blocked: broadcast and scheduled-task creation (harness provider).
+
+## Third correction — 2026-11-09 (creation is recoverable, not atomic)
+
+The background-process creation is a **recoverable multi-step creation**
+(write -> enable -> create_run), not a single atomic transaction. Each stage
+carries its own receipt and a deterministic digest key
+(`legacy-job-create/<stage>/<caller key>`), so a lost response or a cold reader
+resolves against the original Job/Run instead of starting a second one. A
+rejected start returns `phase: "enabled"` with `start.code` and no Run; it never
+reports the process as started.
