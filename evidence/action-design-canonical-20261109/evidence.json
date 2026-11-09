@@ -1,5 +1,5 @@
 {
-  "port": 63331,
+  "port": 54908,
   "checks": [
     "owned service PID and runtime verified",
     "designed table hosts canonical and system rows in one list",
@@ -11,7 +11,11 @@
     "Group keeps its fixed release history and opens an older immutable release",
     "three MCP modes stay available and the binding keeps the plugin CAS",
     "stale Group save fails with revision_conflict and never reports success",
-    "1280/390/320 keep the designed page readable without horizontal overflow"
+    "1280/390/320 keep the designed page readable without horizontal overflow",
+    "legacy Job create/list project one canonical Job without duplicate rows",
+    "manual Run is idempotent and never produces a second Run",
+    "an active Run blocks retirement and cancellation keeps history readable",
+    "delete retires with history still readable instead of faking removal"
   ],
   "errors": [],
   "status": "passed"

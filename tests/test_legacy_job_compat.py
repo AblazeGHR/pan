@@ -97,6 +97,16 @@ def test_manual_run_is_idempotent_and_never_advances_a_schedule(job_http):
     detail = client.get(f"/api/jobs/legacy/{job['jobId']}").json()['job']
     assert detail.get('nextRunAt') in (None, '')
     assert detail['kind'] == 'background-process'
+    # An active Run blocks retirement; cancel it with its own CAS first.
+    blocked = client.delete(f"/api/jobs/{job['jobId']}")
+    assert blocked.status_code == 409, blocked.text
+    cancelled = client.post(f"/api/jobs/{job['jobId']}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+    # Cancellation is asynchronous: until the Run settles, retirement stays
+    # blocked and the history remains readable.
+    still = client.delete(f"/api/jobs/{job['jobId']}")
+    assert still.status_code == 409
+    assert client.get(f"/api/jobs/legacy/{job['jobId']}").json()['job']['retired'] is False
 
 
 def test_unknown_kind_and_legacy_kind_gaps_are_explicit(job_http):

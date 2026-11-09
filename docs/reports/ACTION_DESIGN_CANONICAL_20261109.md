@@ -79,10 +79,16 @@ data/profile、8767/8768；未 push。
    - 隔离 HTTP 测试 `tests/test_legacy_job_compat.py` **3 passed**：
      创建/列表/详情/pin/改名/删除、手动 Run 幂等且不产生 schedule cursor、
      `scheduled-task` 明确 `unsupported_operation`、session-message 创建成功。
-   - 仍未完成：practical `JobsView.tsx` 的页面移植与 api 客户端指向
-     （`/api/jobs/legacy-*`、`/runs` 用 `items`），以及四 kind 的
-     `deliveryRuntime`（session 定时投递）与 `scheduled-task` 的 Creator/Trigger
-     组合——后者需要复用 `instantiate_template` 的既有组合语义，尚未接入。
+   - 页面已移植：`packages/web/src/views/JobsView.tsx` + `services/legacyJobs.ts`，
+     `/jobs` 路由指向它；list/detail/create/patch/run/pin/delete 走
+     `/api/jobs/legacy-*`、`/run-now`、`/pin`、`/runs`。
+   - 浏览器（隔离真实 HTTP + 生产 Chromium）新增 4 checks：旧形状创建/列表不重复、
+     同键手动 Run 不产生第二个 Run、活动 Run 阻断 retire 且取消后历史仍可读、
+     无活动 Run 的 Job 删除返回 `retired` 且历史仍可读（共 15 checks）。
+   - 仍未完成：session-message/broadcast 的 `deliveryRuntime` 定时投递、
+     `scheduled-task` 的 Creator/Trigger 组合；页面内的点击级 Jobs 流程（创建表单
+     提交、运行、日志、pin 菜单）尚未逐项浏览器验证——pin 在 pytest（bearer）
+     通过，浏览器 cookie 请求返回 `revision_conflict` 待查。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。

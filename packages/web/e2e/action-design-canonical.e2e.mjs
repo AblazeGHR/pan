@@ -227,6 +227,61 @@ try {
   }
   evidence.checks.push('1280/390/320 keep the designed page readable without horizontal overflow');
 
+  // Jobs facade over the same isolated server and browser session.
+  const sessions = await page.request.get(base + '/api/sessions');
+  const sessionId = (await sessions.json()).sessions[0].id;
+  const created = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'background-process', name: 'Browser Job', target: { sessionId },
+            argv: ['cmd', '/c', 'echo', 'hi'], cwd: runtime, hideWindow: true },
+    headers: { 'x-pan-request-key': 'browser-job-create', Origin: base },
+  });
+  assert.equal(created.status(), 200, await created.text());
+  const job = (await created.json()).job;
+  assert.equal(job.kind, 'background-process');
+  assert.equal(job.status, 'scheduled');
+  const listed = await page.request.get(base + '/api/jobs/legacy-list');
+  const rows = (await listed.json()).jobs;
+  assert.equal(rows.filter((row) => row.jobId === job.jobId).length, 1);
+  evidence.checks.push('legacy Job create/list project one canonical Job without duplicate rows');
+
+  const runOne = await page.request.post(`${base}/api/jobs/${job.jobId}/run-now`, {
+    data: {}, headers: { 'x-pan-request-key': 'browser-run-1', Origin: base },
+  });
+  assert.equal(runOne.status(), 200, await runOne.text());
+  const replay = await page.request.post(`${base}/api/jobs/${job.jobId}/run-now`, {
+    data: {}, headers: { 'x-pan-request-key': 'browser-run-1', Origin: base },
+  });
+  assert.equal(replay.status(), 200, await replay.text());
+  const runs = await page.request.get(`${base}/api/jobs/${job.jobId}/runs`);
+  assert.equal((await runs.json()).items.length, 1, 'same requestKey must not create a second Run');
+  evidence.checks.push('manual Run is idempotent and never produces a second Run');
+
+  const blocked = await page.request.delete(`${base}/api/jobs/${job.jobId}`, { headers: { Origin: base } });
+  assert.equal(blocked.status(), 409, 'an active Run must block retirement');
+  const cancelled = await page.request.post(`${base}/api/jobs/${job.jobId}/cancel`, {
+    data: {}, headers: { Origin: base },
+  });
+  assert.equal(cancelled.status(), 200, await cancelled.text());
+  // Cancellation is asynchronous; until the Run settles, retirement stays
+  // blocked and the job history remains readable.
+  const still = (await (await page.request.get(`${base}/api/jobs/legacy/${job.jobId}`)).json()).job;
+  assert.equal(still.retired, false);
+  evidence.checks.push('an active Run blocks retirement and cancellation keeps history readable');
+
+  const spare = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'background-process', name: 'Browser Spare', target: { sessionId },
+            argv: ['cmd', '/c', 'echo', 'bye'], cwd: runtime },
+    headers: { 'x-pan-request-key': 'browser-job-spare', Origin: base },
+  });
+  const spareJob = (await spare.json()).job;
+  const removed = await page.request.delete(`${base}/api/jobs/${spareJob.jobId}`, { headers: { Origin: base } });
+  assert.equal(removed.status(), 200, await removed.text());
+  assert.equal((await removed.json()).retired, true);
+  const after = (await (await page.request.get(base + '/api/jobs/legacy-list')).json()).jobs;
+  assert.equal(after.filter((row) => row.jobId === spareJob.jobId).length, 0);
+  assert.equal((await (await page.request.get(`${base}/api/jobs/legacy/${spareJob.jobId}`)).json()).job.retired, true);
+  evidence.checks.push('delete retires with history still readable instead of faking removal');
+
   assert.deepEqual(evidence.errors, []);
   evidence.status = 'passed';
 } catch (error) {
