@@ -304,6 +304,26 @@ try {
   assert.equal((await message.json()).job.kind, 'session-message');
   evidence.checks.push('scheduled session-message keeps its delivery composition');
 
+  const broadcast = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'session-broadcast', name: 'Browser Broadcast',
+            target: { sessionIds: [sessionId] }, text: 'broadcast hello',
+            schedule: { type: 'once', at } },
+    headers: { 'x-pan-request-key': 'browser-broadcast', Origin: base },
+  });
+  assert.equal(broadcast.status(), 200, await broadcast.text());
+  const broadcastJob = (await broadcast.json()).job;
+  assert.equal(broadcastJob.kind, 'session-broadcast');
+  assert.deepEqual(broadcastJob.target.sessionIds, [sessionId]);
+  const replayBroadcast = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'session-broadcast', name: 'Browser Broadcast',
+            target: { sessionIds: [sessionId] }, text: 'broadcast hello',
+            schedule: { type: 'once', at } },
+    headers: { 'x-pan-request-key': 'browser-broadcast', Origin: base },
+  });
+  assert.equal((await replayBroadcast.json()).job.jobId, broadcastJob.jobId,
+               'same requestKey must not compose a second graph');
+  evidence.checks.push('broadcast composition is atomic and replays by requestKey');
+
   const spare = await page.request.post(base + '/api/jobs/legacy-create', {
     data: { kind: 'background-process', name: 'Browser Spare', target: { sessionId },
             argv: ['cmd', '/c', 'echo', 'bye'], cwd: runtime },

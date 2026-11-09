@@ -261,3 +261,111 @@ def scheduler_payload(data):
         "misfire_policy": data.get("misfirePolicy", "fire_now"),
         "action": action,
     }
+
+
+def broadcast_specs(data):
+    """Legacy broadcast schedule -> canonical schedule specs (no new timing)."""
+    from packages.jobs.legacy_compat import _schedule
+    schedule = data.get("schedule")
+    if not isinstance(schedule, dict):
+        raise fc.ContractError("invalid_schema", "A broadcast schedule is required")
+    return _schedule(schedule)
+
+
+def compose_broadcast(service, actor, data, request_key):
+    """Atomically compose Job + time Creator + Trigger for a multi-target send.
+
+    Reuses the existing product runtime (`product_session_broadcast_runtime_v1`
+    with its fanout/deliveryRuntime declaration) and the existing graph ports.
+    One transaction, one operation receipt: a replayed requestKey returns the
+    original graph instead of building a second one.
+    """
+    from packages.jobs.final_runtime.ledger import aggregate, principal
+    from packages.jobs.final_service import definition, object_ref
+    from packages.scheduler.providers import legacy_schedule_plan
+    from scripts.job_final_migration.runtime_fields import runtime_definition
+    from packages.actions.groups import Groups
+
+    target = data.get("target") if isinstance(data.get("target"), dict) else {}
+    ids = list(target.get("sessionIds") or [])
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise fc.ContractError("invalid_schema", "Message text is required")
+    if not ids or any(not isinstance(item, str) or not item for item in ids):
+        raise fc.ContractError("invalid_schema", "Broadcast needs explicit Session identities")
+    specs = broadcast_specs(data)
+    if len(specs) != 1:
+        raise fc.ContractError("invalid_schema", "Broadcast supports one schedule entry")
+    spec = specs[0]
+    name = (data.get("name") or DEFAULT_NAMES["session-broadcast"]).strip() or "Session broadcast"
+    with service.transaction() as db:
+        def mutate(operation_id):
+            action = service._get(db, "action", "product_session_broadcast_runtime_v1")
+            if not action.get("enabled") or definition("action", action).get("state") == "draft":
+                raise fc.ContractError("reference_conflict", "Broadcast runtime product is unavailable")
+            ref = object_ref("action", action)
+            result = runtime_definition("session.send-many", {"sessionIds": ids, "text": text},
+                                        {"object": action, "ref": ref})
+            bindings, extra = result if isinstance(result, tuple) else (result, {})
+            job_value = fc.validate_definition("job", {
+                "name": name,
+                "description": data.get("description") or "",
+                "steps": [{"stepId": "execute", "actionRef": ref, "arguments": bindings,
+                           "completion": {"contract": definition("action", action).get("defaultCompletion")}}],
+                "overlap": {"mode": "forbid", "maxActive": 1, "maxPending": 0},
+                "recovery": {"automatic": False, "maxAttempts": 1,
+                             "backoffSeconds": ["1"], "stableResetSeconds": "0"},
+                "retention": {"policyRef": "default"},
+                **extra,
+            })
+            jid = "job_" + fc.digest(["broadcast", request_key])[:24]
+            envelope = service._envelope("job", job_value, actor, object_id=jid,
+                                         state="enabled" if data.get("enabled", True) else "disabled")
+            envelope["configRevision"] = 1
+            fc.validate_object("job", envelope)
+            job = {"jobId": jid, "canonical": envelope, "config": definition("job", envelope),
+                   "configRevision": 1}
+            aggregate(job, service.root)["profileId"] = service.profile_id
+            service._save(db, "job", jid, job)
+
+            clock_source = {
+                "id": jid, "name": name, "owner": "scheduler-json", "revision": 1,
+                "enabled": bool(data.get("enabled", True)),
+                "schedule": {key: value for key, value in spec.items()
+                             if key in {"kind", "at", "intervalSec", "interval_sec", "anchor", "cron", "timezone"}},
+                "misfirePolicy": data.get("misfirePolicy", "fire_now"), "graceSec": 0,
+                "nextFireAt": spec.get("at"), "pending": None, "publishCursor": None,
+            }
+            creator_value, occurrence = legacy_schedule_plan(clock_source, timezone_name=None, rule_id="e1")
+            creator_value = fc.validate_definition("event_creator", creator_value)
+            creator_value["eventTypes"] = ["scheduler.time.v2"]
+            cid = "creator_" + fc.digest(["broadcast-creator", request_key])[:24]
+            created = service.creators.create(
+                creator_value, request_key=operation_id + ":creator", creator_id=cid,
+                state="enabled" if data.get("enabled", True) else "disabled",
+                created_by=principal(actor), owner=principal(actor))
+            created["cursor"]["rules"]["e1"].update(
+                nextFireAt=occurrence["at"], nextOccurrence=occurrence)
+            service.creators._write(db, created)
+
+            trigger_id = "trg_" + fc.digest(["broadcast-trigger", request_key])[:24]
+            trigger = service._envelope("trigger", {
+                "name": name + " tick",
+                "creatorSelector": {"mode": "ids", "ids": [cid]},
+                "eventTypes": ["scheduler.time.v2"],
+                "targetJobId": jid,
+            }, actor, object_id=trigger_id, state="enabled")
+            service._save(db, "trigger", trigger_id, trigger)
+            service.creators.bind_link(cid, trigger_id, jid)
+            for kind, oid in (("job", jid), ("trigger", trigger_id), ("event_creator", cid)):
+                db.execute("INSERT OR REPLACE INTO final_authorities VALUES(?,?,?)",
+                           (kind, oid, fc.canonical_json(actor)))
+            Groups.save(db, "legacy_job_binding", jid, {
+                "kind": "session-broadcast",
+                "fields": {"kind": "session-broadcast", "target": {"sessionIds": ids},
+                           "text": text, "schedule": specs},
+            })
+            return {"jobId": jid, "creatorId": cid, "triggerId": trigger_id, "nextFireAt": occurrence["at"]}, \
+                [object_ref("job", envelope)], False
+        return service._operation(db, actor, "create", request_key,
+                                  {"broadcastCompose": {"ids": ids}}, "job", mutate)

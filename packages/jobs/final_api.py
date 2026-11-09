@@ -660,6 +660,13 @@ async def legacy_job_create(request: Request):
     from packages.jobs import legacy_job_compat
     service = _service(request)
     key = legacy_job_compat._request_key(request, data)
+    if data.get("kind") == "session-broadcast" and data.get("schedule"):
+        composed = await asyncio.to_thread(legacy_job_compat.compose_broadcast,
+                                           service, who, data, key)
+        job = await asyncio.to_thread(service.get, "job", composed["result"]["jobId"], actor=who)
+        binding = legacy_job_compat.load_binding(service, job["id"]) or {}
+        return {"ok": True, "job": legacy_job_compat.job_view(service, job,
+                                                              legacy=binding.get("fields"))}
     if data.get("kind") in {"scheduled-task", "session-message"} and data.get("schedule"):
         # Scheduled kinds use the accepted scheduler adapter: it builds the
         # Job + time Creator + Trigger graph and keeps the delivery runtime.
