@@ -310,13 +310,17 @@ def compose_broadcast(service, actor, data, request_key):
     name = (data.get("name") or DEFAULT_NAMES["session-broadcast"]).strip() or "Session broadcast"
     with service.transaction() as db:
         def mutate(operation_id):
-            action = service._get(db, "action", "product_session_broadcast_runtime_v1")
+            # The typed broadcast product owns the fanout; per-target attempt
+            # receipts come from the same executor, not a second runtime.
+            action = service._get(db, "action", "product_session_broadcast_v2")
             if not action.get("enabled") or definition("action", action).get("state") == "draft":
-                raise fc.ContractError("reference_conflict", "Broadcast runtime product is unavailable")
+                raise fc.ContractError("reference_conflict", "Broadcast product is unavailable")
             ref = object_ref("action", action)
-            result = runtime_definition("session.send-many", {"sessionIds": ids, "text": text},
-                                        {"object": action, "ref": ref})
-            bindings, extra = result if isinstance(result, tuple) else (result, {})
+            bindings = {
+                "sessionIds": {"from": "literal", "value": list(ids)},
+                "text": {"from": "literal", "value": text},
+            }
+            extra = {}
             job_value = fc.validate_definition("job", {
                 "name": name,
                 "description": data.get("description") or "",

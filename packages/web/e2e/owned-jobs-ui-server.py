@@ -41,15 +41,35 @@ for name in ("Owned Alpha", "Owned Beta"):
 
 app.mount("/react/assets", StaticFiles(directory=dist / "assets"), name="react-assets")
 
+# The product automation router owns the login form, cookie session and the
+# dashboard read. Reuse it as-is instead of re-implementing authentication.
+from types import SimpleNamespace  # noqa: E402
+from packages.automation import api as automation_api  # noqa: E402
+automation_api.install(SimpleNamespace(app=app))
 
-@app.post("/api/automation/login")
-def automation_login(payload: dict):
-    """Test-only assembly of the product login endpoint over the owned auth."""
-    key = (payload or {}).get("key")
-    if not isinstance(key, str) or not key:
-        raise uvicorn.http.HTTPException(status_code=400, detail="key required") if False else ValueError("key required")
-    token = app.state.automation.auth.login(key)
-    return {"token": token, "expiresIn": 86400}
+
+# Shell bootstrap routes the full Pan UI calls; the owned harness only mounts
+# the Jobs/automation surface, so these test-host equivalents read the same
+# owned roots instead of inventing product state.
+@app.get("/api/main/startup-recovery")
+def startup_recovery():
+    return {"recovered": True, "pending": []}
+
+
+@app.get("/api/list")
+def shell_list():
+    return {"sessions": [_session_row(item) for item in session_store.list_all(load_history=False)]}
+
+
+@app.get("/api/sessions")
+def shell_sessions(summary: int = 0):
+    return {"sessions": [_session_row(item) for item in session_store.list_all(load_history=False)]}
+
+
+def _session_row(session):
+    return {"id": session.id, "name": session.name, "adapter": getattr(session, "adapter", "cbc"),
+            "workdir": getattr(session, "workdir", str(owned)), "messageCount": 0,
+            "workerStatus": "idle", "createdAt": getattr(session, "created_at", None)}
 
 
 @app.get("/api/job-maintenance/status")
