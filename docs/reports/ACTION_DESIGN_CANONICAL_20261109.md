@@ -88,7 +88,10 @@ data/profile、8767/8768；未 push。
    - **pin 红已修复**：根因是旧 `pins.set_pin` 走 `legacy_pass`，cutover 后 owner
      fence 拒绝（`Job runtime owner epoch fence rejected writer`）。改为在 canonical
      store 写 `job_pin` 投影（同 owner 事务），浏览器 cookie 断言恢复并通过。
-   - 取消改为逐 Run 记录：任一失败返回 `reference_conflict` 且不再报整批成功。
+   - 取消改为逐 Run 记录：先 `get_run` 取当前 `stateRevision` 再 `control_run`；任一
+     失败返回 409，body 同时带 `cancelled[]` / `failed[]`，不丢成功事实。
+   - 列表按显式 `jobId` 合并旧 registry 行与 canonical 行；旧行沿用既有 `pins`
+     事实（测试断言旧 pin 不丢、且同 id 只出现一行）。
    - 仍未完成：session-message/broadcast 的 `deliveryRuntime` 定时投递、
      `scheduled-task` 的 Creator/Trigger 组合；JobsView 的点击级流程（表单提交/
      运行/日志/pin 菜单）尚未逐项验证；真实执行日志需要可运行 worker 的 fixture。

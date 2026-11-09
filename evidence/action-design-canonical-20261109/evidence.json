@@ -1,5 +1,5 @@
 {
-  "port": 56482,
+  "port": 51660,
   "checks": [
     "owned service PID and runtime verified",
     "designed table hosts canonical and system rows in one list",

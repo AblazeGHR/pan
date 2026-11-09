@@ -679,9 +679,19 @@ async def legacy_job_create(request: Request):
 async def legacy_job_list(request: Request):
     who = await actor(request, "job", "read")
     from packages.jobs import legacy_job_compat
+    from packages.jobs import api as legacy_api
     service = _service(request)
-    items = []
+    try:
+        # The designed page must keep showing Jobs that still live in the old
+        # registry; canonical rows are merged by explicit jobId only.
+        legacy_page = await legacy_api.list_jobs(request=request)
+        items = list(legacy_page.get("jobs") or [])
+    except Exception:
+        items = []
+    seen = {row.get("jobId") for row in items}
     for item in legacy_job_compat.canonical_jobs(service, who):
+        if item["id"] in seen:
+            continue
         binding = legacy_job_compat.load_binding(service, item["id"]) or {}
         view = legacy_job_compat.job_view(service, item, legacy=binding.get("fields"))
         view["pinned"] = legacy_job_compat.get_pin(service, item["id"])
@@ -693,7 +703,11 @@ async def legacy_job_list(request: Request):
 async def legacy_job_detail(job_id: str, request: Request):
     who = await actor(request, "job", "read")
     from packages.jobs import legacy_job_compat
+    from packages.jobs import api as legacy_api
     service = _service(request)
+    legacy_row = legacy_api._find_job(job_id)
+    if legacy_row is not None:
+        return {"ok": True, "job": legacy_api._view(legacy_row)}
     job = legacy_job_compat.get_canonical(service, job_id, who)
     if job is None:
         raise KeyError(job_id)
@@ -818,9 +832,12 @@ async def legacy_job_cancel(job_id: str, request: Request):
         if row.get("state") not in {"queued", "running", "retry_wait", "paused_at_boundary"}:
             continue
         try:
+            # Re-read the Run: the list projection can be older than the
+            # admission transition, and cancel must use the observed revision.
+            current = await invoke(request, "get_run", row["runId"], actor=who)
             await invoke(request, "control_run", row["runId"], {
                 "operation": "cancel",
-                "expectedStateRevision": row.get("stateRevision", 1),
+                "expectedStateRevision": current.get("stateRevision", 1),
                 "requestKey": legacy_job_compat._request_key(request) + ":cancel:" + row["runId"],
             }, actor=who)
             cancelled.append(row["runId"])
@@ -829,8 +846,12 @@ async def legacy_job_cancel(job_id: str, request: Request):
             failed.append({"runId": row["runId"],
                            "code": getattr(exc, "code", "cancel_failed")})
     if failed:
-        reject("reference_conflict",
-               "Some Runs could not be cancelled: " + ", ".join(item["runId"] for item in failed))
+        return JSONResponse(status_code=409, content={
+            "ok": False,
+            "error": {"code": "reference_conflict",
+                      "message": "Some Runs could not be cancelled"},
+            "cancelled": cancelled, "failed": failed,
+        })
     return {"ok": True, "cancelled": cancelled, "failed": failed}
 
 

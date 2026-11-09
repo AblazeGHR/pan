@@ -119,3 +119,24 @@ def test_unknown_kind_and_legacy_kind_gaps_are_explicit(job_http):
                                                     'target': {'sessionId': session_id}, 'text': 'hi'})
     assert missing.status_code == 200, missing.text
     assert missing.json()['job']['kind'] == 'session-message'
+
+
+def test_legacy_rows_keep_their_pin_and_are_listed_once(job_http, monkeypatch):
+    client, service, session_id = job_http
+    from packages.jobs import api as legacy_api
+    legacy_row = {'jobId': 'job_legacy_owned', 'kind': 'background-process', 'name': 'Legacy owned',
+                  'status': 'completed', 'pinned': True, 'runCount': 1}
+
+    async def fake_list(kind=None, status=None, includeCompleted=True, request=None):
+        return {'ok': True, 'jobs': [dict(legacy_row)], 'pinMetadataStatus': 'available'}
+
+    monkeypatch.setattr(legacy_api, 'list_jobs', fake_list)
+    job = create_process(client, session_id, name='Canonical owned').json()['job']
+    client.put(f"/api/jobs/legacy/{job['jobId']}/pin", json={'pinned': True})
+    rows = client.get('/api/jobs/legacy-list').json()['jobs']
+    assert [row['jobId'] for row in rows].count('job_legacy_owned') == 1
+    legacy = next(row for row in rows if row['jobId'] == 'job_legacy_owned')
+    assert legacy['pinned'] is True, 'the old pin fact must not be lost'
+    canonical = next(row for row in rows if row['jobId'] == job['jobId'])
+    assert canonical['pinned'] is True
+    assert len([row for row in rows if row['jobId'] == job['jobId']]) == 1
