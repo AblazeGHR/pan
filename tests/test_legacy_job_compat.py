@@ -22,7 +22,7 @@ def job_http(tmp_path, monkeypatch):
     from packages.core.platform import data_paths
     monkeypatch.setattr(data_paths, 'job_root', lambda: tmp_path / 'jobs')
     token = automation.auth.login(automation.auth.key())
-    client = TestClient(app)
+    client = TestClient(app, raise_server_exceptions=False)
     client.headers['Authorization'] = 'Bearer ' + token
     from packages.core import session as session_store
     session_store.SESSION_DIR = tmp_path / 'sessions'
@@ -140,3 +140,48 @@ def test_legacy_rows_keep_their_pin_and_are_listed_once(job_http, monkeypatch):
     canonical = next(row for row in rows if row['jobId'] == job['jobId'])
     assert canonical['pinned'] is True
     assert len([row for row in rows if row['jobId'] == job['jobId']]) == 1
+
+
+def _broadcast_body(session_id, text='broadcast hello'):
+    from datetime import datetime, timedelta, timezone
+    at = (datetime.now(timezone.utc) + timedelta(minutes=20)).isoformat()
+    return {'kind': 'session-broadcast', 'name': 'Broadcast', 'target': {'sessionIds': [session_id]},
+            'text': text, 'schedule': {'type': 'once', 'at': at}}
+
+
+def test_broadcast_same_key_with_different_input_conflicts(job_http):
+    client, service, session_id = job_http
+    body = _broadcast_body(session_id)
+    first = client.post('/api/jobs/legacy-create', json=body,
+                        headers={'x-pan-request-key': 'bc-key'})
+    assert first.status_code == 200, first.text
+    job_id = first.json()['job']['jobId']
+    conflict = client.post('/api/jobs/legacy-create', json={**body, 'text': 'other text'},
+                           headers={'x-pan-request-key': 'bc-key'})
+    assert conflict.status_code == 409, conflict.text
+    assert conflict.json()['error']['code'] == 'idempotency_conflict'
+    replay = client.post('/api/jobs/legacy-create', json=body,
+                         headers={'x-pan-request-key': 'bc-key'})
+    assert replay.status_code == 200
+    assert replay.json()['job']['jobId'] == job_id
+
+
+def test_broadcast_failure_rolls_back_the_whole_graph(job_http, monkeypatch):
+    client, service, session_id = job_http
+    before = {item['id'] for item in service.list('job', actor={'type': 'user', 'id': 'local'})['items']}
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError('creator store unavailable')
+
+    monkeypatch.setattr(service.creators, 'create', boom)
+    response = client.post('/api/jobs/legacy-create', json=_broadcast_body(session_id, 'rollback'),
+                           headers={'x-pan-request-key': 'bc-rollback'})
+    assert response.status_code == 500
+    after = {item['id'] for item in service.list('job', actor={'type': 'user', 'id': 'local'})['items']}
+    assert after == before, 'a failed composition must not leave a partial Job'
+    rows = []
+    with service.transaction(readonly=True) as db:
+        rows = db.execute("SELECT id FROM final_documents WHERE kind IN ('trigger','event_creator')").fetchall()
+        bindings = db.execute("SELECT id FROM final_documents WHERE kind='legacy_job_binding' AND id LIKE 'job_%'").fetchall()
+    assert not [row for row in rows if row[0].startswith(('trg_', 'creator_'))]
+    assert not bindings

@@ -367,5 +367,7 @@ def compose_broadcast(service, actor, data, request_key):
             })
             return {"jobId": jid, "creatorId": cid, "triggerId": trigger_id, "nextFireAt": occurrence["at"]}, \
                 [object_ref("job", envelope)], False
+        # The idempotency digest must cover the whole request: the same key with
+        # a different text/target/schedule is a conflict, never a silent replay.
         return service._operation(db, actor, "create", request_key,
-                                  {"broadcastCompose": {"ids": ids}}, "job", mutate)
+                                  {"broadcastCompose": copy.deepcopy(data)}, "job", mutate)
