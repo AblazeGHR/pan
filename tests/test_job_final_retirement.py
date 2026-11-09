@@ -208,7 +208,7 @@ def test_retirement_is_implemented_at_the_route_table_not_by_hiding_paths():
                    for r in routes), (method, path)
 
 
-def test_mcp_retires_old_writes_and_keeps_reads_and_cancel():
+def test_mcp_retires_old_writes_and_keeps_reads_only():
     tools = {tool.name for tool in app_mcp()._tool_manager.list_tools()}
     assert not set(RETIRED_MCP_TOOLS) & tools
     assert set(RETAINED_LEGACY_MCP_TOOLS) <= tools
@@ -222,9 +222,8 @@ def test_mcp_retires_old_writes_and_keeps_reads_and_cancel():
     from packages.mcp.server import P6_COMPAT_MCP_TOOLS
     assert legacy == set(RETIRED_MCP_TOOLS) | set(RETAINED_LEGACY_MCP_TOOLS) | (set(P6_COMPAT_MCP_TOOLS) & legacy)
     assert set(P6_COMPAT_MCP_TOOLS) <= tools
-    # Reads and cancels survive; they are the safe half of the old surface.
-    for name in ("agent_background_cancel", "agent_message_job_cancel",
-                 "agent_background_get", "scheduler_runs"):
+    # Reads survive; cancellation uses canonical Run controls.
+    for name in ("agent_background_get", "scheduler_runs"):
         assert name in tools, name
 
 

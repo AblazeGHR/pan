@@ -11293,35 +11293,15 @@ async def api_background_job_get(job_id: str, request: Request = None):
 
 @app.post("/api/background-jobs/{job_id}/cancel")
 async def api_background_job_cancel(job_id: str, request: Request = None):
-    try:
-        job = background_jobs.get(job_id)
-        if job and getattr(job, 'get', lambda *_: None)('legacyCompat'):
-            from packages.jobs.legacy_compat import is_legacy_action_job, legacy_view
-            if is_legacy_action_job(job):
-                auth = await _legacy_mcp_authority(request, 'lifecycle')
-                if auth is None:
-                    raise ValueError('legacy Action cancellation requires trusted MCP transport')
-                runtime = request.app.state.automation.job_runtime
-                if (job.get('legacyCompat') == background_jobs.BACKGROUND_PROCESS_KIND
-                        and job.get('processAdmissionId') and not runtime.live_for(job_id)
-                        and job.get('status') in {'unknown', 'uncertain'}):
-                    # Recovery has no in-memory waiter to cancel the detached
-                    # Runner. Reuse the original PID/create-time guarded path.
-                    await asyncio.to_thread(background_jobs.cancel, job_id, runtime.root)
-                return legacy_view(await runtime.cancel(job_id, job['configRevision']))
-        if job:
-            return background_jobs.cancel(job_id)
-        service = getattr(getattr(request, "app", None), "state", None)
-        service = getattr(service, "job_final_service", None)
-        if service is not None:
-            from packages.jobs.final_api import actor as canonical_actor
-            return await asyncio.to_thread(service.legacy_background_cancel, job_id,
-                                           actor=await canonical_actor(request, "job", "execute"),
-                                           request_key="legacy-background-cancel:" + job_id)
-        raise ValueError("job not found")
-    except ValueError as exc:
-        code = "cancel_unsafe" if "safely cancel" in str(exc) else "job_not_found"
-        return {"ok": False, "error": {"code": code, "message": str(exc)}}
+    # Historical background cancellation used the pre-canonical executor. It
+    # is now a tombstone: authenticate before refusing, and perform no lookup,
+    # store, lease, process or cleanup I/O. Canonical Run cancellation remains
+    # available through /api/job-runs/{run_id}/operations and /api/jobs.
+    from packages.automation.authorization import principal
+    if request is None:
+        raise HTTPException(status_code=401, detail="User Bearer or trusted MCP transport required")
+    await principal(request)
+    raise HTTPException(status_code=410, detail=RETIRED_LEGACY_WRITE)
 
 
 # Explicit negative controls only: none of these routes owns a producer.

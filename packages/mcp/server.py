@@ -3412,9 +3412,8 @@ def authorization_objects(kind: str, operation: str, item: dict | None = None,
 # through MCP. Scheduler write functions were removed in R6-C; other retired
 # functions remain pending their own source-removal packages. ``tools/list``
 # and ``tools/call`` agree on both kinds of tombstone.
-# Retained on purpose: reads (get/list/runs) and the explicit cancels.  A legacy
-# Job that still owns a Runner process must remain inspectable and cancellable
-# until its owner is drained; an orphaned process is worse than a stale read.
+# Retained on purpose: reads (get/list/runs). Legacy cancellation is retired;
+# canonical Run cancellation remains available through the FinalService API.
 # R6-C source tombstones: never registered, even temporarily.
 REMOVED_SCHEDULER_MCP_TOOLS = ()
 
@@ -3423,12 +3422,12 @@ RETIRED_MCP_TOOLS = (
     "agent_background_retry",
     "agent_message_job_create",
     "agent_message_job_update",
+    "agent_background_cancel",
     *REMOVED_SCHEDULER_MCP_TOOLS,
 )
 RETAINED_LEGACY_MCP_TOOLS = (
     "agent_background_get",
     "agent_background_list",
-    "agent_background_cancel",
     "agent_message_job_get",
     "agent_message_job_list",
     "agent_message_job_cancel",

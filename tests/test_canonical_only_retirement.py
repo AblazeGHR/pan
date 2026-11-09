@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 from packages.actions.store import Store
 from packages.jobs import final_contracts as fc
 from tests.test_action_unification_p1 import action_http, create_draft, control
@@ -124,3 +125,41 @@ def test_old_group_snapshot_never_registers_a_plugin_but_files_remain(tmp_path, 
     module.extend_catalog(catalog)
     assert catalog.plugins == {} and catalog.servers == {}
     assert source.read_bytes() == before
+
+
+def test_background_cancel_authenticates_then_returns_retired_without_old_executor(monkeypatch):
+    import packages.web.server as web_server
+
+    async def denied(_request):
+        raise HTTPException(status_code=401, detail='auth required')
+
+    monkeypatch.setattr('packages.automation.authorization.principal', denied)
+    monkeypatch.setattr(web_server.background_jobs, 'get', lambda _job: pytest.fail('legacy lookup reached'))
+    with pytest.raises(HTTPException) as denied_exc:
+        asyncio.run(web_server.api_background_job_cancel('old-job', object()))
+    assert denied_exc.value.status_code == 401
+
+    async def authorized(_request):
+        return 'user'
+
+    monkeypatch.setattr('packages.automation.authorization.principal', authorized)
+    with pytest.raises(HTTPException) as retired_exc:
+        asyncio.run(web_server.api_background_job_cancel('old-job', object()))
+    assert retired_exc.value.status_code == 410
+    assert retired_exc.value.detail['code'] == 'retired'
+
+
+def test_action_job_cancel_is_retired_and_history_reads_remain_classified():
+    from packages.jobs import action_api
+
+    cancel = ('POST', '/api/jobs/action-jobs/{job_id}/cancel')
+    assert cancel in action_api.RETIRED_ROUTES
+    assert cancel not in action_api.RETAINED_ROUTES
+    assert ('GET', '/api/jobs/action-jobs/{job_id}/runs') in action_api.RETAINED_ROUTES
+
+
+def test_legacy_background_cancel_mcp_name_is_not_discoverable():
+    from packages.mcp import server
+
+    assert 'agent_background_cancel' in server.RETIRED_MCP_TOOLS
+    assert 'agent_background_cancel' not in server.RETAINED_LEGACY_MCP_TOOLS

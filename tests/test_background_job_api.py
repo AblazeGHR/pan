@@ -108,14 +108,9 @@ def test_http_retry_rejects_running_job(env, monkeypatch):
 
 
 def test_http_cancel_reports_unsafe_pid(monkeypatch):
-    def unsafe(job_id):
-        raise ValueError("cannot safely cancel: task PID identity is unavailable or reused")
-    monkeypatch.setattr(web_server.background_jobs, "cancel", unsafe)
-    monkeypatch.setattr(web_server.background_jobs, "get", lambda job_id: {
-        "jobId": job_id, "kind": "background-process"
-    })
-    result = asyncio.run(web_server.api_background_job_cancel("job_reused"))
-    assert result["error"]["code"] == "cancel_unsafe"
+    with pytest.raises(Exception) as exc:
+        asyncio.run(web_server.api_background_job_cancel("job_reused"))
+    assert getattr(exc.value, "status_code", None) == 401
 
 
 def test_http_message_job_creation_preserves_source_and_text(h):
@@ -275,8 +270,7 @@ def test_public_background_tool_schema_requires_name_only():
     names = {tool.name for tool in tools}
     assert "agent_background_start" not in names
     assert "agent_background_retry" not in names
-    assert {"agent_background_get", "agent_background_list",
-            "agent_background_cancel"} <= names
+    assert {"agent_background_get", "agent_background_list"} <= names
 
 
 @pytest.mark.parametrize('kind', ['unknown-field', 'long-name'])

@@ -250,6 +250,7 @@ RETIRED_ROUTES = {
     ('DELETE', '/api/jobs/action-jobs/{job_id}'),
     ('POST', '/api/jobs/action-jobs/{job_id}/confirm-recovery'),
     ('POST', '/api/jobs/action-jobs/{job_id}/retry'),
+    ('POST', '/api/jobs/action-jobs/{job_id}/cancel'),
 }
 
 RETAINED_ROUTES = {
@@ -257,7 +258,6 @@ RETAINED_ROUTES = {
     ('GET', '/api/jobs/action-jobs/{job_id}/runs'),
     ('GET', '/api/jobs/action-jobs/schema'),
     ('GET', '/api/jobs/action-references/{action_id}'),
-    ('POST', '/api/jobs/action-jobs/{job_id}/cancel'),
     ('GET', '/api/jobs/job-templates'),
     ('POST', '/api/jobs/job-templates'),
     ('PUT', '/api/jobs/job-templates/{template_id}'),
