@@ -28,5 +28,11 @@
     "Delete"
   ],
   "cancelControl": 2,
-  "status": "passed"
+  "scope": "Jobs designed UI click chain",
+  "blocked": [
+    "broadcast create (harness provider)",
+    "scheduled-task create (harness scheduler provider)",
+    "run and logs (owned process provider not aligned yet)"
+  ],
+  "status": "partial"
 }

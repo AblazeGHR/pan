@@ -1,0 +1,32 @@
+{
+  "checks": [
+    "single unified Jobs list with one New Job entry",
+    "created all four kinds through New Job: background-process, session-message",
+    "edited the Job name from the designed detail",
+    "pin from the row menu",
+    "cancel control reachable on the active row",
+    "delete removes the row after confirmation"
+  ],
+  "kinds": [
+    "background-process",
+    "session-message"
+  ],
+  "errors": [],
+  "ready": {
+    "actions": [
+      "product_process_cleanup_v1",
+      "product_session_broadcast_v2"
+    ]
+  },
+  "broadcast": "no explicit alert",
+  "broadcastBlocked": true,
+  "scheduled": "no explicit alert",
+  "scheduledBlocked": true,
+  "drawerHasEdit": true,
+  "menuItems": [
+    "Pin",
+    "Delete"
+  ],
+  "cancelControl": 2,
+  "status": "passed"
+}

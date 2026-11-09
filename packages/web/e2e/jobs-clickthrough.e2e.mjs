@@ -232,7 +232,14 @@ try {
   }
 
   assert.deepEqual(evidence.errors, []);
-  evidence.status = 'passed';
+  // Never claim the whole chain when a named part is still blocked.
+  evidence.scope = 'Jobs designed UI click chain';
+  evidence.blocked = [
+    ...(evidence.broadcastBlocked ? ['broadcast create (harness provider)'] : []),
+    ...(evidence.scheduledBlocked ? ['scheduled-task create (harness scheduler provider)'] : []),
+    'run and logs (owned process provider not aligned yet)',
+  ];
+  evidence.status = evidence.blocked.length ? 'partial' : 'passed';
 } catch (error) {
   evidence.status = 'failed';
   evidence.failure = String(error.stack ?? error);

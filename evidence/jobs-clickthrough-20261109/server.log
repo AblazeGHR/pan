@@ -1,99 +1,99 @@
-INFO:     Started server process [11656]
+INFO:     Started server process [16116]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:49310 (Press CTRL+C to quit)
-INFO:     127.0.0.1:49318 - "GET /test/ready HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49319 - "GET /test/ready HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /react/automation HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /react/assets/index-Bdtt3wNw-pc2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /react/assets/index-IzaVS1DO.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /react/assets/react-vendor-DNy7vAOG.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /api/settings/ui HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:61675 - "GET /api/automation/session HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /react/assets/CanonicalDefinitionFields-DWFN2VaI.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /react/assets/AutomationView-CIx2ty5h.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65157 - "GET /react/assets/ScheduleListEditor-C4KWd65L.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62237 - "GET /react/assets/CanonicalJobsView-LQIoQzVs.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /react/assets/JobUserAuthorization-C3mqL8tm.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "GET /react/assets/SessionOperationFields-CnPoMack.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /react/assets/check-B1Ae46YB.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /react/assets/copy-BP3imO6X.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61782 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:61675 - "GET /api/workspaces HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:62237 - "GET /api/cli/status HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:61782 - "GET /api/plugins/panels HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:64329 - "GET /api/platform HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:53421 - "WebSocket /ws" 403
+INFO:     Uvicorn running on http://127.0.0.1:61897 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54452 - "GET /test/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54453 - "GET /test/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /react/automation HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /react/assets/index-Bdtt3wNw-pc2.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /react/assets/react-vendor-DNy7vAOG.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /react/assets/index-IzaVS1DO.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /api/settings/ui HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59049 - "GET /api/automation/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /react/assets/AutomationView-CIx2ty5h.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /react/assets/CanonicalDefinitionFields-DWFN2VaI.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /react/assets/JobUserAuthorization-C3mqL8tm.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /react/assets/ScheduleListEditor-C4KWd65L.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /react/assets/CanonicalJobsView-LQIoQzVs.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50730 - "GET /react/assets/SessionOperationFields-CnPoMack.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /react/assets/check-B1Ae46YB.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /react/assets/copy-BP3imO6X.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50730 - "GET /api/workspaces HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58151 - "GET /api/cli/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61289 - "GET /api/plugins/panels HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50730 - "GET /api/platform HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59912 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55560 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:50513 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62237 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /api/list HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:49459 - "WebSocket /ws" 403
+INFO:     127.0.0.1:58151 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /api/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61289 - "POST /api/automation/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54693 - "GET /api/event-creators/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /api/event-creators?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50997 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:61675 - "POST /api/automation/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:64329 - "GET /api/event-creators/providers HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/event-creators?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62237 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62237 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/automation HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /react/jobs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "GET /api/settings/ui HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50513 - "GET /api/automation/session HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /react/assets/JobsView-DEfgL1h9.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65157 - "GET /react/assets/JobRetentionSettings-DVFHfleo.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /react/assets/play-B2KOz7ey.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:53643 - "WebSocket /ws" 403
+INFO:     127.0.0.1:54693 - "GET /api/jobs?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /api/triggers?limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/automation HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /react/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /api/settings/ui HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58151 - "GET /api/automation/session HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:61782 - "GET /react/assets/pause-DuHD94Tf.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "GET /react/assets/NewJobForm-CkPitn6_.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62237 - "GET /react/assets/qqContactSearch-Hy_t4Mjq.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61675 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:65157 - "GET /react/assets/arrow-left-D7QUmtLm.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/workspaces HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:61782 - "GET /api/plugins/panels HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:61675 - "GET /api/platform HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:62237 - "GET /api/cli/status HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:64329 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65157 - "GET /api/list HTTP/1.1" 200 OK
-INFO:     127.0.0.1:64329 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:64329 - "GET /api/jobs/kinds HTTP/1.1" 200 OK
-INFO:     127.0.0.1:65157 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/jobs/legacy-create HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/jobs/legacy-create HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/jobs/legacy-create HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:52908 - "WebSocket /ws" 403
+INFO:     127.0.0.1:58151 - "GET /react/assets/JobsView-DEfgL1h9.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "GET /react/assets/qqContactSearch-Hy_t4Mjq.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50730 - "GET /react/assets/JobRetentionSettings-DVFHfleo.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /react/assets/pause-DuHD94Tf.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61289 - "GET /react/assets/play-B2KOz7ey.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /react/assets/NewJobForm-CkPitn6_.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /react/assets/arrow-left-D7QUmtLm.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59049 - "GET /api/plugins/panels HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61289 - "GET /api/workspaces HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50730 - "GET /api/cli/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54693 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /api/platform HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59049 - "GET /api/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54693 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54693 - "GET /api/jobs/kinds HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58151 - "GET /api/sessions?summary=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "GET /api/legacy/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "POST /api/jobs/legacy-create HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "POST /api/jobs/legacy-create HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "POST /api/jobs/legacy-create HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:64701 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:51089 - "WebSocket /ws" 403
+INFO:     127.0.0.1:62978 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:50513 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:55582 - "WebSocket /ws" 403
-INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:59049 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
 scheduler: 时区 Asia/Shanghai 不可用（'No time zone found with key Asia/Shanghai'），降级为本地朴素时间
-INFO:     127.0.0.1:50513 - "POST /api/jobs/legacy-create HTTP/1.1" 503 Service Unavailable
-INFO:     127.0.0.1:50513 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50513 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50513 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:60814 - "WebSocket /ws" 403
+INFO:     127.0.0.1:59049 - "POST /api/jobs/legacy-create HTTP/1.1" 503 Service Unavailable
+INFO:     127.0.0.1:59903 - "WebSocket /ws" 403
 INFO:     connection rejected (403 Forbidden)
-INFO:     127.0.0.1:50513 - "GET /api/jobs/legacy/job_7a422bc98af94c608713a149 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "GET /api/jobs/job_7a422bc98af94c608713a149/runs?limit=20 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "GET /api/actions HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:59735 - "PATCH /api/jobs/legacy/job_7a422bc98af94c608713a149 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "PUT /api/jobs/legacy/job_7a422bc98af94c608713a149/pin HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "POST /api/jobs/job_7a422bc98af94c608713a149/cancel HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "GET /api/jobs/legacy/job_7a422bc98af94c608713a149 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "DELETE /api/jobs/job_7a422bc98af94c608713a149 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59735 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59049 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59049 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60819 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60819 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60819 - "GET /api/jobs/legacy/job_e38fde4c95b548e3a8f31737 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "GET /api/jobs/job_e38fde4c95b548e3a8f31737/runs?limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "GET /api/actions HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:62992 - "PATCH /api/jobs/legacy/job_e38fde4c95b548e3a8f31737 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "PUT /api/jobs/legacy/job_e38fde4c95b548e3a8f31737/pin HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "POST /api/jobs/job_e38fde4c95b548e3a8f31737/cancel HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "GET /api/jobs/legacy/job_e38fde4c95b548e3a8f31737 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "DELETE /api/jobs/job_e38fde4c95b548e3a8f31737 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54638 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:62992 - "GET /api/main/startup-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62992 - "POST /api/main/startup-recovery/claim HTTP/1.1" 404 Not Found
