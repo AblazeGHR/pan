@@ -775,17 +775,53 @@ async def legacy_job_pin(job_id: str, request: Request):
 
 @router.delete("/jobs/{job_id}")
 async def legacy_job_delete(job_id: str, request: Request):
+    """Canonical retirement, never a fake record removal.
+
+    History stays readable and an active Run blocks retirement, exactly like the
+    canonical lifecycle; the response never claims the record disappeared.
+    """
     who = await actor(request, "job", "lifecycle")
     from packages.jobs import legacy_job_compat
     service = _service(request)
     job = legacy_job_compat.get_canonical(service, job_id, who)
     if job is None:
         raise KeyError(job_id)
-    await invoke(request, "control", "job", job_id, {
+    runs = await invoke(request, "runs", job_id, actor=who, cursor=None, limit=100)
+    active = [row for row in runs.get("items", [])
+              if row.get("state") in {"queued", "running", "retry_wait", "paused_at_boundary",
+                                      "cancelling", "settling", "uncertain"}]
+    if active:
+        reject("reference_conflict", "Active Runs must finish or be cancelled before retirement")
+    retired = (await invoke(request, "control", "job", job_id, {
         "operation": "retire", "expectedRevision": job["configRevision"],
         "expectedStateRevision": job["stateRevision"], "parameters": {},
-        "requestKey": legacy_job_compat._request_key(request) + ":retire"}, actor=who)
-    return {"ok": True, "deleted": True, "jobId": job_id}
+        "requestKey": legacy_job_compat._request_key(request) + ":retire"}, actor=who))["result"]["object"]
+    return {"ok": True, "retired": True, "jobId": job_id,
+            "job": legacy_job_compat.job_view(service, retired,
+                                              legacy=(legacy_job_compat.load_binding(service, job_id) or {}).get("fields"))}
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def legacy_job_cancel(job_id: str, request: Request):
+    """Cancel the active Runs of one canonical Job with their own CAS."""
+    who = await actor(request, "job", "execute")
+    from packages.jobs import legacy_job_compat
+    service = _service(request)
+    job = legacy_job_compat.get_canonical(service, job_id, who)
+    if job is None:
+        raise KeyError(job_id)
+    runs = await invoke(request, "runs", job_id, actor=who, cursor=None, limit=100)
+    cancelled = []
+    for row in runs.get("items", []):
+        if row.get("state") not in {"queued", "running", "retry_wait", "paused_at_boundary"}:
+            continue
+        await invoke(request, "control_run", row["runId"], {
+            "operation": "cancel",
+            "expectedStateRevision": row.get("stateRevision", 1),
+            "requestKey": legacy_job_compat._request_key(request) + ":cancel:" + row["runId"],
+        }, actor=who)
+        cancelled.append(row["runId"])
+    return {"ok": True, "cancelled": cancelled}
 
 
 for _path, _kind in KINDS.items():

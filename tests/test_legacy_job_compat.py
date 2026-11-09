@@ -72,6 +72,8 @@ def test_create_list_detail_pin_delete_use_the_canonical_authority(job_http):
 
     deleted = client.delete(f"/api/jobs/{job['jobId']}")
     assert deleted.status_code == 200, deleted.text
+    assert deleted.json()['retired'] is True
+    assert 'deleted' not in deleted.json()
     assert service.get('job', job['jobId'], actor={'type': 'user', 'id': 'local'})['state'] == 'retired'
     assert job['jobId'] not in [item['jobId'] for item in client.get('/api/jobs/legacy-list').json()['jobs']]
 
