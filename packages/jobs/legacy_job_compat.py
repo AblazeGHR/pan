@@ -18,7 +18,7 @@ from packages.jobs import final_contracts as fc
 #: Legacy kind -> product Action suffix. The product Actions already exist and
 #: are maintained by FinalService; no new executor is introduced.
 ACTIONS = {
-    "background-process": "product_process",
+    "background-process": "product_process_logs_v1",
     "session-message": "product_session_message_v2",
     "session-broadcast": "product_session_broadcast_v2",
 }
