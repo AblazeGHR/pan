@@ -342,7 +342,14 @@ class FinalService:
             item["enabled"] = True
         return fc.validate_object(kind, item)
 
+    _OBJECT_KINDS = {"action", "job", "template", "trigger", "event_creator"}
+
     def _public(self, kind, item):
+        if kind not in self._OBJECT_KINDS:
+            # Compatibility documents (scheduler handoff, legacy bindings,
+            # pins) are internal: they are stored and read, never validated as
+            # user-visible object kinds.
+            return copy.deepcopy(item)
         if kind == "job":
             item = item["canonical"]
         if kind == "event_creator":

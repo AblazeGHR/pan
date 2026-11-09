@@ -223,3 +223,41 @@ def get_pin(service, job_id):
             return bool(service._get(db, "job_pin", job_id).get("pinned"))  # noqa: SLF001
     except KeyError:
         return False
+
+
+def scheduler_payload(data):
+    """Legacy scheduled input -> the approved scheduler task payload."""
+    kind = data.get("kind")
+    target = data.get("target") if isinstance(data.get("target"), dict) else {}
+    target_id = (target.get("sessionId") or data.get("targetSessionId")
+                 or data.get("target_session_id"))
+    if kind == "session-message":
+        from packages.jobs.legacy_compat import _schedule
+        schedule = data.get("schedule")
+        if not isinstance(schedule, dict):
+            raise fc.ContractError("invalid_schema", "A message schedule is required")
+        specs = _schedule(schedule)
+        action = {"api": "send_session"}
+    elif kind == "scheduled-task":
+        specs = data.get("schedule")
+        action = data.get("action") if isinstance(data.get("action"), dict) else {"api": "assign"}
+    else:
+        raise fc.ContractError("unsupported_operation",
+                               "This legacy Job kind has no scheduler composition")
+    if not isinstance(target_id, str) or not target_id:
+        raise fc.ContractError("invalid_schema", "A Session target is required")
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    if action.get("api") != "shell" and not text.strip():
+        raise fc.ContractError("invalid_schema", "Message text is required")
+    return {
+        "name": data.get("name") or DEFAULT_NAMES[kind],
+        "description": data.get("description") or "",
+        "target_session_id": target_id,
+        "text": text,
+        "enabled": bool(data.get("enabled", True)),
+        "paused": False,
+        "schedule": specs,
+        "max_runs": data.get("maxRuns", data.get("max_runs")),
+        "misfire_policy": data.get("misfirePolicy", "fire_now"),
+        "action": action,
+    }

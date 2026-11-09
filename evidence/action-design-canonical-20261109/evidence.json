@@ -1,5 +1,5 @@
 {
-  "port": 51660,
+  "port": 57544,
   "checks": [
     "owned service PID and runtime verified",
     "designed table hosts canonical and system rows in one list",
@@ -16,6 +16,8 @@
     "manual Run is idempotent and never produces a second Run",
     "pin keeps its existing presentation semantics",
     "an active Run blocks retirement and cancellation keeps history readable",
+    "scheduled-task composition is created and a manual Run leaves the cursor unchanged",
+    "scheduled session-message keeps its delivery composition",
     "delete retires with history still readable instead of faking removal"
   ],
   "errors": [],

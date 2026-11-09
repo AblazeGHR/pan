@@ -92,9 +92,16 @@ data/profile、8767/8768；未 push。
      失败返回 409，body 同时带 `cancelled[]` / `failed[]`，不丢成功事实。
    - 列表按显式 `jobId` 合并旧 registry 行与 canonical 行；旧行沿用既有 `pins`
      事实（测试断言旧 pin 不丢、且同 id 只出现一行）。
-   - 仍未完成：session-message/broadcast 的 `deliveryRuntime` 定时投递、
-     `scheduled-task` 的 Creator/Trigger 组合；JobsView 的点击级流程（表单提交/
-     运行/日志/pin 菜单）尚未逐项验证；真实执行日志需要可运行 worker 的 fixture。
+   - **scheduled-task 已完成**：走既有 `scheduler.canonical_tasks.create`
+     （`legacy_compat` 的调度转换 + `JsonTaskHandoff`），生成 Job + time Creator +
+     Trigger；手动 Run 后 `nextRunAt` 不变（浏览器断言）。
+   - **session-message 定时**：同一适配器（`send_session` + `_schedule` 转换），
+     保留 `deliveryRuntime` 组合；浏览器断言创建成功。
+   - 修复了一处真实缺陷：`_save` 的 committed projection 会对内部文档
+     （`json_scheduler_handoff` 等）调用对象校验并抛 `Unknown object kind`；
+     `_public` 现对内部 kind 直接返回文档，不再校验。
+   - 仍未完成：session-broadcast（多目标）在既有调度适配器中无对等创建路径；
+     JobsView 点击级流程；可执行 worker 的日志验证。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。

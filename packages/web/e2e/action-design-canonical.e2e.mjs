@@ -275,6 +275,35 @@ try {
   assert.equal(still.retired, false);
   evidence.checks.push('an active Run blocks retirement and cancellation keeps history readable');
 
+  const at = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const sched = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'scheduled-task', name: 'Browser Scheduled', target: { sessionId },
+            text: 'scheduled hello', action: { api: 'assign' },
+            schedule: [{ kind: 'once', at }] },
+    headers: { 'x-pan-request-key': 'browser-sched', Origin: base },
+  });
+  assert.equal(sched.status(), 200, await sched.text());
+  const schedJob = (await sched.json()).job;
+  assert.equal(schedJob.kind, 'scheduled-task');
+  const before = (await (await page.request.get(`${base}/api/jobs/legacy/${schedJob.jobId}`)).json()).job;
+  const cursor = before.nextRunAt ?? before.schedule?.[0]?.at ?? null;
+  await page.request.post(`${base}/api/jobs/${schedJob.jobId}/run-now`, {
+    data: {}, headers: { 'x-pan-request-key': 'browser-sched-run', Origin: base },
+  });
+  const afterRun = (await (await page.request.get(`${base}/api/jobs/legacy/${schedJob.jobId}`)).json()).job;
+  assert.equal(afterRun.nextRunAt ?? afterRun.schedule?.[0]?.at ?? null, cursor);
+  evidence.checks.push('scheduled-task composition is created and a manual Run leaves the cursor unchanged');
+
+  const message = await page.request.post(base + '/api/jobs/legacy-create', {
+    data: { kind: 'session-message', name: 'Browser Message',
+            target: { sessionId }, text: 'scheduled hello',
+            schedule: { type: 'once', at } },
+    headers: { 'x-pan-request-key': 'browser-msg', Origin: base },
+  });
+  assert.equal(message.status(), 200, await message.text());
+  assert.equal((await message.json()).job.kind, 'session-message');
+  evidence.checks.push('scheduled session-message keeps its delivery composition');
+
   const spare = await page.request.post(base + '/api/jobs/legacy-create', {
     data: { kind: 'background-process', name: 'Browser Spare', target: { sessionId },
             argv: ['cmd', '/c', 'echo', 'bye'], cwd: runtime },

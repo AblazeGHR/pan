@@ -659,8 +659,23 @@ async def legacy_job_create(request: Request):
     data = await body(request)
     from packages.jobs import legacy_job_compat
     service = _service(request)
-    definition, legacy = legacy_job_compat.definition_for(service, who, data)
     key = legacy_job_compat._request_key(request, data)
+    if data.get("kind") in {"scheduled-task", "session-message"} and data.get("schedule"):
+        # Scheduled kinds use the accepted scheduler adapter: it builds the
+        # Job + time Creator + Trigger graph and keeps the delivery runtime.
+        from packages.scheduler import canonical_tasks
+        payload = legacy_job_compat.scheduler_payload(data)
+        operation = await asyncio.to_thread(canonical_tasks.create, service, payload,
+                                            actor=who, request_key=key)
+        job = await asyncio.to_thread(service.get, "job", operation["result"]["jobId"], actor=who)
+        await asyncio.to_thread(legacy_job_compat.save_binding, service, job["id"],
+                                data.get("kind"), {"kind": data.get("kind"),
+                                                   "target": {"sessionId": payload["target_session_id"]},
+                                                   "text": payload["text"],
+                                                   "schedule": payload["schedule"]})
+        return {"ok": True, "job": legacy_job_compat.job_view(
+            service, job, legacy=legacy_job_compat.load_binding(service, job["id"])["fields"])}
+    definition, legacy = legacy_job_compat.definition_for(service, who, data)
     created = await invoke(request, "write", "job", None,
                            {"definition": definition, "expectedRevision": 0,
                             "requestKey": key}, actor=who)
