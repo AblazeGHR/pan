@@ -96,7 +96,7 @@ export async function runJobNow(jobId: string): Promise<Job> {
 }
 
 export async function pinJob(jobId: string, pinned: boolean): Promise<Job> {
-  const data = await call<{ job?: Job }>(`jobs/${encodeURIComponent(jobId)}/pin`, 'PUT', { pinned });
+  const data = await call<{ job?: Job }>(`jobs/legacy/${encodeURIComponent(jobId)}/pin`, 'PUT', { pinned });
   if (!data.job) throw new Error('job missing in response');
   return data.job;
 }

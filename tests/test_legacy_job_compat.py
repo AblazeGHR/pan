@@ -61,7 +61,7 @@ def test_create_list_detail_pin_delete_use_the_canonical_authority(job_http):
     detail = client.get(f"/api/jobs/legacy/{job['jobId']}").json()
     assert detail['job']['argv'] == ['cmd', '/c', 'echo', 'hi']
 
-    pinned = client.put(f"/api/jobs/{job['jobId']}/pin", json={'pinned': True}).json()
+    pinned = client.put(f"/api/jobs/legacy/{job['jobId']}/pin", json={'pinned': True}).json()
     assert pinned['job']['pinned'] is True
     assert pinned['job']['status'] == 'scheduled'  # pin never changes status
 

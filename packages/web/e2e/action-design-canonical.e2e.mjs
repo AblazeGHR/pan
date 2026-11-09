@@ -256,6 +256,13 @@ try {
   assert.equal((await runs.json()).items.length, 1, 'same requestKey must not create a second Run');
   evidence.checks.push('manual Run is idempotent and never produces a second Run');
 
+  const pinned = await page.request.put(`${base}/api/jobs/legacy/${job.jobId}/pin`, {
+    data: { pinned: true }, headers: { Origin: base },
+  });
+  assert.equal(pinned.status(), 200, await pinned.text());
+  assert.equal((await pinned.json()).job.pinned, true);
+  evidence.checks.push('pin keeps its existing presentation semantics');
+
   const blocked = await page.request.delete(`${base}/api/jobs/${job.jobId}`, { headers: { Origin: base } });
   assert.equal(blocked.status(), 409, 'an active Run must block retirement');
   const cancelled = await page.request.post(`${base}/api/jobs/${job.jobId}/cancel`, {

@@ -683,7 +683,9 @@ async def legacy_job_list(request: Request):
     items = []
     for item in legacy_job_compat.canonical_jobs(service, who):
         binding = legacy_job_compat.load_binding(service, item["id"]) or {}
-        items.append(legacy_job_compat.job_view(service, item, legacy=binding.get("fields")))
+        view = legacy_job_compat.job_view(service, item, legacy=binding.get("fields"))
+        view["pinned"] = legacy_job_compat.get_pin(service, item["id"])
+        items.append(view)
     return {"ok": True, "jobs": items, "pinMetadataStatus": "available"}
 
 
@@ -753,7 +755,7 @@ async def legacy_job_run_now(job_id: str, request: Request):
             "run": {"status": receipt.get("status"), "result": receipt.get("result")}}
 
 
-@router.put("/jobs/{job_id}/pin")
+@router.put("/jobs/legacy/{job_id}/pin")
 async def legacy_job_pin(job_id: str, request: Request):
     who = await actor(request, "job", "updateConfig")
     value = await body(request)
@@ -764,9 +766,9 @@ async def legacy_job_pin(job_id: str, request: Request):
     job = legacy_job_compat.get_canonical(service, job_id, who)
     if job is None:
         raise KeyError(job_id)
-    from packages.jobs import pins
-    from packages.core.platform.data_paths import job_root
-    await asyncio.to_thread(pins.set_pin, job_root(), job_id, value["pinned"])
+    # Canonical presentation pin: the legacy writer fence is closed after
+    # cutover, so the pin lives beside the canonical document instead.
+    await asyncio.to_thread(legacy_job_compat.set_pin, service, job_id, value["pinned"])
     binding = legacy_job_compat.load_binding(service, job_id) or {}
     view = legacy_job_compat.job_view(service, job, legacy=binding.get("fields"))
     view["pinned"] = value["pinned"]
@@ -811,17 +813,25 @@ async def legacy_job_cancel(job_id: str, request: Request):
     if job is None:
         raise KeyError(job_id)
     runs = await invoke(request, "runs", job_id, actor=who, cursor=None, limit=100)
-    cancelled = []
+    cancelled, failed = [], []
     for row in runs.get("items", []):
         if row.get("state") not in {"queued", "running", "retry_wait", "paused_at_boundary"}:
             continue
-        await invoke(request, "control_run", row["runId"], {
-            "operation": "cancel",
-            "expectedStateRevision": row.get("stateRevision", 1),
-            "requestKey": legacy_job_compat._request_key(request) + ":cancel:" + row["runId"],
-        }, actor=who)
-        cancelled.append(row["runId"])
-    return {"ok": True, "cancelled": cancelled}
+        try:
+            await invoke(request, "control_run", row["runId"], {
+                "operation": "cancel",
+                "expectedStateRevision": row.get("stateRevision", 1),
+                "requestKey": legacy_job_compat._request_key(request) + ":cancel:" + row["runId"],
+            }, actor=who)
+            cancelled.append(row["runId"])
+        except Exception as exc:
+            # A partial batch must never be reported as a full success.
+            failed.append({"runId": row["runId"],
+                           "code": getattr(exc, "code", "cancel_failed")})
+    if failed:
+        reject("reference_conflict",
+               "Some Runs could not be cancelled: " + ", ".join(item["runId"] for item in failed))
+    return {"ok": True, "cancelled": cancelled, "failed": failed}
 
 
 for _path, _kind in KINDS.items():

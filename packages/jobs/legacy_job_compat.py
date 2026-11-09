@@ -208,3 +208,18 @@ def patch_definition(service, job, data, kind):
             arguments["sessionIds"] = {"from": "literal", "value": list(target["sessionIds"])}
         step["arguments"] = arguments
     return definition
+
+
+def set_pin(service, job_id, pinned):
+    """Presentation pin in the canonical store, never the retired writer."""
+    from packages.actions.groups import Groups
+    with service.transaction() as db:
+        Groups.save(db, "job_pin", job_id, {"pinned": bool(pinned)})
+
+
+def get_pin(service, job_id):
+    try:
+        with service.transaction(readonly=True) as db:
+            return bool(service._get(db, "job_pin", job_id).get("pinned"))  # noqa: SLF001
+    except KeyError:
+        return False

@@ -1,5 +1,5 @@
 {
-  "port": 54908,
+  "port": 56482,
   "checks": [
     "owned service PID and runtime verified",
     "designed table hosts canonical and system rows in one list",
@@ -14,6 +14,7 @@
     "1280/390/320 keep the designed page readable without horizontal overflow",
     "legacy Job create/list project one canonical Job without duplicate rows",
     "manual Run is idempotent and never produces a second Run",
+    "pin keeps its existing presentation semantics",
     "an active Run blocks retirement and cancellation keeps history readable",
     "delete retires with history still readable instead of faking removal"
   ],

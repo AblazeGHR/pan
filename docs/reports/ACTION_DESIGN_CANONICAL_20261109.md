@@ -85,10 +85,13 @@ data/profile、8767/8768；未 push。
    - 浏览器（隔离真实 HTTP + 生产 Chromium）新增 4 checks：旧形状创建/列表不重复、
      同键手动 Run 不产生第二个 Run、活动 Run 阻断 retire 且取消后历史仍可读、
      无活动 Run 的 Job 删除返回 `retired` 且历史仍可读（共 15 checks）。
+   - **pin 红已修复**：根因是旧 `pins.set_pin` 走 `legacy_pass`，cutover 后 owner
+     fence 拒绝（`Job runtime owner epoch fence rejected writer`）。改为在 canonical
+     store 写 `job_pin` 投影（同 owner 事务），浏览器 cookie 断言恢复并通过。
+   - 取消改为逐 Run 记录：任一失败返回 `reference_conflict` 且不再报整批成功。
    - 仍未完成：session-message/broadcast 的 `deliveryRuntime` 定时投递、
-     `scheduled-task` 的 Creator/Trigger 组合；页面内的点击级 Jobs 流程（创建表单
-     提交、运行、日志、pin 菜单）尚未逐项浏览器验证——pin 在 pytest（bearer）
-     通过，浏览器 cookie 请求返回 `revision_conflict` 待查。
+     `scheduled-task` 的 Creator/Trigger 组合；JobsView 的点击级流程（表单提交/
+     运行/日志/pin 菜单）尚未逐项验证；真实执行日志需要可运行 worker 的 fixture。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。
