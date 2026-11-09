@@ -15,7 +15,8 @@ def job_http(tmp_path, monkeypatch):
     app = FastAPI()
     automation = automation_service.Service(tmp_path / 'automation', SimpleNamespace(workers={}), None)
     automation.auth = final_api.CanonicalUserAuth(tmp_path / 'automation')
-    service = bind(app, automation, tmp_path / 'canonical')
+    canonical_root = tmp_path / 'canonical'
+    service = bind(app, automation, canonical_root)
     app.state.automation = automation
     final_api.install(app)
     # Pin metadata is the only sidecar; keep it inside the isolated runtime.
@@ -29,7 +30,7 @@ def job_http(tmp_path, monkeypatch):
     session_store._cache.clear()
     session_store._all_loaded = False
     owned = session_store.create('Owned session', adapter='cbc', workdir=str(tmp_path))
-    yield client, service, owned.id
+    yield client, service, owned.id, canonical_root
     client.close()
 
 
@@ -41,7 +42,7 @@ def create_process(client, session_id, **extra):
 
 
 def test_create_list_detail_pin_delete_use_the_canonical_authority(job_http):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     # Keep this lifecycle test free of an immediate Run so delete can retire.
     created = create_process(client, session_id, enabled=False)
     assert created.status_code == 200, created.text
@@ -80,7 +81,7 @@ def test_create_list_detail_pin_delete_use_the_canonical_authority(job_http):
 
 
 def test_manual_run_is_idempotent_and_never_advances_a_schedule(job_http):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     job = create_process(client, session_id, name='Run me').json()['job']
     key = 'manual-run-1'
     first = client.post(f"/api/jobs/{job['jobId']}/run-now",
@@ -111,7 +112,7 @@ def test_manual_run_is_idempotent_and_never_advances_a_schedule(job_http):
 
 
 def test_unknown_kind_and_legacy_kind_gaps_are_explicit(job_http):
-    client, _, session_id = job_http
+    client, _, session_id, canonical_root = job_http
     unsupported = client.post('/api/jobs/legacy-create', json={'kind': 'scheduled-task', 'name': 'x'})
     assert unsupported.status_code == 400
     assert unsupported.json()['error']['code'] == 'unsupported_operation'
@@ -123,7 +124,7 @@ def test_unknown_kind_and_legacy_kind_gaps_are_explicit(job_http):
 
 
 def test_legacy_rows_keep_their_pin_and_are_listed_once(job_http, monkeypatch):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     from packages.jobs import api as legacy_api
     legacy_row = {'jobId': 'job_legacy_owned', 'kind': 'background-process', 'name': 'Legacy owned',
                   'status': 'completed', 'pinned': True, 'runCount': 1}
@@ -151,7 +152,7 @@ def _broadcast_body(session_id, text='broadcast hello'):
 
 
 def test_broadcast_same_key_with_different_input_conflicts(job_http):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     # The broadcast runtime product needs the owned delivery provider, which
     # this unit fixture does not mount; the gate is recorded here and the
     # success path lives in the owned harness.
@@ -163,7 +164,7 @@ def test_broadcast_same_key_with_different_input_conflicts(job_http):
 
 
 def test_broadcast_failure_rolls_back_the_whole_graph(job_http, monkeypatch):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     before = {item['id'] for item in service.list('job', actor={'type': 'user', 'id': 'local'})['items']}
 
     def boom(*_args, **_kwargs):
@@ -186,7 +187,7 @@ def test_broadcast_failure_rolls_back_the_whole_graph(job_http, monkeypatch):
 
 
 def test_background_process_starts_once_and_replays_the_same_run(job_http):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     body = {'kind': 'background-process', 'name': 'Immediate', 'target': {'sessionId': session_id},
             'argv': ['cmd', '/c', 'echo', 'hi'], 'cwd': 'C:/owned', 'enabled': True}
     first = client.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'bp-1'})
@@ -207,7 +208,7 @@ def test_background_process_starts_once_and_replays_the_same_run(job_http):
 
 
 def test_rejected_start_reports_the_enabled_phase_without_claiming_a_run(job_http, monkeypatch):
-    client, service, session_id = job_http
+    client, service, session_id, canonical_root = job_http
     body = {'kind': 'background-process', 'name': 'No start', 'target': {'sessionId': session_id},
             'argv': ['cmd', '/c', 'echo', 'hi'], 'cwd': 'C:/owned', 'enabled': True}
 
@@ -224,3 +225,101 @@ def test_rejected_start_reports_the_enabled_phase_without_claiming_a_run(job_htt
     job_id = payload['job']['jobId']
     assert client.get(f'/api/jobs/legacy/{job_id}').json()['job']['enabled'] is True
     assert client.get(f'/api/jobs/{job_id}/runs').json()['items'] == []
+
+
+def _cold_client(canonical_root):
+    """A second app/service over the same canonical root (true cold reader)."""
+    from fastapi import FastAPI
+    from types import SimpleNamespace
+    from fastapi.testclient import TestClient
+    from packages.automation import service as automation_service
+    from packages.jobs import final_api
+    from tests.test_action_unification_p1 import bind
+    app = FastAPI()
+    automation = automation_service.Service(canonical_root.parent / 'automation', SimpleNamespace(workers={}), None)
+    automation.auth = final_api.CanonicalUserAuth(canonical_root.parent / 'automation')
+    service = bind(app, automation, canonical_root)
+    app.state.automation = automation
+    final_api.install(app)
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers['Authorization'] = 'Bearer ' + automation.auth.login(automation.auth.key())
+    return client, service
+
+
+def _process_body(session_id, name='Cold process'):
+    return {'kind': 'background-process', 'name': name, 'target': {'sessionId': session_id},
+            'argv': ['cmd', '/c', 'echo', 'hi'], 'cwd': 'C:/owned', 'enabled': True}
+
+
+def test_cold_service_shares_scope_and_replays_the_original_run(job_http):
+    client, service, session_id, canonical_root = job_http
+    body = _process_body(session_id)
+    first = client.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'cold-1'})
+    assert first.status_code == 200, first.text
+    job_id = first.json()['job']['jobId']
+    cold, cold_service = _cold_client(canonical_root)
+    # The scope identity must match before any replay claim is meaningful.
+    assert cold_service.creators.root == service.creators.root
+    assert cold_service.creators.profile_id == service.creators.profile_id
+    replay = cold.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'cold-1'})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['job']['jobId'] == job_id
+    assert len(cold.get(f'/api/jobs/{job_id}/runs').json()['items']) == 1
+
+
+def test_cold_service_does_not_duplicate_a_run_after_a_rejected_start(job_http, monkeypatch):
+    client, service, session_id, canonical_root = job_http
+    body = _process_body(session_id, 'Cold rejected')
+
+    def refuse(*_args, **_kwargs):
+        from packages.jobs import final_contracts as fc
+        raise fc.ContractError('reference_conflict', 'start refused')
+
+    monkeypatch.setattr(service, 'create_run', refuse)
+    first = client.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'cold-2'})
+    assert first.status_code == 200, first.text
+    assert first.json()['phase'] == 'enabled'
+    job_id = first.json()['job']['jobId']
+    cold, _ = _cold_client(canonical_root)
+    replay = cold.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'cold-2'})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['job']['jobId'] == job_id
+    assert len(cold.get(f'/api/jobs/{job_id}/runs').json()['items']) <= 1
+
+
+def test_cold_recovery_after_only_the_job_write(job_http):
+    """Response lost after write: a cold replay completes the same chain."""
+    client, service, session_id, canonical_root = job_http
+    body = _process_body(session_id, 'Lost after write')
+    from packages.jobs import legacy_job_compat
+    definition, legacy = legacy_job_compat.definition_for(service, {'type': 'user', 'id': 'local'}, body)
+    written = service.write('job', None, {'definition': definition, 'expectedRevision': 0,
+                                          'requestKey': 'lost-write'}, actor={'type': 'user', 'id': 'local'})
+    job_id = written['result']['object']['id']
+    cold, _ = _cold_client(canonical_root)
+    replay = cold.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'lost-write'})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['job']['jobId'] == job_id
+    assert replay.json()['phase'] == 'started'
+    assert len(cold.get(f'/api/jobs/{job_id}/runs').json()['items']) == 1
+
+
+def test_cold_recovery_after_enable(job_http):
+    """Response lost after enable: the replay starts exactly one Run."""
+    client, service, session_id, canonical_root = job_http
+    body = _process_body(session_id, 'Lost after enable')
+    who = {'type': 'user', 'id': 'local'}
+    from packages.jobs import legacy_job_compat
+    definition, _ = legacy_job_compat.definition_for(service, who, body)
+    job = service.write('job', None, {'definition': definition, 'expectedRevision': 0,
+                                      'requestKey': 'lost-enable'}, actor=who)['result']['object']
+    job = service.control('job', job['id'], {
+        'operation': 'enable', 'expectedRevision': job['configRevision'],
+        'expectedStateRevision': job['stateRevision'], 'parameters': {},
+        'requestKey': legacy_job_compat.stage_key('lost-enable', 'enable')}, actor=who)['result']['object']
+    cold, _ = _cold_client(canonical_root)
+    replay = cold.post('/api/jobs/legacy-create', json=body, headers={'x-pan-request-key': 'lost-enable'})
+    assert replay.status_code == 200, replay.text
+    assert replay.json()['job']['jobId'] == job['id']
+    runs = cold.get(f"/api/jobs/{job['id']}/runs").json()['items']
+    assert len(runs) == 1
