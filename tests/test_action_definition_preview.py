@@ -109,14 +109,16 @@ def test_template_draft_supports_explicit_refs_and_names_the_canonical_gap(actio
     # Resolution by id only works for a canonical Template stored under that id.
     assert preview(client, legacy_draft).status_code == 404
 
-    # Named gap: a canonically created Template (`template_*`) cannot be the
-    # target of the legacy job_template quick type; the approved successor is
-    # the legacy adoption mapping, which requires a legacy `jtpl_` id.
+    # A canonically created Template (`template_*`) is a fixed reference too:
+    # the quick type resolves it without an explicit ref and keeps the same
+    # immutable templateRef. Legacy `jtpl_*` ids stay accepted above.
     canonical = preview(client, {**legacy_draft, 'execution': {
         'kind': 'job_template', 'templateId': published['id'],
         'templateRevision': published['revision']}})
-    assert canonical.status_code == 400
-    assert canonical.json()['error']['code'] == 'invalid_schema'
+    assert canonical.status_code == 200, canonical.text
+    target = canonical.json()['definition']
+    assert target['execution']['config']['templateRef'] == template_ref
+    assert target['execution']['config']['legacyTemplate']['templateId'] == published['id']
 
 
 def test_preview_rejects_protected_invalid_and_unknown_drafts(action_http, tmp_path):

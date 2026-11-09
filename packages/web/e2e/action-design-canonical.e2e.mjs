@@ -82,14 +82,16 @@ try {
   // The designed directory is the page; canonical records are an added block.
   await expect(page.getByRole('button', { name: /^Actions/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Groups/ })).toBeVisible();
-  await expect(page.getByText('统一目录条目')).toBeVisible();
-  await expect(page.getByText('Unified Echo', { exact: true }).first()).toBeVisible();
-  evidence.checks.push('designed directory is the page and lists canonical records additively');
+  await expect(page.getByRole('button', { name: '查看 Unified Echo' })).toBeVisible();
+  // System product Actions stay discoverable in the same table (edit restricted,
+  // not hidden). They are rendered as canonical rows.
+  await expect(page.getByText('System').first()).toBeVisible();
+  evidence.checks.push('designed table hosts canonical and system rows in one list');
   await shot('actions-1280');
   await fits('actions list 1280');
 
   // One logical entry, every published version, read-only switching.
-  await page.getByRole('button', { name: '版本与发布' }).first().click();
+  await page.getByRole('button', { name: '查看 Unified Echo' }).click();
   const versionSelect = page.getByLabel('Action version');
   await expect(versionSelect).toBeVisible();
   const options = await versionSelect.locator('option').allInnerTexts();
@@ -100,16 +102,47 @@ try {
   await shot('action-version-1280');
   await page.getByRole('button', { name: '返回列表' }).click();
 
+  // Quick create through the designed form lands in the canonical catalog.
+  await page.getByRole('button', { name: 'New Action', exact: true }).click();
+  await page.getByLabel(/^Name/).fill('Browser Wire Action');
+  await page.getByLabel(/^Description/).fill('Created without JSON');
+  await page.getByRole('switch', { name: 'Enable for build' }).click();
+  await page.getByRole('button', { name: 'Create Action' }).click();
+  await expect(page.getByRole('button', { name: '查看 Browser Wire Action' })).toBeVisible();
+  evidence.checks.push('designed quick-create lands in the canonical catalog and becomes visible');
+
+  // Fixed-version call from the same entry.
+  await page.getByRole('button', { name: '查看 Browser Wire Action' }).click();
+  await page.getByRole('button', { name: '运行固定版本' }).click();
+  await expect(page.getByText(/调用状态：completed|调用状态：unknown/)).toBeVisible();
+  evidence.checks.push('the fixed version runs through the canonical invocation receipt');
+
+  // Structured re-edit from the canonical definition (no JSON required).
+  await page.getByRole('button', { name: '用表单编辑' }).click();
+  await page.getByLabel(/^Name/).fill('Browser Wire Renamed');
+  await page.getByRole('button', { name: 'Save Action' }).click();
+  // The renamed definition becomes a new draft revision and the catalog head
+  // shows the current draft name.
+  await page.getByRole('button', { name: '查看 Browser Wire Renamed' }).click();
+  const editedVersions = page.getByLabel('Action version');
+  await expect(editedVersions.locator('option')).toHaveCount(2);
+  await expect(editedVersions.locator('option').last()).toContainText('draft');
+  await page.getByRole('button', { name: '返回列表' }).click();
+  evidence.checks.push('an expressible canonical Action is re-edited through the designed form');
+
   // Group entry: fixed versions, immutable release history, binding.
   await page.getByRole('button', { name: /^Groups/ }).click();
-  await expect(page.getByText('统一目录条目')).toBeVisible();
-  await page.getByRole('button', { name: '固定版本与 release' }).first().click();
+  await page.getByRole('button', { name: '查看 Unified Tools' }).click();
   const history = page.getByRole('region', { name: 'Release history' });
   await expect(history).toBeVisible();
   await expect(history.locator('li')).toHaveCount(2);
   const older = (await history.locator('li').last().innerText()).split('\n')[0];
   await history.getByRole('button', { name: `查看 ${older}` }).click();
   await expect(page.getByText(older).first()).toBeVisible();
+  // Explicit build publishes a new immutable release from the same fixed tools.
+  await page.getByRole('button', { name: '重新 Build' }).click();
+  await expect(history.locator('li')).toHaveCount(3);
+  evidence.checks.push('Group build publishes a new immutable release on top of the fixed tools');
   evidence.checks.push('Group keeps its fixed release history and opens an older immutable release');
   await shot('group-1280');
   await fits('group detail 1280');
@@ -138,12 +171,16 @@ try {
 
   // Failure negative control: an outside write moves the revision first.
   const seed = JSON.parse(await fs.readFile(path.join(runtime, 'unified-seed.json'), 'utf8'));
+  const currentRevision = await page.evaluate(async (id) => {
+    const pageValue = await (await fetch('/api/action-groups')).json();
+    return pageValue.items.find((item) => item.id === id).revision;
+  }, seed.groupId);
   const outside = await fetch(`${base}/api/action-groups/${seed.groupId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       group: { id: seed.groupId, name: 'Unified Tools', tools: [{ alias: 'echo', actionRef: seed.fixed }] },
-      expectedRevision: seed.groupRevision,
+      expectedRevision: currentRevision,
       requestKey: 'outside-write',
     }),
   });
@@ -160,7 +197,7 @@ try {
       id: seed.groupId,
       body: {
         group: { id: seed.groupId, name: 'Unified Tools', tools: [{ alias: 'echo', actionRef: seed.fixed }] },
-        expectedRevision: seed.groupRevision,
+        expectedRevision: currentRevision,
         requestKey: 'outside-write',
       },
     });
@@ -174,10 +211,10 @@ try {
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(base + '/react/actions');
-    await expect(page.getByText('统一目录条目')).toBeVisible();
+    await expect(page.getByRole('button', { name: '查看 Unified Echo' })).toBeVisible();
     await fits(`actions ${width}`);
     await shot(`actions-${width}`);
-    await page.getByRole('button', { name: '版本与发布' }).first().click();
+    await page.getByRole('button', { name: '查看 Unified Echo' }).click();
     await expect(page.getByLabel('Action version')).toBeVisible();
     await fits(`action detail ${width}`);
     await shot(`action-version-${width}`);

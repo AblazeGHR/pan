@@ -1,9 +1,13 @@
 {
-  "port": 50061,
+  "port": 62868,
   "checks": [
     "owned service PID and runtime verified",
-    "designed directory is the page and lists canonical records additively",
+    "designed table hosts canonical and system rows in one list",
     "one logical Action keeps both published versions in the designed page",
+    "designed quick-create lands in the canonical catalog and becomes visible",
+    "the fixed version runs through the canonical invocation receipt",
+    "an expressible canonical Action is re-edited through the designed form",
+    "Group build publishes a new immutable release on top of the fixed tools",
     "Group keeps its fixed release history and opens an older immutable release",
     "three MCP modes stay available and the binding keeps the plugin CAS",
     "stale Group save fails with revision_conflict and never reports success",

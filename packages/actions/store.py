@@ -192,7 +192,10 @@ def validate_action(raw, automation=True):
                     raise ValueError('Command placeholders require a required field or default')
     elif ex.get('kind') == 'job_template' and automation:
         if (set(ex) != {'kind', 'templateId', 'templateRevision'}
-                or not isinstance(ex['templateId'], str) or not ex['templateId'].startswith('jtpl_')
+                or not isinstance(ex['templateId'], str)
+                # Legacy templates keep their `jtpl_` ids; canonical templates use
+                # `template_`. Both are fixed ids, never a name or a heuristic.
+                or not ex['templateId'].startswith(('jtpl_', 'template_'))
                 or type(ex['templateRevision']) is not int or ex['templateRevision'] < 1
                 or action['effect'] != 'write_local' or schema.get('properties', {})
                 or schema.get('required', [])):

@@ -32,7 +32,7 @@ import { ActionEditorPage, GroupEditorPage } from '@/components/actions/ActionGr
 import { MappedActionPanel } from '@/components/actions/MappedActionPanel';
 import { UseInSessionDialog } from '@/components/actions/UseInSessionDialog';
 import { CanonicalActionPanel } from '@/components/actions/CanonicalActionPanel';
-import { CanonicalDirectorySection } from '@/components/actions/CanonicalDirectorySection';
+import { CanonicalActionRow, CanonicalGroupRow } from '@/components/actions/CanonicalRows';
 import { CanonicalGroupPanel } from '@/components/actions/CanonicalGroupPanel';
 import {
   buildUnifiedActions,
@@ -41,8 +41,6 @@ import {
   rows,
   text,
   withVersionIndex,
-  type UnifiedActionRow,
-  type UnifiedGroupRow,
 } from '@/components/actions/unifiedModel';
 import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
 import {
@@ -123,6 +121,9 @@ export function LegacyActionsView() {
   const [canonicalTarget, setCanonicalTarget] = useState<
     { kind: 'action' | 'group'; key: string } | null
   >(null);
+  // A canonical definition opened through the designed form keeps its own
+  // write authority (PUT jobs/actions) and observed revision.
+  const [canonicalEdit, setCanonicalEdit] = useState<{ id: string; revision: number } | null>(null);
   const sessions = useActionSessionsStore((state) => state.sessions);
 
   const loadCanonical = useCallback(async () => {
@@ -281,6 +282,7 @@ export function LegacyActionsView() {
   function closeEditor() {
     const kind = editor?.kind;
     setEditor(null);
+    setCanonicalEdit(null);
     setCanonicalEditor(null);
     setCanonicalNew(false);
     setCanonicalDuplicateIntent(false);
@@ -318,6 +320,34 @@ export function LegacyActionsView() {
       return;
     }
     setEditorError('');
+    if (canonicalEdit) {
+      try {
+        const { id: _ignored, ...legacyDraft } = draft;
+        void _ignored;
+        const preview = await canonicalRequest<{ definition: JsonObject }>(
+          'jobs/actions/definition-preview',
+          'POST',
+          { draft: legacyDraft },
+        );
+        await canonicalRequest<CanonicalReceipt>(
+          `jobs/actions/${encodeURIComponent(canonicalEdit.id)}`,
+          'PUT',
+          {
+            definition: preview.definition,
+            expectedRevision: canonicalEdit.revision,
+            requestKey: crypto.randomUUID(),
+          },
+        );
+        await loadCanonical();
+        closeEditor();
+        notify('Action 已保存为新草稿版本', 'info');
+      } catch (caught) {
+        const message = messageOf(caught);
+        setEditorError(message);
+        notify(`Couldn’t save Action: ${message}`, 'error');
+      }
+      return;
+    }
     if (editor.mode === 'new') {
       // The designed quick-create form posts a legacy-shaped draft. The
       // read-only definition adapter maps it with the approved adoption
@@ -707,8 +737,40 @@ export function LegacyActionsView() {
     tab === 'actions'
       ? (value: string) => setActionFilter(value as typeof actionFilter)
       : (value: string) => setGroupFilter(value as typeof groupFilter);
-  const visibleCount = tab === 'actions' ? filteredActions.length : filteredGroups.length;
-  const totalCount = tab === 'actions' ? actionCount : groupCount;
+  const canonicalOnlyActions = canonicalCatalog.filter((row) => {
+    if (row.adoption !== 'canonical') return false;
+    const value = actionQuery.trim().toLowerCase();
+    const matches =
+      !value ||
+      row.name.toLowerCase().includes(value) ||
+      row.canonicalId.toLowerCase().includes(value) ||
+      row.description.toLowerCase().includes(value);
+    if (!matches) return false;
+    if (actionFilter === 'enabled') return row.enabled;
+    if (actionFilter === 'draft') return !row.enabled;
+    return true;
+  });
+  const canonicalOnlyGroups = canonicalGroupRows.filter((row) => {
+    if (row.adoption !== 'canonical') return false;
+    const value = groupQuery.trim().toLowerCase();
+    const matches =
+      !value ||
+      row.name.toLowerCase().includes(value) ||
+      row.id.toLowerCase().includes(value) ||
+      row.tools.some((tool) => tool.alias.toLowerCase().includes(value));
+    if (!matches) return false;
+    if (groupFilter === 'built') return Boolean(row.release);
+    if (groupFilter === 'unbuilt') return !row.release;
+    return true;
+  });
+  const visibleCount =
+    tab === 'actions'
+      ? filteredActions.length + canonicalOnlyActions.length
+      : filteredGroups.length + canonicalOnlyGroups.length;
+  const totalCount =
+    tab === 'actions'
+      ? actionCount + canonicalCatalog.filter((row) => row.adoption === 'canonical').length
+      : groupCount + canonicalGroupRows.filter((row) => row.adoption === 'canonical').length;
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
@@ -717,6 +779,16 @@ export function LegacyActionsView() {
           row={targetAction}
           onClose={() => setCanonicalTarget(null)}
           onChanged={loadCanonical}
+          onEditForm={(draft) => {
+            setCanonicalEdit({
+              id: targetAction.canonicalId,
+              revision: Number(targetAction.canonical?.revision ?? 1),
+            });
+            setCanonicalTarget(null);
+            setTab('actions');
+            setEditor(actionEditorState(draft, 'edit'));
+            setEditorError('');
+          }}
         />
       ) : targetGroup ? (
         <CanonicalGroupPanel
@@ -930,17 +1002,6 @@ export function LegacyActionsView() {
             </div>
 
             <div className="px-3 pb-24 pt-3 sm:px-6 sm:pb-10">
-              <CanonicalDirectorySection
-                tab={tab}
-                actions={canonicalCatalog}
-                groups={canonicalGroupRows}
-                onOpenAction={(row: UnifiedActionRow) =>
-                  setCanonicalTarget({ kind: 'action', key: row.key })
-                }
-                onOpenGroup={(row: UnifiedGroupRow) =>
-                  setCanonicalTarget({ kind: 'group', key: row.key })
-                }
-              />
               {refreshError && hasLoaded && (
                 <StaleBanner message={refreshError} onRetry={() => void refresh()} />
               )}
@@ -954,7 +1015,7 @@ export function LegacyActionsView() {
                   <SkeletonList rows={8} kind={tab === 'actions' ? 'action' : 'group'} />
                 </div>
               ) : tab === 'actions' ? (
-                filteredActions.length === 0 ? (
+                filteredActions.length === 0 && canonicalOnlyActions.length === 0 ? (
                   <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
                     {registry.actions.length === 0 ? (
                       <ListEmpty
@@ -998,6 +1059,13 @@ export function LegacyActionsView() {
                       <span className="text-right">Actions</span>
                     </div>
                     <ul aria-label="Actions">
+                      {canonicalOnlyActions.map((row) => (
+                        <CanonicalActionRow
+                          key={row.key}
+                          row={row}
+                          onOpen={() => setCanonicalTarget({ kind: 'action', key: row.key })}
+                        />
+                      ))}
                       {filteredActions.map((action) => (
                         <ActionRow
                           key={action.id}
@@ -1015,7 +1083,7 @@ export function LegacyActionsView() {
                     </ul>
                   </div>
                 )
-              ) : filteredGroups.length === 0 ? (
+              ) : filteredGroups.length === 0 && canonicalOnlyGroups.length === 0 ? (
                 <div className="overflow-hidden rounded-lg border border-border-default bg-bg-secondary/20">
                   {registry.groups.length === 0 ? (
                     <ListEmpty
@@ -1058,6 +1126,13 @@ export function LegacyActionsView() {
                     <span className="text-right">Actions</span>
                   </div>
                   <ul aria-label="Groups">
+                    {canonicalOnlyGroups.map((row) => (
+                      <CanonicalGroupRow
+                        key={row.key}
+                        row={row}
+                        onOpen={() => setCanonicalTarget({ kind: 'group', key: row.key })}
+                      />
+                    ))}
                     {filteredGroups.map((group) => (
                       <GroupRow
                         key={group.id}

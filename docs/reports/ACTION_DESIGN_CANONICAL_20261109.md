@@ -7,11 +7,12 @@ data/profile、8767/8768；未 push。
 
 ## 1. 页面基线
 
-- `/react/actions` 恢复为 practical 的完整设计页（`ActionsView` → `LegacyActionsView`）：
+- `/react/actions` 是 practical 的完整设计页（`ActionsView` → `LegacyActionsView`）：
   同样的标题、两个 tab、表格列、行菜单、全页编辑器与右侧栏。
-- canonical 只作为**页面内的增量**出现：Actions/Groups 各新增一个「统一目录条目」
-  区块，点击进入版本 / 发布 / 固定引用 / release 明细；没有第二个页面、没有整页切换。
-- 系统产品 Action 不出现在该区块（产品维护，不提供用户编辑入口）。
+- canonical 记录**并入同一张表**（不再有并行第二列表）：按显式 identity 合并，
+  只有没有旧身份的 canonical 记录才追加为同网格行；系统产品 Action 同样在表中
+  可发现、可查看、可按原权限调用，只是不提供编辑。
+- 版本 / 发布 / 固定引用 / release / 绑定作为明细页出现，仍是同一页面内的增量。
 
 ## 2. 旧 → 新逐操作映射
 
@@ -20,12 +21,15 @@ data/profile、8767/8768；未 push。
 | Actions 列表 | `GET /api/actions`（旧投影） | 旧投影 + `GET /api/jobs/actions` 增量 | 旧记录仍在原表格；canonical-only 记录在新区块 |
 | Groups 列表 | `GET /api/actions` 的 groups | 同上 + `GET /api/action-groups` | 固定版本/release 在新区块 |
 | 新建 Action（表单） | `POST /api/actions/actions` | `POST /api/jobs/actions/definition-preview` → `POST /api/jobs/actions`（+ `publish`） | 表单字段/校验完全复用；不写 JSON；草稿/发布由 `enabled` 决定 |
+| 结构化编辑 canonical | 无 | 同一表单反向投影 → `definition-preview` → `PUT /api/jobs/actions/{id}` | 仅对旧形状可表达的类型；其余保留完整定义在显式高级区 |
+| 系统 Action 使用 | 旧目录可见 | 同表可见 + 版本/调用；编辑受限 | 产品维护只限制编辑，不隐藏 |
 | 编辑旧 Action | `PUT /api/actions/actions/{id}` | 不变（兼容适配器在已采纳时落 canonical） | 未采纳的旧记录不接管写入权威 |
 | 编辑 canonical 记录 | 无 | `PUT /api/jobs/actions/{id}`（区块内定义编辑器） | 带 `expectedRevision` CAS |
 | 版本列表/切换 | 无 | `GET /api/jobs/actions/{id}/versions` | 切换只读，不发写请求 |
 | 发布/启用/停用 | 旧 registry lifecycle | `POST /api/jobs/actions/{id}/operations` | `expectedRevision` + `expectedStateRevision` |
 | 调用固定版本 | 无 | `POST /api/jobs/actions/{id}/invocations` | `actionRef` + `requestKey`；unknown 只查询不重放 |
 | Group 固定版本 | 无 | `PUT /api/action-groups/{id}` | 工具固定 `{id,revision,digest}`，仅可选已发布启用版本 |
+| 旧 `job_template` 快创 | 仅 `jtpl_*` | 接受 `jtpl_*` 与 canonical `template_*`，解析已发布固定引用 | 保留旧 id 兼容；引用仍是显式 `{id,revision,digest}` |
 | Group build/unbuild/删除 | 旧 `actions/groups/{id}/build` | canonical `POST /{id}/build`、`/{id}/unbuild`、`DELETE` | CAS + requestKey；运行中 Session 阻断 unbuild |
 | release 查看/历史 | 无 | `GET /releases/{version}`、`GET /{id}/releases` | 不可变；历史新到旧、可打开旧版本 |
 | 引用升级 | 旧 `preview-reference-update` | 不变（canonical Group 作用域） | 预览摘要 + 显式 targets |
@@ -44,25 +48,33 @@ data/profile、8767/8768；未 push。
 ## 4. 验证
 
 - 后端聚焦：`tests/test_action_definition_preview.py`(5) +
-  `tests/test_action_group_directory_reads.py`(7) = **12 passed**。
-- 前端：`tsc -b --noEmit` 通过；聚焦 **18 passed**（设计页 16 + canonical 区块 2）；
-  完整 **239 files / 2748 passed / 3 skipped / 0 failed**。
+  `tests/test_action_group_directory_reads.py`(7) + `test_action_unification_p6_families.py`(23)
+  = **35 passed**。
+- 前端：`tsc -b --noEmit` 通过；聚焦 **19 passed**；完整
+  **239 files / 2749 passed / 3 skipped / 0 failed**。
 - `pnpm build`：`Verified 90 compressed production assets`。
 - 隔离真实 HTTP + production Chromium（`e2e/action-design-canonical.e2e.mjs`，
-  fixture `e2e/action-group-unified-server.py`）：7 checks 通过——设计页即页面、
-  canonical 增量可见、单条目两版本只读切换、release 历史可打开旧版本、三种 MCP
-  模式与绑定 CAS、外部改版后保存草稿得到 `revision_conflict`、1280/390/320 无横向溢出。
+  fixture `e2e/action-group-unified-server.py`）：**11 checks** 通过——同一表格承载
+  canonical 与系统行、单条目两版本只读切换、**快捷表单新建→canonical 立即可见**、
+  **固定版本实际调用**、**表单结构化再编辑（生成新草稿版本）**、**Group 显式 Build
+  产生新 release**、release 历史可打开旧版本、三种 MCP 模式与绑定 CAS、外部改版后
+  保存草稿得到 `revision_conflict`、1280/390/320 无横向溢出。
   证据：`evidence/action-design-canonical-20261109/`。
 
 ## 5. 未完成 / 需集中报告（不阻塞以上范围）
 
-1. **Jobs 设计页未移植**：practical `JobsView.tsx`（1512 行）依赖
-   `POST/PATCH /api/jobs`、`/run-now`、`/pin` 等旧调度写入口；main 已把这些写入
-   退役（410）并改为 canonical job/operations。要复用该设计页需要一层 Job 兼容
-   门面（仍落同一 FinalService/owner/receipt），属于后端能力保全缺口，未在本片
-   自行决定。
-2. **旧 `job_template` 快创只能指向旧模板**：canonical 新建的模板（`template_*`）
-   无法作为旧 `job_template` 目标（采纳映射要求 `jtpl_*`）。
-3. **canonical-only 记录的结构化编辑**：只能走区块内的定义编辑器（JSON）；旧表单
-   只覆盖旧形状草稿，未做 canonical→表单的反向投影。
+1. **Jobs 设计页（唯一未完成项）**：逐操作审计结果——
+   `GET /api/jobs`、`/kinds`、`/{id}`、`/{id}/runs` 仍可读；
+   `DELETE /{id}`、`PUT /{id}/pin` 仍可用；`PATCH /{id}` 只对已绑定的
+   scheduled-task 生效（[api.py:638]）；`POST /api/jobs` 与 `POST /{id}/run-now`
+   已明确退役（410，[api.py:493]、[api.py:742]）。
+   canonical 侧只有 job 生命周期（enable/disable/pause/resume/retire）与 run 操作
+   （retry/cancel/pause/resume），**没有“从四种旧 kind 配置创建 Job”和“立即运行一次”
+   的等价操作**。要让 practical 的 `JobsView` 不回归，需要新增 canonical 的
+   job-create（四种 kind → jobDefinition/creator/trigger 的映射）与 run-now
+   （clone-and-run/admission）语义——这是模型层新增，不是接线层薄适配，故按约定
+   集中上报，未自行发明。
+2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
+3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
+   类型保留完整定义在显式高级区。
 4. 未验证：远端 CI、Linux/macOS、真实 data/profile 迁移、真实模型 CLI、部署。

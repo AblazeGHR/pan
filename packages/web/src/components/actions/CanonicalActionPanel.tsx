@@ -7,7 +7,8 @@ import type { JsonObject, CanonicalReceipt } from '@/types/canonicalJobs';
 import { Badge, Field, inputClass } from './ActionsUi';
 import { CanonicalDefinitionEditor } from './CanonicalDefinitionEditor';
 import { definitelyRejected, useOperationIdentity } from './useOperationIdentity';
-import { obj, rows, text, type UnifiedActionRow } from './unifiedModel';
+import { legacyDraftFromDefinition, obj, rows, text, type UnifiedActionRow } from './unifiedModel';
+import type { Action } from '@/types/actions';
 
 const TERMINAL = ['completed', 'rejected', 'cancelled'];
 
@@ -20,10 +21,12 @@ export function CanonicalActionPanel({
   row,
   onClose,
   onChanged,
+  onEditForm,
 }: {
   row: UnifiedActionRow;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  onEditForm?: (draft: Action) => void;
 }) {
   const [versions, setVersions] = useState<JsonObject[]>([]);
   const [revision, setRevision] = useState(0);
@@ -180,6 +183,25 @@ export function CanonicalActionPanel({
           {JSON.stringify(ref, null, 2)}
         </pre>
         <p className="break-all text-sm">{text(definition.description)}</p>
+
+        {!row.system && version && (() => {
+          const draft = legacyDraftFromDefinition(definition, { enabled: row.enabled });
+          return draft && onEditForm ? (
+            <div className="rounded-lg border border-border-default p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold">结构化编辑</h3>
+                <span className="text-[11px] text-text-tertiary">
+                  用原快捷表单编辑可表达字段；保存生成新版本，发布仍需显式操作。
+                </span>
+                <span className="ml-auto">
+                  <Button size="sm" variant="primary" onClick={() => onEditForm(draft)}>
+                    用表单编辑
+                  </Button>
+                </span>
+              </div>
+            </div>
+          ) : null;
+        })()}
 
         {!row.system && version && (
           <div className="rounded-lg border border-border-default p-3">

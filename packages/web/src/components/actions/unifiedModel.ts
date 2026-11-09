@@ -372,3 +372,78 @@ export function adoptionTone(
   if (adoption === 'preserved') return 'warning';
   return 'muted';
 }
+
+/**
+ * Reverse projection of a canonical Action definition into the designed
+ * quick-create form. Only shapes the form can express are converted; anything
+ * else returns null so the caller keeps the full definition in the explicit
+ * advanced area instead of dropping fields.
+ */
+export function legacyDraftFromDefinition(
+  definition: JsonObject,
+  options: { enabled: boolean },
+): Action | null {
+  const execution = obj(definition.execution);
+  const operation = text(execution.operation);
+  const config = obj(execution.config);
+  const schema = obj(definition.inputSchema);
+  const base = {
+    id: '',
+    name: text(definition.name),
+    description: text(definition.description),
+    enabled: options.enabled,
+    effect: (text(definition.effectClass, 'read') as Action['effect']),
+    output_format: 'json' as const,
+    input_schema: {
+      type: 'object' as const,
+      properties: (schema.properties ?? {}) as Action['input_schema']['properties'],
+      ...(Array.isArray(schema.required) ? { required: schema.required as string[] } : {}),
+      additionalProperties: false as const,
+    },
+  };
+  const keys = (value: JsonObject) => Object.keys(value).sort().join(',');
+  if (operation === 'api.get' && keys(config) === 'method,path' && config.method === 'GET') {
+    return { ...base, execution: { kind: 'api', method: 'GET', path: text(config.path) } };
+  }
+  if (operation === 'process.command' && ['args,cwd,executable,timeout_sec', 'args,cwd,executable'].includes(keys(config))) {
+    const args = Array.isArray(config.args) ? config.args : [];
+    if (!args.every((item) => typeof item === 'string')) return null;
+    return {
+      ...base,
+      // An argv placeholder would be shell-expanded differently here; keep it
+      // in the advanced area instead of silently rewriting the command.
+      execution: {
+        kind: 'command',
+        executable: text(config.executable),
+        args: args as string[],
+        cwd: text(config.cwd),
+        timeout_sec: typeof config.timeout_sec === 'number' ? config.timeout_sec : undefined,
+      },
+    };
+  }
+  if (operation === 'session.pause-everything' && keys(config) === 'operation,selector'
+      && config.operation === 'pause_everything') {
+    const selector = obj(config.selector);
+    if (!['explicit', 'event', 'query'].includes(text(selector.mode))) return null;
+    return {
+      ...base,
+      effect: 'write_local',
+      execution: { kind: 'session_operation', operation: 'pause_everything', selector: selector as never },
+    };
+  }
+  if (operation === 'template.instantiate' && keys(config) === 'legacyTemplate,templateRef') {
+    const legacyTemplate = obj(config.legacyTemplate);
+    if (text(legacyTemplate.kind) !== 'job_template') return null;
+    return {
+      ...base,
+      effect: 'write_local',
+      input_schema: { type: 'object', properties: {}, additionalProperties: false },
+      execution: {
+        kind: 'job_template',
+        templateId: text(legacyTemplate.templateId),
+        templateRevision: Number(legacyTemplate.templateRevision) || 1,
+      },
+    };
+  }
+  return null;
+}

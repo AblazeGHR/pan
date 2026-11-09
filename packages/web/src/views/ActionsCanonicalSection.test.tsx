@@ -64,9 +64,9 @@ afterEach(cleanup);
 
 it('shows canonical-only Actions inside the designed page and opens their versions', async () => {
   render(<LegacyActionsView />);
-  expect(await screen.findByText('统一目录条目')).toBeTruthy();
-  expect(screen.getByText('Canonical Echo')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: '版本与发布' }));
+  // One table: the canonical-only Action sits in the same list as legacy rows.
+  expect(await screen.findByRole('button', { name: '查看 Canonical Echo' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '查看 Canonical Echo' }));
   const select = await screen.findByLabelText('Action version');
   expect((select as HTMLSelectElement).value).toBe('2');
   expect(select.querySelectorAll('option')).toHaveLength(2);
@@ -119,6 +119,69 @@ it('does not require JSON for creation: the designed form posts a mapped definit
   expect(
     vi.mocked(actionRequest).mock.calls.some(
       ([path, method]) => path === 'actions/actions' && method === 'POST',
+    ),
+  ).toBe(false);
+});
+
+it('edits an expressible canonical Action through the designed form', async () => {
+  vi.mocked(canonicalRequest).mockImplementation(async (path, method, body) => {
+    if (path === 'jobs/actions')
+      return {
+        items: [{ ...canonicalAction, execution: { operation: 'api.get', config: { method: 'GET', path: '/api/sessions' } } }],
+        versions: { canon_echo: { count: 2, latest: ref(2) } },
+        references: { canon_echo: ref(2) },
+      } as never;
+    if (path === 'action-groups') return { items: [] } as never;
+    if (String(path).startsWith('action-groups/legacy-action-bindings'))
+      return { items: [], nextCursor: null } as never;
+    if (path === 'jobs/actions/canon_echo/versions')
+      return {
+        items: [
+          {
+            revision: 2,
+            ref: ref(2),
+            state: 'published',
+            enabled: true,
+            definition: {
+              name: 'Canonical Echo',
+              description: 'canonical only',
+              effectClass: 'read',
+              inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+              execution: { operation: 'api.get', config: { method: 'GET', path: '/api/sessions' } },
+            },
+          },
+        ],
+      } as never;
+    if (path === 'jobs/actions/definition-preview')
+      return { definition: { name: 'Renamed head', execution: { operation: 'api.get', config: {} } } } as never;
+    if (path === 'jobs/actions/canon_echo' && method === 'PUT')
+      return { status: 'completed', operationId: 'op', requestKey: (body as { requestKey: string }).requestKey } as never;
+    throw new Error(`Unhandled canonical ${path}`);
+  });
+  render(<LegacyActionsView />);
+  fireEvent.click(await screen.findByRole('button', { name: '查看 Canonical Echo' }));
+  fireEvent.click(await screen.findByRole('button', { name: '用表单编辑' }));
+  // The designed form is populated from the canonical definition, not JSON.
+  fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Renamed head' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));
+  await waitFor(() =>
+    expect(
+      vi.mocked(canonicalRequest).mock.calls.some(
+        ([path, method]) => path === 'jobs/actions/canon_echo' && method === 'PUT',
+      ),
+    ).toBe(true),
+  );
+  const put = vi.mocked(canonicalRequest).mock.calls.find(
+    ([path, method]) => path === 'jobs/actions/canon_echo' && method === 'PUT',
+  )!;
+  expect((put[2] as { expectedRevision: number }).expectedRevision).toBe(2);
+  expect(
+    vi.mocked(canonicalRequest).mock.calls.some(([path]) => path === 'jobs/actions/definition-preview'),
+  ).toBe(true);
+  // The legacy writer is not used for a canonical record.
+  expect(
+    vi.mocked(actionRequest).mock.calls.some(
+      ([path, method]) => path?.startsWith('actions/actions/') && method === 'PUT',
     ),
   ).toBe(false);
 });
