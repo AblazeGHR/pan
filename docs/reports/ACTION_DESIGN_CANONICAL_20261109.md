@@ -63,17 +63,31 @@ data/profile、8767/8768；未 push。
 
 ## 5. 未完成 / 需集中报告（不阻塞以上范围）
 
-1. **Jobs 设计页（唯一未完成项）**：逐操作审计结果——
-   `GET /api/jobs`、`/kinds`、`/{id}`、`/{id}/runs` 仍可读；
-   `DELETE /{id}`、`PUT /{id}/pin` 仍可用；`PATCH /{id}` 只对已绑定的
-   scheduled-task 生效（[api.py:638]）；`POST /api/jobs` 与 `POST /{id}/run-now`
-   已明确退役（410，[api.py:493]、[api.py:742]）。
-   canonical 侧只有 job 生命周期（enable/disable/pause/resume/retire）与 run 操作
-   （retry/cancel/pause/resume），**没有“从四种旧 kind 配置创建 Job”和“立即运行一次”
-   的等价操作**。要让 practical 的 `JobsView` 不回归，需要新增 canonical 的
-   job-create（四种 kind → jobDefinition/creator/trigger 的映射）与 run-now
-   （clone-and-run/admission）语义——这是模型层新增，不是接线层薄适配，故按约定
-   集中上报，未自行发明。
+1. **Jobs 设计页（唯一未完成项，已核对原语，不是“无等价模型”）**
+   - 原语确认：`POST /api/jobs/{job_id}/runs` = 手动 Run（[final_api.py:659]），
+     进入 `FinalService.create_run` → `_admit`（[final_service.py:1425]/:1371），
+     `cause={type:'manual'}`，不推进 schedule cursor；重复 `requestKey` 由
+     `final_operations` 回放，不重放副作用。canonical Job 创建走通用
+     `POST /api/jobs` → `FinalService.write`（[final_api.py:388]）。
+   - 实测（临时用例，已删除）：`product_process` + literal 绑定
+     `{from:'literal',value:…}` 的 Job definition 可创建、enable、`create_run`
+     完成，`/runs` 可读。故 background-process 的映射确实是薄映射。
+   - 阻塞在**地址与投影**，不是“没有模型”：`/api/jobs` 现为 canonical 列表，
+     旧门面只在 `/api/legacy/jobs`（[final_api.py:809-866]）；旧列表/详情/pin/删除
+     都基于 `_find_job` 的旧 runtime（[api.py:81]）与 `pins` 侧车，
+     看不到 canonical Job。
+   - 仍需新建的不是“执行引擎”，而是：
+     (a) 一份 **Job 兼容投影模块**：canonical Job → 旧形状（jobId/kind/status/
+         config/pin/runCount/nextRunAt），并把 `/api/legacy/jobs` 的列表/详情/
+         pin/删除改为“旧 runtime ∪ canonical”；
+     (b) 四种 kind 的表单 → Job definition 映射：background-process 已证可行；
+         session-message / session-broadcast 需要 `deliveryRuntime` 声明
+         （[final_contracts.py:2118] 起校验）才能保持原投递语义；
+         scheduled-task 需要 Creator/Trigger 组合（`instantiate_template` 路径）；
+     (c) practical `JobsView.tsx`(1512 行) 与其 api 客户端移植，并把
+         `runJobNow` 指到 `POST /api/jobs/{id}/runs`。
+   - 以上 (a)(b)(c) 是同一片工作的三个部分，缺一即回归（页面打不开或创建 410），
+     因此本片未以半成品形式落地；Actions/Groups 已全部完成并验证。
 2. ~~旧 `job_template` 只能指向旧模板~~：已支持 canonical `template_*`，保留 `jtpl_*`。
 3. ~~canonical-only 只有 JSON 编辑~~：已做旧形状可表达类型的反向投影；不可表达
    类型保留完整定义在显式高级区。
