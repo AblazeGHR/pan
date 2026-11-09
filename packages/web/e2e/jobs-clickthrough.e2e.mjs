@@ -163,48 +163,72 @@ try {
   }
   evidence.checks.push(`created all four kinds through New Job: ${evidence.kinds.join(', ')}`);
 
-  // Row menu on the process job: edit, run, pin, cancel.
-  await page.getByRole('button', { name: 'Job actions' }).first().click();
-  evidence.menuItems = await page.getByRole('menuitem').allInnerTexts();
-  await page.mouse.click(5, 5);
-
-  const menu = (pattern) => page.getByRole('menuitem', { name: pattern }).first();
-  await page.getByRole('button', { name: 'Job actions' }).first().click();
-  if (await menu(/^Edit|^编辑/).count()) {
-    await menu(/^Edit|^编辑/).click();
+  // Row operations follow the designed controls: the row opens the detail
+  // drawer (edit lives there), Cancel is a row button, the menu has Pin/Delete
+  // and Run now only for scheduled-task rows.
+  const rowName = 'Click process Job';
+  await page.getByText(rowName, { exact: false }).first().click();
+  await expect(page.getByRole('dialog').or(page.getByRole('complementary')).first()).toBeVisible();
+  const drawerText = await page.locator('body').innerText();
+  evidence.drawerHasEdit = /Edit|编辑/.test(drawerText);
+  const editButton = page.getByRole('button', { name: /^Edit|^编辑/ }).first();
+  if (await editButton.count()) {
+    await editButton.click();
     const editDialog = page.getByRole('dialog');
     if (await editDialog.getByLabel('Name').count()) {
       await editDialog.getByLabel('Name').fill('Click process Job edited');
       await editDialog.getByRole('button', { name: /^Save$|^保存$/ }).first().click();
       await expect(page.getByText('Click process Job edited', { exact: false }).first()).toBeVisible();
-      evidence.checks.push('edited the Job name from the row menu');
+      evidence.checks.push('edited the Job name from the designed detail');
     }
   } else {
-    await page.mouse.click(5, 5);
+    await page.keyboard.press('Escape').catch(() => {});
   }
 
-  await page.getByRole('button', { name: 'Job actions' }).first().click();
-  if (await menu(/Run now|^运行/).count()) {
-    await menu(/Run now|^运行/).click();
-    evidence.checks.push('manual Run is reachable');
-  } else {
-    await page.mouse.click(5, 5);
+  // Close the detail drawer the way the component supports (Escape/backdrop).
+  const drawer = page.getByRole('dialog', { name: 'Job detail' });
+  if (await drawer.count()) {
+    await page.keyboard.press('Escape');
+    await expect(drawer).toHaveCount(0);
   }
 
-  await page.getByRole('button', { name: 'Job actions' }).first().click();
-  if (await menu(/Pin|置顶/).count()) {
-    await menu(/Pin|置顶/).click();
-    evidence.checks.push('pin is reachable');
+  // Menu actions: open once, read the real items, close through the backdrop
+  // exactly like a user click (no forced clicks).
+  const openMenu = async () => {
+    await page.getByRole('button', { name: 'Job actions' }).first().click();
+    return page.getByRole('menuitem').allInnerTexts();
+  };
+  const closeMenu = async () => {
+    const backdrop = page.locator('div.fixed.inset-0.z-20').first();
+    if (await backdrop.count()) await backdrop.click();
+  };
+  evidence.menuItems = await openMenu();
+  if ((await page.getByRole('menuitem', { name: /^Pin$/ }).count())) {
+    await page.getByRole('menuitem', { name: /^Pin$/ }).click();
+    evidence.checks.push('pin from the row menu');
   } else {
-    await page.mouse.click(5, 5);
+    await closeMenu();
   }
 
-  await page.getByRole('button', { name: 'Job actions' }).first().click();
-  if (await menu(/Cancel|取消/).count()) {
-    await menu(/Cancel|取消/).click();
-    evidence.checks.push('cancel is reachable');
+  // Cancel appears only for active rows; assert the control's presence rule.
+  evidence.cancelControl = await page.getByRole('button', { name: /Cancel job/ }).count();
+  if (evidence.cancelControl) {
+    await page.getByRole('button', { name: /Cancel job/ }).first().click();
+    evidence.checks.push('cancel control reachable on the active row');
+  }
+
+  await openMenu();
+  if (await page.getByRole('menuitem', { name: /^Delete$/ }).count()) {
+    await page.getByRole('menuitem', { name: /^Delete$/ }).click();
+    const confirm = page.getByRole('dialog');
+    if (await confirm.count()) {
+      const dangerous = confirm.getByRole('button', { name: /Delete|删除/ }).last();
+      if (await dangerous.count()) await dangerous.click();
+      await expect(page.getByText(rowName, { exact: false })).toHaveCount(0);
+      evidence.checks.push('delete removes the row after confirmation');
+    }
   } else {
-    await page.mouse.click(5, 5);
+    await closeMenu();
   }
 
   assert.deepEqual(evidence.errors, []);

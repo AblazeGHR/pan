@@ -1,7 +1,11 @@
 {
   "checks": [
     "single unified Jobs list with one New Job entry",
-    "created all four kinds through New Job: background-process, session-message"
+    "created all four kinds through New Job: background-process, session-message",
+    "edited the Job name from the designed detail",
+    "pin from the row menu",
+    "cancel control reachable on the active row",
+    "delete removes the row after confirmation"
   ],
   "kinds": [
     "background-process",
@@ -18,11 +22,11 @@
   "broadcastBlocked": true,
   "scheduled": "no explicit alert",
   "scheduledBlocked": true,
+  "drawerHasEdit": true,
   "menuItems": [
     "Pin",
     "Delete"
   ],
-  "status": "failed",
-  "failure": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: 'Job actions' }).first()\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" title=\"Job actions\" aria-haspopup=\"menu\" aria-expanded=\"true\" aria-label=\"Job actions\" class=\"shrink-0 rounded border border-transparent p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-wait disabled:opacity-50\">…</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"fixed inset-0 z-20\"></div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div class=\"fixed inset-0 z-20\"></div> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    58 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div class=\"fixed inset-0 z-20\"></div> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\n    at D:\\project\\pan-worktrees\\action-group-design-canonical-20261109\\packages\\web\\e2e\\jobs-clickthrough.e2e.mjs:172:67",
-  "pageText": "Pan\nChat\nEditor\nTerminal\nLocker\nActions\nAutomation\nNew\nImport\nrecent\nOwned Alpha\n—\ncbc\nOwned Beta\n—\ncbc\nowned-a\n—\nJ\ncbc\nowned-b\n—\ncbc\nowned-unknown\n—\ncbc\n工作区\n全部\n5\n无工作区\n5\n新建工作区\n全部\nJobs\nNew Job\nSettings\n\n统一 Job 列表 · 新记录与仍在旧 registry 的记录按 jobId 合并展示；来源与阻断原因在行内标注。\n\nAll\nActive\nScheduled\nCompleted\nFailed\nTimeout\nUndeliverable\nKind\nAll kinds\n后台进程\n定时消息\n群发消息\n定时任务\n服务生命周期\nRefresh\nSearch\nSort by \nActive first\nUpdated time\nCreated time\nKind\nDescending\nPinned jobs first\n2 of 2 jobs\nSelect jobs\nClick message Job\nCancel job\nPin\nDelete\nscheduled\n定时消息\nuser → owned-a\ndeliveries 0\nClick message Job description\nClick process Job\nCancel job\nscheduled\n后台进程\nuser → owned-a\nlegacy scheduled\nClick process Job description"
+  "cancelControl": 2,
+  "status": "passed"
 }
