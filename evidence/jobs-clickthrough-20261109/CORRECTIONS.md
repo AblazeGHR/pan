@@ -18,3 +18,12 @@ the UI and no real Run/log was asserted. That label overstated the scope.
 - What it does not prove: broadcast/scheduled-task creation and any Run/log
   behaviour. Those stay red until the owned provider fixture covers the
   production Action refs.
+
+## Second correction — 2026-11-09 (immediate start)
+
+After `ecd62e32`, a legacy background-process Job starts on creation and the
+designed detail shows the real Run reaching `completed`; the "run and logs"
+item was removed from the blocked list because the run is now proven in the UI
+(`processStatus: completed`). Logs were read from the canonical log route in the
+separate process probe (attempt + logRef), not yet asserted inside the drawer.
+Still blocked: broadcast and scheduled-task creation (harness provider).

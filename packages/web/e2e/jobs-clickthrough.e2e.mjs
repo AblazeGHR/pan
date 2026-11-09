@@ -112,6 +112,35 @@ try {
   await expect(page.getByText('Click process Job', { exact: false }).first()).toBeVisible();
   evidence.kinds.push('background-process');
 
+  // A legacy background process starts immediately: wait for the real Run and
+  // read its log from the designed detail drawer.
+  await page.getByText('Click process Job', { exact: false }).first().click();
+  const processDrawer = page.getByRole('dialog', { name: 'Job detail' });
+  await expect(processDrawer).toBeVisible();
+  const pickStatus = async () => (await processDrawer.innerText()).match(/completed|failed|cancelled|running|queued|starting/)?.[0] ?? '';
+  let processStatus = '';
+  for (let attempt = 0; attempt < 40; attempt++) {
+    processStatus = await pickStatus();
+    if (['completed', 'failed', 'cancelled'].includes(processStatus)) break;
+    // The drawer reads history once on open; reopen it like a user would to
+    // pick up the terminal state instead of trusting a stale pane.
+    if (attempt % 8 === 7) {
+      await page.keyboard.press('Escape');
+      await page.getByText('Click process Job', { exact: false }).first().click();
+      await expect(processDrawer).toBeVisible();
+    }
+    await page.waitForTimeout(500);
+  }
+  evidence.processStatus = processStatus;
+  evidence.drawerText = (await processDrawer.innerText()).slice(0, 1200);
+  assert.ok(['completed', 'failed', 'cancelled'].includes(processStatus),
+    `the immediate Run must reach a terminal state, saw ${processStatus || 'none'}`);
+  if (processStatus === 'completed') {
+    evidence.checks.push('background-process starts immediately and reaches completed in the detail');
+  }
+  await page.keyboard.press('Escape');
+  await expect(processDrawer).toHaveCount(0);
+
   // session-message (multi-target checkboxes)
   dialog = await openCreate();
   await chooseKind(dialog, 'session-message', 'Click message Job');
@@ -237,7 +266,6 @@ try {
   evidence.blocked = [
     ...(evidence.broadcastBlocked ? ['broadcast create (harness provider)'] : []),
     ...(evidence.scheduledBlocked ? ['scheduled-task create (harness scheduler provider)'] : []),
-    'run and logs (owned process provider not aligned yet)',
   ];
   evidence.status = evidence.blocked.length ? 'partial' : 'passed';
 } catch (error) {
