@@ -1,0 +1,49 @@
+INFO:     Started server process [34608]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:53649 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55996 - "GET /test/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55997 - "GET /test/ready HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52407 - "GET /react/automation HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52407 - "GET /react/assets/index-Bdtt3wNw-pc2.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58051 - "GET /react/assets/index-IzaVS1DO.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64517 - "GET /react/assets/react-vendor-DNy7vAOG.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52407 - "GET /api/automation/session HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64517 - "GET /api/settings/ui HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64517 - "GET /api/job-maintenance/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64517 - "GET /react/assets/AutomationView-CIx2ty5h.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52407 - "GET /react/assets/CanonicalDefinitionFields-DWFN2VaI.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58051 - "GET /react/assets/JobUserAuthorization-C3mqL8tm.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60278 - "GET /react/assets/ScheduleListEditor-C4KWd65L.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59963 - "GET /react/assets/CanonicalJobsView-LQIoQzVs.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50320 - "GET /react/assets/SessionOperationFields-CnPoMack.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64517 - "GET /react/assets/check-B1Ae46YB.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60278 - "GET /react/assets/copy-BP3imO6X.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60278 - "GET /api/locker-unread-summary HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64517 - "GET /api/workspaces HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59963 - "GET /api/cli/status HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50320 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60278 - "GET /api/plugins/panels HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58051 - "GET /api/platform HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59963 - "GET /api/sessions?summary=1 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64517 - "GET /api/list HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52950 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:63174 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:58717 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:59446 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:64517 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56348 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:61828 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57105 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:61828 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61828 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54689 - "WebSocket /ws" 403
+INFO:     connection rejected (403 Forbidden)
+INFO:     127.0.0.1:61828 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61828 - "GET /api/main/startup-recovery HTTP/1.1" 404 Not Found
