@@ -128,7 +128,9 @@ it('publishes or disables the mapped canonical head with observed CAS', async ()
   await openMapped();
   fireEvent.click(screen.getByRole('button', { name: 'Publish canonical Action' }));
   await waitFor(() => expect(canonicalRequest).toHaveBeenCalled());
-  const [path, method, body] = vi.mocked(canonicalRequest).mock.calls[0]!;
+  const [path, method, body] = vi.mocked(canonicalRequest).mock.calls.find(
+    ([value]) => String(value).endsWith('/operations'),
+  )!;
   expect(path).toBe('jobs/actions/action_original/operations');
   expect(method).toBe('POST');
   expect(body).toMatchObject({
@@ -145,7 +147,9 @@ it('does not silently advance canonical CAS when the registry refreshes', async 
   registry.canonicalActions!.old_alias!.object.stateRevision = 4;
   fireEvent.click(screen.getByRole('button', { name: 'Disable canonical Action' }));
   await waitFor(() => expect(canonicalRequest).toHaveBeenCalled());
-  expect(vi.mocked(canonicalRequest).mock.calls[0]![2]).toMatchObject({
+  expect(
+    vi.mocked(canonicalRequest).mock.calls.find(([value]) => String(value).endsWith('/operations'))?.[2],
+  ).toMatchObject({
     operation: 'disable',
     expectedRevision: 7,
     expectedStateRevision: 3,
@@ -153,14 +157,21 @@ it('does not silently advance canonical CAS when the registry refreshes', async 
 });
 
 it('keeps an uncertain lifecycle request query-only and never resends it', async () => {
-  vi.mocked(canonicalRequest).mockRejectedValueOnce(new TypeError('Network disconnected'));
+  let failed = false;
+  vi.mocked(canonicalRequest).mockImplementation(async (path) => {
+    if (String(path).endsWith('/operations') && !failed) {
+      failed = true;
+      throw new TypeError('Network disconnected');
+    }
+    if (String(path).startsWith('operations?')) return receipt() as never;
+    return { items: [], references: {}, nextCursor: null } as never;
+  });
   await openMapped();
   fireEvent.click(screen.getByRole('button', { name: 'Disable canonical Action' }));
   await screen.findByText(/Network disconnected/);
   expect(
     (screen.getByRole('button', { name: 'Disable canonical Action' }) as HTMLButtonElement).disabled,
   ).toBe(true);
-  vi.mocked(canonicalRequest).mockResolvedValueOnce(receipt() as never);
   fireEvent.click(screen.getByRole('button', { name: '查询原生命周期操作' }));
   await screen.findByText(/操作状态：completed/);
   const writes = vi
@@ -174,9 +185,10 @@ it('keeps an uncertain lifecycle request query-only and never resends it', async
 });
 
 it('shows permission denial without retrying and preserves the draft reason', async () => {
-  vi.mocked(canonicalRequest).mockRejectedValueOnce(
-    new ApiRequestError(403, 'Object capability denied'),
-  );
+  vi.mocked(canonicalRequest).mockImplementation(async (path) => {
+    if (String(path).endsWith('/operations')) throw new ApiRequestError(403, 'Object capability denied');
+    return { items: [], references: {}, nextCursor: null } as never;
+  });
   await openMapped();
   fireEvent.click(screen.getByRole('button', { name: 'Disable canonical Action' }));
   expect((await screen.findByRole('alert')).textContent).toContain('没有执行此操作的权限');

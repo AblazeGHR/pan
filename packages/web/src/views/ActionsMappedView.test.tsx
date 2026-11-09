@@ -37,7 +37,9 @@ it('opens the full mapped definition through the old Edit entry and keeps its ob
   useActionRegistryStore.setState({ registry: structuredClone(registry) });
   fireEvent.click(screen.getByRole('button', { name: '保存草稿版本' }));
   await waitFor(() => expect(canonicalRequest).toHaveBeenCalled());
-  const [path, method, body] = vi.mocked(canonicalRequest).mock.calls[0]!;
+  const [path, method, body] = vi.mocked(canonicalRequest).mock.calls.find(
+    ([value]) => value === 'jobs/actions/action_original',
+  )!;
   expect(path).toBe('jobs/actions/action_original');
   expect(method).toBe('PUT');
   expect(body).toMatchObject({ expectedRevision: 7, definition: edited });
@@ -51,5 +53,8 @@ it('retains the existing discard confirmation for unsaved multi-command text', a
   fireEvent.click(screen.getByRole('button', { name: '编辑为新草稿版本' }));
   fireEvent.click(screen.getByRole('button', { name: '返回旧目录' }));
   expect((await screen.findByRole('dialog')).textContent).toContain('Discard unsaved changes?');
-  expect(canonicalRequest).not.toHaveBeenCalled();
+  // Opening the discard guard must not write; the additive catalog read is allowed.
+  expect(
+    vi.mocked(canonicalRequest).mock.calls.some(([, verb]) => verb === 'PUT' || verb === 'POST' || verb === 'DELETE'),
+  ).toBe(false);
 });

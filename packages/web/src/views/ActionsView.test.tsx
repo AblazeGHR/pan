@@ -2,14 +2,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LegacyActionsView as ActionsView } from './ActionsView';
-import { actionRequest } from '@/services/api';
+import { actionRequest, canonicalRequest } from '@/services/api';
 import { resetActionCachesForTests, useActionRegistryStore } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry } from '@/types/actions';
 import type { Session } from '@/types';
 import { useSessionOperationTemplateStore } from '@/stores/sessionOperationTemplateStore';
 
-vi.mock('@/services/api', () => ({ actionRequest: vi.fn() }));
+vi.mock('@/services/api', () => ({ actionRequest: vi.fn(), canonicalRequest: vi.fn() }));
 const invoke = vi.mocked(actionRequest);
+const canonical = vi.mocked(canonicalRequest);
+
+/** Canonical create: preview maps the designed draft, then the catalog write. */
+function canonicalCreateMock(nameOf: (draft: Record<string, unknown>) => string = () => 'created') {
+  canonical.mockImplementation(async (path, method, body) => {
+    const value = (body ?? {}) as Record<string, unknown>;
+    if (path === 'jobs/actions/definition-preview') {
+      const draft = value.draft as Record<string, unknown>;
+      return { definition: { name: nameOf(draft), execution: { operation: 'api.get', config: {} } } } as never;
+    }
+    if (path === 'jobs/actions' && method === 'POST') {
+      return {
+        status: 'completed',
+        operationId: 'op-create',
+        requestKey: value.requestKey,
+        result: { object: { id: 'action_created', revision: 1, stateRevision: 1, state: 'draft' } },
+      } as never;
+    }
+    return { items: [] } as never;
+  });
+}
 
 const source: Action = {
   id: 'list_sessions',
@@ -52,6 +73,10 @@ beforeEach(() => {
   registry = { revision: 1, actions: [structuredClone(source)], groups: [] };
   nextId = 1;
   invoke.mockReset();
+  vi.mocked(canonicalRequest).mockReset();
+  // The designed page reads the canonical catalog additively; an empty catalog
+  // keeps the legacy fixture assertions unchanged.
+  vi.mocked(canonicalRequest).mockResolvedValue({ items: [] } as never);
   resetActionCachesForTests();
   useSessionOperationTemplateStore.setState({ data: null, error: '' });
   invoke.mockImplementation(async (path, method = 'GET', body) => {
@@ -232,7 +257,8 @@ describe('Action create, edit and duplicate', () => {
     expect(registry.groups).toEqual(groupBefore);
     expect(invoke.mock.calls.filter(([path, method]) => path === 'actions' && (!method || method === 'GET'))).toHaveLength(1);
   });
-  it('creates Session Operation in the new editor and rejects invalid Event targets without posting', async () => {
+  it('creates Session Operation through the canonical definition adapter and rejects invalid Event targets without posting', async () => {
+    canonicalCreateMock(() => 'New pause');
     await renderList();
     fireEvent.click(screen.getByRole('button', { name: 'New Action' }));
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'New pause' } });
@@ -243,11 +269,22 @@ describe('Action create, edit and duplicate', () => {
     fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload..targets' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
     expect(screen.getByRole('alert').textContent).toContain('valid target Event');
-    expect(invoke.mock.calls.some(([, method]) => method === 'POST')).toBe(false);
+    expect(canonical.mock.calls.some(([, method]) => method === 'POST')).toBe(false);
     fireEvent.change(screen.getByLabelText('Target Event path'), { target: { value: 'payload.targets' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
-    await screen.findByRole('button', { name: 'Edit New pause' });
-    expect(registry.actions.find((a) => a.name === 'New pause')?.execution).toMatchObject({ kind: 'session_operation', selector: { path: 'payload.targets' } });
+    await waitFor(() =>
+      expect(canonical.mock.calls.some(([path]) => path === 'jobs/actions/definition-preview')).toBe(true),
+    );
+    const preview = canonical.mock.calls.find(([path]) => path === 'jobs/actions/definition-preview');
+    const draft = (preview?.[2] as { draft: Action }).draft;
+    expect(draft).not.toHaveProperty('id');
+    expect(draft.execution).toMatchObject({
+      kind: 'session_operation',
+      selector: { mode: 'event', path: 'payload.targets' },
+    });
+    const created = canonical.mock.calls.find(([path, method]) => path === 'jobs/actions' && method === 'POST');
+    expect((created?.[2] as { expectedRevision: number }).expectedRevision).toBe(0);
+    expect((created?.[2] as { definition: { name: string } }).definition.name).toBe('New pause');
   });
   it('blocks Group build for enabled Session Operation while preserving membership and build APIs', async () => {
     registry.actions[0] = { ...structuredClone(source), effect: 'write_local', execution: { kind: 'session_operation', operation: 'pause_everything', selector: { mode: 'explicit', ids: ['s1'] } } };
@@ -259,19 +296,27 @@ describe('Action create, edit and duplicate', () => {
     expect(screen.getAllByText(/Session Operation is automation only/).length).toBeGreaterThan(0);
     expect(invoke.mock.calls.some(([path]) => path?.endsWith('/build'))).toBe(false);
   });
-  it('creates an Action without a client ID and returns to the list', async () => {
+  it('creates an Action through the canonical adapter without a client ID', async () => {
+    canonicalCreateMock(() => 'Echo');
     await renderList();
     fireEvent.click(screen.getByRole('button', { name: 'New Action' }));
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Echo' } });
     fireEvent.change(screen.getByLabelText(/^Description/), { target: { value: 'Echo a value' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create Action' }));
-    await screen.findByRole('button', { name: 'Edit Echo' });
-    const post = invoke.mock.calls.find(([path, method]) => path === 'actions/actions' && method === 'POST');
-    expect(post).toBeTruthy();
-    const body = post?.[2] as { item: Action; expectedRevision: number };
-    expect(body.item).not.toHaveProperty('id');
-    expect(body.expectedRevision).toBe(1);
-    expect(registry.actions.some((action) => action.name === 'Echo')).toBe(true);
+    await waitFor(() =>
+      expect(canonical.mock.calls.some(([path]) => path === 'jobs/actions/definition-preview')).toBe(true),
+    );
+    const preview = canonical.mock.calls.find(([path]) => path === 'jobs/actions/definition-preview');
+    const draft = (preview?.[2] as { draft: Action }).draft;
+    expect(draft).not.toHaveProperty('id');
+    const created = canonical.mock.calls.find(([path, method]) => path === 'jobs/actions' && method === 'POST');
+    expect(created).toBeTruthy();
+    const body = created?.[2] as { expectedRevision: number; requestKey: string; definition: { name: string } };
+    expect(body.expectedRevision).toBe(0);
+    expect(typeof body.requestKey).toBe('string');
+    expect(body.definition.name).toBe('Echo');
+    // Creation must not fall back to the legacy writer.
+    expect(invoke.mock.calls.some(([path, method]) => path === 'actions/actions' && method === 'POST')).toBe(false);
   });
 
   it('duplicates through POST without an ID, opens the copy, and never touches Group references', async () => {

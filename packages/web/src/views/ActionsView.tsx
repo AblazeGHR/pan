@@ -1,12 +1,13 @@
 import { useAutomationAuth } from '@/stores/automationStore';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { actionRequest } from '@/services/api';
+import { actionRequest, canonicalRequest } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
 import {
   useActionCatalogStore,
   useActionRegistryStore,
   useActionSessionDetailStore,
+  useActionSessionsStore,
 } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry, CanonicalLegacyAction } from '@/types/actions';
 import { CanonicalDefinitionEditor } from '@/components/actions/CanonicalDefinitionEditor';
@@ -30,6 +31,20 @@ import {
 import { ActionEditorPage, GroupEditorPage } from '@/components/actions/ActionGroupEditors';
 import { MappedActionPanel } from '@/components/actions/MappedActionPanel';
 import { UseInSessionDialog } from '@/components/actions/UseInSessionDialog';
+import { CanonicalActionPanel } from '@/components/actions/CanonicalActionPanel';
+import { CanonicalDirectorySection } from '@/components/actions/CanonicalDirectorySection';
+import { CanonicalGroupPanel } from '@/components/actions/CanonicalGroupPanel';
+import {
+  buildUnifiedActions,
+  buildUnifiedGroups,
+  obj,
+  rows,
+  text,
+  withVersionIndex,
+  type UnifiedActionRow,
+  type UnifiedGroupRow,
+} from '@/components/actions/unifiedModel';
+import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
 import {
   Badge,
   ConfirmDialog,
@@ -64,7 +79,7 @@ import {
   X,
 } from 'lucide-react';
 import './actions.css';
-export { default } from './UnifiedActionsView';
+export { LegacyActionsView as default };
 
 type Tab = 'actions' | 'groups';
 type ConfirmState =
@@ -102,6 +117,71 @@ export function LegacyActionsView() {
   const [groupFilter, setGroupFilter] = useState<'all' | 'built' | 'unbuilt'>('all');
   const [duplicating, setDuplicating] = useState(false);
   const duplicateInFlight = useRef(false);
+  const [canonicalPage, setCanonicalPage] = useState<JsonObject>({});
+  const [canonicalGroupPage, setCanonicalGroupPage] = useState<JsonObject[]>([]);
+  const [canonicalAliases, setCanonicalAliases] = useState<Record<string, string>>({});
+  const [canonicalTarget, setCanonicalTarget] = useState<
+    { kind: 'action' | 'group'; key: string } | null
+  >(null);
+  const sessions = useActionSessionsStore((state) => state.sessions);
+
+  const loadCanonical = useCallback(async () => {
+    try {
+      const [actions, groups] = await Promise.all([
+        canonicalRequest<JsonObject>('jobs/actions'),
+        canonicalRequest<JsonObject>('action-groups'),
+      ]);
+      setCanonicalPage(actions);
+      setCanonicalGroupPage(rows(groups.items));
+    } catch {
+      // The canonical catalog is additive; the designed legacy list still works.
+    }
+    try {
+      const bindings = await canonicalRequest<JsonObject>(
+        'action-groups/legacy-action-bindings?limit=100',
+      );
+      const next: Record<string, string> = {};
+      for (const item of rows(bindings.items)) {
+        if (item.deleted === true) continue;
+        const legacyId = text(item.legacyId);
+        const actionId = text(item.actionId);
+        if (legacyId && actionId) next[legacyId] = actionId;
+      }
+      setCanonicalAliases(next);
+    } catch {
+      setCanonicalAliases({});
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCanonical();
+  }, [loadCanonical]);
+
+  const canonicalCatalog = useMemo(
+    () =>
+      withVersionIndex(
+        buildUnifiedActions({
+          catalog: rows(canonicalPage?.items),
+          registry,
+          groups: canonicalGroupPage,
+          aliases: canonicalAliases,
+        }),
+        canonicalPage,
+      ),
+    [canonicalPage, registry, canonicalGroupPage, canonicalAliases],
+  );
+  const canonicalGroupRows = useMemo(
+    () => buildUnifiedGroups({ canonical: canonicalGroupPage, registry, catalog: canonicalCatalog }),
+    [canonicalGroupPage, registry, canonicalCatalog],
+  );
+  const targetAction =
+    canonicalTarget?.kind === 'action'
+      ? canonicalCatalog.find((row) => row.key === canonicalTarget.key)
+      : undefined;
+  const targetGroup =
+    canonicalTarget?.kind === 'group'
+      ? canonicalGroupRows.find((row) => row.key === canonicalTarget.key)
+      : undefined;
 
   useEffect(() => {
     void useActionRegistryStore.getState().ensureRegistry();
@@ -238,30 +318,63 @@ export function LegacyActionsView() {
       return;
     }
     setEditorError('');
-    try {
-      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) => {
-        if (editor.mode === 'new') {
-          const { id: _ignored, ...item } = draft;
-          void _ignored;
-          return actionRequest<ActionRegistryWithItem>('actions/actions', 'POST', {
-            item,
-            expectedRevision,
-          });
+    if (editor.mode === 'new') {
+      // The designed quick-create form posts a legacy-shaped draft. The
+      // read-only definition adapter maps it with the approved adoption
+      // mapping, so creation lands in the canonical single authority instead
+      // of an invisible legacy-only record.
+      try {
+        const { id: _ignored, ...legacyDraft } = draft;
+        void _ignored;
+        const preview = await canonicalRequest<{ definition: JsonObject }>(
+          'jobs/actions/definition-preview',
+          'POST',
+          { draft: legacyDraft },
+        );
+        const created = await canonicalRequest<CanonicalReceipt>('jobs/actions', 'POST', {
+          definition: preview.definition,
+          expectedRevision: 0,
+          requestKey: crypto.randomUUID(),
+        });
+        const object = obj(created.result?.object);
+        if (draft.enabled && object.id) {
+          await canonicalRequest<CanonicalReceipt>(
+            `jobs/actions/${encodeURIComponent(String(object.id))}/operations`,
+            'POST',
+            {
+              operation: 'publish',
+              expectedRevision: object.revision,
+              expectedStateRevision: object.stateRevision,
+              parameters: {},
+              requestKey: crypto.randomUUID(),
+            },
+          );
         }
-        return actionRequest<ActionRegistryWithItem>(
+        await useActionRegistryStore.getState().ensureRegistry({ force: true });
+        await loadCanonical();
+        closeEditor();
+        notify(
+          `Action created · ${String(object.id ?? '')}${draft.enabled ? ' · published' : ' · draft'}`,
+          'info',
+        );
+      } catch (caught) {
+        const message = messageOf(caught);
+        setEditorError(message);
+        notify(`Couldn’t create Action: ${message}`, 'error');
+      }
+      return;
+    }
+    try {
+      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) =>
+        actionRequest<ActionRegistryWithItem>(
           `actions/actions/${encodeURIComponent(draft.id)}`,
           'PUT',
           { item: draft, expectedRevision },
-        );
-      });
+        ),
+      );
       const item = result.item as Action | undefined;
       closeEditor();
-      notify(
-        editor.mode === 'new'
-          ? `Action created${item ? ` · ${item.id}` : ''}`
-          : 'Action saved',
-        'info',
-      );
+      notify(`Action saved${item ? ` · ${item.id}` : ''}`, 'info');
     } catch (caught) {
       const message = messageOf(caught);
       setEditorError(message);
@@ -599,7 +712,26 @@ export function LegacyActionsView() {
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
-      {canonicalNew ? (
+      {targetAction ? (
+        <CanonicalActionPanel
+          row={targetAction}
+          onClose={() => setCanonicalTarget(null)}
+          onChanged={loadCanonical}
+        />
+      ) : targetGroup ? (
+        <CanonicalGroupPanel
+          row={targetGroup}
+          catalog={canonicalCatalog}
+          references={obj(canonicalPage?.references) as Record<string, JsonObject>}
+          sessions={sessions}
+          onChanged={async () => {
+            await loadCanonical();
+            await useActionRegistryStore.getState().ensureRegistry({ force: true });
+          }}
+          onInspect={() => undefined}
+          onSelectAction={() => undefined}
+        />
+      ) : canonicalNew ? (
         <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
           <h2 className="text-lg font-semibold">New advanced Action</h2>
           <p className="my-3 text-sm">
@@ -798,6 +930,17 @@ export function LegacyActionsView() {
             </div>
 
             <div className="px-3 pb-24 pt-3 sm:px-6 sm:pb-10">
+              <CanonicalDirectorySection
+                tab={tab}
+                actions={canonicalCatalog}
+                groups={canonicalGroupRows}
+                onOpenAction={(row: UnifiedActionRow) =>
+                  setCanonicalTarget({ kind: 'action', key: row.key })
+                }
+                onOpenGroup={(row: UnifiedGroupRow) =>
+                  setCanonicalTarget({ kind: 'group', key: row.key })
+                }
+              />
               {refreshError && hasLoaded && (
                 <StaleBanner message={refreshError} onRetry={() => void refresh()} />
               )}

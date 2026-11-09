@@ -1,0 +1,14 @@
+{
+  "port": 50061,
+  "checks": [
+    "owned service PID and runtime verified",
+    "designed directory is the page and lists canonical records additively",
+    "one logical Action keeps both published versions in the designed page",
+    "Group keeps its fixed release history and opens an older immutable release",
+    "three MCP modes stay available and the binding keeps the plugin CAS",
+    "stale Group save fails with revision_conflict and never reports success",
+    "1280/390/320 keep the designed page readable without horizontal overflow"
+  ],
+  "errors": [],
+  "status": "passed"
+}

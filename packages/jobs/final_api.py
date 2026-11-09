@@ -458,6 +458,13 @@ async def _action_write_body(request, *, create=False):
     return value
 
 
+@router.post("/jobs/actions/definition-preview")
+async def action_definition_preview(request: Request):
+    """Definition-only adapter for the reused legacy quick-create form."""
+    who = await actor(request, "action", "read")
+    return await invoke(request, "legacy_action_definition", await body(request), actor=who)
+
+
 @router.post("/jobs/actions")
 async def action_create(request: Request):
     who = await actor(request, "action", "create")

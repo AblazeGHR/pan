@@ -2144,6 +2144,47 @@ class FinalService:
                     "draftReferences": draft_references,
                     "versions": versions}
 
+    def legacy_action_definition(self, body, *, actor):
+        """Map a legacy quick-create draft to a canonical Action definition.
+
+        Read-only boundary adapter: it reuses the approved adoption mapping
+        (``group_migration.command_definition``) so the designed form and the
+        migration cannot drift. Nothing is persisted, published or executed.
+        """
+        self._permit(actor, "action", "read")
+        if not isinstance(body, dict) or "draft" not in body or set(body) - {"draft", "templateRef"}:
+            error("invalid_schema", "Definition preview requires a draft")
+        draft = body["draft"]
+        if not isinstance(draft, dict):
+            error("invalid_schema", "Draft must be an object")
+        template_ref = body.get("templateRef")
+        execution = draft.get("execution")
+        if (template_ref is None and isinstance(execution, dict)
+                and execution.get("kind") == "job_template"):
+            template_ref = self._fixed_template_ref(execution)
+        candidate = dict(draft)
+        # The legacy validator insists on a stable id; the id never enters the
+        # definition, so a fixed placeholder keeps the preview side-effect free.
+        candidate.setdefault("id", "definition_preview")
+        from packages.actions.group_migration import command_definition
+        try:
+            return {"definition": command_definition(candidate, template_ref=template_ref)}
+        except fc.ContractError:
+            raise
+        except (ValueError, KeyError, TypeError) as exc:
+            raise fc.ContractError("invalid_schema", str(exc)) from exc
+
+    def _fixed_template_ref(self, execution):
+        template_id = execution.get("templateId")
+        revision = execution.get("templateRevision")
+        if not isinstance(template_id, str) or not template_id or type(revision) is not int or revision < 1:
+            error("invalid_schema", "Template ID and revision are required")
+        with self.transaction(readonly=True) as db:
+            item = self._get(db, "template", template_id)
+        if item["revision"] != revision or item["state"] != "published":
+            error("reference_conflict", "Fixed Template must be a published revision")
+        return object_ref("template", item)
+
     def action_versions(self, action_id, *, actor):
         self._permit(actor, "action", "read")
         with self.transaction(readonly=True) as db:
