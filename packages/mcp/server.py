@@ -3305,6 +3305,7 @@ def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | N
     Create and manage Actions with canonical Action definition tools and Groups
     with /api/action-groups. New definitions never write legacy JSON. Unknown
     outcomes must be queried by their original operation identity.
+    完整编排流程见 /pan skill。
     """
     if operation == 'list':
         return _api('GET', '/api/actions')

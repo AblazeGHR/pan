@@ -275,10 +275,21 @@ def test_late_terminal_log_keeps_retired_parent_and_original_reference(live):
     doc = wait(lambda: c.store.get(c.eid), lambda d: d["result"] is not None)
     result = c.client.request("DELETE", "/api/jobs/" + c.job["id"], json={"expectedRevision": c.job["configRevision"],
         "expectedStateRevision": c.job["stateRevision"], "requestKey": "retire-before-terminal"})
+    # Canonical retirement keeps the owner fence closed while the original
+    # Run/effect is still unsettled.  The late process receipt remains queryable
+    # and can only be retired after that original identity reaches a terminal
+    # state.
+    assert result.status_code == 409, result.text
+    assert result.json()["error"]["code"] == "reference_conflict"
+    terminal(c)
+    latest = c.client.get("/api/jobs/" + c.job["id"]).json()
+    result = c.client.request("DELETE", "/api/jobs/" + c.job["id"], json={
+        "expectedRevision": latest["configRevision"],
+        "expectedStateRevision": latest["stateRevision"],
+        "requestKey": "retire-after-terminal"})
     assert result.status_code == 200, result.text
     retired = c.client.get("/api/jobs/" + c.job["id"]).json()
     assert retired["state"] == "retired"
-    terminal(c)
     assert c.client.get("/api/jobs/" + c.job["id"]).json() == retired
     assert c.client.get(c.url).json()["logRef"] == doc["logRef"]
     assert all_bytes(c)[0] == "迟到terminal🙂".encode()

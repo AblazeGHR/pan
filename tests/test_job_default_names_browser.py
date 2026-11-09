@@ -39,8 +39,8 @@ def test_production_blank_name_uses_server_default_and_lost_response_queries_ori
                 page=browser.new_page();page.goto(f'http://127.0.0.1:{port}/react/automation/canonical')
                 page.get_by_label('Local user key').fill(h.automation.auth.key())
                 page.get_by_role('button',name='Log in',exact=True).click()
-                page.get_by_role('button',name='创建 Jobs',exact=True).click()
-                name=page.get_by_label('名称',exact=True)
+                page.get_by_role('button',name='New Job',exact=True).click()
+                name=page.get_by_label('Name',exact=True)
                 assert name.input_value()=='' and not name.evaluate('(e)=>e.required')
                 page.get_by_text('Advanced definition JSON',exact=True).click()
                 value=job_def(h);value.pop('name')
@@ -51,9 +51,9 @@ def test_production_blank_name_uses_server_default_and_lost_response_queries_ori
                     response=route.fetch();assert response.status==201
                     route.abort()
                 page.route('**/api/jobs',lose_reply)
-                page.get_by_role('button',name='保存定义',exact=True).click()
-                page.get_by_role('button',name='查询原操作',exact=False).wait_for()
-                page.get_by_role('button',name='查询原操作',exact=False).click()
+                page.get_by_role('button',name='Save definition',exact=True).click()
+                page.get_by_role('button',name='Query original operation',exact=False).wait_for()
+                page.get_by_role('button',name='Query original operation',exact=False).click()
                 page.get_by_role('heading',name='job-1',exact=True).wait_for()
                 assert len(writes)==1 and 'name' not in writes[0]['definition']
                 items=h.service.list('job',actor={'type':'user','id':'local'})['items']

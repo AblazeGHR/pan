@@ -184,9 +184,9 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(url + "/react/automation/canonical")
-                expect(page.get_by_text("请登录以加载 canonical 数据。", exact=True)).to_be_visible()
+                expect(page.get_by_text("Sign in required", exact=True)).to_be_visible()
                 expect(page.get_by_label("Local user key", exact=True)).to_be_visible()
-                expect(page.get_by_role("button", name="创建 Jobs", exact=True)).to_have_count(0)
+                expect(page.get_by_role("button", name="New Job", exact=True)).to_have_count(0)
                 page.screenshot(path=str(OUT / "unauthorized-canonical-1440.png"), full_page=True)
                 assert errors == []
                 page.close()
@@ -199,7 +199,7 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                     page.goto(url + "/react/automation")
                     _login(page, key)
                     expect(page.get_by_role("heading", name="Automation", exact=True)).to_be_visible()
-                    expect(page.get_by_role("button", name="编辑 Nightly session digest", exact=True)).to_be_visible()
+                    expect(page.get_by_role("button", name="Edit Nightly session digest", exact=True)).to_be_visible()
                     expect(page.get_by_role("article", name="Jobs Nightly session digest", exact=True)).to_be_visible()
                     page.wait_for_timeout(200)
                     _no_overflow(page, "Automation management")
@@ -215,11 +215,11 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                         expect(page.get_by_role("heading", name="Canonical Triggers", exact=True)).to_be_visible()
 
                         # Trigger detail form opens with the canonical target selector.
-                        page.get_by_role("button", name="编辑 Morning digest subscription", exact=True).click()
-                        expect(page.get_by_role("form", name="编辑 Triggers", exact=True)).to_be_visible()
+                        page.get_by_role("button", name="Edit Morning digest subscription", exact=True).click()
+                        expect(page.get_by_role("form", name="Edit Triggers", exact=True)).to_be_visible()
                         expect(page.get_by_label("Target canonical Job", exact=True)).to_be_visible()
-                        page.get_by_role("button", name="关闭编辑", exact=True).click()
-                        expect(page.get_by_role("form", name="编辑 Triggers", exact=True)).to_have_count(0)
+                        page.get_by_role("button", name="Close editor", exact=True).click()
+                        expect(page.get_by_role("form", name="Edit Triggers", exact=True)).to_have_count(0)
 
                         # Enable review remains explicit and cancellation is reachable.
                         page.get_by_role("tab", name="Job", exact=True).click()
@@ -259,28 +259,28 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                             page.get_by_role("button", name=label, exact=True).click()
                             expect(page.get_by_role("article", name=first, exact=True)).to_be_visible()
                         page.get_by_role("button", name="JobTemplates", exact=True).click()
-                        expect(page.get_by_text("暂无 canonical JobTemplates。", exact=True)).to_be_visible()
+                        expect(page.get_by_text("No canonical JobTemplates yet.", exact=True)).to_be_visible()
                         page.screenshot(path=str(OUT / "canonical-empty-templates-1440.png"), full_page=True)
 
                         page.get_by_role("button", name="Jobs", exact=True).click()
-                        page.get_by_role("button", name="编辑 Nightly session digest", exact=True).click()
-                        expect(page.get_by_role("form", name="编辑 Jobs", exact=True)).to_be_visible()
+                        page.get_by_role("button", name="Edit Nightly session digest", exact=True).click()
+                        expect(page.get_by_role("form", name="Edit Jobs", exact=True)).to_be_visible()
                         page.get_by_text("Advanced definition JSON", exact=True).click()
                         expect(page.locator("textarea[spellcheck=false]")).to_be_visible()
                         page.screenshot(path=str(OUT / "canonical-editor-1440.png"), full_page=True)
-                        page.get_by_role("button", name="关闭编辑", exact=True).click()
-                        expect(page.get_by_role("form", name="编辑 Jobs", exact=True)).to_have_count(0)
+                        page.get_by_role("button", name="Close editor", exact=True).click()
+                        expect(page.get_by_role("form", name="Edit Jobs", exact=True)).to_have_count(0)
                         assert dialogs and all(
                             message == "Discard this definition draft?" for message in dialogs
                         )
 
                         page.get_by_role("button", name="Runs Nightly session digest", exact=True).click()
                         expect(page.get_by_role("heading", name="Runs · Nightly session digest", exact=True)).to_be_visible()
-                        expect(page.get_by_text("不可确认的结果必须按原身份查询，不能自动重试。", exact=True)).to_be_visible()
+                        expect(page.get_by_text("Unconfirmed results must be queried by original identity; do not retry automatically.", exact=True)).to_be_visible()
                         page.get_by_role("button", name="clone-and-run", exact=True).click()
                         expect(page.get_by_role("form", name="Run operation", exact=True)).to_be_visible()
-                        expect(page.get_by_role("button", name="确认操作", exact=True)).to_be_visible()
-                        page.get_by_role("button", name="返回", exact=True).click()
+                        expect(page.get_by_role("button", name="Confirm operation", exact=True)).to_be_visible()
+                        page.get_by_role("button", name="Back", exact=True).click()
                         expect(page.get_by_role("form", name="Run operation", exact=True)).to_have_count(0)
                     else:
                         page.get_by_role("tab", name="Event Register", exact=True).click()
@@ -301,11 +301,11 @@ def test_owned_automation_ui_real_http_desktop_mobile_states(tmp_path):
                 page = browser.new_page(viewport={"width": 1440, "height": 1000})
                 page.goto(url + "/react/automation/canonical")
                 _login(page, key)
-                expect(page.get_by_role("button", name="刷新列表", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="Refresh list", exact=True)).to_be_visible()
                 child.terminate()
                 child.wait(timeout=15)
                 stopped = True
-                page.get_by_role("button", name="刷新列表", exact=True).click()
+                page.get_by_role("button", name="Refresh list", exact=True).click()
                 expect(page.get_by_role("alert").first).to_be_visible()
                 page.screenshot(path=str(OUT / "canonical-error-1440.png"), full_page=True)
                 page.close()

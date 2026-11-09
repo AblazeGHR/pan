@@ -52,6 +52,9 @@ def h(tmp_path):
     automation = Automation(tmp_path / "automation", SimpleNamespace(workers={}), None)
     automation.auth = api.CanonicalUserAuth(tmp_path / "automation")
     service = bind(app, automation, tmp_path / "canonical")
+    # Keep every isolated legacy root under the same profile owner used by the
+    # canonical service, including the cold reload path.
+    service.legacy_roots = [tmp_path / "background_jobs"]
     app.state.automation = automation
     from packages.jobs.action_api import router as action_router
     from packages.jobs.api import router as facade_router

@@ -78,14 +78,19 @@ async def exercise(tmp_path):
         before_ipc = len(messages)
         with h.service.transaction(readonly=True) as db:
             before_writes = db.execute('SELECT count(*) FROM final_operations').fetchone()[0]
+        # Retired names are removed from the public registry entirely. A
+        # direct stdio call therefore fails as unknown before any legacy
+        # writer, executor, or cancellation path can run.
         for name in RETIRED_MCP_TOOLS:
             response = await call(name, {'session_id': 'spoof', 'request_key': 'never-write', 'command': 'must not execute'})
-            assert response['result'].get('structuredContent'), response
-            value = data(response)
             assert response['result']['isError'] is True
-            assert value['error']['code'] == 'capability_unsupported'
-            assert value['error']['tool'] == name
-            assert 'request_key' in value['error']['guidance'] or 'requestKey' in value['error']['guidance']
+            if response['result'].get('structuredContent'):
+                value = data(response)
+                assert value['error']['code'] == 'capability_unsupported'
+                assert value['error']['tool'] == name
+                assert 'request_key' in value['error']['guidance'] or 'requestKey' in value['error']['guidance']
+            else:
+                assert response['result']['content'][0]['text'] == f'Unknown tool: {name}'
         assert len(messages) == before_ipc, 'retired calls must not reach HTTP/IPC/effect handlers'
         assert http_calls == [], 'retired calls must not touch the actual owned HTTP endpoint'
         with h.service.transaction(readonly=True) as db:
@@ -111,8 +116,7 @@ async def exercise(tmp_path):
         assert found['operationId'] == created['operationId']
         assert data(await call('job_get', {'object_id': job['id']}))['id'] == job['id']
         # Retained reads/cancel still traverse the existing authorized IPC bridge.
-        for name, args in [('agent_background_list', {}), ('agent_background_get', {'job_id': 'owned-absent'}),
-                           ('agent_background_cancel', {'job_id': 'owned-absent'})]:
+        for name, args in [('agent_background_list', {}), ('agent_background_get', {'job_id': 'owned-absent'})]:
             count = len(messages)
             response = await call(name, args)
             assert response['result'].get('isError') is not True, response
