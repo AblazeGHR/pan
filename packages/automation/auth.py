@@ -195,12 +195,15 @@ class UserAuth:
         except FileExistsError:
             pass
         else:
-            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 stream.write(secrets.token_urlsafe(32))
                 stream.flush()
                 os.fsync(stream.fileno())
-        key = self.path.read_text(encoding='ascii').strip()
-        if len(key) < 16:
+        # The file stores the local password verbatim, so short and non-ASCII
+        # passwords must read back exactly as written. Only a blank file is
+        # rejected: an empty credential would let any client log in.
+        key = self.path.read_text(encoding='utf-8').strip()
+        if not key:
             raise ValueError('Invalid local user key')
         return key
 
@@ -210,18 +213,19 @@ class UserAuth:
 
     @staticmethod
     def validate_password(password):
-        if not isinstance(password, str) or not (16 <= len(password) <= 128):
-            raise ValueError('Password must be 16-128 characters')
-        if any(ord(ch) < 33 or ord(ch) > 126 for ch in password):
-            raise ValueError('Password must use printable ASCII characters without spaces')
-        classes = sum(bool(group) for group in (
-            any(ch.islower() for ch in password),
-            any(ch.isupper() for ch in password),
-            any(ch.isdigit() for ch in password),
-            any(not ch.isalnum() for ch in password),
-        ))
-        if classes < 3:
-            raise ValueError('Password must include at least 3 of lowercase, uppercase, digit, and symbol')
+        # Simplified local policy: no length, character-class or charset
+        # requirement. Only the storage/comparison invariants are kept,
+        # because violating them would produce a password that cannot log in.
+        if not isinstance(password, str) or not password:
+            raise ValueError('Password must not be empty')
+        # user.key is read back with str.strip(), so a padded password would
+        # never compare equal at login.
+        if password != password.strip():
+            raise ValueError('Password must not start or end with whitespace')
+        # A text-mode user.key rewrites line breaks, so a password holding a
+        # control character would not survive the round trip on every platform.
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in password):
+            raise ValueError('Password must not contain control characters')
 
     @locked
     def authorization_status(self):
@@ -249,7 +253,7 @@ class UserAuth:
         temporary = parent / (self.path.name + '.tmp-' + secrets.token_hex(8))
         try:
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, 'w', encoding='ascii') as stream:
+            with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 stream.write(new_password)
                 stream.flush()
                 os.fsync(stream.fileno())

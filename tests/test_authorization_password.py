@@ -71,9 +71,63 @@ async def test_authorization_http_requires_bearer_and_distinguishes_errors(tmp_p
         body = {'currentPassword': 'wrong', 'newPassword': 'NewPassword!234567', 'confirmNewPassword': 'NewPassword!234567', 'expectedRevision': status.json()['revision']}
         assert (await client.put('/api/automation/authorization', json=body, headers=headers)).status_code == 401
         body['currentPassword'] = old
-        body['newPassword'] = 'weak'; body['confirmNewPassword'] = 'weak'
+        body['newPassword'] = body['confirmNewPassword'] = ''
         assert (await client.put('/api/automation/authorization', json=body, headers=headers)).status_code == 422
-        body['newPassword'] = body['confirmNewPassword'] = 'NewPassword!234567'
+        body['newPassword'] = body['confirmNewPassword'] = 'weak'
         changed = await client.put('/api/automation/authorization', json=body, headers=headers)
         assert changed.status_code == 200 and changed.json()['revoked'] is True
         assert (await client.get('/api/automation/authorization', headers=headers)).status_code == 401
+        assert (await client.post('/api/automation/login', json={'key': 'weak'})).status_code == 200
+
+
+def test_password_policy_has_no_length_class_or_ascii_requirement(tmp_path):
+    auth = UserAuth(tmp_path)
+    current = auth.key()
+    for value in ('a', 'password', '密码', 'x' * 129, 'long password with spaces'):
+        revision = auth.authorization_status()['revision']
+        token = auth.login(current)
+        auth.change_password(current, value, value, revision)
+        assert auth.key() == value
+        assert auth.authorization_status()['revision'] == UserAuth._revision(value)
+        assert not auth.authorized('Bearer ' + token)
+        assert auth.login(value)
+        current = value
+
+
+@pytest.mark.parametrize('value', ['', ' ', '   ', ' padded', 'padded ', '\npassword', 'password\n', 'a\rb', 'a\tb', 'a\x00b'])
+def test_empty_or_whitespace_padded_or_control_passwords_are_rejected(tmp_path, value):
+    auth = UserAuth(tmp_path)
+    old = auth.key()
+    revision = auth.authorization_status()['revision']
+    with pytest.raises(ValueError):
+        auth.change_password(old, value, value, revision)
+    assert auth.path.read_text(encoding='utf-8') == old
+    assert auth.login(old)
+
+
+def test_confirmation_current_password_cas_and_difference_are_still_enforced(tmp_path):
+    auth = UserAuth(tmp_path)
+    old = auth.key()
+    revision = auth.authorization_status()['revision']
+    with pytest.raises(ValueError, match='confirmation'):
+        auth.change_password(old, 'a', 'b', revision)
+    with pytest.raises(PermissionError):
+        auth.change_password('not-the-password', 'a', 'a', revision)
+    with pytest.raises(RuntimeError):
+        auth.change_password(old, 'a', 'a', 'stale')
+    with pytest.raises(ValueError, match='differ'):
+        auth.change_password(old, old, old, revision)
+    assert auth.path.read_text(encoding='utf-8') == old
+    assert auth.login(old)
+
+
+def test_blank_stored_password_never_authenticates(tmp_path):
+    auth = UserAuth(tmp_path)
+    auth.key()
+    auth.path.write_text('   \n', encoding='utf-8')
+    with pytest.raises(ValueError):
+        auth.key()
+    with pytest.raises(ValueError):
+        auth.login('')
+    with pytest.raises(ValueError):
+        auth.login('   ')

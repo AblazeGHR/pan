@@ -57,6 +57,8 @@ export function AuthorizationSettings() {
 
   const change = async (event: FormEvent) => {
     event.preventDefault(); setError(''); setMessage('');
+    if (!newPassword) { setError('New password must not be empty.'); return; }
+    if (newPassword !== newPassword.trim()) { setError('New password must not start or end with whitespace.'); return; }
     if (newPassword !== confirmNewPassword) { setError('New password confirmation does not match.'); return; }
     setBusy(true);
     try {
@@ -88,10 +90,10 @@ export function AuthorizationSettings() {
     </section>}
     {token && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void change(event)}>
       <h3 className="font-semibold text-text-primary">Change password</h3>
-      <p className="text-[11px] text-text-secondary">Use 16-128 printable ASCII characters and at least 3 of lowercase, uppercase, digit, and symbol.</p>
+      <p className="text-[11px] text-text-secondary">Any non-empty password is accepted: there is no length, character-class or ASCII rule. Leading or trailing spaces are rejected because the password is stored verbatim. Confirmation must match, and all sessions are revoked after the change.</p>
       <Field label="Current password"><input className={inputClass} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></Field>
-      <Field label="New password"><input className={inputClass} type="password" autoComplete="new-password" minLength={16} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></Field>
-      <Field label="Confirm new password"><input className={inputClass} type="password" autoComplete="new-password" minLength={16} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required /></Field>
+      <Field label="New password"><input className={inputClass} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></Field>
+      <Field label="Confirm new password"><input className={inputClass} type="password" autoComplete="new-password" value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} required /></Field>
       <Button type="submit" disabled={busy || !status}>{busy ? 'Saving…' : 'Change password'}</Button>
     </form>}
     {token && permissions && <form className="rounded border border-border-default p-3 space-y-3" onSubmit={(event) => void savePermissions(event)}>
