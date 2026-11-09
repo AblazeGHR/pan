@@ -25,8 +25,8 @@ const PREVIEW_COUNT = 5;
 type ScheduleMode = 'simple' | 'advanced';
 
 const SCHEDULE_MODES: { mode: ScheduleMode; label: string; title: string }[] = [
-  { mode: 'simple', label: '简单模式', title: '选择频率与时间，自动生成 cron' },
-  { mode: 'advanced', label: '高级模式', title: '直接编辑 cron / 一次性 / 固定间隔' },
+  { mode: 'simple', label: 'Simple mode', title: 'Choose a frequency and time to generate cron' },
+  { mode: 'advanced', label: 'Advanced mode', title: 'Edit cron / one-time / interval directly' },
 ];
 
 const KINDS: { kind: ScheduleEntryKind; label: string; hint: string }[] = [
@@ -36,39 +36,39 @@ const KINDS: { kind: ScheduleEntryKind; label: string; hint: string }[] = [
 ];
 
 const SIMPLE_FREQS: { freq: SimpleFreq; label: string }[] = [
-  { freq: 'minutes', label: '每 N 分钟' },
-  { freq: 'hours', label: '每 N 小时' },
-  { freq: 'daily', label: '每天' },
-  { freq: 'weekly', label: '每周' },
-  { freq: 'monthly', label: '每月' },
+  { freq: 'minutes', label: 'Every N minutes' },
+  { freq: 'hours', label: 'Every N hours' },
+  { freq: 'daily', label: 'Daily' },
+  { freq: 'weekly', label: 'Weekly' },
+  { freq: 'monthly', label: 'Monthly' },
 ];
 
 const WEEKDAYS: { iso: number; label: string }[] = [
-  { iso: 1, label: '一' },
-  { iso: 2, label: '二' },
-  { iso: 3, label: '三' },
-  { iso: 4, label: '四' },
-  { iso: 5, label: '五' },
-  { iso: 6, label: '六' },
-  { iso: 7, label: '日' },
+  { iso: 1, label: 'Mon' },
+  { iso: 2, label: 'Tue' },
+  { iso: 3, label: 'Wed' },
+  { iso: 4, label: 'Thu' },
+  { iso: 5, label: 'Fri' },
+  { iso: 6, label: 'Sat' },
+  { iso: 7, label: 'Sun' },
 ];
 
 const MINUTE_PRESETS = [5, 10, 15, 30];
 const HOUR_PRESETS = [1, 2, 4, 6, 12];
 
 const INTERVAL_PRESETS: { label: string; sec: number }[] = [
-  { label: '5 分钟', sec: 300 },
-  { label: '30 分钟', sec: 1800 },
-  { label: '1 小时', sec: 3600 },
-  { label: '6 小时', sec: 21600 },
-  { label: '1 天', sec: 86400 },
+  { label: '5 Minutes', sec: 300 },
+  { label: '30 Minutes', sec: 1800 },
+  { label: '1 Hours', sec: 3600 },
+  { label: '6 Hours', sec: 21600 },
+  { label: '1 days', sec: 86400 },
 ];
 
 const CRON_PRESETS: { label: string; expr: string }[] = [
-  { label: '每天 9:00', expr: '0 9 * * *' },
-  { label: '每工作日 9:00', expr: '0 9 * * 1-5' },
-  { label: '每小时', expr: '0 * * * *' },
-  { label: '每 30 分钟', expr: '*/30 * * * *' },
+  { label: 'Daily at 9:00', expr: '0 9 * * *' },
+  { label: 'Weekdays at 9:00', expr: '0 9 * * 1-5' },
+  { label: 'Hourly', expr: '0 * * * *' },
+  { label: 'Every 30 minutes', expr: '*/30 * * * *' },
 ];
 
 const MISFIRE_POLICIES: { value: MisfirePolicy; label: string }[] = [
@@ -135,7 +135,7 @@ export function MiniSwitch({
   );
 }
 
-// ── Schedule entry draft（schedule 是列表，每条 entry 独立编辑） ──
+// ── Schedule entry draft (schedule 是列表, 每条 entry 独立Edit) ──
 
 export interface ScheduleEntryDraft {
   key: string;
@@ -168,7 +168,7 @@ export function newEntryDraft(): ScheduleEntryDraft {
   };
 }
 
-/** 反向：把已有 ScheduleEntry 还原为编辑态 draft（供 Edit 表单预填）。 */
+/** 反向: 把已有 ScheduleEntry 还原为Edit态 draft (供 Edit 表单预填). */
 export function scheduleEntryToDraft(entry: ScheduleEntry): ScheduleEntryDraft {
   const simpleSpec =
     entry.kind === 'cron' ? parseSimpleSchedule({ kind: 'cron', cron: entry.cron ?? '' }) : null;
@@ -188,7 +188,7 @@ export function scheduleEntryToDraft(entry: ScheduleEntry): ScheduleEntryDraft {
   };
 }
 
-/** 编辑态 draft → 服务端 schedule spec（POST/PATCH 提交用；控制键由服务端定）。 */
+/** Edit态 draft → 服务端 schedule spec (POST/PATCH 提交用; 控制键由服务端定). */
 export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
   const timezone = d.timezone.trim() || DEFAULT_TIMEZONE;
   if (d.kind === 'once') {
@@ -221,7 +221,7 @@ export function buildScheduleSpec(d: ScheduleEntryDraft): JobScheduleSpec {
   };
 }
 
-/** 服务端 entry → spec（整体替换 schedule 时回传，保留 enabled/misfire 覆盖）。 */
+/** 服务端 entry → spec (整体替换 schedule 时回传, 保留 enabled/misfire 覆盖). */
 export function entryToSpec(entry: ScheduleEntry): JobScheduleSpec {
   const spec: JobScheduleSpec = {
     kind: entry.kind,
@@ -325,7 +325,7 @@ function ScheduleEntryEditor({
               type="button"
               aria-pressed={entry.mode === m.mode}
               disabled={m.mode === 'simple' && !simpleSpec}
-              title={m.mode === 'simple' && !simpleSpec ? '当前 cron 无法用简单模式表达' : m.title}
+              title={m.mode === 'simple' && !simpleSpec ? 'This cron expression requires advanced mode' : m.title}
               onClick={() => switchMode(m.mode)}
               className={`rounded border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none ${
                 entry.mode === m.mode
@@ -341,7 +341,7 @@ function ScheduleEntryEditor({
 
       {entry.mode === 'simple' && simpleSpec && (
         <div className="flex flex-col gap-2">
-          <Field label="重复频率">
+          <Field label="Repeat frequency">
             <select
               aria-label="Frequency"
               value={simpleSpec.freq}
@@ -359,7 +359,7 @@ function ScheduleEntryEditor({
           {(simpleSpec.freq === 'minutes' || simpleSpec.freq === 'hours') && (
             <div className="flex flex-col gap-1">
               <span className="text-[11px] text-text-tertiary">
-                {simpleSpec.freq === 'minutes' ? '间隔分钟数 (1-59)' : '间隔小时数 (1-23)'}
+                {simpleSpec.freq === 'minutes' ? 'Interval minutes (1-59)' : 'Interval hours (1-23)'}
               </span>
               <input
                 aria-label={simpleSpec.freq === 'minutes' ? 'Every N minutes' : 'Every N hours'}
@@ -379,7 +379,7 @@ function ScheduleEntryEditor({
                     className="rounded border border-border-default bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                   >
                     {n}
-                    {simpleSpec.freq === 'minutes' ? ' 分钟' : ' 小时'}
+                    {simpleSpec.freq === 'minutes' ? ' Minutes' : ' Hours'}
                   </button>
                 ))}
               </div>
@@ -388,7 +388,7 @@ function ScheduleEntryEditor({
 
           {simpleSpec.freq === 'weekly' && (
             <div className="flex flex-col gap-1">
-              <span className="text-[11px] text-text-tertiary">星期（可多选）</span>
+              <span className="text-[11px] text-text-tertiary">Days of the week (multiple)</span>
               <div className="flex flex-wrap gap-1">
                 {WEEKDAYS.map((w) => {
                   const active = simpleSpec.weekdays.includes(w.iso);
@@ -396,7 +396,7 @@ function ScheduleEntryEditor({
                     <button
                       key={w.iso}
                       type="button"
-                      aria-label={`星期${w.label}`}
+                      aria-label={`Weekday${w.label}`}
                       aria-pressed={active}
                       onClick={() => toggleWeekday(w.iso)}
                       className={`w-8 rounded border px-1 py-0.5 text-[11px] transition-colors ${
@@ -414,7 +414,7 @@ function ScheduleEntryEditor({
           )}
 
           {simpleSpec.freq === 'monthly' && (
-            <Field label="每月几号 (1-31)">
+            <Field label="Day of month (1-31)">
               <input
                 aria-label="Day of month"
                 type="number"
@@ -428,7 +428,7 @@ function ScheduleEntryEditor({
           )}
 
           {simpleSpec.freq !== 'minutes' && simpleSpec.freq !== 'hours' && (
-            <Field label="触发时间">
+            <Field label="Trigger time">
               <input
                 aria-label="Fire time"
                 type="time"
@@ -447,7 +447,7 @@ function ScheduleEntryEditor({
 
       {entry.mode === 'simple' && !simpleSpec && (
         <div className="rounded border border-border-muted bg-bg-tertiary px-2.5 py-2 text-[11px] text-text-tertiary">
-          当前 cron 无法用简单模式表达，请切换到高级模式编辑（原始表达式已保留）。
+          This cron expression requires advanced mode. The original expression is preserved.
         </div>
       )}
 
@@ -607,7 +607,7 @@ export function ScheduleListEditor({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-text-tertiary">Schedule（可多条）</span>
+        <span className="text-[11px] text-text-tertiary">Schedule (multiple allowed)</span>
         <button
           type="button"
           onClick={addEntry}

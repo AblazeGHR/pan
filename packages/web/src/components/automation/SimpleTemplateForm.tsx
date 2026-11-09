@@ -45,7 +45,7 @@ export function SimpleTemplateForm({ kind, busy, onSubmit, onCancel }: {
       onSubmit(definition, { kind, fields: kind === 'assign' ? { sessionId, text, runtime } : { command, cwd, hideWindow } });
     }}>
     <h3>{kind === 'assign' ? 'Assign Template' : 'Shell Template'}</h3>
-    <p>保存完整的被动模板。实例化默认只创建 disabled Job，不立即运行。</p>
+    <p>Save a passive template. Instantiation creates a disabled Job by default.</p>
     {error && <p role="alert">{error}</p>}
     <fieldset disabled={busy} className="space-y-3">
       <label className="block">Template name<input required className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} /></label>

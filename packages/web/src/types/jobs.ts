@@ -121,6 +121,8 @@ export type ScheduledTaskAction =
 export type JobTimestamp = number | string;
 
 export interface Job {
+  retirementStatus?: 'Invalid' | 'Retired';
+  retirementReason?: string;
   configRevision?: number;
   integrity?: { status: 'complete' | 'incomplete'; approvalRequired: boolean; issues: Array<{ actionId: string; position: string; error: string }> };
   snapshotCleanup?: 'active' | 'pending' | 'cleaned';

@@ -11,7 +11,6 @@ const TerminalPanel = lazy(() => import('./views/TerminalPanel'));
 const PluginPanelView = lazy(() => import('./views/PluginPanelView'));
 const LockerView = lazy(() => import('./views/LockerView'));
 const ActionsView = lazy(() => import('./views/ActionsView'));
-const CanonicalJobsView = lazy(() => import('./views/CanonicalJobsView'));
 const JobsView = lazy(() => import('./views/JobsView'));
 const AutomationView = lazy(() => import('./views/AutomationView'));
 
@@ -32,7 +31,7 @@ export const router = createBrowserRouter(
       children: [
         { path: 'locker', element: deferredRoute(<LockerView />) },
         { path: 'actions', element: deferredRoute(<ActionsView />) },
-        { path: 'automation/canonical', element: deferredRoute(<CanonicalJobsView />) },
+        { path: 'automation/canonical', element: <Navigate replace to="/jobs" /> },
         { path: 'automation', element: deferredRoute(<AutomationView />) },
         {
           index: true,
@@ -60,7 +59,7 @@ export const router = createBrowserRouter(
         },
         {
           path: 'schedules',
-          element: <Navigate replace to="/automation/canonical" />,
+          element: <Navigate replace to="/jobs" />,
         },
       ],
     },

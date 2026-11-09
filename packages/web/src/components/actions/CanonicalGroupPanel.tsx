@@ -205,11 +205,11 @@ export function CanonicalGroupPanel({
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h2 className="min-w-0 break-all text-lg font-semibold">{row.name}</h2>
           <Badge tone={built ? 'success' : 'muted'} dot>
-            {built ? '已发布固定 release' : '未构建'}
+            {built ? 'Published fixed release' : 'Unbuilt'}
           </Badge>
           {blockers2.length > 0 && (
             <Badge tone="warning" title={blockers2.map((item) => item.name).join(', ')}>
-              {blockers2.length} 个运行中的 Session
+              {blockers2.length}  running Sessions
             </Badge>
           )}
         </div>
@@ -220,26 +220,26 @@ export function CanonicalGroupPanel({
       </header>
 
       <Section
-        title="草稿与固定版本"
-        description="每个工具固定一个 Action 版本（revision + digest）。切换版本只改草稿，需显式 Build 才产生新 release。"
+        title="Draft and fixed versions"
+        description="Each tool pins an Action version (revision + digest).Switching versions updates the draft. Build explicitly to publish a new release."
         actions={
           <>
             <Button size="sm" disabled={busy || !!pending || !dirty} onClick={save}>
-              保存草稿
+              Save draft
             </Button>
             <Button
               size="sm"
               variant="primary"
               disabled={busy || !!pending || blockers.length > 0}
-              title={blockers.join('；') || '构建不可变 release'}
+              title={blockers.join('; ') || 'Build immutable release'}
               onClick={build}
             >
-              <Hammer size={13} /> {built ? '重新 Build' : 'Build'}
+              <Hammer size={13} /> {built ? 'Build again' : 'Build'}
             </Button>
             <Button
               size="sm"
               disabled={busy || !!pending || !built || blockers2.length > 0}
-              title={!built ? '未发布' : blockers2.length ? '运行中的 Session 正在使用该 Group' : '撤销 release'}
+              title={!built ? 'Unpublished' : blockers2.length ? 'Running Sessions are using this Group' : 'Unbuild release'}
               onClick={unbuild}
             >
               <PackageOpen size={13} /> Unbuild
@@ -248,7 +248,7 @@ export function CanonicalGroupPanel({
         }
         bodyClassName="space-y-3"
       >
-        <Field label="Group 名称" htmlFor="group-name">
+        <Field label="Group Name" htmlFor="group-name">
           <input
             id="group-name"
             className={inputClass}
@@ -260,7 +260,7 @@ export function CanonicalGroupPanel({
         {tools.map((tool, index) => (
           <div key={index} className="min-w-0 space-y-2 rounded-md border border-border-default p-2.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-medium text-text-tertiary">工具 {index + 1}</span>
+              <span className="text-[11px] font-medium text-text-tertiary">Tools {index + 1}</span>
               <span className="ml-auto">
                 <Button
                   size="sm"
@@ -268,12 +268,12 @@ export function CanonicalGroupPanel({
                   disabled={busy || !!pending}
                   onClick={() => setTools((current) => current.filter((_, at) => at !== index))}
                 >
-                  <Trash2 size={12} /> 移除
+                  <Trash2 size={12} /> Remove
                 </Button>
               </span>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="工具别名">
+              <Field label="Tool alias">
                 <input
                   aria-label={`Tool alias ${index + 1}`}
                   className={inputClass}
@@ -282,7 +282,7 @@ export function CanonicalGroupPanel({
                   onChange={(event) => patch(index, { alias: event.target.value })}
                 />
               </Field>
-              <Field label="固定 Action">
+              <Field label="Fixed Action">
                 <select
                   aria-label={`Group Action ${index + 1}`}
                   className={inputClass}
@@ -293,7 +293,7 @@ export function CanonicalGroupPanel({
                     patch(index, { actionRef: id ? (references[id] ?? {}) : {} });
                   }}
                 >
-                  <option value="">选择 Action</option>
+                  <option value="">Select Action</option>
                   {catalog
                     .filter((item) => item.canonicalId)
                     .map((item) => (
@@ -313,7 +313,7 @@ export function CanonicalGroupPanel({
               <span className="break-all font-mono">{JSON.stringify(tool.actionRef)}</span>
               {text(tool.actionRef.id) && (
                 <Button size="sm" variant="ghost" onClick={() => onSelectAction(text(tool.actionRef.id))}>
-                  查看该 Action
+                  Inspect Action
                 </Button>
               )}
             </div>
@@ -325,10 +325,10 @@ export function CanonicalGroupPanel({
             disabled={busy || !!pending}
             onClick={() => setTools((current) => [...current, { alias: '', actionRef: {} }])}
           >
-            <Plus size={13} /> 添加固定工具
+            <Plus size={13} /> Add fixed tool
           </Button>
           <Button size="sm" variant="ghost" onClick={() => onInspect(references[text(tools[0]?.actionRef.id)] ?? {})}>
-            在当前目录查看引用
+            Inspect reference in catalog
           </Button>
         </div>
         {blockers.length > 0 && (
@@ -344,31 +344,31 @@ export function CanonicalGroupPanel({
           <Button
             size="sm"
             disabled={busy || !!pending || built}
-            title={built ? '需先 Unbuild 才能删除' : '删除该 Group'}
+            title={built ? 'Unbuild before deleting' : 'Delete Group'}
             onClick={remove}
           >
-            <Trash2 size={12} /> 删除 Group
+            <Trash2 size={12} /> Delete Group
           </Button>
-          <span>删除仅在未发布时可用；引用与 Session 绑定需先解除。</span>
+          <span>Unbuild and remove references and Session bindings before deleting.</span>
         </div>
       </Section>
 
       <Section
-        title="固定 release 与 Session 绑定"
-        description="release 是不可变文件；Worker 启动时固定加载，之后的发布不会改写已运行的 pin。"
+        title="Fixed releases and Session bindings"
+        description="release is immutable. Workers load a fixed release at startup; later publication preserves running pins."
         actions={
           <>
             <Button size="sm" disabled={!built} onClick={() => void loadRelease(row.release)}>
-              查看当前 release
+              View current release
             </Button>
             <Button
               size="sm"
               variant="primary"
               disabled={!built || !group}
-              title={built ? '在三处 Session 界面中选择一种 MCP 模式' : '先 Build 再绑定 Session'}
+              title={built ? 'Select an MCP mode for the Session' : 'Build before binding a Session'}
               onClick={() => setBinding(true)}
             >
-              <Play size={13} /> 在 Session 中使用
+              <Play size={13} /> Use in Session
             </Button>
           </>
         }
@@ -376,26 +376,26 @@ export function CanonicalGroupPanel({
       >
         <div className="grid gap-1 text-xs sm:grid-cols-2">
           <p className="break-all">
-            <span className="text-text-tertiary">release 版本：</span>
-            <span className="font-mono">{row.release || '未发布'}</span>
+            <span className="text-text-tertiary">release Version:</span>
+            <span className="font-mono">{row.release || 'Unpublished'}</span>
           </p>
           <p className="break-all">
-            <span className="text-text-tertiary">绑定 Session：</span>
+            <span className="text-text-tertiary">Bound Session:</span>
             {bindableSessions(row, sessions)}
           </p>
         </div>
         <section role="region" aria-label="Release history" className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-xs font-semibold text-text-primary">已发布 release</h4>
+            <h4 className="text-xs font-semibold text-text-primary">Published release</h4>
             <span className="text-[11px] text-text-tertiary">
-              最近 {history.length} 个 · 新到旧 · 不可变
+              Recent {history.length}  releases / newest first / immutable
             </span>
             <Button size="sm" className="ml-auto" disabled={busy} onClick={() => void loadHistory()}>
-              刷新
+              Refresh
             </Button>
           </div>
           {history.length === 0 ? (
-            <p className="text-[11px] text-text-tertiary">该 Group 还没有已发布的 release。</p>
+            <p className="text-[11px] text-text-tertiary">This Group has no published release.</p>
           ) : (
             <ul className="space-y-1">
               {history.map((item) => {
@@ -406,7 +406,7 @@ export function CanonicalGroupPanel({
                     className="flex min-w-0 flex-wrap items-center gap-2 rounded border border-border-muted px-2 py-1.5 text-[11px]"
                   >
                     <span className="min-w-0 break-all font-mono">{version}</span>
-                    {version === row.release && <Badge tone="success">当前</Badge>}
+                    {version === row.release && <Badge tone="success">Current</Badge>}
                     <span className="text-text-tertiary">
                       revision {text(item.revision, '—')} · digest {text(item.digest).slice(0, 8)}
                     </span>
@@ -414,10 +414,10 @@ export function CanonicalGroupPanel({
                       <Button
                         size="sm"
                         variant="ghost"
-                        aria-label={`查看 ${version}`}
+                        aria-label={`Inspect ${version}`}
                         onClick={() => void loadRelease(version)}
                       >
-                        查看
+                        Inspect
                       </Button>
                     </span>
                   </li>
@@ -428,8 +428,8 @@ export function CanonicalGroupPanel({
         </section>
         <div className="flex flex-wrap items-end gap-2">
           <Field
-            label="按版本号查看 release"
-            hint="历史不可变；也可直接按已知版本号查看单个 release。"
+            label="Inspect release by version"
+            hint="History is immutable. You can inspect a release by its version ID."
             className="min-w-0 flex-1 basis-64"
           >
             <input
@@ -441,29 +441,29 @@ export function CanonicalGroupPanel({
             />
           </Field>
           <Button size="sm" disabled={!releaseId || busy} onClick={() => void loadRelease(releaseId)}>
-            查看
+            Inspect
           </Button>
-          {release && <CopyButton value={text(release.version)} label="复制 release 版本" />}
+          {release && <CopyButton value={text(release.version)} label="Copy release version" />}
         </div>
         {release && (
           <div className="min-w-0 space-y-2 rounded-md border border-border-default p-2.5 text-xs">
             <p className="break-all">
-              <span className="text-text-tertiary">version：</span>
+              <span className="text-text-tertiary">version: </span>
               <span className="font-mono">{text(release.version)}</span>
             </p>
             <p className="break-all">
-              <span className="text-text-tertiary">digest：</span>
+              <span className="text-text-tertiary">digest: </span>
               <span className="font-mono">{text(release.digest)}</span>
             </p>
             <p className="break-words">
-              <span className="text-text-tertiary">固定工具：</span>
+              <span className="text-text-tertiary">Fixed tools:</span>
               {aliasesOf(rows(release.tools)) || '—'}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
                 disabled={busy || !!pending}
-                title="把该 release 的固定版本复制到草稿；需要再次 Build 才生效"
+                title="Copy this release to the draft. Build again to publish the change"
                 onClick={() =>
                   setTools(
                     rows(release.tools).map((tool) => ({
@@ -473,14 +473,14 @@ export function CanonicalGroupPanel({
                   )
                 }
               >
-                复制到草稿
+                Copy to draft
               </Button>
               <Button size="sm" variant="ghost" onClick={() => onInspect(obj(rows(release.tools)[0]?.actionRef))}>
-                查看第一个固定 Action
+                Inspect first fixed Action
               </Button>
             </div>
             <details>
-              <summary className="cursor-pointer text-text-secondary">完整 release JSON</summary>
+              <summary className="cursor-pointer text-text-secondary">Full release JSON</summary>
               <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px]">
                 {JSON.stringify(release, null, 2)}
               </pre>
@@ -498,17 +498,17 @@ export function CanonicalGroupPanel({
       {pending && (
         <div role="status" className="space-y-2 rounded-md border border-border-default p-2.5 text-xs">
           <p className="break-all">
-            原 Group 请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}。仅查询，不自动重放。
+            Original Group request {pending.requestKey} · {receipt?.status ?? 'unknown'}.Query only. No automatic replay.
           </p>
           <Button size="sm" disabled={busy} onClick={() => void lookup()}>
-            查询原 Group 操作
+            Query original Group operation
           </Button>
         </div>
       )}
       {receipt && (
         <details className="rounded-md border border-border-default p-2.5 text-xs">
           <summary className="cursor-pointer">
-            回执 {receipt.status} · {receipt.operationId}
+            Receipt {receipt.status} · {receipt.operationId}
           </summary>
           <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px]">
             {JSON.stringify(receipt, null, 2)}
@@ -529,10 +529,10 @@ function bindableSessions(row: UnifiedGroupRow, sessions: Session[]): string {
   const bound = sessions.filter((session) =>
     (session.pluginBindings ?? []).some((item) => item.plugin_id === row.pluginId),
   );
-  if (!bound.length) return '未绑定';
+  if (!bound.length) return 'Unbound';
   return bound
-    .map((session) => `${session.name}${session.workerStatus === 'running' ? '（运行中）' : ''}`)
-    .join('、');
+    .map((session) => `${session.name}${session.workerStatus === 'running' ? ' (running)' : ''}`)
+    .join(', ');
 }
 
 /**
@@ -569,7 +569,7 @@ function FixedVersion({
   }, [id]);
   return (
     <div className="min-w-0 space-y-1">
-      <Field label="固定版本" hint="仅可选择已发布且启用的版本；历史引用保持原版本。">
+      <Field label="Fixed version" hint="Select a published, enabled version. Historical references stay fixed.">
         <select
           aria-label="Group fixed version"
           className={cx(inputClass, 'appearance-auto')}
@@ -580,7 +580,7 @@ function FixedVersion({
             if (next) onChange(obj(next.ref));
           }}
         >
-          <option value="">选择版本</option>
+          <option value="">Select version</option>
           {versions.map((version) => (
             <option
               key={text(version.revision)}

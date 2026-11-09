@@ -46,9 +46,9 @@ export function CanonicalActionRow({
               <button
                 type="button"
                 onClick={onOpen}
-                aria-label={`查看 ${row.name}`}
+                aria-label={`Inspect ${row.name}`}
                 className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
-                title={`查看 ${row.name}`}
+                title={`Inspect ${row.name}`}
               >
                 {row.name}
               </button>
@@ -59,7 +59,7 @@ export function CanonicalActionRow({
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
               <span className={row.enabled ? 'text-success' : 'text-text-tertiary'}>
-                {row.enabled ? 'Enabled' : 'Draft'}
+                {!row.canonicalId ? 'Invalid / Retired' : row.enabled ? 'Enabled' : 'Draft'}
               </span>
               <span>{OPERATION_LABELS[operation] ?? operation}</span>
               <span>{EFFECT_LABELS[row.effectClass] ?? row.effectClass}</span>
@@ -80,7 +80,7 @@ export function CanonicalActionRow({
         </div>
         <div className="action-col-status">
           <Badge tone={row.enabled ? 'success' : 'muted'} dot>
-            {row.enabled ? 'Enabled' : 'Draft'}
+            {!row.canonicalId ? 'Invalid / Retired' : row.enabled ? 'Enabled' : 'Draft'}
           </Badge>
         </div>
         <div className="action-col-usage text-xs text-text-secondary">
@@ -90,7 +90,7 @@ export function CanonicalActionRow({
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <Button size="sm" onClick={onOpen}>
-            版本与发布
+            {row.canonicalId ? 'Versions and publication' : 'Inspect history'}
           </Button>
         </div>
       </div>
@@ -117,19 +117,19 @@ export function CanonicalGroupRow({
               <button
                 type="button"
                 onClick={onOpen}
-                aria-label={`查看 ${row.name}`}
+                aria-label={`Inspect ${row.name}`}
                 className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
-                title={`查看 ${row.name}`}
+                title={`Inspect ${row.name}`}
               >
                 {row.name}
               </button>
             </div>
             <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary">
-              {row.tools.length} 个固定工具
+              {row.tools.length}  fixed tools
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
-              <span>{row.release ? '已发布' : '未构建'}</span>
-              <span>{row.tools.length} 个固定工具</span>
+              <span>{row.release ? 'Published' : 'Unbuilt'}</span>
+              <span>{row.tools.length}  fixed tools</span>
             </div>
           </div>
         </div>
@@ -137,7 +137,7 @@ export function CanonicalGroupRow({
           {row.release ? (
             <span className="font-mono text-[11px] text-text-secondary">{shortVersion(row.release)}</span>
           ) : (
-            <span className="text-[11px] text-text-tertiary">未发布</span>
+            <span className="text-[11px] text-text-tertiary">Unpublished</span>
           )}
         </div>
         <div className="group-col-composition min-w-0 text-[11px] text-text-tertiary">
@@ -145,12 +145,12 @@ export function CanonicalGroupRow({
         </div>
         <div className="group-col-status">
           <Badge tone={row.release ? 'success' : 'muted'} dot>
-            {row.release ? 'Built' : 'Unbuilt'}
+            {!row.canonicalWritable ? 'Retired' : row.release ? 'Built' : 'Unbuilt'}
           </Badge>
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1">
           <Button size="sm" onClick={onOpen}>
-            固定版本与 release
+            Fixed versions and releases
           </Button>
         </div>
       </div>

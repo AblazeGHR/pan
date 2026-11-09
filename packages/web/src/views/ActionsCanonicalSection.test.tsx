@@ -37,6 +37,7 @@ const versions = [
 ];
 
 beforeEach(() => {
+  sessionStorage.clear();
   resetActionCachesForTests();
   useActionSessionsStore.getState().reset();
   vi.mocked(actionRequest).mockImplementation(async (path) => {
@@ -65,8 +66,8 @@ afterEach(cleanup);
 it('shows canonical-only Actions inside the designed page and opens their versions', async () => {
   render(<LegacyActionsView />);
   // One table: the canonical-only Action sits in the same list as legacy rows.
-  expect(await screen.findByRole('button', { name: '查看 Canonical Echo' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: '查看 Canonical Echo' }));
+  expect(await screen.findByRole('button', { name: 'Inspect Canonical Echo' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect Canonical Echo' }));
   const select = await screen.findByLabelText('Action version');
   expect((select as HTMLSelectElement).value).toBe('2');
   expect(select.querySelectorAll('option')).toHaveLength(2);
@@ -159,8 +160,8 @@ it('edits an expressible canonical Action through the designed form', async () =
     throw new Error(`Unhandled canonical ${path}`);
   });
   render(<LegacyActionsView />);
-  fireEvent.click(await screen.findByRole('button', { name: '查看 Canonical Echo' }));
-  fireEvent.click(await screen.findByRole('button', { name: '用表单编辑' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect Canonical Echo' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit with form' }));
   // The designed form is populated from the canonical definition, not JSON.
   fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'Renamed head' } });
   fireEvent.click(screen.getByRole('button', { name: 'Save Action' }));

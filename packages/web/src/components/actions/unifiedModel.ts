@@ -170,10 +170,10 @@ export function buildUnifiedActions({
       adoption: reason ? 'preserved' : mapped ? 'adopted' : 'legacy',
       canonicalId: mapped ? canonicalId : '',
       legacyId: action.id,
-      versionCount: 1,
+      versionCount: mapped ? 1 : 0,
       latestRevision: null,
-      state: action.enabled ? 'published' : 'draft',
-      enabled: action.enabled === true,
+      state: mapped ? (action.enabled ? 'published' : 'draft') : 'Retired',
+      enabled: Boolean(mapped) && action.enabled === true,
       effectClass: action.effect ?? '',
       executionOperation: text(obj(action.execution).kind),
       preservedReason: reason,
@@ -358,10 +358,10 @@ export function bindableGroup(row: UnifiedGroupRow, sessions: Session[]): Action
 }
 
 export const ADOPTION_LABELS: Record<ActionAdoption | GroupAdoption, string> = {
-  canonical: '统一目录',
-  adopted: '已接管旧定义',
-  legacy: '旧记录',
-  preserved: '已保留',
+  canonical: 'Catalog',
+  adopted: 'Canonical definition',
+  legacy: 'Retired',
+  preserved: 'Preserved',
 };
 
 export function adoptionTone(

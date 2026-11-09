@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { RetiredJobsRoute } from './views/RetiredJobsRoute';
-
-describe('retired Jobs route', () => {
-  it('explains migration and links to canonical management', () => {
-    render(<MemoryRouter><RetiredJobsRoute /></MemoryRouter>);
-    expect(screen.getByRole('heading', { name: 'Jobs 已迁移' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: '打开 Canonical Jobs' }).getAttribute('href')).toBe('/automation/canonical');
-  });
+it('redirects retired aliases directly to the single Jobs entry', () => {
+  render(<MemoryRouter initialEntries={['/schedules']}><Routes><Route path="/schedules" element={<RetiredJobsRoute />} /><Route path="/jobs" element={<h1>Jobs destination</h1>} /></Routes></MemoryRouter>);
+  expect(screen.getByRole('heading', {name: 'Jobs destination'})).toBeTruthy();
 });
-

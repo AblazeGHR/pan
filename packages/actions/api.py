@@ -78,6 +78,23 @@ def install(server):
         adapter = compatibility()
         if adapter:
             state = await io(adapter.projection, state)
+        # This is a read projection. Keep malformed source payloads inspectable
+        # without making them executable or rewriting their original bytes.
+        for kind in ('actions', 'groups'):
+            projected = {}
+            for source_id, source in state.get(kind, {}).items():
+                raw = source if isinstance(source, dict) else {}
+                item = {**raw, 'id': source_id,
+                        'name': raw.get('name') if isinstance(raw.get('name'), str) else source_id,
+                        'retirementStatus': 'Retired' if raw else 'Invalid',
+                        'preservedSource': copy.deepcopy(source)}
+                if kind == 'actions':
+                    item.update(description=raw.get('description') if isinstance(raw.get('description'), str) else '',
+                                execution=raw.get('execution') if isinstance(raw.get('execution'), dict) else {'kind': 'invalid'})
+                else:
+                    item['action_ids'] = [value for value in raw.get('action_ids', []) if isinstance(value, str)] if isinstance(raw.get('action_ids'), list) else []
+                projected[source_id] = item
+            state[kind] = projected
         groups = []
         for group in state['groups'].values():
             item = copy.deepcopy(group)
@@ -114,71 +131,22 @@ def install(server):
 
     @router.post('/api/actions/{kind}')
     async def create(kind: str, data: dict, request: Request):
-        if kind not in {'actions', 'groups'}:
-            raise HTTPException(404, 'Unknown item kind')
-        if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict):
-            raise HTTPException(400, 'Request requires item and optional expectedRevision')
-        try:
-            if kind == 'actions':
-                await require_write(request, 'action', None, data['item'])
-                result = await compatible_action(request, 'put', data.get('expectedRevision'), raw=data['item'], create=True)
-            else:
-                result = await compatible_write(request, data['item'].get('id'), 'put', data.get('expectedRevision'), data['item'], create=True)
-            if result:
-                return {**await view(request), 'item': result['result']['item'], 'operation': result}
-            item = await io(Store().put, kind, data['item'], data.get('expectedRevision'), create=True, authorized=await user(request))
-            return {**await view(request), 'item': item}
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        except PermissionError as exc:
-            raise HTTPException(401, str(exc)) from exc
-        except PersistenceError as exc:
-            raise HTTPException(503,str(exc)) from exc
+        await require_capability(request, 'create')
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Action/Group writes retired; use canonical APIs'})
 
     @router.put('/api/actions/{kind}/{item_id}')
     async def put(kind: str, item_id: str, data: dict, request: Request):
-        if kind not in {'actions', 'groups'}:
-            raise HTTPException(404, 'Unknown item kind')
-        if set(data) - {'item', 'expectedRevision'} or not isinstance(data.get('item'), dict) or data['item'].get('id') != item_id:
-            raise HTTPException(400, 'Request requires item with matching ID and optional expectedRevision')
-        try:
-            if kind == 'groups' and await compatible_write(request, item_id, 'put', data.get('expectedRevision'), data['item']):
-                return await view(request)
-            if kind == 'actions':
-                current = await current_state()
-                await require_write(request, 'action', current['actions'].get(item_id), validate_action(data['item']))
-                if await compatible_action(request, 'put', data.get('expectedRevision'), raw=data['item']):
-                    return await view(request)
-            await io(Store().put, kind, data['item'], data.get('expectedRevision'), authorized=await user(request))
-            return await view(request)
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        except PermissionError as exc:
-            raise HTTPException(401, str(exc)) from exc
-        except PersistenceError as exc:
-            raise HTTPException(503,str(exc)) from exc
+        await require_capability(request, 'updateConfig')
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Action/Group writes retired; use canonical APIs'})
 
     @router.post('/api/actions/actions/{item_id}/lifecycle')
     async def lifecycle(item_id: str, data: dict, request: Request):
-        await require_capability(request, 'lifecycle')
-        if set(data) != {'enabled', 'expectedRevision'} or type(data['enabled']) is not bool:
-            raise HTTPException(400, 'Expected enabled and expectedRevision')
-        state = await current_state()
-        item = state['actions'].get(item_id)
-        if not item:
-            raise HTTPException(404, 'Action missing')
-        if item.get('system'):
-            await require_capability(request, 'manageSystemActions')
-        try:
-            if await compatible_action(request, 'lifecycle', data['expectedRevision'], aid=item_id, enabled=data['enabled']):
-                return await view(request)
-            await io(Store().set_enabled, item_id, data['enabled'], data['expectedRevision'])
-            return await view(request)
-        except ValueError as exc:
-            raise HTTPException(409, str(exc)) from exc
+        await require_capability(request, 'updateConfig')
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Action/Group writes retired; use canonical APIs'})
 
     @router.delete('/api/actions/{kind}/{item_id}')
     async def delete(kind: str, item_id: str, request: Request, expectedRevision: int | None = None, confirmReferences: bool = False):
+        await require_capability(request, 'delete')
         if kind not in {'actions', 'groups'}:
             raise HTTPException(404, 'Unknown item kind')
         try:
@@ -200,6 +168,9 @@ def install(server):
     @router.post('/api/actions/groups/{group_id}/{operation}')
     @settled
     async def release(group_id: str, operation: str, data: dict, request: Request):
+        await require_capability(request, 'lifecycle')
+        if operation == 'build':
+            raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Group build retired; use canonical Group build'})
         if operation not in {'build', 'unbuild'} or set(data) - {'expectedRevision'}:
             raise HTTPException(400, 'Expected build or unbuild and optional expectedRevision')
         pid = 'action-group-' + group_id.replace('_', '-')
@@ -277,65 +248,15 @@ def install(server):
                         for session in owners:
                             if server.worker.find_alive_worker_by_session(session.id):
                                 server.worker.request_delayed_restart(session.id)
-                        def cleanup():
-                            directory = store.root / 'builds' / group_id
-                            if directory.exists():
-                                shutil.rmtree(directory)
-                        try:
-                            await io(cleanup)
-                        except OSError as exc:
-                            raise HTTPException(500, 'Group unregistered, but release file cleanup failed: ' + str(exc)) from exc
+                        # Preserve legacy build files for read-only audit.
+
             return await view(request)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 
     @router.post('/api/action-drafts/{kind}/{operation}')
     async def drafts(kind: str, operation: str, data: dict, request: Request):
-        if kind not in {'actions', 'groups'} or operation not in {'put', 'delete'} or set(data) - {'item', 'id', 'expectedRevision', 'requestKey'}:
-            raise HTTPException(400, 'Invalid draft operation')
-        try:
-            if 'requestKey' in data:
-                from packages.jobs.final_contracts import check_request_key
-                check_request_key(data['requestKey'])
-            if kind == 'groups':
-                gid = (data.get('item') or {}).get('id') if operation == 'put' else data.get('id')
-                current = await current_state()
-                if operation == 'put':
-                    await require_write(request, 'action', current['groups'].get(gid), data.get('item'))
-                else:
-                    await require_capability(request, 'delete')
-                receipt = await compatible_write(request, gid, operation, data.get('expectedRevision'), data.get('item'), key=data.get('requestKey'))
-                if receipt:
-                    result = await view(request)
-                    if operation == 'put':
-                        result['item'] = next(g for g in result['groups'] if g['id'] == receipt['result']['group']['id'])
-                    result['operation'] = receipt
-                    return result
-            if kind == 'actions':
-                current = await current_state()
-                if operation == 'put':
-                    raw = data.get('item') or {}
-                    old = current['actions'].get(raw.get('id'))
-                    await require_write(request, 'action', old, {**raw, 'enabled': False})
-                else:
-                    await require_capability(request, 'delete')
-                receipt = await compatible_action(request, operation, data.get('expectedRevision'),
-                    raw=data.get('item'), aid=data.get('id'), draft=True, key=data.get('requestKey'))
-                if receipt:
-                    result = await view(request)
-                    if operation == 'put':
-                        result['item'] = receipt['result']['item']
-                    result['operation'] = receipt
-                    return result
-            if operation == 'put':
-                item = await io(Store().put, kind, data.get('item'), data.get('expectedRevision'), draft=True)
-                return {**await view(request), 'item': item}
-            else:
-                await io(Store().delete, kind, data.get('id'), data.get('expectedRevision'))
-            return await view(request)
-        except PermissionError as exc:
-            raise HTTPException(401, str(exc)) from exc
-        except ValueError as exc:
-            raise HTTPException(400, str(exc)) from exc
+        await require_capability(request, 'updateConfig')
+        raise HTTPException(410, {'code': 'retired', 'message': 'Legacy Action/Group writes retired; use canonical APIs'})
 
     server.app.include_router(router)

@@ -27,7 +27,7 @@ def state_for(root, conflict):
 def dispositions(root, *, service=None):
     path = root / 'job-dispositions.json'
     if not path.exists():
-        return {'items': [], 'manifestState': 'missing', 'message': '未提供离线处置清单；原数据未迁移、未执行。'}
+        return {'items': [], 'manifestState': 'missing', 'message': 'No offline disposition manifest. Original data is preserved and cannot execute.'}
     if any(p.is_symlink() or (hasattr(p, 'is_junction') and p.is_junction()) for p in (path, *path.parents)):
         raise ValueError('Disposition manifest contains a link')
     if path.stat().st_size > 8 * 1024 * 1024:
@@ -62,11 +62,11 @@ def dispositions(root, *, service=None):
                     pass
         items.append({**row, 'recognition': 'unrecognized', 'deleted': receipt is not None,
                       'deleteBlocked': not owned or resource_blocked or receipt is not None,
-                      'deleteReason': '已删除原记录，原字节仍保留在本地审计备份；未知效果未结算。' if receipt else
-                      '原资源或收据尚未核实，原记录保留，先按原身份核对。' if owned and resource_blocked else
-                      '删除仅移除原记录并保留审计备份，不停止资源、不结算或重放未知效果。' if owned else
-                      '原 owner 未核实，禁止修改原文件；未知效果未结算、不会重放。'})
-    return {'items': items, 'manifestState': 'loaded', 'message': '原数据已保留，未迁移；建议手动创建新的 Job。'}
+                      'deleteReason': 'Source record deleted. Original bytes remain in the audit backup; unknown effects are unsettled.' if receipt else
+                      'Resource or receipt unverified. Preserve the source and verify the original identity.' if owned and resource_blocked else
+                      'Deletion retains an audit backup. It does not stop resources, settle or replay unknown effects.' if owned else
+                      'Owner unverified. Source files are read-only; unknown effects remain unsettled and will not replay.'})
+    return {'items': items, 'manifestState': 'loaded', 'message': 'Original data is preserved. Create a new Job to continue.'}
 
 
 def install(app):
@@ -134,7 +134,7 @@ def install(app):
             return dispositions(state['root'], service=state.get('service'))
         except (ValueError, OSError):
             return JSONResponse(status_code=409, content={'ok': False, 'error': {
-                'code': 'invalid_disposition_manifest', 'message': '处置清单无效；原数据未改变、未执行。'}})
+                'code': 'invalid_disposition_manifest', 'message': 'Invalid disposition manifest. Original data is unchanged and cannot execute.'}})
 
     @router.delete('/records/{record_id}')
     async def delete(record_id: str, request: Request):
@@ -156,9 +156,9 @@ def install(app):
             return JSONResponse(status_code=exc.status, content={'ok': False, 'error': exc.as_dict()})
         except ValueError:
             return JSONResponse(status_code=409, content={'ok': False, 'error': {
-                'code': 'invalid_disposition_manifest', 'message': '处置清单无效，未准入删除。'}})
+                'code': 'invalid_disposition_manifest', 'message': 'Invalid disposition manifest. Deletion was refused.'}})
         except OSError:
             return JSONResponse(status_code=503, content={'ok': False, 'error': {
-                'code': 'storage_unavailable', 'message': '删除存储结果未确认；保留原请求身份及审计备份，查询原操作。'}})
+                'code': 'storage_unavailable', 'message': 'Deletion is unconfirmed. Keep the original request identity and audit backup; query the original operation.'}})
 
     app.include_router(router)

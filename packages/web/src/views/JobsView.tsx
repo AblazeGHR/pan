@@ -1,3 +1,7 @@
+import { canonicalJobs } from '@/services/canonicalJobs';
+import { useOperationIdentity } from '@/components/actions/useOperationIdentity';
+import { CanonicalCollection } from './CanonicalJobsView';
+import { PreservedDataPanel } from '@/components/jobs/JobMaintenanceGate';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -63,7 +67,7 @@ function timestampMs(value: unknown): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type Tab = 'list' | 'legacy' | 'create' | 'settings';
+type Tab = 'list' | 'legacy' | 'create' | 'settings' | 'definitions' | 'triggers' | 'event-creators' | 'job-templates';
 
 type StatusFilter =
   'all' | 'active' | 'scheduled' | 'completed' | 'failed' | 'timed_out' | 'undeliverable';
@@ -93,7 +97,7 @@ const selectClass =
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Request failed');
 
-/** 状态 → 徽标配色（沿用主题 token）。 */
+/** 状态 → 徽标配色 (沿用主题 token). */
 function statusColor(status: string): string {
   switch (status) {
     case 'running':
@@ -143,7 +147,7 @@ function formatDateTime(value?: number | string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 下次触发 = 各 enabled entry 中最早的 nextFireAt。 */
+/** 下次触发 = 各 enabled entry 中最早的 nextFireAt. */
 function nextFireAt(job: Job): string | null {
   let min: string | null = null;
   for (const e of scheduleEntries(job.schedule)) {
@@ -152,7 +156,7 @@ function nextFireAt(job: Job): string | null {
   return min;
 }
 
-/** 最近结果摘要：lastDelivery（含 partial）> lastError > lastStatus。 */
+/** Recent结果摘要: lastDelivery (含 partial)> lastError > lastStatus. */
 function lastResultSummary(job: Job): string {
   if (job.lastDelivery) {
     const { status, results, errors } = job.lastDelivery;
@@ -166,7 +170,7 @@ function lastResultSummary(job: Job): string {
     : job.kind === 'background-process' ? `legacy ${job.status}` : `deliveries ${job.runCount ?? 0}`;
 }
 
-/** 活跃优先排序档位：running → starting → scheduled → pending → completed → failed → timed_out → cancelled。 */
+/** 活跃优先排序档位: running → starting → scheduled → pending → completed → failed → timed_out → cancelled. */
 function activeRank(status: JobStatus): number {
   switch (status) {
     case 'running':
@@ -198,7 +202,7 @@ function updatedAtMs(job: Job): number {
   return timestampMs(job.updatedAt) ?? 0;
 }
 
-/** 置顶优先；每组保留活跃优先和 updatedAt 倒序（新在前）。 */
+/** 置顶优先; 每组保留活跃优先和 updatedAt 倒序 (新在前). */
 function compareJobs(a: Job, b: Job, usePins = true): number {
   if (usePins && !!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
   const ra = activeRank(a.status);
@@ -207,7 +211,7 @@ function compareJobs(a: Job, b: Job, usePins = true): number {
   return updatedAtMs(b) - updatedAtMs(a);
 }
 
-/** 状态 chips 匹配（与 kind 下拉 AND 叠加）。 */
+/** 状态 chips 匹配 (与 kind 下拉 AND 叠加). */
 function matchesStatusFilter(job: Job, filter: StatusFilter): boolean {
   switch (filter) {
     case 'active':
@@ -278,11 +282,11 @@ function JobRow({
   const backlog = job.undeliveredFires?.length ?? 0;
   const isScheduledTask = job.kind === 'scheduled-task';
   const hasTarget = !!job.target.sessionId;
-  const canRunNow = job.action?.api === 'shell'
+  const canRunNow = !job.retirementStatus && (job.action?.api === 'shell'
     || Boolean(isUnifiedJob(job) && job.enabled)
     || job.action?.api === 'resume_legal_running'
     || job.action?.api === 'send_qq'
-    || hasTarget;
+    || hasTarget);
   return (
     <div
       onClick={onOpen}
@@ -356,7 +360,7 @@ function JobRow({
                     role="menuitem"
                     type="button"
                     disabled={!canRunNow}
-                    title={canRunNow ? undefined : '无 target，无法立即派发'}
+                    title={canRunNow ? undefined : 'No target available for dispatch'}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!canRunNow) return;
@@ -410,7 +414,7 @@ function JobRow({
           {job.status}
         </span>
         <span className="shrink-0 rounded border border-border-default bg-bg-tertiary px-1.5 py-px text-[10px] text-text-secondary">
-          {kindLabel}
+          {job.retirementStatus || kindLabel}
         </span>
 
         <span>
@@ -447,11 +451,11 @@ function JobRow({
 }
 
 /**
- * JobsView（GUI）— 真实 /api/jobs 数据。列表/创建/编辑/详情/run-now 全走后端
- * 契约；WS 订阅 5 类 job 事件驱动列表与 toast。客户端做排序与筛选。
+ * JobsView (GUI)— 真实 /api/jobs 数据.列表/Create/Edit/详情/run-now 全走后端
+ * 契约; WS 订阅 5 类 job 事件驱动列表与 toast.客户端做排序与筛选.
  */
 export default function JobsView() {
-  const authorizationToken = useAutomationAuth((state) => state.token || state.authenticated);
+  const authorizationToken = useAutomationAuth((state) => state.token || (state.authenticated ? 'cookie' : ''));
   const navigate = useNavigate();
   const showToast = useUIStore((s) => s.showToast);
   const toastRef = useRef(showToast); toastRef.current = showToast;
@@ -508,6 +512,8 @@ export default function JobsView() {
   const [kindMetas, setKindMetas] = useState<JobKindMeta[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [createPending, setCreatePending] = useOperationIdentity('job-create');
+  const createLock = useRef(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
@@ -555,8 +561,8 @@ export default function JobsView() {
     void loadSessions();
   }, [loadSessions]);
 
-  // WS：job.created/updated/deleted 由 useWebSocket 统一写入 jobStore（导航徽标
-  // 共用同一份列表）；本页只保留 fired/partial_failed 的 toast 通知。
+  // WS: job.created/updated/deleted 由 useWebSocket 统Mon写入 jobStore (导航徽标
+  // 共用同Mon份列表); 本页只保留 fired/partial_failed 的 toast 通知.
   useEffect(() => {
     const offFired = wsClient.on('scheduler.task.fired', (ev) => {
       const e = ev as unknown as {
@@ -615,7 +621,7 @@ export default function JobsView() {
     }
   }, [allJobs]);
 
-  // 详情 runs：随选中 job / limit 拉取。
+  // 详情 runs: 随选中 job / limit 拉取.
   useEffect(() => {
     if (!selectedJobId) {
       setRuns([]);
@@ -716,7 +722,7 @@ export default function JobsView() {
   // An open draft and its CAS revision are one snapshot. A WS refresh may update
   // the list, but cannot promote the revision attached to unsaved input.
   const editJob = editSnapshot?.jobId === editJobId ? editSnapshot : null;
-  // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉。
+  // 抽屉 z-50 会盖住 z-40 的居中 Modal → 有对话框时隐藏抽屉.
   const dialogOpen =
     changeTargetJobId !== null ||
     deleteJobId !== null ||
@@ -850,19 +856,27 @@ export default function JobsView() {
       upsertJob(job);
       dirtyEditor.current = false;
       setTab('list');
-      showToast(`Created unified Job "${job.name}"`);
+      showToast(`Created Job "${job.name}"`);
     } catch (e) { showToast(errMsg(e), 'error'); throw e; }
     finally { setSubmitting(false); }
   };
 
   const handleLegacyCreate = async (input: JobCreateInput) => {
-    setSubmitting(true);
+    if (createLock.current || createPending) return;
+    createLock.current = true;
+    const requestKey = crypto.randomUUID();
+    setCreatePending({operation: 'create', requestKey}); setSubmitting(true);
     try {
-      const job = await createJob(input);
-      upsertJob(job); setLegacyCreateOpen(false); setTab('legacy');
-      showToast(`Created legacy Job "${job.name}"`);
-    } catch (e) { showToast(errMsg(e), 'error'); }
-    finally { setSubmitting(false); }
+      const job = await createJob(input, requestKey);
+      setCreatePending(null);
+      upsertJob(job); setLegacyCreateOpen(false); setTab('list');
+      showToast(`Created Job "${job.name}"`);
+    } catch (e) {
+      // Explicit rejections cannot have admitted a create; ambiguous results stay query-only.
+      const status = (e as {status?: number}).status;
+      if (status && status >= 400 && status < 500 && ![408, 429].includes(status)) setCreatePending(null);
+      showToast(errMsg(e), 'error');
+    } finally { createLock.current = false; setSubmitting(false); }
   };
 
   const handleUpdate = async (jobId: string, patch: JobPatchInput) => {
@@ -885,7 +899,7 @@ export default function JobsView() {
       if (job.configRevision == null) throw new Error('Configuration revision missing; reload before saving');
       const revision = job.configRevision;
       const updated = await updateActionJob(job.jobId, config, revision);
-      upsertJob(updated); dirtyEditor.current = false; setEditJobId(null); showToast(`Saved unified Job "${updated.name}"`);
+      upsertJob(updated); dirtyEditor.current = false; setEditJobId(null); showToast(`Saved Job "${updated.name}"`);
     } catch (e) { showToast(errMsg(e), 'error'); throw e; }
     finally { setSubmitting(false); }
   };
@@ -1025,8 +1039,10 @@ export default function JobsView() {
         <h1 className="text-sm font-semibold text-text-primary">Jobs</h1>
       </div>
 
+      <div className="shrink-0 px-3"><JobUserAuthorization /></div>
       {/* In-page tabs */}
-      <div className="flex gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
+      <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-border-muted bg-bg-secondary/30 shrink-0">
+        {([ ["list", "All Jobs"], ["definitions", "Definitions"], ["triggers", "Triggers"], ["event-creators", "Event creators"], ["job-templates", "Templates"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={tab === value} disabled={bulkAction !== null} onClick={() => requestTab(value)} className={`rounded border px-2.5 py-1 text-xs ${tab === value ? "border-accent/50 bg-accent/10 text-accent" : "border-border-default text-text-secondary hover:bg-bg-hover"}`}>{label}</button>)}
         <button
           type="button"
           onClick={() => setLegacyCreateOpen(true)}
@@ -1056,10 +1072,12 @@ export default function JobsView() {
         </button>
       </div>
 
-      {tab !== 'settings' && tab !== 'create' && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
-        统一 Job 列表 · 新记录与仍在旧 registry 的记录按 jobId 合并展示；来源与阻断原因在行内标注。
+      {(tab === 'list' || tab === 'legacy') && <p className="shrink-0 px-4 py-2 text-xs text-text-secondary" role="note">
+        Jobs and preserved history. Retired records cannot execute.
       </p>}
-      {tab !== 'settings' && tab !== 'create' ? (
+      {['definitions', 'triggers', 'event-creators', 'job-templates'].includes(tab) ? (
+        <div className="min-h-0 flex-1 overflow-y-auto"><div className="mx-auto w-full max-w-4xl p-4"><JobUserAuthorization /><CanonicalCollection key={`${tab}:${authorizationToken}`} kind={tab === 'definitions' ? 'jobs' : tab as 'triggers' | 'event-creators' | 'job-templates'} /></div></div>
+      ) : tab !== 'settings' && tab !== 'create' ? (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Keep filters, search, selection actions, and counts visible while rows scroll. */}
           <div className="shrink-0 border-b border-border-muted bg-bg-primary">
@@ -1320,7 +1338,7 @@ export default function JobsView() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-2xl p-4">
-            <JobRetentionSettings />
+            <JobUserAuthorization /><PreservedDataPanel authorization={authorizationToken} /><JobRetentionSettings />
           </div>
         </div>
       )}
@@ -1362,7 +1380,7 @@ export default function JobsView() {
               onChange={(e) => setNewTargetId(e.target.value)}
               className={selectClass}
             >
-              <option value="">无 target（积压）</option>
+              <option value="">No target (backlog)</option>
               {sessionOptions.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name || 'Untitled'} · {s.id}
@@ -1382,8 +1400,22 @@ export default function JobsView() {
       </Modal>
 
       <Modal open={legacyCreateOpen} onClose={() => { if (!submitting) setLegacyCreateOpen(false); }} title="New Job" size="lg">
-        <p className="mb-3 text-xs text-text-secondary">创建旧 registry 记录，使用旧 runner / scheduler；不会转换为新 Action Job。</p>
-        {legacyCreateOpen && <NewJobForm kindMetas={kindMetas} submitting={submitting} onCreate={(input) => void handleLegacyCreate(input)} />}
+        <p className="mb-3 text-xs text-text-secondary">Create a Job with the shared execution service.</p>
+        {createPending && <div role="status" className="mb-3 space-y-2 text-sm"><p className="break-all">Original request {createPending.requestKey}. Unknown outcomes are query-only.</p><Button disabled={submitting} onClick={async () => {
+          setSubmitting(true);
+          try {
+            const receipt = await canonicalJobs.lookup('create', createPending.requestKey);
+            if (receipt.status === 'completed') {
+              const object = receipt.result?.object as {id?: string} | undefined;
+              const id = object?.id || String(receipt.result?.jobId || '');
+              if (id) upsertJob(await fetchJob(id));
+              setCreatePending(null); setLegacyCreateOpen(false);
+              await loadJobs(); showToast('Creation found. Inspect the current Job and Runs; execution was not repeated.');
+            } else if (['rejected', 'cancelled'].includes(receipt.status)) setCreatePending(null);
+          } catch (cause) { showToast(errMsg(cause), 'error'); }
+          finally { setSubmitting(false); }
+        }}>Query original operation</Button></div>}
+        {legacyCreateOpen && <NewJobForm kindMetas={kindMetas} submitting={submitting || !!createPending} onCreate={(input) => void handleLegacyCreate(input)} />}
       </Modal>
 
       {/* Delete confirmation dialog */}

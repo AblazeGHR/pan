@@ -166,7 +166,7 @@ export function SelectedSessionActions({
   };
   const broadcast = async (_input: JobCreateInput) => {
     setPanel(null);
-    setError('群发 Job 已迁移，请在 Automation → Canonical Jobs 中创建。');
+    setError('Create broadcast Jobs from Jobs.');
   };
 
   // Lifecycle availability mirrors the single-Session Worker menu: Kill needs a

@@ -37,7 +37,7 @@ function AutomationContent() {
           description="Jobs, event subscriptions and reusable time sources"
           actions={
             <>
-              <HeaderLink to="/automation/canonical">Canonical Jobs</HeaderLink>
+              <HeaderLink to="/jobs">Jobs</HeaderLink>
               <HeaderLink to="/actions">Manage Actions</HeaderLink>
             </>
           }
@@ -87,7 +87,7 @@ function AutomationContent() {
           <div className="flex items-center gap-3 sm:ml-auto">
             {workspace.loading && (
               <span role="status" className="text-xs text-text-secondary">
-                加载工作区…
+                Loading workspace...
               </span>
             )}
             <Button
@@ -171,8 +171,8 @@ function AutomationContent() {
         )}
         {!authorization && (
           <p className="text-sm text-text-secondary">
-            <Link className="text-accent hover:text-accent-hover" to="/automation/canonical">
-              Open Canonical Jobs
+            <Link className="text-accent hover:text-accent-hover" to="/jobs">
+              Open Jobs
             </Link>{' '}
             to review the definitions that are visible to this profile.
           </p>

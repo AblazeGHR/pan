@@ -102,7 +102,8 @@ def run(server, *args, **kwargs):
             release = second_build['result']['release']
 
             # 3. Adopted legacy pair (original compatibility projection).
-            old = store.Store(root)
+            from tests.support.legacy_action_source import LegacySource
+            old = LegacySource(root)
             old.put('actions', {'id': 'old_alias', 'name': 'Owned old series', 'enabled': True,
                 'effect': 'write_local',
                 'input_schema': {'type': 'object', 'properties': {}, 'additionalProperties': False},

@@ -1,5 +1,8 @@
+import { useOperationIdentity, definitelyRejected } from '@/components/actions/useOperationIdentity';
+import { canonicalJobs } from '@/services/canonicalJobs';
 import { useAutomationAuth } from '@/stores/automationStore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LegacyRecordPanel } from '@/components/actions/LegacyRecordPanel';
 import { Button } from '@/components/ui/Button';
 import { actionRequest, canonicalRequest } from '@/services/api';
 import { useUIStore } from '@/stores/uiStore';
@@ -11,23 +14,7 @@ import {
 } from '@/stores/actionRegistryStore';
 import type { Action, ActionGroup, ActionRegistry, CanonicalLegacyAction } from '@/types/actions';
 import { CanonicalDefinitionEditor } from '@/components/actions/CanonicalDefinitionEditor';
-import {
-  EFFECT_LABELS,
-  actionEditorState,
-  actionRoute,
-  buildGate,
-  effectTone,
-  emptyActionDraft,
-  executionLabel,
-  formatTime,
-  groupEditorState,
-  isEditorDirty,
-  sessionOperationError,
-  pluginIdFor,
-  shortVersion,
-  usedByGroups,
-  type EditorState,
-} from '@/components/actions/actionsModel';
+import { actionEditorState, actionRoute, buildGate, emptyActionDraft, formatTime, groupEditorState, isEditorDirty, sessionOperationError, pluginIdFor, usedByGroups, type EditorState } from '@/components/actions/actionsModel';
 import { ActionEditorPage, GroupEditorPage } from '@/components/actions/ActionGroupEditors';
 import { MappedActionPanel } from '@/components/actions/MappedActionPanel';
 import { UseInSessionDialog } from '@/components/actions/UseInSessionDialog';
@@ -43,39 +30,8 @@ import {
   withVersionIndex,
 } from '@/components/actions/unifiedModel';
 import type { CanonicalReceipt, JsonObject } from '@/types/canonicalJobs';
-import {
-  Badge,
-  ConfirmDialog,
-  IconButton,
-  IconTile,
-  ListEmpty,
-  LoadError,
-  Segmented,
-  SkeletonList,
-  StaleBanner,
-  cx,
-} from '@/components/actions/ActionsUi';
-import {
-  Braces,
-  Copy,
-  Hammer,
-  Layers,
-  Lock,
-  MoreHorizontal,
-  CopyPlus,
-  PackageOpen,
-  Pencil,
-  Play,
-  Plus,
-  Power,
-  PowerOff,
-  RefreshCw,
-  RotateCcw,
-  Search,
-  TerminalSquare,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ConfirmDialog, ListEmpty, LoadError, Segmented, SkeletonList, StaleBanner } from '@/components/actions/ActionsUi';
+import { Braces, Layers, Plus, RefreshCw, RotateCcw, Search, X } from 'lucide-react';
 import './actions.css';
 export { LegacyActionsView as default };
 
@@ -100,6 +56,9 @@ export function LegacyActionsView() {
   const mutationPending = useActionRegistryStore((state) => state.mutationPending);
   const showToast = useUIStore((state) => state.showToast);
 
+  const [quickPending, setQuickPending] = useOperationIdentity('designed-form');
+  const quickLock = useRef(false);
+  const [quickBusy, setQuickBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('actions');
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [canonicalEditor, setCanonicalEditor] = useState<(CanonicalLegacyAction & { legacyId: string }) | null>(null);
@@ -113,8 +72,6 @@ export function LegacyActionsView() {
   const [groupQuery, setGroupQuery] = useState('');
   const [actionFilter, setActionFilter] = useState<'all' | 'enabled' | 'draft'>('all');
   const [groupFilter, setGroupFilter] = useState<'all' | 'built' | 'unbuilt'>('all');
-  const [duplicating, setDuplicating] = useState(false);
-  const duplicateInFlight = useRef(false);
   const [canonicalPage, setCanonicalPage] = useState<JsonObject>({});
   const [canonicalGroupPage, setCanonicalGroupPage] = useState<JsonObject[]>([]);
   const [canonicalAliases, setCanonicalAliases] = useState<Record<string, string>>({});
@@ -224,6 +181,7 @@ export function LegacyActionsView() {
   }
 
   function openAction(action: Action) {
+    if (!registry.canonicalActions?.[action.id]) { setCanonicalTarget({kind: 'action', key: `legacy:${action.id}`}); return; }
     if (action.system) { notify('System Actions are maintained by the product. Use a Job or Template to supply declared parameters.', 'info'); return; }
     const mapped = registry.canonicalActions?.[action.id];
     if (mapped) {
@@ -264,6 +222,7 @@ export function LegacyActionsView() {
   }
 
   function openGroup(group: ActionGroup) {
+    setCanonicalTarget({kind: 'group', key: `legacy:${group.id}`}); return;
     setEditor(
       groupEditorState(
         { id: group.id, name: group.name, action_ids: [...group.action_ids] },
@@ -311,7 +270,28 @@ export function LegacyActionsView() {
     closeEditor();
   }
 
+  async function trackedWrite(path: string, method: string, body: JsonObject, operation: string) {
+    const requestKey = crypto.randomUUID();
+    setQuickPending({operation, requestKey});
+    try {
+      const result = await canonicalRequest<CanonicalReceipt>(path, method, {...body, requestKey});
+      if (!['completed', 'rejected', 'cancelled'].includes(result.status)) throw new Error('Result unconfirmed. Query the original operation.');
+      setQuickPending(null);
+      if (result.status !== 'completed') throw new Error('Request rejected. Review the original receipt.');
+      return result;
+    } catch (cause) { if (definitelyRejected(cause)) setQuickPending(null); throw cause; }
+  }
   async function saveAction() {
+    if (quickLock.current || quickPending) return;
+    quickLock.current = true; setQuickBusy(true);
+    try { await saveActionRequest(); } finally { quickLock.current = false; setQuickBusy(false); }
+  }
+  async function saveGroup() {
+    if (quickLock.current || quickPending) return;
+    quickLock.current = true; setQuickBusy(true);
+    try { await saveGroupRequest(); } finally { quickLock.current = false; setQuickBusy(false); }
+  }
+  async function saveActionRequest() {
     if (!editor || editor.kind !== 'action') return;
     const { draft, schemaError } = editor;
     if (editor.executionError || sessionOperationError(draft)) { setEditorError(editor.executionError || sessionOperationError(draft)); return; }
@@ -329,18 +309,18 @@ export function LegacyActionsView() {
           'POST',
           { draft: legacyDraft },
         );
-        await canonicalRequest<CanonicalReceipt>(
+        await trackedWrite(
           `jobs/actions/${encodeURIComponent(canonicalEdit.id)}`,
           'PUT',
           {
             definition: preview.definition,
             expectedRevision: canonicalEdit.revision,
             requestKey: crypto.randomUUID(),
-          },
+          }, 'update',
         );
         await loadCanonical();
         closeEditor();
-        notify('Action 已保存为新草稿版本', 'info');
+        notify('Action saved as a new draft version', 'info');
       } catch (caught) {
         const message = messageOf(caught);
         setEditorError(message);
@@ -361,14 +341,14 @@ export function LegacyActionsView() {
           'POST',
           { draft: legacyDraft },
         );
-        const created = await canonicalRequest<CanonicalReceipt>('jobs/actions', 'POST', {
+        const created = await trackedWrite('jobs/actions', 'POST', {
           definition: preview.definition,
           expectedRevision: 0,
           requestKey: crypto.randomUUID(),
-        });
+        }, 'create');
         const object = obj(created.result?.object);
         if (draft.enabled && object.id) {
-          await canonicalRequest<CanonicalReceipt>(
+          await trackedWrite(
             `jobs/actions/${encodeURIComponent(String(object.id))}/operations`,
             'POST',
             {
@@ -377,7 +357,7 @@ export function LegacyActionsView() {
               expectedStateRevision: object.stateRevision,
               parameters: {},
               requestKey: crypto.randomUUID(),
-            },
+            }, 'publish',
           );
         }
         await useActionRegistryStore.getState().ensureRegistry({ force: true });
@@ -415,7 +395,7 @@ export function LegacyActionsView() {
     }
   }
 
-  async function saveGroup() {
+  async function saveGroupRequest() {
     if (!editor || editor.kind !== 'group') return;
     if (!editor.draft.name.trim()) {
       setEditorError('A Group name is required.');
@@ -423,28 +403,25 @@ export function LegacyActionsView() {
     }
     setEditorError('');
     try {
-      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) => {
-        const item =
-          editor.mode === 'new'
-            ? { name: editor.draft.name.trim(), action_ids: [...editor.draft.action_ids] }
-            : {
-                id: editor.draft.id,
-                name: editor.draft.name.trim(),
-                action_ids: [...editor.draft.action_ids],
-              };
-        return actionRequest<ActionRegistryWithItem>(
-          editor.mode === 'new'
-            ? 'actions/groups'
-            : `actions/groups/${encodeURIComponent(editor.draft.id)}`,
-          editor.mode === 'new' ? 'POST' : 'PUT',
-          { item, expectedRevision },
-        );
+      if (editor.mode !== 'new') throw new Error('Retired Group is read-only. Create a new Group.');
+      const references = obj(canonicalPage.references);
+      const tools = editor.draft.action_ids.map((id) => {
+        const row = canonicalCatalog.find((candidate) => candidate.canonicalId === id || candidate.legacyId === id);
+        const ref = obj(references[row?.canonicalId ?? '']);
+        if (!row?.canonicalId || !ref.digest) throw new Error('Select a published, enabled Action version.');
+        return { alias: id, actionRef: ref };
       });
-      const item = result.item as ActionGroup | undefined;
+      const id = 'group_' + crypto.randomUUID().replaceAll('-', '').slice(0, 24);
+      const created = await trackedWrite(`action-groups/${id}`, 'PUT', {
+        group: { id, name: editor.draft.name.trim(), tools }, expectedRevision: 0,
+      }, 'update');
+      if (created.status !== 'completed') throw new Error('Creation is unconfirmed. Query the original operation before trying again.');
+      const item = obj(created.result?.group);
+      await loadCanonical();
       closeEditor();
       notify(
         editor.mode === 'new'
-          ? `Group created${item ? ` · ${item.id}` : ''}`
+          ? `Group created · ${String(item.id ?? '')}`
           : 'Group saved',
         'info',
       );
@@ -480,34 +457,7 @@ export function LegacyActionsView() {
     );
   }
 
-  async function toggleActionEnabled(action: Action) {
-    if (action.system) {
-      notify('System Actions are maintained by the product.', 'error');
-      return;
-    }
-    const mapped = registry.canonicalActions?.[action.id];
-    if (mapped) {
-      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
-      setCanonicalDuplicateIntent(false);
-      notify('Use the canonical lifecycle controls to enable or disable this Action.', 'info');
-      return;
-    }
-    if (registry.preservedActions?.some((item) => item.id === action.id)) {
-      notify('This Action is preserved and cannot change lifecycle through the old editor.', 'error');
-      return;
-    }
-    try {
-      await useActionRegistryStore.getState().runMutation((expectedRevision) =>
-        actionRequest<ActionRegistry>(`actions/actions/${encodeURIComponent(action.id)}/lifecycle`, 'POST', {
-          enabled: !action.enabled,
-          expectedRevision,
-        }),
-      );
-      notify(action.enabled ? 'Action disabled' : 'Action enabled', 'info');
-    } catch (caught) {
-      notify(`Couldn’t change Action lifecycle: ${messageOf(caught)}`, 'error');
-    }
-  }
+
 
   function invalidateReleaseDetails(group: ActionGroup | undefined) {
     useActionCatalogStore.getState().invalidateCatalog();
@@ -587,50 +537,7 @@ export function LegacyActionsView() {
     setConfirm({ kind: 'delete-action', action });
   }
 
-  async function duplicateAction(action: Action) {
-    const mapped = registry.canonicalActions?.[action.id];
-    if (mapped) {
-      setCanonicalEditor({ ...structuredClone(mapped), legacyId: action.id });
-      setCanonicalDuplicateIntent(true);
-      setCanonicalDirty(false);
-      setEditorError('');
-      return;
-    }
-    if (registry.preservedActions?.some((item) => item.id === action.id)) {
-      notify('This Action is preserved and cannot be duplicated through the old editor.', 'error');
-      return;
-    }
-    if (duplicateInFlight.current || mutationPending) return;
-    duplicateInFlight.current = true;
-    setDuplicating(true);
-    const existingIds = new Set(registry.actions.map((item) => item.id));
-    const copyName = duplicateName(action.name, registry.actions.map((item) => item.name));
-    try {
-      const { id: _ignored, ...copy } = structuredClone(action);
-      void _ignored;
-      const result = await useActionRegistryStore.getState().runMutation((expectedRevision) =>
-        actionRequest<ActionRegistryWithItem>('actions/actions', 'POST', {
-          item: { ...copy, name: copyName },
-          expectedRevision,
-        }),
-      );
-      const created =
-        (result.item as Action | undefined) ??
-        result.actions.find((item) => !existingIds.has(item.id) && item.name === copyName);
-      if (!created) {
-        notify('Action was duplicated, but the new item was not returned. Refresh and open it from the list.', 'warning');
-        return;
-      }
-      setEditor(actionEditorState(created, 'edit'));
-      setEditorError('');
-      notify(`Action duplicated · ${created.id}`, 'info');
-    } catch (caught) {
-      notify(`Couldn’t duplicate Action: ${messageOf(caught)}`, 'error');
-    } finally {
-      duplicateInFlight.current = false;
-      setDuplicating(false);
-    }
-  }
+
 
   function requestDeleteGroup(group: ActionGroup) {
     if (group.build) {
@@ -676,12 +583,7 @@ export function LegacyActionsView() {
     }
   }
 
-  function copyText(value: string, label: string) {
-    void navigator.clipboard
-      ?.writeText(value)
-      .then(() => notify(`${label} copied`, 'info'))
-      .catch(() => notify('Clipboard unavailable; select the value to copy it.', 'warning'));
-  }
+
 
   async function refresh() {
     const ok = await useActionRegistryStore.getState().refreshRegistry();
@@ -777,7 +679,25 @@ export function LegacyActionsView() {
 
   return (
     <main aria-label="Actions Panel" className="flex h-full min-h-0 flex-col bg-bg-primary text-text-primary">
-      {targetAction ? (
+      {quickPending && <div role="status" className="shrink-0 border-b border-warning/30 p-3 text-sm">
+        <p className="break-all">Original request {quickPending.requestKey}. Unknown results are query-only.</p>
+        <Button disabled={quickBusy} onClick={async () => {
+          setQuickBusy(true);
+          try {
+            const result = await canonicalJobs.lookup(quickPending.operation, quickPending.requestKey);
+            if (['completed', 'rejected', 'cancelled'].includes(result.status)) {
+              setQuickPending(null); await loadCanonical();
+              if (result.status === 'completed') closeEditor();
+            }
+          } catch (cause) { notify(messageOf(cause), 'error'); }
+          finally { setQuickBusy(false); }
+        }}>Query original operation</Button>
+      </div>}
+      {targetAction && !targetAction.canonicalId ? (
+        <LegacyRecordPanel action={targetAction} onClose={() => setCanonicalTarget(null)} onChanged={loadCanonical} />
+      ) : targetGroup && !targetGroup.canonicalWritable ? (
+        <LegacyRecordPanel group={targetGroup} onClose={() => setCanonicalTarget(null)} onChanged={loadCanonical} />
+      ) : targetAction ? (
         <CanonicalActionPanel
           row={targetAction}
           onClose={() => setCanonicalTarget(null)}
@@ -810,7 +730,7 @@ export function LegacyActionsView() {
         <section aria-label="New advanced Action" className="min-h-0 overflow-auto p-4 sm:p-6">
           <h2 className="text-lg font-semibold">New advanced Action</h2>
           <p className="my-3 text-sm">
-            完整 canonical 定义支持多命令、环境与高级字段。保存创建草稿，不发布、不执行；副本与新建项属于统一目录。
+            The full definition supports multiple commands, environment and advanced fields. Saving creates a draft. Publish and execution are separate operations.
           </p>
           <CanonicalDefinitionEditor
             onDirtyChange={setCanonicalDirty}
@@ -821,7 +741,7 @@ export function LegacyActionsView() {
             }}
           />
           <Button className="mt-4" onClick={requestCloseEditor}>
-            返回旧目录
+            Back to catalog
           </Button>
         </section>
       ) : canonicalEditor ? (
@@ -843,7 +763,7 @@ export function LegacyActionsView() {
           <ActionEditorPage
             state={editor}
             groups={registry.groups}
-            busy={mutationPending}
+            busy={mutationPending || quickBusy || !!quickPending}
             error={editorError}
             onChange={updateEditor}
             onSave={() => void saveAction()}
@@ -854,8 +774,11 @@ export function LegacyActionsView() {
           <GroupEditorPage
             state={editor}
             liveGroup={liveGroup}
-            actions={registry.actions}
-            busy={mutationPending}
+            actions={canonicalCatalog.filter((row) => row.canonicalId && obj(obj(canonicalPage.references)[row.canonicalId]).digest).map((row) => ({
+              ...emptyActionDraft(), id: row.canonicalId, name: row.name, description: row.description,
+              enabled: true, execution: { kind: 'api' as const, method: 'GET' as const, path: '/api/sessions' },
+            }))}
+            busy={mutationPending || quickBusy || !!quickPending}
             error={editorError}
             onChange={updateEditor}
             onSave={() => void saveGroup()}
@@ -1070,18 +993,7 @@ export function LegacyActionsView() {
                         />
                       ))}
                       {filteredActions.map((action) => (
-                        <ActionRow
-                          key={action.id}
-                          action={action}
-                          groups={usedByGroups(registry, action.id)}
-                          onEdit={() => openAction(action)}
-                          onDelete={() => requestDeleteAction(action)}
-                          onCopy={() => copyText(action.id, 'Action ID')}
-                          onDuplicate={() => void duplicateAction(action)}
-                          onToggleEnabled={() => void toggleActionEnabled(action)}
-                          mapped={Boolean(registry.canonicalActions?.[action.id])}
-                          duplicateDisabled={duplicating || mutationPending}
-                        />
+                        <CanonicalActionRow key={action.id} row={canonicalCatalog.find((row) => row.legacyId === action.id)!} onOpen={() => openAction(action)} />
                       ))}
                     </ul>
                   </div>
@@ -1137,17 +1049,7 @@ export function LegacyActionsView() {
                       />
                     ))}
                     {filteredGroups.map((group) => (
-                      <GroupRow
-                        key={group.id}
-                        group={group}
-                        actions={registry.actions}
-                        onEdit={() => openGroup(group)}
-                        onDelete={() => requestDeleteGroup(group)}
-                        onBuild={() => void buildGroup(group.id)}
-                        onUnbuild={() => void unbuildGroup(group.id)}
-                        onUseInSession={() => setUseGroupId(group.id)}
-                        onCopy={() => copyText(pluginIdFor(group.id), 'Plugin ID')}
-                      />
+                      <CanonicalGroupRow key={group.id} row={canonicalGroupRows.find((row) => row.id === group.id)!} onOpen={() => openGroup(group)} />
                     ))}
                   </ul>
                 </div>
@@ -1194,417 +1096,8 @@ export function LegacyActionsView() {
   );
 }
 
-function duplicateName(name: string, existingNames: string[]): string {
-  const used = new Set(existingNames.map((value) => value.trim().toLowerCase()));
-  const base = `${name.trim() || 'Untitled Action'} copy`;
-  let candidate = base;
-  let index = 2;
-  while (used.has(candidate.toLowerCase())) {
-    candidate = `${base} ${index}`;
-    index += 1;
-  }
-  return candidate;
-}
+
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/* ── Rows ──────────────────────────────────────────────────────────────── */
-
-function ActionRow({
-  action,
-  groups,
-  onEdit,
-  onDelete,
-  onCopy,
-  onDuplicate,
-  onToggleEnabled,
-  mapped,
-  duplicateDisabled,
-}: {
-  action: Action;
-  groups: ActionGroup[];
-  onEdit: () => void;
-  onDelete: () => void;
-  onCopy: () => void;
-  onDuplicate: () => void;
-  onToggleEnabled: () => void;
-  mapped: boolean;
-  duplicateDisabled: boolean;
-}) {
-  const [menu, setMenu] = useState(false);
-  const groupedNames = groups.map((group) => group.name).join(', ');
-  return (
-    <li className="border-b border-border-muted last:border-0">
-      <div className="action-grid action-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
-        <div className="flex min-w-0 flex-1 items-start gap-2.5">
-          <IconTile tone={action.execution.kind === 'api' ? 'accent' : 'neutral'}>
-            {action.execution.kind === 'api' ? <Braces size={14} /> : <TerminalSquare size={14} />}
-          </IconTile>
-          <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={onEdit}
-                className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
-                title={`Edit ${action.name}`}
-              >
-                {action.name}
-              </button>
-            </div>
-            <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={action.description}>
-              {action.description}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
-              <span className={action.enabled ? 'text-success' : 'text-text-tertiary'}>
-                {action.enabled ? 'Enabled' : 'Draft'}
-              </span>
-              <span>{executionLabel(action)}</span>
-              <span>{EFFECT_LABELS[action.effect]}</span>
-              <span>{groups.length} {groups.length === 1 ? 'Group' : 'Groups'}</span>
-            </div>
-          </div>
-        </div>
-        <div className="action-col-type min-w-0">
-          <p className="text-xs text-text-secondary">{executionLabel(action)}</p>
-          <p className="truncate font-mono text-[10px] text-text-tertiary" title={actionRoute(action)}>
-            {actionRoute(action)}
-          </p>
-        </div>
-        <div className="action-col-effect">
-          <Badge tone={effectTone(action.effect)}>{EFFECT_LABELS[action.effect]}</Badge>
-        </div>
-        <div className="action-col-status">
-          <Badge tone={action.enabled ? 'success' : 'muted'} dot>
-            {action.enabled ? 'Enabled' : 'Draft'}
-          </Badge>
-        </div>
-        <div className="action-col-usage text-xs text-text-secondary" title={groupedNames || 'Not used by any Group'}>
-          {groups.length ? `${groups.length} ${groups.length === 1 ? 'Group' : 'Groups'}` : '—'}
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-1">
-          <IconButton label={`Edit ${action.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
-            <Pencil size={14} />
-          </IconButton>
-          <div className="relative">
-            <IconButton
-              label={`More actions for ${action.name}`}
-              aria-haspopup="menu"
-              aria-expanded={menu}
-              onClick={() => setMenu((value) => !value)}
-            >
-              <MoreHorizontal size={15} />
-            </IconButton>
-            {menu && (
-              <>
-                <button
-                  type="button"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  className="fixed inset-0 z-20 cursor-default"
-                  onClick={() => setMenu(false)}
-                />
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full z-30 mt-1 w-52 rounded-md border border-border-default bg-bg-primary p-1 shadow-dropdown"
-                >
-                  <MenuItem
-                    onClick={() => {
-                      setMenu(false);
-                      onEdit();
-                    }}
-                  >
-                    <Pencil size={13} /> Edit Action
-                  </MenuItem>
-                  <MenuItem
-                    disabled={duplicateDisabled}
-                    title={duplicateDisabled ? 'A duplicate is already being created.' : 'Create an independent copy and open it in the editor'}
-                    onClick={() => {
-                      setMenu(false);
-                      onDuplicate();
-                    }}
-                  >
-                    <CopyPlus size={13} /> Duplicate Action
-                  </MenuItem>
-                  <MenuItem
-                    disabled={action.system}
-                    title={
-                      action.system
-                        ? 'System Actions are maintained by the product.'
-                        : mapped
-                          ? 'Open the canonical lifecycle controls'
-                          : action.enabled
-                            ? 'Disable this Action'
-                            : 'Enable this Action'
-                    }
-                    onClick={() => {
-                      setMenu(false);
-                      onToggleEnabled();
-                    }}
-                  >
-                    {action.enabled ? <PowerOff size={13} /> : <Power size={13} />}{' '}
-                    {mapped ? 'Canonical lifecycle…' : action.enabled ? 'Disable Action' : 'Enable Action'}
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() => {
-                      setMenu(false);
-                      onCopy();
-                    }}
-                  >
-                    <Copy size={13} /> Copy Action ID
-                  </MenuItem>
-                  <MenuItem
-                    disabled={groups.length > 0}
-                    title={
-                      groups.length
-                        ? `In use by ${groupedNames}. Remove it from those Groups first.`
-                        : 'Delete this Action'
-                    }
-                    onClick={() => {
-                      setMenu(false);
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 size={13} /> Delete Action
-                  </MenuItem>
-                  {groups.length > 0 && (
-                    <p className="px-2 py-1 text-[10px] leading-relaxed text-text-tertiary">
-                      In use by {groups.length} {groups.length === 1 ? 'Group' : 'Groups'}; deletion is blocked.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function GroupRow({
-  group,
-  actions,
-  onEdit,
-  onDelete,
-  onBuild,
-  onUnbuild,
-  onUseInSession,
-  onCopy,
-}: {
-  group: ActionGroup;
-  actions: Action[];
-  onEdit: () => void;
-  onDelete: () => void;
-  onBuild: () => void;
-  onUnbuild: () => void;
-  onUseInSession: () => void;
-  onCopy: () => void;
-}) {
-  const [menu, setMenu] = useState(false);
-  const gate = buildGate(group.action_ids, actions);
-  const actionNames = group.action_ids
-    .map((id) => actions.find((action) => action.id === id)?.name ?? '')
-    .filter(Boolean);
-  const built = Boolean(group.build);
-  return (
-    <li className="border-b border-border-muted last:border-0">
-      <div className="group-grid group-row px-3 py-2.5 transition-colors hover:bg-bg-tertiary/35 focus-within:bg-bg-tertiary/35">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={onEdit}
-              className="truncate text-left text-sm font-medium text-text-primary transition-colors hover:text-accent"
-              title={`Edit ${group.name}`}
-            >
-              {group.name}
-            </button>
-          </div>
-          <p className="mt-0.5 line-clamp-1 text-xs text-text-secondary" title={actionNames.join(' · ')}>
-            {actionNames.join(' · ') || 'No Actions selected'}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-text-tertiary md:hidden">
-            <span className={built ? 'text-success' : 'text-text-tertiary'}>{built ? 'Built' : 'Unbuilt'}</span>
-            <span>{group.action_ids.length} Actions</span>
-            <span>{group.sessions.length} Sessions</span>
-            {built && group.blockers.length > 0 && (
-              <span className="text-warning">{group.blockers.length} running</span>
-            )}
-          </div>
-        </div>
-        <div className="group-col-release min-w-0" title={group.build?.version ?? group.id}>
-          {built ? (
-            <>
-              <p className="truncate font-mono text-[11px] text-text-secondary">
-                v {shortVersion(group.build?.version ?? '')}
-              </p>
-              <p className="mt-0.5 truncate text-[10px] text-text-tertiary">Immutable release</p>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-text-secondary">Not built</p>
-              <p className={cx('mt-0.5 truncate text-[10px]', gate ? 'text-warning' : 'text-text-tertiary')}>
-                {gate ? 'Resolve build gates' : 'Ready to build'}
-              </p>
-            </>
-          )}
-        </div>
-        <div className="group-col-composition min-w-0" title={group.id}>
-          <p className="text-xs text-text-secondary">
-            {group.action_ids.length} Actions · {group.sessions.length} Sessions
-          </p>
-        </div>
-        <div className="group-col-status">
-          <Badge tone={built ? 'success' : 'muted'} dot>
-            {built ? 'Registered' : 'Unbuilt'}
-          </Badge>
-          {built && group.blockers.length > 0 && (
-            <p className="mt-1 text-[10px] text-warning" title={group.blockers.map((item) => item.name).join(', ')}>
-              {group.blockers.length} running
-            </p>
-          )}
-          {!built && gate && <p className="mt-1 text-[10px] text-warning">Build blocked</p>}
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-0.5">
-          {built ? (
-            <button
-              type="button"
-              onClick={onUseInSession}
-              title="Use in Session"
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
-            >
-              <Play size={12} />
-              <span className="hidden min-[1440px]:inline">Use in Session</span>
-              <span className="min-[1440px]:hidden">Use</span>
-            </button>
-          ) : gate ? (
-            <span
-              title={gate.message}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/25 bg-warning/10 px-2 py-1 text-xs font-medium text-warning"
-            >
-              <Lock size={12} /> Blocked
-            </span>
-          ) : (
-            <button
-              type="button"
-              title="Build this Group"
-              onClick={onBuild}
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-accent/40 hover:bg-accent/15"
-            >
-              <Hammer size={12} /> Build
-            </button>
-          )}
-          <IconButton label={`Edit ${group.name}`} className="max-sm:hidden text-text-secondary" onClick={onEdit}>
-            <Pencil size={14} />
-          </IconButton>
-          <div className="relative">
-            <IconButton
-              label={`More actions for ${group.name}`}
-              aria-haspopup="menu"
-              aria-expanded={menu}
-              onClick={() => setMenu((value) => !value)}
-            >
-              <MoreHorizontal size={15} />
-            </IconButton>
-            {menu && (
-              <>
-                <button
-                  type="button"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  className="fixed inset-0 z-20 cursor-default"
-                  onClick={() => setMenu(false)}
-                />
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full z-30 mt-1 w-56 rounded-md border border-border-default bg-bg-primary p-1 shadow-dropdown"
-                >
-                  <MenuItem
-                    onClick={() => {
-                      setMenu(false);
-                      onEdit();
-                    }}
-                  >
-                    <Pencil size={13} /> Edit Group
-                  </MenuItem>
-                  <MenuItem
-                    disabled={Boolean(gate)}
-                    title={gate?.message ?? (built ? 'Rebuild this Group' : 'Build this Group')}
-                    onClick={() => {
-                      setMenu(false);
-                      onBuild();
-                    }}
-                  >
-                    <Hammer size={13} /> {built ? 'Rebuild Group' : 'Build Group'}
-                  </MenuItem>
-                  <MenuItem
-                    disabled={!built || group.blockers.length > 0}
-                    title={
-                      !built
-                        ? 'The Group is not built.'
-                        : group.blockers.length
-                          ? `Blocked by ${group.blockers.map((item) => item.name).join(', ')}.`
-                          : 'Unbuild this Group'
-                    }
-                    onClick={() => {
-                      setMenu(false);
-                      onUnbuild();
-                    }}
-                  >
-                    <PackageOpen size={13} /> Unbuild Group
-                  </MenuItem>
-                  <MenuItem
-                    disabled={!built}
-                    onClick={() => {
-                      setMenu(false);
-                      onCopy();
-                    }}
-                  >
-                    <Copy size={13} /> Copy Plugin ID
-                  </MenuItem>
-                  <MenuItem
-                    disabled={built}
-                    title={built ? 'Unbuild the Group before deleting it.' : 'Delete this Group'}
-                    onClick={() => {
-                      setMenu(false);
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 size={13} /> Delete Group
-                  </MenuItem>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function MenuItem({
-  children,
-  onClick,
-  disabled = false,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      disabled={disabled}
-      title={title}
-      onClick={onClick}
-      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-secondary"
-    >
-      {children}
-    </button>
-  );
 }

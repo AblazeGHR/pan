@@ -87,9 +87,9 @@ export function CanonicalGroupEditor({
   }
   return (
     <section className="min-w-0 space-y-2" aria-label="Canonical Groups">
-      <h4>Group 草稿与发布</h4>
+      <h4>Group Draft and publication</h4>
       <label>
-        历史 release 身份
+        Historical release identity
         <input
           className={field}
           value={releaseVersion}
@@ -110,7 +110,7 @@ export function CanonicalGroupEditor({
           }
         }}
       >
-        查看历史 release
+        View release history
       </Button>
       <Button
         disabled={busy || !!pending}
@@ -119,7 +119,7 @@ export function CanonicalGroupEditor({
           setEditing({ id: '', name: '', tools: [] });
         }}
       >
-        新建固定版本 Group
+        New Group with fixed versions
       </Button>
       {groups.map((g) => (
         <div
@@ -128,7 +128,7 @@ export function CanonicalGroupEditor({
         >
           <p className="break-all">
             {String(g.name)} · revision {String(g.revision)} · release{' '}
-            {String(g.release ?? '未发布')}
+            {String(g.release ?? 'Unpublished')}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -138,7 +138,7 @@ export function CanonicalGroupEditor({
                 setEditing(structuredClone(g));
               }}
             >
-              编辑 {String(g.name)}
+              Edit {String(g.name)}
             </Button>
             <Button disabled={busy || !!pending} onClick={() => void write('publish', g)}>
               Build {String(g.name)}
@@ -163,7 +163,7 @@ export function CanonicalGroupEditor({
                   }
                 }}
               >
-                查看固定 release
+                View fixed release
               </Button>
             )}
           </div>
@@ -171,7 +171,7 @@ export function CanonicalGroupEditor({
       ))}
       {editing && (
         <fieldset disabled={busy || !!pending} className="min-w-0 space-y-2">
-          <legend>固定工具定义</legend>
+          <legend>Fixed tool definitions</legend>
           {['id', 'name'].map((key) => (
             <label className="block" key={key}>
               {key}
@@ -186,7 +186,7 @@ export function CanonicalGroupEditor({
           {rows(editing.tools).map((tool, index) => (
             <div className="min-w-0 space-y-2" key={index}>
               <label>
-                工具别名
+                Tool alias
                 <input
                   aria-label={`Tool alias ${index + 1}`}
                   className={field}
@@ -202,7 +202,7 @@ export function CanonicalGroupEditor({
                 />
               </label>
               <label>
-                固定 Action
+                Fixed Action
                 <select
                   aria-label={`Group Action ${index + 1}`}
                   className={field}
@@ -216,7 +216,7 @@ export function CanonicalGroupEditor({
                     })
                   }
                 >
-                  <option value="">选择 Action</option>
+                  <option value="">Select Action</option>
                   {catalog.map((a) => (
                     <option key={String(a.id)} value={String(a.id)}>
                       {String(a.name)}
@@ -243,7 +243,7 @@ export function CanonicalGroupEditor({
                   })
                 }
               >
-                移除工具 {index + 1}
+                Remove tool {index + 1}
               </Button>
             </div>
           ))}
@@ -256,17 +256,17 @@ export function CanonicalGroupEditor({
                 })
               }
             >
-              添加固定工具
+              Add fixed tool
             </Button>
-            <Button onClick={() => void write('update', editing)}>保存 Group 草稿</Button>
-            <Button onClick={() => setEditing(null)}>取消 Group 编辑</Button>
+            <Button onClick={() => void write('update', editing)}>Save Group draft</Button>
+            <Button onClick={() => setEditing(null)}>Cancel Group editing</Button>
           </div>
         </fieldset>
       )}
       {release &&
         rows(release.tools).map((tool, index) => (
           <Button key={index} onClick={() => onInspect?.(obj(tool.actionRef))}>
-            查看 {String(tool.alias)} 固定 v{String(obj(tool.actionRef).revision)}
+            Inspect {String(tool.alias)} Fixed v{String(obj(tool.actionRef).revision)}
           </Button>
         ))}
       {release && (
@@ -277,7 +277,7 @@ export function CanonicalGroupEditor({
       {pending && (
         <div role="status">
           <p className="break-all">
-            Group 原请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}
+            Group Original request {pending.requestKey} · {receipt?.status ?? 'unknown'}
           </p>
           <Button
             disabled={busy}
@@ -301,7 +301,7 @@ export function CanonicalGroupEditor({
               }
             }}
           >
-            查询原 Group 操作
+            Query original Group operation
           </Button>
         </div>
       )}
@@ -338,14 +338,14 @@ function FixedVersion({
   }, [refValue.id]);
   return (
     <label>
-      固定版本
+      Fixed version
       <select
         aria-label="Group fixed version"
         className={field}
         value={String(refValue.revision ?? '')}
         onChange={(e) => onChange(versions.find((v) => String(v.revision) === e.target.value)?.ref)}
       >
-        <option value="">选择版本</option>
+        <option value="">Select version</option>
         {versions.map((v) => (
           <option
             key={Number(v.revision)}

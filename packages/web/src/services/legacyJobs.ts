@@ -59,9 +59,10 @@ export async function fetchJobKinds(): Promise<JobKindMeta[]> {
   return data.kinds || [];
 }
 
-export async function fetchJobs(): Promise<{ jobs: Job[] }> {
+export async function fetchJobs(onPinMetadataStatus?: (status: 'available' | 'unavailable') => void): Promise<Job[]> {
   const data = await call<{ jobs?: Job[] }>('jobs/legacy-list');
-  return { jobs: data.jobs || [] };
+  onPinMetadataStatus?.('available');
+  return data.jobs || [];
 }
 
 export async function fetchJob(jobId: string): Promise<Job> {
@@ -70,10 +71,10 @@ export async function fetchJob(jobId: string): Promise<Job> {
   return data.job;
 }
 
-export async function createJob(input: JobCreateInput): Promise<Job> {
+export async function createJob(input: JobCreateInput, requestKey?: string): Promise<Job> {
   const data = await call<{ job?: Job }>('jobs/legacy-create', 'POST', {
     ...input,
-    requestKey: (input as { requestKey?: string }).requestKey || crypto.randomUUID(),
+    requestKey: requestKey || (input as { requestKey?: string }).requestKey || crypto.randomUUID(),
   });
   if (!data.job) throw new Error('job missing in response');
   return data.job;

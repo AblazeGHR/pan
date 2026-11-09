@@ -113,14 +113,14 @@ it('blocks repeat Template instantiation after a lost receipt and queries the or
     ).toBe(false);
     networkFailure = true;
     click('Create from Template');
-    await screen.findByText('请求结果未确认，请按原身份查询。');
+    await screen.findByText('The result is unconfirmed. Query the original identity.');
     expect(writes).toHaveLength(1);
     expect(writes[0]!.body).toMatchObject({ activate: false });
     expect(
       (screen.getByRole('button', { name: 'Create from Template' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     networkFailure = false;
-    click('查询原操作');
+    click('Query original operation');
     await waitFor(() =>
       expect(screen.queryByRole('region', { name: 'Instantiate Template' })).toBeNull(),
     );
@@ -141,12 +141,12 @@ it.each(Object.entries(names))(
     host();
     if (kind !== 'jobs') click(name);
     await screen.findByRole('article', { name: `${name} Example` });
-    click(`创建 ${name}`);
-    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Created' } });
-    fireEvent.change(screen.getByLabelText('定义 JSON（名称单独填写）'), {
+    click(`Create ${name}`);
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Created' } });
+    fireEvent.change(screen.getByLabelText('Definition JSON (name is entered separately)'), {
       target: { value: '{"description":"new"}' },
     });
-    click('保存定义');
+    click('Save definition');
     await waitFor(() => expect(writes.length).toBe(1));
     await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
     expect(writes[0]).toMatchObject({
@@ -154,15 +154,15 @@ it.each(Object.entries(names))(
       method: 'POST',
       body: { definition: { name: 'Created', description: 'new' }, expectedRevision: 0 },
     });
-    click('编辑 Example');
+    click('Edit Example');
     const definition = JSON.parse(
-      (screen.getByLabelText('定义 JSON（名称单独填写）') as HTMLTextAreaElement).value,
+      (screen.getByLabelText('Definition JSON (name is entered separately)') as HTMLTextAreaElement).value,
     );
     expect(definition).not.toHaveProperty('stateRevision');
     expect(definition).not.toHaveProperty('id');
     expect(definition).not.toHaveProperty('schemaVersion');
-    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'Edited' } });
-    click('保存定义');
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Edited' } });
+    click('Save definition');
     await waitFor(() => expect(writes.length).toBe(2));
     await waitFor(() => expect(screen.queryByRole('form')).toBeNull());
     expect(writes[1]).toMatchObject({
@@ -171,7 +171,7 @@ it.each(Object.entries(names))(
       body: { expectedRevision: 7, definition: { name: 'Edited' } },
     });
     click('retire Example');
-    click('确认 retire');
+    click('Confirm retirement');
     await waitFor(() => expect(writes.length).toBe(3));
     expect(writes[2]).toMatchObject({
       method: 'DELETE',
@@ -189,10 +189,10 @@ it.each(runOperations)(
     await screen.findByText(/run\/one/);
     click(operation);
     if (operation === 'retry')
-      fireEvent.change(screen.getByLabelText('Step ID（可选，默认失败边界）'), {
+      fireEvent.change(screen.getByLabelText('Step ID (optional; defaults to the failure boundary)'), {
         target: { value: 'failed-step' },
       });
-    click('确认操作');
+    click('Confirm operation');
     await waitFor(() => expect(writes.length).toBe(1));
     expect(writes[0]).toMatchObject({
       url: '/api/job-runs/run%2Fone/operations',
@@ -203,7 +203,7 @@ it.each(runOperations)(
       expect(writes[0]!.body.expectedRevision).toBe(7);
     else expect(writes[0]!.body).not.toHaveProperty('expectedRevision');
     if (operation === 'retry') expect(writes[0]!.body.stepId).toBe('failed-step');
-    await screen.findByText('操作状态：completed');
+    await screen.findByText('Operation status:completed');
   },
 );
 it.each([422, 403])('shows readable %s rejection for run operations', async (status) => {
@@ -213,40 +213,40 @@ it.each([422, 403])('shows readable %s rejection for run operations', async (sta
   await screen.findByText(/run\/one/);
   click('pause');
   failure = status;
-  click('确认操作');
+  click('Confirm operation');
   const alert = await screen.findByRole('alert');
-  expect(alert.textContent).toContain(status === 422 ? '不支持此能力' : '没有执行此操作的权限');
+  expect(alert.textContent).toContain(status === 422 ? 'unsupported' : 'Permission denied');
   expect(screen.getByRole('form', { name: 'Run operation' })).toBeTruthy();
 });
 it('keeps an edit draft on conflict and close does not submit', async () => {
   host();
   await screen.findByText('Example');
-  click('编辑 Example');
-  fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My draft' } });
+  click('Edit Example');
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'My draft' } });
   failure = 409;
-  click('保存定义');
-  expect((await screen.findByRole('alert')).textContent).toContain('版本冲突');
-  expect((screen.getByLabelText('名称') as HTMLInputElement).value).toBe('My draft');
+  click('Save definition');
+  expect((await screen.findByRole('alert')).textContent).toContain('Revision conflict');
+  expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('My draft');
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-  click('关闭编辑');
+  click('Close editor');
   expect(screen.getByRole('form')).toBeTruthy();
   confirm.mockReturnValue(true);
-  click('关闭编辑');
+  click('Close editor');
   expect(screen.queryByRole('form')).toBeNull();
   expect(writes.length).toBe(1);
 });
 it('does not resend an unconfirmed request and queries its original identity', async () => {
   host();
   await screen.findByText('Example');
-  click('编辑 Example');
+  click('Edit Example');
   networkFailure = true;
-  click('保存定义');
+  click('Save definition');
   await screen.findByText('Network disconnected');
-  expect((screen.getByRole('button', { name: '保存定义' }) as HTMLButtonElement).disabled).toBe(
+  expect((screen.getByRole('button', { name: 'Save definition' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
-  click('查询原操作');
-  await screen.findByText('操作状态：completed');
+  click('Query original operation');
+  await screen.findByText('Operation status:completed');
   const calls = vi.mocked(fetch).mock.calls;
   expect(
     calls.some(([url]) =>
@@ -260,13 +260,13 @@ it('shows accepted as pending effect and queries by operationId', async () => {
   await screen.findByText('Example');
   click('retire Example');
   accepted = true;
-  click('确认 retire');
-  await screen.findByText(/尚未确认效果成功/);
-  expect((screen.getByRole('button', { name: '确认 retire' }) as HTMLButtonElement).disabled).toBe(
+  click('Confirm retirement');
+  await screen.findByText(/effect is not confirmed/);
+  expect((screen.getByRole('button', { name: 'Confirm retirement' }) as HTMLButtonElement).disabled).toBe(
     true,
   );
-  click('查询原操作');
-  await screen.findByText('操作状态：completed');
+  click('Query original operation');
+  await screen.findByText('Operation status:completed');
   expect(vi.mocked(fetch).mock.calls.some(([url]) => url === '/api/operations/op%2Fone')).toBe(
     true,
   );
@@ -285,10 +285,10 @@ it('renders loading and list errors with a retry', async () => {
     return original(url, init);
   });
   host();
-  await screen.findByText('加载中…');
+  await screen.findByText('Loading...');
   resolve(response({ error: { code: 'authorization_denied' } }, 403));
-  expect((await screen.findByRole('alert')).textContent).toContain('没有执行此操作的权限');
-  click('刷新列表');
+  expect((await screen.findByRole('alert')).textContent).toContain('Permission denied');
+  click('Refresh list');
   await screen.findByText('Example');
 });
 it('keeps canonical navigation and performs no legacy transport requests', async () => {
@@ -311,19 +311,19 @@ it('clears canonical data on logout and blocks unauthenticated reads', async () 
   host();
   await screen.findByText('Example');
   click('Log out');
-  await screen.findByText('请登录以加载 canonical 数据。');
+  await screen.findByText('Sign in to load Jobs.');
   expect(screen.queryByText('Example')).toBeNull();
 });
 
 it('allows an omitted name only for new Jobs and sends the convenience input unchanged', async () => {
   host();
-  await screen.findByRole('heading', { name: 'Canonical Jobs', level: 2 });
-  click('创建 Jobs');
-  expect((screen.getByLabelText('名称') as HTMLInputElement).required).toBe(false);
-  fireEvent.change(screen.getByLabelText('定义 JSON（名称单独填写）'), {
+  await screen.findByRole('heading', { name: 'Jobs', level: 2 });
+  click('Create Jobs');
+  expect((screen.getByLabelText('Name') as HTMLInputElement).required).toBe(false);
+  fireEvent.change(screen.getByLabelText('Definition JSON (name is entered separately)'), {
     target: { value: '{"description":"unnamed"}' },
   });
-  click('保存定义');
+  click('Save definition');
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0]!.body.definition).toEqual({ description: 'unnamed' });
   expect(writes[0]!.body).toMatchObject({ expectedRevision: 0 });

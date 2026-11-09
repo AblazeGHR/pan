@@ -2,10 +2,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Job } from '@/types/jobs';
 import { selectRunningJobCount, selectSessionJobIndicator, useJobStore } from '@/stores/jobStore';
-import * as api from '@/services/api';
+import * as api from '@/services/legacyJobs';
 
-vi.mock('@/services/api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/services/api')>();
+vi.mock('@/services/legacyJobs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/legacyJobs')>();
   return {
     ...actual,
     fetchJobs: vi.fn(),

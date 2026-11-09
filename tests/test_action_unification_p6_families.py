@@ -1,3 +1,4 @@
+from tests.support.legacy_action_source import LegacySource
 """Named legacy family successors using isolated providers and original receipts."""
 import asyncio
 import json
@@ -38,7 +39,7 @@ def test_P6_API_01_get_adopt_edit_cold_no_replay(action_http, tmp_path, monkeypa
     enroll_fresh_source(root)
     monkeypatch.setattr(store, 'root', lambda: root)
     monkeypatch.setattr(group_catalog, 'canonical_path', lambda: service.creators.path)
-    old = store.Store(root)
+    old = LegacySource(root)
     raw = {'id': 'query', 'name': 'Original GET', 'enabled': True, 'effect': 'read',
            'input_schema': {'type': 'object', 'properties': {'requestKey': {'type': 'string', 'default': 'business'}},
                             'additionalProperties': False},
@@ -309,8 +310,9 @@ def test_P6_SYSTEM_03_standalone_adoption_old_http_lifecycle_original_grants(act
     revision = compat.projection(old.read())['revision']
     response = client.post('/api/actions/actions/system_session_message/lifecycle', json={
         'enabled': False, 'expectedRevision': revision}, headers={'x-pan-request-key': 'system-disable-once'})
-    assert response.status_code == 200, response.text
-    assert next(a for a in response.json()['actions'] if a['id'] == raw['id'])['enabled'] is False
+    assert response.status_code == 410, response.text
+    assert response.json()['detail']['code'] == 'retired'
+    assert service.get('action', ref['id'], actor=USER)['enabled'] is True
     service.auth.change_permissions(grants(action={'manageSystemActions': False}), 0)
     actor = {'type': 'agent', 'id': 'agent', 'revision': 1}
     with pytest.raises(fc.ContractError, match='denied'):
@@ -467,7 +469,7 @@ def test_P6_API_03_adopted_flat_real_stdio_original_shape_and_key(tmp_path, monk
             enroll_fresh_source(root)
             monkeypatch.setattr(store, 'root', lambda: root)
             monkeypatch.setattr(group_catalog, 'canonical_path', lambda: h.service.creators.path)
-            old = store.Store(root)
+            old = LegacySource(root)
             old.put('actions', {'id': 'query', 'name': 'GET', 'enabled': True, 'effect': 'read',
                 'input_schema': {'type': 'object', 'properties': {'requestKey': {'type': 'string'}}, 'additionalProperties': False},
                 'execution': {'kind': 'api', 'method': 'GET', 'path': '/api/models'}})

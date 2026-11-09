@@ -70,7 +70,7 @@ export function TriggerTarget({
   return (
     <div className="min-w-0 space-y-3">
       <label>
-        目标类型
+        Target kind
         <select
           aria-label="Trigger target type"
           className={cls}
@@ -114,7 +114,7 @@ export function TriggerTarget({
       ) : (
         <>
           <label>
-            目标 Action
+            Target Action
             <select
               aria-label="Trigger Action"
               className={cls}
@@ -126,7 +126,7 @@ export function TriggerTarget({
                 })
               }
             >
-              <option value="">选择 Action</option>
+              <option value="">Select Action</option>
               {actions.map((a) => (
                 <option key={String(a.id)} value={String(a.id)}>
                   {String(a.name)}
@@ -135,7 +135,7 @@ export function TriggerTarget({
             </select>
           </label>
           <label>
-            固定 Action 版本
+            Fixed Action version
             <select
               aria-label="Trigger Action version"
               className={cls}
@@ -147,7 +147,7 @@ export function TriggerTarget({
                 })
               }
             >
-              <option value="">选择发布版本</option>
+              <option value="">Select published version</option>
               {versions.map((v) => (
                 <option
                   key={Number(v.revision)}
@@ -160,13 +160,13 @@ export function TriggerTarget({
             </select>
           </label>
           <p>
-            直接 Action 无 Job 自动恢复策略。失败或 unknown 查询原事件与
-            invocation，不重新执行效果。
+            Direct Action calls have no automatic Job recovery. For failures or unknown outcomes, query the original event and
+            invocation, Effects are not replayed.
           </p>
         </>
       )}
       <p className="break-all text-xs">
-        固定目标：{JSON.stringify(value.target ?? { targetJobId: value.targetJobId })}
+        Fixed target:{JSON.stringify(value.target ?? { targetJobId: value.targetJobId })}
       </p>
       {error && <p role="alert">{error}</p>}
     </div>

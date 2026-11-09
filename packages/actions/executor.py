@@ -8,7 +8,7 @@ from .provider import execute
 from packages.core.system_fields import system_target_name, system_value
 
 
-async def execute_dynamic(action, arguments, event, progress, pause, query=None):
+async def canonical_session_pause(action, arguments, event, progress, pause, query=None):
     async def before_effect():
         guard = getattr(progress, 'before_effect', None)
         if guard:
@@ -21,25 +21,8 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
     except jsonschema.ValidationError as exc:
         category = 'Additional properties' if exc.validator == 'additionalProperties' else str(exc.validator)
         raise ValueError('Action argument ' + category + ' validation failed') from None
-    if action['execution']['kind'] == 'system_job':
-        execute_system = getattr(progress, 'execute_system', None)
-        if execute_system is None:
-            raise PermissionError('Trusted Job host capability required')
-        await before_effect()
-        return await execute_system(action, arguments, event, progress)
-    if action['execution']['kind'] == 'job_template':
-        if arguments:
-            raise ValueError('Fixed Job Template Action accepts no fields')
-        instantiate = getattr(progress, 'instantiate_template', None)
-        if instantiate is None:
-            raise ValueError('Trusted Job Template capability unavailable')
-        checkpoint = getattr(progress, 'checkpoint', {})
-        if not checkpoint.get('id'):
-            raise ValueError('Host execution identity required for idempotent Job creation')
-        await before_effect()
-        return await instantiate(action, checkpoint['id'])
     if action['execution']['kind'] != 'session_operation':
-        return await execute(action, arguments, before_effect=before_effect)
+        raise PermissionError('Canonical Session primitive only accepts session pause')
     selector = action['execution']['selector']
     checkpoint = getattr(progress, 'checkpoint', {})
     query_info = checkpoint.get('selection')
@@ -86,3 +69,7 @@ async def execute_dynamic(action, arguments, event, progress, pause, query=None)
         await progress(targetResults=copy.deepcopy(results))
     succeeded = sum(r.get('ok') is True for r in results)
     return dict(ok=succeeded == len(ids), matched=len(ids), succeeded=succeeded, failed=len(ids)-succeeded, targets=results)
+
+
+async def execute_dynamic(*args, **kwargs):
+    raise PermissionError("Legacy Action execution retired; use canonical invocation")

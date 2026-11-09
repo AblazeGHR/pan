@@ -53,7 +53,7 @@ async function openCreate() {
 async function chooseKind(dialog, kind, name) {
   await dialog.getByLabel('Name').fill(name);
   await dialog.getByLabel('Description').fill(`${name} description`);
-  await dialog.getByRole('button', { name: '自定义' }).first().click();
+  await dialog.getByRole('button', { name: 'Custom' }).first().click();
   const kindSelect = dialog.getByLabel('Createable Job kind');
   await kindSelect.selectOption(kind);
 }
@@ -307,8 +307,8 @@ try {
   await page.getByText(rowName, { exact: false }).first().click();
   await expect(page.getByRole('dialog').or(page.getByRole('complementary')).first()).toBeVisible();
   const drawerText = await page.locator('body').innerText();
-  evidence.drawerHasEdit = /Edit|编辑/.test(drawerText);
-  const editButton = page.getByRole('button', { name: /^Edit|^编辑/ }).first();
+  evidence.drawerHasEdit = /Edit|Edit/.test(drawerText);
+  const editButton = page.getByRole('button', { name: /^Edit|^Edit/ }).first();
   if (await editButton.count()) {
     await editButton.click();
     const editDialog = page.getByRole('dialog');

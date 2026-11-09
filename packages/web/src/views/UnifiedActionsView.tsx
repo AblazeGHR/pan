@@ -65,13 +65,13 @@ export default function UnifiedActionsView() {
       <PageHeader
         title="Actions & Groups"
         eyebrow="Pan / Automation"
-        description="统一目录：固定版本、发布、引用升级与 Session 绑定"
+        description="Fixed versions, publication, reference updates and Session bindings"
       />
       <JobUserAuthorization />
       {token ? (
         <Directory key={token} />
       ) : (
-        <Notice label="Action login required">请登录以加载统一目录。</Notice>
+        <Notice label="Action login required">Sign in to load the catalog.</Notice>
       )}
     </PageShell>
   );
@@ -235,15 +235,15 @@ function Directory() {
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" disabled={loading} onClick={() => void reloadAll()}>
-            <RefreshCw size={13} /> 刷新目录
+            <RefreshCw size={13} /> Refresh catalog
           </Button>
           {tab === 'groups' ? (
             <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
-              <Plus size={13} /> 新建 Group
+              <Plus size={13} /> New Group
             </Button>
           ) : (
             <Button size="sm" variant="primary" onClick={() => setCreatingAction(true)}>
-              <Plus size={13} /> 新建 Action
+              <Plus size={13} /> New Action
             </Button>
           )}
         </div>
@@ -256,7 +256,7 @@ function Directory() {
             aria-label={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
             className={`${inputClass} pl-8 pr-8`}
             value={query}
-            placeholder={tab === 'actions' ? '搜索 Action' : '搜索 Group'}
+            placeholder={tab === 'actions' ? 'Search Actions' : 'Search Groups'}
             onChange={(event) => setQuery(event.target.value)}
           />
           {query && (
@@ -281,15 +281,15 @@ function Directory() {
         >
           {tab === 'actions' ? (
             <>
-              <option value="all">系统与用户</option>
-              <option value="system">系统</option>
-              <option value="user">用户</option>
+              <option value="all">System and user</option>
+              <option value="system">System</option>
+              <option value="user">User</option>
             </>
           ) : (
             <>
-              <option value="all">全部</option>
-              <option value="built">已发布</option>
-              <option value="unbuilt">未构建</option>
+              <option value="all">All</option>
+              <option value="built">Published</option>
+              <option value="unbuilt">Unbuilt</option>
             </>
           )}
         </select>
@@ -309,7 +309,7 @@ function Directory() {
       {!error && !loading && (selectedAction || selectedGroup) && (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => setSelected('')}>
-            返回目录
+            Back to catalog
           </Button>
           <span className="min-w-0 truncate text-xs text-text-tertiary">
             {tab === 'actions' ? selectedAction?.name : selectedGroup?.name}
@@ -324,8 +324,8 @@ function Directory() {
               <div className="rounded-lg border border-border-default">
                 <ListEmpty
                   icon={<Layers size={18} />}
-                  title="没有 Action"
-                  description="统一目录中的 Action 同时供 Group、Job 与 Session 使用。"
+                  title="No Actions"
+                  description="Actions are shared by Groups, Jobs and Sessions."
                 />
               </div>
             ) : (
@@ -339,11 +339,11 @@ function Directory() {
             <div className="rounded-lg border border-border-default">
               <ListEmpty
                 icon={<Layers size={18} />}
-                title="没有 Group"
-                description="Group 把固定版本的 Action 组成一个 Session 插件。"
+                title="No Groups"
+                description="Group Package fixed Action versions as a Session plugin."
                 action={
                   <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
-                    <Plus size={13} /> 新建 Group
+                    <Plus size={13} /> New Group
                   </Button>
                 }
               />
@@ -394,8 +394,8 @@ function Directory() {
         ) : (
           <div className="min-w-0 space-y-2">
             <p className="rounded-md border border-border-muted bg-bg-secondary/40 px-2 py-1.5 text-[11px] leading-relaxed text-text-secondary">
-              <Badge tone="muted">旧记录</Badge> 该 Group 仍由旧 JSON writer 持有：可继续 build /
-              unbuild / 绑定 Session，但 canonical 草稿与发布需要先完成接管；引用升级只能预览。
+              <Badge tone="muted">Retired</Badge> This legacy Group is retired. Source records remain read-only.
+              unbuild / Retired Groups cannot be built or enabled. Existing source records are preserved.
             </p>
             <LegacyRecordPanel
               key={selectedGroup.key}
@@ -410,10 +410,10 @@ function Directory() {
       {creatingAction && (
         <section className="min-w-0 space-y-2 rounded-lg border border-border-default p-3" aria-label="New Action">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">新建 Action 草稿</h3>
-            <span className="text-[11px] text-text-tertiary">保存为 draft，发布需在 Action 条目中显式 publish</span>
+            <h3 className="text-sm font-semibold">New Action draft</h3>
+            <span className="text-[11px] text-text-tertiary">Save as a draft. Publish explicitly in the Action detail</span>
             <Button size="sm" className="ml-auto" onClick={() => setCreatingAction(false)}>
-              取消
+              Cancel
             </Button>
           </div>
           <CanonicalDefinitionEditor
@@ -458,22 +458,22 @@ function ActionRow({ row, onOpen }: { row: UnifiedActionRow; onOpen: () => void 
           <strong className="min-w-0 break-all text-sm">{row.name}</strong>
           <Badge tone={adoptionTone(row.adoption)}>
             {ADOPTION_LABELS[row.adoption]}
-            {row.preservedReason ? ' · 写入阻断' : ''}
+            {row.preservedReason ? ' · Writes blocked' : ''}
           </Badge>
-          {row.system && <Badge tone="neutral">系统</Badge>}
+          {row.system && <Badge tone="neutral">System</Badge>}
           <Badge tone={row.enabled ? 'success' : 'muted'} dot>
             {row.enabled ? 'Enabled' : 'Draft'}
           </Badge>
         </span>
         <span className="mt-1 block break-all text-xs text-text-secondary">
-          {row.system ? '系统' : '用户'} · {row.state} · {row.versionCount} 个版本
+          {row.system ? 'System' : 'User'} · {row.state} · {row.versionCount}  versions
         </span>
         <span className="mt-0.5 block break-all text-xs text-text-tertiary">{row.description}</span>
         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-tertiary">
           <span className="font-mono">{row.canonicalId || row.legacyId || '—'}</span>
-          <span>展示版本 v{row.latestRevision ?? '—'}</span>
+          <span>Viewing version v{row.latestRevision ?? '—'}</span>
           <span>
-            {row.usedByGroupIds.length ? `${row.usedByGroupIds.length} 个 Group 引用` : '未被 Group 引用'}
+            {row.usedByGroupIds.length ? `${row.usedByGroupIds.length}  Group references` : 'No Group references'}
           </span>
         </span>
       </button>
@@ -494,12 +494,12 @@ function GroupRow({ row, onOpen }: { row: UnifiedGroupRow; onOpen: () => void })
           <strong className="min-w-0 break-all text-sm">{row.name}</strong>
           <Badge tone={adoptionTone(row.adoption)}>{ADOPTION_LABELS[row.adoption]}</Badge>
           <Badge tone={row.release ? 'success' : 'muted'} dot>
-            {row.release ? '已发布 release' : '未构建'}
+            {row.release ? 'Published release' : 'Unbuilt'}
           </Badge>
-          {row.buildBlockers.length > 0 && <Badge tone="warning">需先修正草稿</Badge>}
+          {row.buildBlockers.length > 0 && <Badge tone="warning">Draft needs attention</Badge>}
         </span>
         <span className="mt-1 block break-all text-xs text-text-secondary">
-          {row.tools.length} 个固定工具 · revision {String(row.revision ?? '—')}
+          {row.tools.length}  fixed tools / revision {String(row.revision ?? '—')}
         </span>
         <span className="mt-0.5 block break-all font-mono text-[11px] text-text-tertiary">
           {row.pluginId}
@@ -508,8 +508,8 @@ function GroupRow({ row, onOpen }: { row: UnifiedGroupRow; onOpen: () => void })
           <span>release {row.release ? row.release.slice(0, 8) : '—'}</span>
           <span>
             {row.adoption === 'legacy'
-              ? '旧 JSON Group · 仅预览升级'
-              : '可编辑草稿 / Build / 绑定 Session'}
+              ? 'Retired Group / read-only history'
+              : 'Edit draft / Build / Bind Session'}
           </span>
         </span>
       </button>
@@ -607,7 +607,7 @@ function ActionDetail({
       );
       if (argumentError || invalid) {
         invalid?.reportValidity();
-        setError(argumentError || '请修正参数格式。');
+        setError(argumentError || 'Correct the argument format.');
         return;
       }
     }
@@ -642,7 +642,7 @@ function ActionDetail({
     } catch (caught) {
       if (active.current) {
         if (definitelyRejected(caught)) setPending(null);
-        setError(`${canonicalError(caught)}。响应不明时请查询原操作。`);
+        setError(`${canonicalError(caught)}.Query the original operation if the response is unknown.`);
       }
     } finally {
       lock.current = false;
@@ -681,25 +681,25 @@ function ActionDetail({
         </div>
         <p className="break-all font-mono text-[11px] text-text-tertiary">
           {row.canonicalId || '—'}
-          {row.legacyId && row.legacyId !== row.canonicalId ? ` · 旧别名 ${row.legacyId}` : ''}
+          {row.legacyId && row.legacyId !== row.canonicalId ? ` · Legacy alias ${row.legacyId}` : ''}
         </p>
       </header>
 
       {pinnedByGroups(row, groups).length > 0 && (
         <p className="break-words rounded-md border border-border-default bg-bg-secondary/40 p-2 text-[11px] text-text-secondary">
-          被 {pinnedByGroups(row, groups).length} 个 Group 固定引用；切换查看版本不会改变这些固定引用。
+          Referenced by {pinnedByGroups(row, groups).length}  Groups hold fixed references. Viewing another version preserves these references.
         </p>
       )}
 
       {!canonicalId ? (
         <Notice label="Legacy record">
-          该 Action 只有旧记录，没有统一目录版本。旧编辑器仍可写入；固定版本与引用升级需要先完成
-          canonical 接管。
+          This retired Action has no canonical version. Create a new Action; legacy execution is disabled.
+          canonical authority.
         </Notice>
       ) : (
         <>
           <label className="block min-w-0">
-            <span className="text-xs font-medium text-text-secondary">查看版本</span>
+            <span className="text-xs font-medium text-text-secondary">View version</span>
             <select
               aria-label="Action version"
               className={inputClass}
@@ -722,23 +722,23 @@ function ActionDetail({
             </select>
           </label>
           <p className="text-xs text-text-secondary">
-            切换版本只改变查看对象。Group、Job 与已有 Run 保持原固定引用。
+            Switching versions changes the view. Groups, Jobs and existing Runs keep their fixed references.
           </p>
           <JsonView value={ref} />
           <p className="break-all text-sm">{String(definition.description ?? '')}</p>
           <p className="text-xs text-text-secondary">
-            执行：{String(obj(definition.execution).operation ?? '—')} · 效果：
+            Execution:{String(obj(definition.execution).operation ?? '—')} · Effect:
             {String(definition.effectClass ?? '—')}
           </p>
           <p className="text-xs text-text-secondary">
-            固定版本不固定外部路径的文件内容。外部脚本与工作目录沿用原资源和权限策略。
+            Fixed versions do not snapshot external file contents. Scripts and working directories use the existing resource and permission policy.
           </p>
           <details>
-            <summary className="cursor-pointer text-sm text-text-secondary">输入、输出、执行配置与能力</summary>
+            <summary className="cursor-pointer text-sm text-text-secondary">Input, output, execution and capabilities</summary>
             <JsonView value={definition} />
           </details>
           <details>
-            <summary className="cursor-pointer text-sm text-text-secondary">与其他版本比较</summary>
+            <summary className="cursor-pointer text-sm text-text-secondary">Compare versions</summary>
             {versions
               .filter((item) => item.revision !== revision)
               .map((item) => (
@@ -772,14 +772,14 @@ function ActionDetail({
             />
           )}
           <fieldset ref={argumentFields} disabled={!!pending || busy} className="min-w-0 space-y-3">
-            <legend className="text-sm font-semibold">调用参数</legend>
+            <legend className="text-sm font-semibold">Invocation arguments</legend>
             {Object.entries(obj(obj(definition.inputSchema).properties)).map(([name, schema]) => (
               <div key={`${revision}:${name}`} className="min-w-0 space-y-1">
                 <p className="text-[11px] text-text-tertiary">
                   {Array.isArray(obj(definition.inputSchema).required) &&
                   (obj(definition.inputSchema).required as unknown[]).includes(name)
-                    ? '必填'
-                    : '可选'}{' '}
+                    ? 'Required'
+                    : 'Optional'}{' '}
                   · {String(obj(schema).description ?? name)}
                 </p>
                 {Array.isArray(obj(schema).enum) ? (
@@ -795,7 +795,7 @@ function ActionDetail({
                         setArguments({ ...argumentsValue, [name]: JSON.parse(event.target.value) });
                       }}
                     >
-                      <option value="">选择值</option>
+                      <option value="">Select value</option>
                       {(obj(schema).enum as unknown[]).map((value) => (
                         <option key={JSON.stringify(value)} value={JSON.stringify(value)}>
                           {JSON.stringify(value)}
@@ -819,7 +819,7 @@ function ActionDetail({
             ))}
             <details>
               <summary className="cursor-pointer text-xs text-text-secondary">
-                完整参数 JSON（含额外声明字段）
+                Full arguments JSON (including declared extra fields)
               </summary>
               <textarea
                 aria-label="Invocation arguments JSON"
@@ -830,11 +830,11 @@ function ActionDetail({
                   try {
                     const value: unknown = JSON.parse(event.target.value);
                     if (!value || typeof value !== 'object' || Array.isArray(value))
-                      throw new Error('参数必须是 JSON 对象');
+                      throw new Error('Arguments must be a JSON object');
                     setArguments(value as JsonObject);
                     setArgumentError('');
                   } catch {
-                    setArgumentError('参数必须是有效的 JSON 对象；当前文本尚未提交。');
+                    setArgumentError('Arguments must be a valid JSON object. The current text has not been submitted.');
                   }
                 }}
               />
@@ -845,7 +845,7 @@ function ActionDetail({
                 disabled={!!argumentError || !version || version.state !== 'published' || version.enabled !== true}
                 onClick={() => void mutate('invoke')}
               >
-                运行固定版本
+                Run fixed version
               </Button>
               {['publish', 'enable', 'disable'].map((operation) => (
                 <Button key={operation} onClick={() => void mutate(operation)}>
@@ -861,33 +861,33 @@ function ActionDetail({
       {pending && (
         <div role="status" className="space-y-2">
           <p className="break-all text-xs">
-            原请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}。仅查询，不自动重放。
+            Original request {pending.requestKey} · {receipt?.status ?? 'unknown'}.Query only. No automatic replay.
           </p>
           <Button disabled={busy} size="sm" onClick={() => void lookup()}>
-            查询原操作
+            Query original operation
           </Button>
         </div>
       )}
       {receipt && (
         <>
           <p role="status" className="text-xs">
-            调用状态：{receipt.result?.status === 'uncertain' ? 'unknown' : receipt.status} ·{' '}
-            {String(receipt.result?.status ?? '')}（原回执 {receipt.status}）
+            Invocation status:{receipt.result?.status === 'uncertain' ? 'unknown' : receipt.status} ·{' '}
+            {String(receipt.result?.status ?? '')} (Original receipt {receipt.status})
           </p>
           {rows(receipt.result?.commands).map((command, index) => (
             <section key={index} className="min-w-0">
               <h3 className="text-xs">
-                命令 {index + 1} · {String(command.status ?? '')} · exitCode{' '}
+                Command {index + 1} · {String(command.status ?? '')} · exitCode{' '}
                 {String(command.exitCode ?? 'unknown')}
               </h3>
               {command.stdoutTruncated === true || command.stderrTruncated === true ? (
-                <p className="text-xs">输出已截断</p>
+                <p className="text-xs">Output truncated</p>
               ) : null}
               <JsonView value={{ stdout: command.stdout, stderr: command.stderr }} />
             </section>
           ))}
           <details>
-            <summary className="cursor-pointer text-sm text-text-secondary">完整输出与原操作回执</summary>
+            <summary className="cursor-pointer text-sm text-text-secondary">Full output and original receipt</summary>
             <JsonView value={receipt} />
           </details>
         </>
@@ -901,16 +901,16 @@ function ActionDetail({
 
       <section className="min-w-0 space-y-2 rounded-md border border-border-default p-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-xs font-semibold text-text-primary">旧记录与原功能</h3>
+          <h3 className="text-xs font-semibold text-text-primary">Preserved source record</h3>
           <Badge tone={adoptionTone(row.adoption)}>{ADOPTION_LABELS[row.adoption]}</Badge>
           <Button size="sm" className="ml-auto" onClick={() => setLegacyOpen((open) => !open)}>
-            {legacyOpen ? '收起旧记录' : '打开旧记录编辑器'}
+            {legacyOpen ? 'Collapse source record' : 'Inspect source record'}
           </Button>
         </div>
         <p className="text-[11px] leading-relaxed text-text-tertiary">
-          保留、阻断与接管状态逐条显示；旧编辑器沿用原权限、registry CAS 与引用检查。Session 绑定
-          只影响未来连接，已运行 Worker 继续使用原固定 release。
-          {sessions.length === 0 ? ' 当前没有已加载的 Session 列表。' : ''}
+          Preserved source records are read-only. Session bindings
+          affect future connections. Running Workers keep their fixed release.
+          {sessions.length === 0 ? ' No Session list is loaded.' : ''}
         </p>
         {legacyOpen && (
           <LegacyRecordPanel
@@ -956,22 +956,22 @@ function NewGroupForm({
     if (busy || pending) return;
     setError('');
     if (!/^[a-z][a-z0-9_]{0,31}$/.test(id)) {
-      setError('Group ID 必须匹配 ^[a-z][a-z0-9_]{0,31}$。');
+      setError('Group ID must match ^[a-z][a-z0-9_]{0,31}$.');
       return;
     }
     if (!name.trim()) {
-      setError('Group 名称必填。');
+      setError('Group Name is required.');
       return;
     }
     const fixed = tools
       .filter((tool) => tool.alias.trim() && tool.actionId)
       .map((tool) => ({ alias: tool.alias.trim(), actionRef: references[tool.actionId] ?? {} }));
     if (!fixed.length) {
-      setError('至少需要一个固定版本的 Action 工具。');
+      setError('At least one fixed Action tool is required.');
       return;
     }
     if (fixed.some((tool) => !tool.actionRef.id)) {
-      setError('所选 Action 没有可用的已发布版本，请先在 Action 中发布。');
+      setError('Publish and enable the selected Action before adding it.');
       return;
     }
     setBusy(true);
@@ -996,22 +996,22 @@ function NewGroupForm({
   return (
     <section className="min-w-0 space-y-3 rounded-lg border border-border-default p-3" aria-label="New Group">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold">新建固定版本 Group</h3>
+        <h3 className="text-sm font-semibold">New Group with fixed versions</h3>
         <Button size="sm" className="ml-auto" onClick={onCancel}>
-          取消
+          Cancel
         </Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Group ID" hint="小写字母开头，可含数字与下划线">
+        <Field label="Group ID" hint="Start with a lowercase letter; digits and underscores are allowed">
           <input aria-label="Group ID" className={inputClass} value={id} onChange={(event) => setId(event.target.value)} />
         </Field>
-        <Field label="Group 名称">
+        <Field label="Group Name">
           <input aria-label="Group name" className={inputClass} value={name} onChange={(event) => setName(event.target.value)} />
         </Field>
       </div>
       {tools.map((tool, index) => (
         <div key={index} className="grid gap-2 sm:grid-cols-2">
-          <Field label={`工具别名 ${index + 1}`}>
+          <Field label={`Tool alias ${index + 1}`}>
             <input
               aria-label={`New tool alias ${index + 1}`}
               className={inputClass}
@@ -1023,7 +1023,7 @@ function NewGroupForm({
               }
             />
           </Field>
-          <Field label="固定 Action（最新已发布版本）">
+          <Field label="Fixed Action (latest published version)">
             <select
               aria-label={`New tool Action ${index + 1}`}
               className={inputClass}
@@ -1034,7 +1034,7 @@ function NewGroupForm({
                 )
               }
             >
-              <option value="">选择 Action</option>
+              <option value="">Select Action</option>
               {catalog
                 .filter((item) => item.canonicalId)
                 .map((item) => (
@@ -1051,14 +1051,14 @@ function NewGroupForm({
           size="sm"
           onClick={() => setTools((current) => [...current, { alias: '', actionId: '' }])}
         >
-          <Plus size={13} /> 添加工具
+          <Plus size={13} /> Add tool
         </Button>
         <Button size="sm" variant="primary" disabled={busy || !!pending} onClick={() => void create()}>
-          创建草稿
+          Create draft
         </Button>
       </div>
       <p className="text-[11px] text-text-tertiary">
-        创建只写入草稿；固定版本与发布请在 Group 条目中显式 Build。
+        Create a draft, then explicitly Build the Group to publish fixed versions.
       </p>
       {error && (
         <p role="alert" className="text-xs text-danger">

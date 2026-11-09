@@ -20,7 +20,7 @@ export function JobUserAuthorization({ purpose = 'jobs' }: { purpose?: 'jobs' | 
             aria-hidden
             className={`size-1.5 rounded-full ${token ? 'bg-success' : 'bg-warning'}`}
           />
-          {token ? '已授权' : '需要登录'}
+          {token ? 'Authorized' : 'Sign in required'}
         </p>
         <p className="mt-1 max-w-3xl text-xs leading-5 text-text-secondary">
           {purpose === 'locker'

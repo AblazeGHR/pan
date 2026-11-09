@@ -8,7 +8,7 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** epoch 秒（number）或本地朴素 ISO（string）→ "YYYY-MM-DD HH:mm"。 */
+/** epoch 秒 (number)或本地朴素 ISO (string)→ "YYYY-MM-DD HH:mm". */
 function formatDateTime(value?: JobTimestamp | null): string {
   if (value === null || value === undefined || value === '') return '—';
   const d = typeof value === 'number' ? new Date(value * 1000) : new Date(value);
@@ -23,7 +23,7 @@ function formatDuration(sec: number): string {
   return `${Math.round(sec / 8640) / 10}d`;
 }
 
-/** 状态 → 徽标配色（覆盖 job status 与 run status 两类字符串）。 */
+/** 状态 → 徽标配色 (覆盖 job status 与 run status 两类字符串). */
 function statusColor(status: string): string {
   switch (status) {
     case 'running':
@@ -349,7 +349,7 @@ export function JobDetailDrawer({
                   type="button"
                   onClick={onRunNow}
                   disabled={!canRunNow}
-                  title={canRunNow ? undefined : '无 target，无法立即派发'}
+                  title={canRunNow ? undefined : 'No target available for dispatch'}
                   className="inline-flex items-center gap-1 rounded border border-border-default bg-bg-tertiary px-2 py-1 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
                 >
                   <Play size={12} />
@@ -430,7 +430,7 @@ export function JobDetailDrawer({
                       : job.target.sessionId ?? 'no target'}
                   </span>
                 </KV>
-                <KV label={job.unified && !job.unified.compatibility ? 'Run count' : 'Legacy execution count'}>{job.runCount ?? 0}</KV>
+                <KV label={job.retirementStatus ? 'Historical execution count' : 'Run count'}>{job.runCount ?? 0}</KV>
                 <KV label="Created">{formatDateTime(job.createdAt)}</KV>
                 <KV label="Updated">{formatDateTime(job.updatedAt)}</KV>
                 {job.paused && <KV label="Paused">Yes</KV>}
@@ -630,7 +630,7 @@ export function JobDetailDrawer({
             </Section>
 
             {/* 4. Runs history */}
-            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Legacy execution history'}>
+            <Section title={job.unified && !job.unified.compatibility ? 'Runs' : 'Execution history'}>
               {runs.length === 0 ? (
                 <div className="text-xs text-text-tertiary">
                   {runsLoading ? 'Loading…' : '—'}

@@ -1,3 +1,4 @@
+from tests.support.legacy_action_source import LegacySource
 """P6 named gates; all sources/processes/profiles are synthetic and isolated."""
 import asyncio
 import copy
@@ -27,7 +28,7 @@ def source(tmp_path, service, monkeypatch, *, enrolled=True, output_format='json
         enroll_fresh_source(root)
     monkeypatch.setattr(store, 'root', lambda: root)
     monkeypatch.setattr(group_catalog, 'canonical_path', lambda: service.creators.path)
-    old = store.Store(root)
+    old = LegacySource(root)
     action = command_action(tmp_path)
     action['output_format'] = output_format
     # A counter is a real side effect; stdout still has the old JSON contract.
@@ -404,7 +405,7 @@ def test_P6_GROUP_02_unknown_lease_and_generation_are_not_reset(action_http, tmp
     # Use a second fresh source so this case is independent of the epoch conflict.
     other = tmp_path / 'abandoned'
     enroll_fresh_source(other)
-    replica = store.Store(other)
+    replica = LegacySource(other)
     replica.put('actions', old.read()['actions']['echo'])
     replica.put('groups', {'id': 'orphan', 'name': 'Orphan', 'action_ids': ['echo']})
     action = replica.read()['actions']['echo']
@@ -426,7 +427,7 @@ def test_P6_GROUP_07_all_scope_does_not_drop_remaining_legacy(action_http, tmp_p
     own(service)
     migration = LegacyGroupMigration(service, old.root)
     migration.apply(migration.preview(mappings, actor=USER), 'adopt', actor=USER)
-    remaining = store.Store(tmp_path / 'remaining-unknown-writer')
+    remaining = LegacySource(tmp_path / 'remaining-unknown-writer')
     remaining.put('actions', command_action(tmp_path, 'other'))
     remaining.put('groups', {'id': 'other_tools', 'name': 'Still legacy', 'action_ids': ['other']})
     monkeypatch.setattr(store, 'root', lambda: remaining.root)

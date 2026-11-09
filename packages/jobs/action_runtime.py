@@ -126,24 +126,7 @@ class Runtime:
             await self._start()
 
     async def _start(self):
-        if self.closed:return
-        if str(self.root) in RUNTIMES:raise Conflict('Job runtime already owns this profile')
-        await io(self.ownership.acquire)
-        self.owned=True
-        if self.closed:
-            await io(self.ownership.release);self.owned=False;return
-        RUNTIMES[str(self.root)]=self
-        try:
-            from .system_actions import install
-            await io(install,self.actions)
-            await io(self.recover)
-            await self.publish_events()
-        except BaseException:
-            if RUNTIMES.get(str(self.root)) is self:RUNTIMES.pop(str(self.root),None)
-            await io(self.ownership.release);self.owned=False;raise
-        if self.closed:
-            if RUNTIMES.get(str(self.root)) is self:RUNTIMES.pop(str(self.root),None)
-            await io(self.ownership.release);self.owned=False
+        raise PermissionError('Legacy Action Job host retired; use canonical FinalService')
 
     def view(self, job, state=None):
         if not is_action_job(job):return jobs.job_public_view(job)
@@ -193,34 +176,11 @@ class Runtime:
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def create(self,raw,authorized=False,authority=None,*,creation_key=None,legacy=None):
-        def change(state):
-            cfg=config_value(raw,state)
-            if any(not state['actions'][aid]['enabled'] or state.get('actionLifecycle',{}).get(aid) is False for aid in chains.action_ids(cfg)):
-                raise Conflict('Action disabled; new Job refused')
-            if cfg['enabled'] and not authorized:raise PermissionError('Agent may create disabled Job draft only')
-            jid='job_'+(digest('automation:'+str(self.root)+':'+creation_key)[:24] if creation_key else uuid.uuid4().hex[:24]);key=digest(jid)
-            prior=state.get('jobInstantiations',{}).get(key)
-            if prior:return copy.deepcopy(prior)
-            intent=dict(key=key,jobId=jid,config=cfg,referenceGeneration=reference_generation(state,cfg),
-                        fingerprint=digest({'jobId':jid,'config':cfg}),phase='reserved',jobRoot=str(self.root),
-                        authorization=copy.deepcopy(authority or {'type':'user'}),
-                        legacy=copy.deepcopy(legacy) if legacy else None)
-            if len(state.setdefault('jobInstantiations',{}))>=10000:raise ValueError('Instantiation capacity reached')
-            state['jobInstantiations'][key]=intent
-            state.setdefault('jobReferences',{})[jid]={'actionId':cfg['actionId'],'actionIds':chains.action_ids(cfg),'position':'/config/actionId','jobRoot':str(self.root)}
-            return copy.deepcopy(intent)
-        intent=self.templates.transaction(change)
-        if intent['phase']=='created':return self.view(self.get(intent['jobId']))
-        return self.publish_intent(intent)
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def create_legacy(self, kind, fields, authority=None, *, creation_key=None):
-        """Create a legacy-shaped record whose only executor is a system Action."""
-        from .legacy_compat import config_for
-        config, storage = config_for(kind, fields)
-        return self.create(config, True, authority or {'type': 'user'},
-                           creation_key=creation_key,
-                           legacy={'kind': kind, 'fields': storage})
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def instantiate(self,tid,expected,key,overrides=None,admitted_template=None,authority=None):
@@ -248,68 +208,7 @@ class Runtime:
         # Action reference validation/index is committed first; Job publication
         # validates its current revision under its own lock. Stale index entries
         # only conservatively require delete confirmation, never grant execution.
-        old=self.get(jid);revision(old['configRevision'],expected)
-        def validate(state):
-            cfg=config_value(raw,state);aid=cfg['actionId'];gen=reference_generation(state,cfg)
-            if cfg['overlap']!=old['config']['overlap'] and not authorized:
-                raise PermissionError('User Bearer required to change overlap policy')
-            maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
-            if len(self.active(old))>maximum:raise Conflict('Active execution count exceeds new overlap limit')
-            repair=old['config']['actionId']!=aid or old['referenceGeneration']!=gen
-            if not authorized and (cfg['enabled'] or old['enabled'] or repair):
-                raise PermissionError('User Bearer required for Job enable/edit/repair')
-            if repair:cfg['enabled']=False
-            refs=state.setdefault('jobReferences',{})
-            previous=refs.get(jid,{})
-            refs[jid]={'actionId':aid,'actionIds':list(dict.fromkeys([*previous.get('actionIds',chains.action_ids(old['config'])),*chains.action_ids(cfg)])),
-                       'position':'/config/actionId','jobRoot':str(self.root),'configRevision':expected+1}
-            return cfg,gen
-        cfg,gen=self.templates.transaction(validate)
-        with jobs._lock,jobs._job_lock(jid,self.root):
-            old=self.get(jid);revision(old['configRevision'],expected)
-            maximum=cfg['overlap']['parallelLimit'] if cfg['overlap']['mode']=='parallel' else 1
-            if len(self.active(old))>maximum:raise Conflict('Active execution count exceeds new overlap limit')
-            intent={'jobId':jid,'config':cfg,'fingerprint':old['creationFingerprint'],'referenceGeneration':gen,
-                    'authorization':copy.deepcopy(authority or {'type':'user'})}
-            replacement=config_job(self.root,intent)
-            for key in ('taskId','createdAt','runCount','templateId','templateRevision','execution','executionFinalization','lastExecution','lastStatus','attempts','runId','nextAttemptAt','snapshotCleanup','activeExecutions','executionFinalizations','runAuthorization','paused','terminalOutbox','pendingRuns','eventReceipts','recoveryFailures','runPolicy','runRecoveryEligible','chainRecovery','runRecoveries','runSummaries','finalRuntime'):
-                if key in old:replacement[key]=copy.deepcopy(old[key])
-            if cfg['schedule']==old['config']['schedule']:
-                replacement['schedule']=copy.deepcopy(old['schedule'])
-                replacement['nextFireAt']=old.get('nextFireAt')
-            if old['status'] in {'running','cleaning'}:replacement['status']=old['status']
-            if old['status']=='restarting' and old.get('chainRecovery'):replacement['status']='restarting'
-            if old.get('legacyCompat'):
-                replacement['kind']=old['kind']
-                replacement['legacyCompat']=old['legacyCompat']
-                args=cfg.get('arguments',{})
-                if old['legacyCompat']== 'background-process':
-                    replacement.update(targetSessionId=args.get('sessionId'),argv=copy.deepcopy(args.get('argv',[])),
-                                       cwd=args.get('cwd'),hideWindow=args.get('hideWindow',True))
-                elif old['legacyCompat']=='session-message':
-                    replacement.update(targetSessionId=args.get('sessionId'),targetSessionIds=None,text=args.get('text',''))
-                elif old['legacyCompat']=='session-broadcast':
-                    replacement.update(targetSessionId=None,targetSessionIds=copy.deepcopy(args.get('sessionIds',[])),text=args.get('text',''))
-            if authority is not None and not self.active(old):
-                replacement['runAuthorization']=copy.deepcopy(authority)
-            replacement['configRevision']=expected+1
-            if not cfg['enabled']:
-                for waiting in replacement.get('pendingRuns',[]):
-                    run_id=waiting.get('runId')
-                    if run_id and replacement.get('finalRuntime',{}).get('runs',{}).get(run_id,{}).get('state')=='queued':
-                        self.final.ledger.request_cancel(replacement,self.root,run_id,request_key='legacy-disable:'+run_id+':'+uuid.uuid4().hex,authority=replacement.get('authorization'))
-                        self.final.ledger.transition_run(replacement,self.root,run_id,'cancelled')
-                        operation_id=waiting.get('operationId')
-                        if operation_id in replacement.get('finalRuntime',{}).get('operations',{}):
-                            self.final.ledger.complete_operation(replacement,self.root,operation_id,{'jobId':jid,'runId':run_id,'state':'cancelled'},run_id=run_id,admission_id=waiting.get('admissionId'))
-                replacement['pendingRuns']=[]
-            jobs._write_job(jobs._job_path(jid,self.root),replacement)
-        def narrow(state):
-            ref=state['jobReferences'].get(jid,{})
-            if ref.get('configRevision')==expected+1 and ref.get('actionId')==cfg['actionId']:
-                ref['actionIds']=chains.action_ids(cfg)
-        self.templates.transaction(narrow)
-        return self.view(replacement)
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     def _freeze_new(self,job,eid,waiting,run_id):
         """Freeze all executable inputs at Admission, including queued Runs."""
@@ -348,96 +247,7 @@ class Runtime:
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def claim(self,jid,eid,expected=None,entry=None,queued=None,confirmed=False,authority=None,authorization_revision=None,rerun_of=None,operation_id=None,provenance=None):
-        with jobs._lock,jobs._job_lock(jid,self.root):
-            job=self.get(jid)
-            if expected is not None:revision(job['configRevision'],expected)
-            active=self.active(job)
-            policy=job['config'].get('overlap',{})
-            maximum=policy.get('parallelLimit',3) if policy.get('mode')=='parallel' else 1
-            if len(active)>=maximum:raise Conflict('Job overlap capacity reached')
-            if not job['enabled'] and not confirmed:raise Conflict('Job disabled')
-            if job.get('paused'):raise Conflict('Job paused')
-            confirmation=job.get('recoveryConfirmation') if confirmed else None
-            if confirmed and (not confirmation or confirmation.get('status')!='reserved' or confirmation['configRevision']!=job['configRevision']):
-                raise Conflict('Explicit recovery confirmation no longer current')
-            if queued is not None:
-                waiting=next((r for r in job.get('pendingRuns',[]) if r['id']==queued),None)
-                if waiting is None:raise Conflict('Queued Run no longer current')
-                if waiting['configRevision']!=job['configRevision'] and not waiting.get('runId'):raise Conflict('Queued Run configuration changed')
-                job['pendingRuns']=[r for r in job.get('pendingRuns',[]) if r['id']!=queued]
-            config=job['config']
-            recovering=job.get('status')=='restarting' or confirmed
-            if recovering and not confirmed and job.get('runRecoveryEligible') is not True:raise Conflict('Original Run lacks frozen recovery eligibility')
-            chain_recovery=copy.deepcopy(job.get('chainRecovery')) if recovering else None
-            run_id=confirmation['runId'] if confirmed else job['runId'] if recovering else waiting.get('runId') if queued is not None else canonical_id('run_')
-            if not run_id:run_id=canonical_id('run_')
-            frozen=job.get('finalRuntime',{}).get('plans',{}).get(run_id,{}).get('frozen')
-            if frozen is not None:
-                plan=copy.deepcopy(frozen)
-                chain_snapshot=copy.deepcopy(plan) if 'steps' in plan else None
-                context=copy.deepcopy(plan.get('event',plan.get('context',{})))
-            elif chain_recovery:
-                chain_snapshot=chain_recovery['snapshot'];plan=copy.deepcopy(chain_snapshot)
-                context=copy.deepcopy(chain_snapshot['event'])
-            else:
-                plan,chain_snapshot,context=self._freeze_new(job,eid,waiting if queued is not None else None,run_id)
-            source=copy.deepcopy(authority or (job.get('runAuthorization') if recovering else None) or job.get('authorization', {'type':'user'}))
-            job['runAuthorization']=source
-            if not recovering:
-                job['runPolicy']={key:copy.deepcopy(config[key]) for key in ('recovery','completion','notification')}
-                job['recoveryFailures']=0
-            policy=copy.deepcopy(job.get('runPolicy') or {key:config[key] for key in ('recovery','completion','notification')})
-            attempt_count=1+sum(a.get('runId')==run_id for a in job.get('attempts',[]))
-            if len(job.get('attempts',[]))>=10000:raise Conflict('Attempt audit capacity reached')
-            attempt_id='attempt_'+uuid.uuid4().hex[:24]
-            execution={'id':eid,'runId':run_id,'attemptId':attempt_id,'attemptCount':attempt_count,
-                       'startedAt':time.time(),
-                       'policy':policy,'authorization':source,'authorizationRevision':authorization_revision,
-                       'jobRoot':str(self.root),'phase':'preparing','entryId':entry,'context':context,
-                       'actionId':config['actionId'],'actionRevision':job.get('referenceGeneration',0),
-                       'templateRevision':job.get('templateRevision'),'backoffSec':0,
-                       'receipt':None,'sideEffectUncertainty':False}
-            if queued is not None and 'jobInput' in waiting:execution['inputArguments']=copy.deepcopy(waiting['jobInput'])
-            if queued is not None and waiting.get('policy'):execution['policy']=copy.deepcopy(waiting['policy'])
-            if not chain_snapshot:execution['canonicalPlan']=copy.deepcopy(plan)
-            if chain_snapshot:
-                execution.update(chainSnapshot=chain_snapshot,configRevision=chain_snapshot['configRevision'],
-                    stepExecutions=copy.deepcopy(chain_recovery['steps']) if chain_recovery else chains.records(chain_snapshot,run_id))
-                execution['context']=copy.deepcopy(context)
-                execution['context']['id']=eid
-                execution['context']['dispatchKey']=eid
-            job.pop('chainRecovery',None)
-            if confirmed:
-                execution['recoveryCheckpoint']=copy.deepcopy(confirmation['checkpoint'])
-                job['recoveryConfirmation']={**confirmation,'status':'consumed','attemptId':attempt_id}
-            elif recovering:
-                execution['recoveryCheckpoint']=self.selection_audit(job.get('lastExecution',{}))
-            if confirmed and operation_id is None:operation_id=confirmation.get('operationId')
-            if run_id in job.get('finalRuntime',{}).get('runs',{}):
-                self.final.ledger.start(job,self.root,run_id,retry=recovering)
-                admission_id=job['finalRuntime']['runs'][run_id]['admissionId']
-            else:
-                run_cause=copy.deepcopy(waiting.get('cause')) if queued is not None and waiting.get('cause') else canonical_cause()
-                admission=self.final.ledger.admit(job,self.root,plan=plan,cause=run_cause,authority=source,
-                    admission_id='adm_'+eid,run_id=run_id,rerun_of=rerun_of,operation_id=operation_id,notification=execution['policy'].get('notification',{}),
-                    authorization_revision=authorization_revision)
-                admission_id=admission['admissionId']
-                self.final.ledger.start(job,self.root,run_id)
-            execution['admissionId']=admission_id
-            if queued is not None and waiting.get('receiptKey'):execution['eventReceiptKey']=waiting['receiptKey']
-            if provenance:job['finalRuntime']['plans'][run_id].update(copy.deepcopy(provenance))
-            if operation_id:
-                self.final.ledger.complete_operation(job,self.root,operation_id,{'jobId':jid,'runId':run_id},run_id=run_id,admission_id=admission_id)
-            job.setdefault('attempts',[]).append({'id':attempt_id,'runId':run_id,'count':attempt_count,'status':'running',
-                         'actionId':config['actionId'],'templateRevision':job.get('templateRevision'),
-                         'backoffSec':0,'receipt':None,'sideEffectUncertainty':False})
-            job['runId']=run_id
-            active[eid]=execution
-            job.update(status='running',activeExecutions=active,execution=next(iter(active.values())),runStartedAt=time.time())
-            jobs._write_job(jobs._job_path(jid,self.root),job)
-            result=copy.deepcopy(job);result['execution']=copy.deepcopy(execution)
-            result['config'].update(copy.deepcopy(policy))
-            return result
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def finalize(self,jid,eid,status,audit=None):
@@ -591,76 +401,7 @@ class Runtime:
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def execute(self,job):
-        from packages.actions.executor import execute_dynamic
-        if job['execution'].get('chainSnapshot'):
-            from .chain_runtime import execute_job_chain
-            return await execute_job_chain(self,job)
-        eid=job['execution']['id'];audit={};outcome='uncertain'
-        try:
-            snapshot=await io(self.templates.snapshot,job,job['execution'])
-            audit={k:snapshot[k] for k in ('actionId','actionRevision','registryRevision','digest','argumentsDigest','contextDigest')}
-            audit['executionKind']=snapshot['definition']['execution']['kind']
-            await io(self.action_audit,job['jobId'],eid,audit,snapshot['definition'].get('recoverable') is True and job['execution']['policy']['recovery']['enabled'])
-            snapshot['context']['attemptId']=job['execution']['attemptId']
-            snapshot['context']['effectKey']=self.final.ledger.effect_key(job['execution']['runId'],'main',snapshot['actionId'])
-            async def progress(**fields):
-                try:await io(self.templates.checkpoint,eid,fields)
-                except Exception as exc:raise SnapshotPersistenceError(str(exc)) from exc
-            progress.checkpoint={'id':job['execution']['runId'],**copy.deepcopy(job['execution'].get('recoveryCheckpoint',{}))}
-            progress.instantiate_template=lambda a,key:self.instantiate_action(a,key,snapshot.get('fixedTemplate'),job['execution']['authorization'],job['execution'].get('authorizationRevision'))
-            from .retired import reject_execution as execute_system
-            progress.execute_system=execute_system
-            if job['execution']['attemptCount']>1 and job['execution']['policy']['recovery']['enabled']:
-                from .system_actions import recovery_ready
-                if not await io(recovery_ready,snapshot['definition'],snapshot['arguments']):raise RecoveryBlocked('Recovery paused by current business gates')
-            query=snapshot.get('trigger',{}).get('query')
-            if progress.checkpoint.get('triggerSelection') is not None:
-                snapshot['context']['jobSelection']=copy.deepcopy(progress.checkpoint['triggerSelection'])
-            elif query is not None and snapshot.get('trigger',{}).get('kind')=='event':
-                from packages.actions.session_query import resolve
-                selected=await resolve(query)
-                selection={'ids':selected['ids'],'candidateCount':selected['candidateCount']}
-                await progress(triggerTargetIds=selected['ids'],triggerSelection=selection)
-                snapshot['context']['jobSelection']=selection
-            async def before_effect():
-                current = (await io(self.actions.read))['actions'].get(snapshot['actionId'])
-                if not current or not current.get('enabled'):
-                    raise AuthorizationRevoked('Action disabled before effect admission')
-                await self._check_authorization(job['execution'].get('authorization', {'type':'user'}), current,
-                                                job['execution'].get('authorizationRevision'))
-            progress.before_effect = before_effect
-            await before_effect()
-            result=await execute_dynamic(snapshot['definition'],snapshot['arguments'],snapshot['context'],progress,self.pause)
-            checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
-            audit.update(self.selection_audit(checkpoint))
-            completion=job['execution']['policy'].get('completion',{})
-            signal=result.get('structuredContent',{}).get('panJobCompletion') if isinstance(result.get('structuredContent'),dict) else result.get('panJobCompletion')
-            if result.get('status') not in {'unknown','uncertain','unconfirmed'} and completion.get('kind')=='monitoring' and not (result.get('processTreeEnded') is True and isinstance(signal,dict) and set(signal)=={'type','completed'} and signal['completed'] is True and signal['type']==completion.get('signalType')):
-                raise MonitoringIncomplete('Monitoring Action exited without its structured completion signal')
-            outcome=('uncertain' if result.get('status') in {'unknown','uncertain','unconfirmed'} else
-                     'completed' if result.get('ok',True) and not result.get('isError',False) else 'failed')
-            for key in ('jobId','matched','succeeded','failed'):
-                if key=='jobId' and snapshot['definition']['execution']['kind']!='job_template':continue
-                if key in result:audit[key if key!='jobId' else 'createdJobId']=result[key]
-        except asyncio.CancelledError:
-            outcome='cancelled' if eid in self.cancelled else 'uncertain'
-        except MonitoringIncomplete as exc:
-            outcome='restarting' if job['execution']['policy']['recovery']['enabled'] else 'failed';audit['error']=str(exc)
-        except RecoveryBlocked as exc:
-            outcome='restarting';audit.update(error=str(exc),gateBlocked=True)
-        except AuthorizationRevoked as exc:
-            outcome='cancelled';audit['error']=str(exc)
-        except Exception as exc:
-            from packages.automation.engine import PersistenceError
-            outcome='uncertain' if isinstance(exc,(SnapshotPersistenceError,PersistenceError,TimeoutError)) else 'failed';audit['error']=str(exc)[:1000]
-        finally:
-            try:
-                checkpoint=(await io(self.actions.read)).get('jobExecutions',{}).get(eid,{}).get('checkpoint',{})
-                audit.update(self.selection_audit(checkpoint))
-                await io(self.finalize,job['jobId'],eid,outcome,audit)
-                await self.publish_events()
-            except Exception as exc:self.diagnostics.append({'jobId':job['jobId'],'phase':'cleanup','error':str(exc)})
-            self.cancelled.discard(eid)
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     def chain_save(self,jid,eid,steps,phase):
@@ -1040,24 +781,7 @@ class Runtime:
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def run_again(self,jid,expected,rerun_of,request_key,authority=None):
-        """D3 Run again: same Job, new Run and new effect identities."""
-        source=await io(self.get,jid);revision(source['configRevision'],expected)
-        await io(self.final.run,jid,rerun_of)
-        operation,replay=await io(self.final.begin_operation,jid,operation='create',request_key=request_key,authority=authority,
-            expected_revision=expected,payload={'jobId':jid,'rerunOf':rerun_of,'expectedRevision':expected})
-        if replay and operation['state']=='completed':
-            return {'job':await io(self.view,await io(self.get,jid)),**copy.deepcopy(operation.get('result',{})),'operationId':operation['operationId']}
-        current=await io(self.final.store.get,jid)
-        existing=next((rid for rid,plan in current.get('finalRuntime',{}).get('plans',{}).items()
-                       if plan.get('operationId')==operation['operationId']),None)
-        if existing is None:
-            await self.launch(jid,expected,authority=authority,rerun_of=rerun_of,operation_id=operation['operationId'])
-            current=await io(self.final.store.get,jid)
-            existing=next((rid for rid,plan in current.get('finalRuntime',{}).get('plans',{}).items()
-                           if plan.get('operationId')==operation['operationId']),None)
-        if existing is None:raise OSError('Canonical Run admission missing after operation acceptance')
-        run=current['finalRuntime']['runs'][existing]
-        return {'job':await io(self.view,current),'runId':existing,'admissionId':run['admissionId'],'operationId':operation['operationId']}
+        raise PermissionError('Legacy Action Job execution retired; use canonical FinalService')
 
     @legacy_writer(lambda self, *args, **kwargs: self.root.parent, reservation=True)
     async def clone_and_run(self,jid,expected,request_key,authority=None,overrides=None):

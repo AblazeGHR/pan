@@ -94,7 +94,7 @@ export function MappedActionPanel({
     } catch (caught) {
       if (definitelyRejected(caught)) setPending(null);
       setError(
-        `${canonicalError(caught)}${definitelyRejected(caught) ? '' : '。响应不明时请查询原操作。'}`,
+        `${canonicalError(caught)}${definitelyRejected(caught) ? '' : '.Query the original operation if the response is unknown.'}`,
       );
     } finally {
       setBusy(false);
@@ -134,24 +134,24 @@ export function MappedActionPanel({
             {String(current.name ?? 'Action')} · {mapped.legacyId}
           </h2>
           <p className="mt-1 break-all text-xs text-text-secondary">
-            逻辑 ID <span className="font-mono">{String(current.id)}</span> · revision{' '}
+            Logical ID <span className="font-mono">{String(current.id)}</span> · revision{' '}
             {String(current.revision)} · stateRevision {String(current.stateRevision)} · {state} ·{' '}
             {enabled ? 'enabled' : 'disabled'}
           </p>
         </div>
         <Button type="button" size="sm" onClick={onClose}>
-          返回旧目录
+          Back to catalog
         </Button>
       </header>
 
       <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-        此 Action 已由 canonical 定义接管。旧来源字段与原始字节保持不变；下方的复制、生命周期与删除使用 canonical
-        身份和权限，复杂定义不会被压平成旧单命令字段。
+        This Action has a canonical definition. Original source bytes are preserved. Copy, lifecycle and delete use canonical
+        identity and permissions. Complete definitions retain all advanced fields.
       </p>
-      <p className="text-sm text-text-secondary">保留原因：{mapped.reason}</p>
+      <p className="text-sm text-text-secondary">Preserved reason:{mapped.reason}</p>
       {system && (
         <p role="status" className="text-sm text-text-secondary">
-          System Action 由产品维护；旧 UI 不提供复制、生命周期或删除操作。
+          System Action is product managed. Legacy controls are unavailable.
         </p>
       )}
       {(error || parentError) && <p role="alert">{error || parentError}</p>}
@@ -196,7 +196,7 @@ export function MappedActionPanel({
       {duplicateOpen && !system && (
         <div className="space-y-2 rounded-lg border border-border-default p-3">
           <p className="text-sm text-text-secondary">
-            复制完整 canonical 定义（包括多命令、环境与时区字段）。新副本属于统一目录，不再绑定旧来源别名。
+            Copy the complete definition, including commands, environment and timezone. The new copy has its own identity.
           </p>
           <label className="block text-sm">
             Copy name
@@ -220,7 +220,7 @@ export function MappedActionPanel({
                   if (created && typeof created.id === 'string') {
                     onOpenCopy(created, { ...definition, name: copyNameValue.trim() });
                   } else {
-                    setError('副本已创建，但服务未返回新对象；请在统一目录刷新后查找。');
+                    setError('The copy was created. Refresh the catalog to locate its identity.');
                   }
                 },
               )
@@ -234,23 +234,23 @@ export function MappedActionPanel({
       {pending && (
         <div role="status" className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
           <p className="break-all text-sm">
-            原请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}。仅查询，不自动重放。
+            Original request {pending.requestKey} · {receipt?.status ?? 'unknown'}.Query only. No automatic replay.
           </p>
           <Button size="sm" disabled={busy} onClick={() => void lookup()}>
-            查询原生命周期操作
+            Query original lifecycle operation
           </Button>
         </div>
       )}
       {receipt && (
         <p role="status" className="text-sm">
-          操作状态：{receipt.status}
+          Operation status:{receipt.status}
         </p>
       )}
 
       <details open className="rounded-lg border border-border-default p-3">
-        <summary className="cursor-pointer text-sm font-medium">完整定义编辑</summary>
+        <summary className="cursor-pointer text-sm font-medium">Full definition editor</summary>
         <p className="my-2 text-sm text-text-secondary">
-          保存创建新的 canonical 草稿版本；发布与 Group 更新需分别执行。
+          Save a new draft version. Publish and Group updates require separate operations.
         </p>
         <CanonicalDefinitionEditor
           key={String(current.id) + ':' + String(current.revision)}

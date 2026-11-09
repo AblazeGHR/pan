@@ -40,7 +40,7 @@ export function CanonicalDefinitionEditor({
     try {
       value = JSON.parse(text);
       if (!value || typeof value !== 'object' || Array.isArray(value))
-        throw new Error('定义必须是 JSON 对象');
+        throw new Error('Definition must be a JSON object');
     } catch (e) {
       setError(canonicalError(e));
       return;
@@ -91,7 +91,7 @@ export function CanonicalDefinitionEditor({
             const template = catalog.items.find(
               (a) => (a.execution as JsonObject)?.operation === 'process.command',
             );
-            if (!template) throw new Error('服务未提供命令定义模板，请检查目录。');
+            if (!template) throw new Error('The command definition template is unavailable. Refresh the catalog.');
             const page = await canonicalRequest<{ items: JsonObject[] }>(
               `jobs/actions/${encodeURIComponent(String(template.id))}/versions`,
             );
@@ -104,12 +104,12 @@ export function CanonicalDefinitionEditor({
           }
         }}
       >
-        {item ? '编辑为新草稿版本' : '新建统一 Action'}
+        {item ? 'Edit as a new draft version' : 'New definition'}
       </Button>
       {text !== null && (
         <>
           <p className="text-sm">
-            完整定义使用现有服务 schema 校验；保存不发布。系统定义不可改写。
+            The service validates the full definition. Save creates a draft. System definitions are product managed.
           </p>
           <label>
             Action definition
@@ -122,14 +122,14 @@ export function CanonicalDefinitionEditor({
             />
           </label>
           <Button disabled={busy || !!pending} onClick={() => void save()}>
-            保存草稿版本
+            Save draft version
           </Button>
         </>
       )}
       {pending && (
         <div role="status">
           <p className="break-all">
-            原请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}
+            Original request {pending.requestKey} · {receipt?.status ?? 'unknown'}
           </p>
           <Button
             disabled={busy}
@@ -153,7 +153,7 @@ export function CanonicalDefinitionEditor({
               }
             }}
           >
-            查询原保存操作
+            Query original save operation
           </Button>
         </div>
       )}

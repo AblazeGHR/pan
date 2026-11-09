@@ -38,17 +38,17 @@ async def execute_family(service, operation, prepared, arguments, context, *, ev
             pass
     try:
         if operation == 'api.get':
-            from .provider import execute
-            output = await execute(prepared, arguments, before_effect=before_effect)
+            from .family_primitives import canonical_api_get
+            output = await canonical_api_get(prepared, arguments, before_effect=before_effect)
         else:
-            from .executor import execute_dynamic
+            from .executor import canonical_session_pause
             async def progress(**fields):
                 combined = {**progress.checkpoint, **copy.deepcopy(fields)}
                 context.checkpoint({'checkpoint': combined})
                 progress.checkpoint = combined
             progress.checkpoint = {'id': context.identity.get('operationId', context.identity.get('runId'))}
             progress.before_effect = before_effect
-            output = await execute_dynamic(prepared, arguments, event or {}, progress, service.session_pause)
+            output = await canonical_session_pause(prepared, arguments, event or {}, progress, service.session_pause)
     except Exception as exc:
         return {'outcome': 'unknown', 'receipt': {'status': 'uncertain', 'error': str(exc) or type(exc).__name__}}
     status = 'completed' if output.get('ok', True) else 'failed'

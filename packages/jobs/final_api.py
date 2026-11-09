@@ -733,7 +733,10 @@ async def legacy_job_list(request: Request):
         # The designed page must keep showing Jobs that still live in the old
         # registry; canonical rows are merged by explicit jobId only.
         legacy_page = await legacy_api.list_jobs(request=request)
-        items = list(legacy_page.get("jobs") or [])
+        items = [{**row, "enabled": False, "retirementStatus": "Retired",
+                  "retirementReason": "Legacy execution retired; create a new Job",
+                  "unified": {**(row.get("unified") or {}), "compatibility": True}}
+                 for row in legacy_page.get("jobs") or []]
     except Exception:
         items = []
     seen = {row.get("jobId") for row in items}
@@ -744,6 +747,21 @@ async def legacy_job_list(request: Request):
         view = legacy_job_compat.job_view(service, item, legacy=binding.get("fields"), actor=who)
         view["pinned"] = legacy_job_compat.get_pin(service, item["id"])
         items.append(view)
+    from packages.jobs.maintenance import dispositions
+    inventory = dispositions(service.root.parent, service=service)
+    seen = {row.get("jobId") for row in items}
+    for preserved in inventory["items"]:
+        identity = preserved["originalId"] or preserved["id"]
+        if identity in seen or preserved.get("deleted"):
+            continue
+        items.append({"jobId": identity, "name": identity, "kind": "invalid",
+                      "status": "failed", "enabled": False, "pinned": False,
+                      "source": {"type": "system"}, "target": {"sessionId": None},
+                      "schedule": [], "runCount": 0, "createdAt": None, "updatedAt": None,
+                      "retirementStatus": "Invalid", "retirementReason": ", ".join(preserved["reasonCodes"]),
+                      "preservedSource": preserved,
+                      "unified": {"compatibility": True}})
+        seen.add(identity)
     return {"ok": True, "jobs": items, "pinMetadataStatus": "available"}
 
 

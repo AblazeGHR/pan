@@ -79,7 +79,7 @@ export function ReferenceUpdates({
       );
       if (active.current) {
         setJobs(rows(refs.items));
-        if (refs.nextCursor) setError('引用超过一页；当前仅选择已显示的显式批次。');
+        if (refs.nextCursor) setError('References span multiple pages. Only the displayed explicit batch is selected.');
       }
     }
   }
@@ -109,19 +109,19 @@ export function ReferenceUpdates({
       className="min-w-0 space-y-3 rounded-xl border border-border-default p-3"
       aria-label="Reference updates"
     >
-      <h3 className="font-semibold">固定引用与显式升级</h3>
+      <h3 className="font-semibold">Fixed references and explicit updates</h3>
       <p className="text-sm">
-        Group 应用仅更新草稿，需显式 build 才产生新 release；原 Worker pin 保持不变。Job
-        更新只影响未来 Run，已有 queued/retry/unknown Run 保留冻结计划。
+        Group Apply updates to the draft. Build explicitly to publish a new release. Existing Worker pins stay fixed. Job
+        Updates affect future Runs. Existing queued, retry and unknown Runs keep their frozen plan.
       </p>
       <Button disabled={busy || !!pending} onClick={() => void task(load)}>
-        加载引用与 Groups
+        Load references and Groups
       </Button>
       {manageGroups && (
         <CanonicalGroupEditor groups={groups} onChanged={load} onInspect={onInspect} />
       )}
       <fieldset disabled={busy || !!pending} className="min-w-0 space-y-2">
-        <legend>Group 升级范围</legend>
+        <legend>Group Update scope</legend>
         <select
           aria-label="Group to upgrade"
           className={field}
@@ -131,7 +131,7 @@ export function ReferenceUpdates({
             setPreview(null);
           }}
         >
-          <option value="">选择 Group</option>
+          <option value="">Select Group</option>
           {groups.map((g) => (
             <option key={String(g.id)} value={String(g.id)}>
               {String(g.name)} · revision {String(g.revision)}
@@ -144,19 +144,19 @@ export function ReferenceUpdates({
             <div key={String(g.id)}>
               {json(g)}
               <Button onClick={() => void task(() => review('group', { scope: 'group', groupId }))}>
-                预览此 Group 全部升级
+                Preview all Group reference updates
               </Button>
             </div>
           ))}
         {actionRef && (
           <Button onClick={() => void task(() => review('group', { scope: 'action', actionRef }))}>
-            预览此版本更新所有 Groups
+            Preview this version for all Groups
           </Button>
         )}
       </fieldset>
       {actionRef && (
         <fieldset disabled={busy || !!pending} className="min-w-0 space-y-2">
-          <legend>Job 引用批次</legend>
+          <legend>Job Reference batch</legend>
           {jobs.map((j) => (
             <label className="block break-all" key={String(j.jobId)}>
               <input
@@ -199,7 +199,7 @@ export function ReferenceUpdates({
                         setPreview(null);
                       }}
                     />
-                    仅替换 Step {String(step.stepId)}
+                    Replace Step only {String(step.stepId)}
                   </span>
                 ))}
               {rows(j.steps).map((step) => (
@@ -210,7 +210,7 @@ export function ReferenceUpdates({
                     onInspect?.(step.actionRef as JsonObject);
                   }}
                 >
-                  查看 Step {String(step.stepId)} 固定 v
+                  Inspect Step {String(step.stepId)} Fixed v
                   {String((step.actionRef as JsonObject).revision)}
                 </Button>
               ))}
@@ -239,17 +239,17 @@ export function ReferenceUpdates({
               )
             }
           >
-            预览未来 Run 引用更新
+            Preview reference updates for future Runs
           </Button>
         </fieldset>
       )}
       {preview && (
         <div className="min-w-0 space-y-2">
-          <h4>差异、范围与阻断原因</h4>
+          <h4>Changes, scope and blockers</h4>
           {json(preview.value)}
           {rows(preview.value.excluded).length > 0 && (
             <p role="status">
-              旧 JSON Group 尚未完成安全 writer adoption，当前只可预览；未迁移、未升级。
+              Retired legacy Group. The source is preserved and cannot execute.
             </p>
           )}
           {preview.kind === 'job' &&
@@ -272,7 +272,7 @@ export function ReferenceUpdates({
                       setPreview(null);
                     }}
                   />
-                  同步固定订阅 Trigger {String(s.triggerId)}（选择后重新预览）
+                  Update fixed Trigger subscriptions {String(s.triggerId)} (preview again after selecting)
                 </label>
               ))}
           <Button
@@ -319,14 +319,14 @@ export function ReferenceUpdates({
               })
             }
           >
-            应用已预览批次
+            Apply previewed batch
           </Button>
         </div>
       )}
       {pending && (
         <div role="status">
           <p className="break-all">
-            更新原身份 {pending} · {receipt?.status ?? 'unknown'}
+            Update original identity {pending} · {receipt?.status ?? 'unknown'}
           </p>
           <Button
             disabled={busy}
@@ -343,7 +343,7 @@ export function ReferenceUpdates({
               })
             }
           >
-            查询原更新操作
+            Query original update operation
           </Button>
         </div>
       )}

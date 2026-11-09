@@ -48,14 +48,14 @@ const labels: Record<CanonicalKind, string> = {
   'job-templates': 'JobTemplates',
 };
 const hints: Record<CanonicalKind, string> = {
-  jobs: '可执行步骤、保留策略与运行历史',
-  triggers: '事件订阅与目标 Job',
-  'event-creators': '时间来源、规则与游标',
-  'job-templates': '可实例化的 Job 组合',
+  jobs: 'Execution steps, retention and run history',
+  triggers: 'Event subscriptions and target Jobs',
+  'event-creators': 'Time sources, rules and cursors',
+  'job-templates': 'Reusable Job compositions',
 };
 const field =
   'mt-1 block w-full min-w-0 rounded-lg border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50';
-const card = 'min-w-0 rounded-xl border border-border-default bg-bg-secondary p-4';
+const card = 'min-w-0 rounded border border-border-default bg-bg-secondary/40 p-3';
 const detailsClass =
   'rounded-lg border border-border-muted bg-bg-primary/40 px-3 py-2 text-sm';
 const summaryClass = 'cursor-pointer font-medium text-text-secondary hover:text-text-primary';
@@ -102,7 +102,7 @@ function previewObject(text: string): JsonObject {
 function objectJson(text: string): JsonObject {
   const value: unknown = JSON.parse(text);
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('请输入 JSON 对象。');
+    throw new Error('Enter a JSON object.');
   return value as JsonObject;
 }
 type Pending = {
@@ -136,8 +136,8 @@ export default function CanonicalJobsView() {
       <div className="space-y-5">
         <PageHeader
           eyebrow="Pan / Automation"
-          title="Canonical Jobs"
-          description="统一定义与 Run 管理"
+          title="Jobs"
+          description="Definitions and run management"
           actions={<HeaderLink to="/automation">Automation</HeaderLink>}
         />
         <JobUserAuthorization />
@@ -145,7 +145,7 @@ export default function CanonicalJobsView() {
           <Workspace key={token} />
         ) : (
           <Notice role="status" label="Canonical login required">
-            <p>请登录以加载 canonical 数据。</p>
+            <p>Sign in to load Jobs.</p>
           </Notice>
         )}
         {token && (
@@ -299,12 +299,12 @@ export function CanonicalCollection({
     <div className="min-w-0 space-y-4">
       <div className="flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-0 sm:mr-auto">
-          <h2 className="text-lg font-semibold">Canonical {labels[kind]}</h2>
+          <h2 className="text-lg font-semibold">{labels[kind]}</h2>
           <p className="mt-0.5 text-sm text-text-secondary">{hints[kind]}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load()}>
-            刷新列表
+            Refresh list
           </Button>
           <Button
             type="button"
@@ -321,7 +321,7 @@ export function CanonicalCollection({
               setEditor({ item: null, name: '', json: JSON.stringify(definition, null, 2) });
             }}
           >
-            创建 {labels[kind]}
+            Create {labels[kind]}
           </Button>
           {kind === 'job-templates' &&
             (['assign', 'shell'] as const).map((value) => (
@@ -338,7 +338,7 @@ export function CanonicalCollection({
       </div>
       {loading && (
         <div role="status" className="space-y-3">
-          <p className="text-sm text-text-secondary">加载中…</p>
+          <p className="text-sm text-text-secondary">Loading...</p>
           {!items.length && (
             <div aria-hidden className="grid gap-3 lg:grid-cols-2">
               {[0, 1].map((index) => (
@@ -386,7 +386,7 @@ export function CanonicalCollection({
       )}
       {editor && (
         <form
-          aria-label={`编辑 ${labels[kind]}`}
+          aria-label={`Edit ${labels[kind]}`}
           className={`${card} space-y-3`}
           onSubmit={(e) => {
             e.preventDefault();
@@ -412,14 +412,14 @@ export function CanonicalCollection({
         >
           <div className="border-b border-border-muted pb-3">
             <h3 className="text-base font-semibold">
-              {editor.item ? `编辑 ${labels[kind]}` : `创建 ${labels[kind]}`}
+              {editor.item ? `Edit ${labels[kind]}` : `Create ${labels[kind]}`}
             </h3>
             <p className="mt-0.5 text-xs text-text-secondary">
-              保存使用打开时的定义版本 {editor.item ? revisionOf(editor.item) : 0}。
+              Save uses the definition revision observed when opened {editor.item ? revisionOf(editor.item) : 0}.
             </p>
           </div>
           <label className="block text-sm">
-            名称
+            Name
             <input
               className={field}
               disabled={busy}
@@ -474,7 +474,7 @@ export function CanonicalCollection({
           <details className={detailsClass}>
             <summary className={summaryClass}>Advanced definition JSON</summary>
             <label className="mt-2 block text-sm">
-              定义 JSON（名称单独填写）
+              Definition JSON (name is entered separately)
               <textarea
                 disabled={busy}
                 spellCheck={false}
@@ -505,7 +505,7 @@ export function CanonicalCollection({
             )}
           </details>
           <details className={detailsClass}>
-            <summary className={summaryClass}>定义字段与约束</summary>
+            <summary className={summaryClass}>Definition fields and constraints</summary>
             <pre className="mt-2 max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
               {JSON.stringify(definitionSchemas[kind], null, 2)}
             </pre>
@@ -584,7 +584,7 @@ export function CanonicalCollection({
               disabled={busy}
               className="min-w-0 space-y-3 rounded-xl border border-border-muted p-4"
             >
-              <legend className="px-1 text-sm font-semibold text-text-secondary">订阅目标</legend>
+              <legend className="px-1 text-sm font-semibold text-text-secondary">Subscription target</legend>
               <TriggerTarget value={previewObject(editor.json)} jobs={jobs} onChange={value => setEditor({ ...editor, json: JSON.stringify(value, null, 2) })} />
               <label className="block">
                 Creator selection
@@ -732,7 +732,7 @@ export function CanonicalCollection({
                   canonicalFormErrors(kind, previewObject(editor.json)).length > 0)
               }
             >
-              保存定义
+              Save definition
             </Button>
             <Button
               type="button"
@@ -744,7 +744,7 @@ export function CanonicalCollection({
                 }
               }}
             >
-              关闭编辑
+              Close editor
             </Button>
           </div>
         </form>
@@ -790,11 +790,11 @@ export function CanonicalCollection({
       )}
       {retiring && (
         <section
-          aria-label="确认 retire"
+          aria-label="Confirm retirement"
           className={`${card} space-y-3 border-danger/40 bg-danger/10`}
         >
           <p className="break-all text-sm">
-            退休 {retiring.name}（{retiring.id}）？
+            Retired {retiring.name} ({retiring.id})？
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -805,10 +805,10 @@ export function CanonicalCollection({
                 void mutate('retire', (key) => canonicalJobs.retire(kind, retiring, key))
               }
             >
-              确认 retire
+              Confirm retirement
             </Button>
             <Button type="button" disabled={busy} onClick={() => setRetiring(null)}>
-              返回
+              Back
             </Button>
           </div>
         </section>
@@ -852,17 +852,17 @@ export function CanonicalCollection({
       )}
       {!loading && !items.length && (
         <EmptyState
-          title={`暂无 canonical ${labels[kind]}。`}
-          hint={`创建 ${labels[kind]} 或刷新列表以查看服务端定义。`}
+          title={`No records ${labels[kind]}.`}
+          hint={`Create ${labels[kind]} or refresh the list to inspect the current definition.`}
         />
       )}
-      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2">
+      <div className="min-w-0 divide-y divide-border-muted overflow-hidden rounded border border-border-default">
         {items.map((item) => (
           <article
             key={item.id}
             id={item.id}
             aria-label={`${labels[kind]} ${item.name}`}
-            className={`${card} flex flex-col gap-3 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
+            className={`min-w-0 flex flex-col gap-2 bg-bg-secondary/20 p-3 hover:bg-bg-tertiary/35 ${focusId === item.id ? 'ring-2 ring-accent' : ''}`}
           >
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
               <h3 className="min-w-0 break-words text-base font-semibold">{item.name}</h3>
@@ -871,10 +871,10 @@ export function CanonicalCollection({
             <div className="min-w-0 space-y-1 text-xs text-text-secondary">
               <p className="break-all font-mono text-text-tertiary">{item.id}</p>
               <p>
-                定义版本{' '}
+                Definition revision{' '}
                 <span className="font-mono text-text-secondary">{revisionOf(item)}</span>
                 <span aria-hidden> · </span>
-                状态版本 <span className="font-mono text-text-secondary">{item.stateRevision}</span>
+                State revision <span className="font-mono text-text-secondary">{item.stateRevision}</span>
               </p>
             </div>
             <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
@@ -996,7 +996,7 @@ export function CanonicalCollection({
               <Button
                 type="button"
                 size="sm"
-                aria-label={`编辑 ${item.name}`}
+                aria-label={`Edit ${item.name}`}
                 className="max-w-full break-all"
                 disabled={busy || !!editor || !!enabling}
                 onClick={() => {
@@ -1015,7 +1015,7 @@ export function CanonicalCollection({
                   setEditor({ item, name: item.name, json: JSON.stringify(definition, null, 2) });
                 }}
               >
-                编辑
+                Edit
               </Button>
               <Button
                 type="button"
@@ -1047,7 +1047,7 @@ export function CanonicalCollection({
       {cursor && (
         <div className="flex justify-center">
           <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load(cursor)}>
-            加载更多
+            Load more
           </Button>
         </div>
       )}
@@ -1069,16 +1069,16 @@ function OperationStatus({
   const [busy, setBusy] = useState(false);
   const receipt = pending.receipt;
   return (
-    <section aria-label="操作回执" className={`${card} space-y-3 text-sm`}>
+    <section aria-label="Operation receipt" className={`${card} space-y-3 text-sm`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="min-w-0 break-words">
           {receipt
-            ? `操作状态：${receipt.status}`
+            ? `Operation status:${receipt.status}`
             : pending.rejected
-              ? '请求已拒绝；请修正问题后重新提交。'
-              : '请求结果未确认，请按原身份查询。'}
+              ? 'Request rejected. Correct the fields before submitting again.'
+              : 'The result is unconfirmed. Query the original identity.'}
           {receipt && ['accepted', 'pending', 'unknown'].includes(receipt.status)
-            ? '；尚未确认效果成功。'
+            ? '; The effect is not confirmed.'
             : ''}
         </p>
         {receipt && <StateBadge state={receipt.status} />}
@@ -1114,7 +1114,7 @@ function OperationStatus({
             .finally(() => setBusy(false));
         }}
       >
-        查询原操作
+        Query original operation
       </Button>
       {error && (
         <p role="alert" className="break-words text-danger">
@@ -1138,7 +1138,7 @@ function ActionCatalog() {
             .catch((failure: unknown) => setError(canonicalError(failure)));
       }}
     >
-      <summary className={summaryClass}>可引用的 published Actions</summary>
+      <summary className={summaryClass}>Published Actions available for reference</summary>
       {error && <p role="alert">{error}</p>}
       <pre className="mt-2 max-h-72 max-w-full overflow-y-auto whitespace-pre-wrap break-all rounded-lg bg-bg-primary p-3 text-xs text-text-secondary">
         {JSON.stringify(items, null, 2)}
@@ -1235,21 +1235,21 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
         <div className="min-w-0 sm:mr-auto">
           <h2 className="break-words text-lg font-semibold">Runs · {job.name}</h2>
           <p className="mt-0.5 text-xs text-text-secondary">
-            不可确认的结果必须按原身份查询，不能自动重试。
+            Query unconfirmed outcomes using the original identity. Do not retry automatically.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" disabled={busy || loading} onClick={() => void load()}>
-            刷新 Runs
+            Refresh Runs
           </Button>
           <Button type="button" size="sm" disabled={busy} onClick={onClose}>
-            关闭 Runs
+            Close Runs
           </Button>
         </div>
       </div>
       {loading && (
         <p role="status" className="text-sm text-text-secondary">
-          加载 Runs…
+          Loading Runs...
         </p>
       )}
       {error && (
@@ -1258,7 +1258,7 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
         </Notice>
       )}
       {pending && <OperationStatus pending={pending} onChange={setPending} />}
-      {!loading && !runs.length && <EmptyState title="暂无 Runs。" />}
+      {!loading && !runs.length && <EmptyState title="No Runs yet." />}
       {runs.map((run) => (
         <article
           key={run.runId}
@@ -1268,7 +1268,7 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
             <p className="min-w-0 break-all font-mono text-sm">{run.runId}</p>
             <StateBadge state={run.state} />
           </div>
-          <p className="text-xs text-text-secondary">状态版本 {run.stateRevision}</p>
+          <p className="text-xs text-text-secondary">State revision {run.stateRevision}</p>
           {!!run.deliveryRuntime && (
             <details className={detailsClass} aria-label={`Delivery receipts ${run.runId}`}>
               <summary className={summaryClass}>
@@ -1315,7 +1315,7 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
       {cursor && (
         <div className="flex justify-center">
           <Button type="button" size="sm" disabled={loading || busy} onClick={() => void load(cursor)}>
-            更多 Runs
+            More Runs
           </Button>
         </div>
       )}
@@ -1329,17 +1329,17 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
           }}
         >
           <p className="break-all font-medium">
-            确认 {selected.operation} · {selected.run.runId}？
+            Confirm {selected.operation} · {selected.run.runId}？
           </p>
           {selected.operation === 'retry' && (
             <label className="block text-sm">
-              Step ID（可选，默认失败边界）
+              Step ID (optional; defaults to the failure boundary)
               <input className={field} value={stepId} onChange={(e) => setStepId(e.target.value)} />
             </label>
           )}
           {['run-again', 'clone-and-run'].includes(selected.operation) && (
             <label className="block text-sm">
-              运行参数 JSON（input；clone 可含 overrides.name/description）
+              Run parameters JSON (input; clone may include overrides.name/description)
               <textarea
                 className={`${field} h-24 font-mono`}
                 value={parameters}
@@ -1349,10 +1349,10 @@ function RunList({ job, onClose }: { job: CanonicalObject; onClose: () => void }
           )}
           <div className="flex flex-wrap gap-2 border-t border-accent/30 pt-3">
             <Button variant="primary" disabled={busy} type="submit">
-              确认操作
+              Confirm operation
             </Button>
             <Button type="button" disabled={busy} onClick={() => setSelected(null)}>
-              返回
+              Back
             </Button>
           </div>
         </form>

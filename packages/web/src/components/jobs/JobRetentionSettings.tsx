@@ -115,7 +115,7 @@ export function JobRetentionSettings() {
     setError(null);
     setFeedback(null);
     try {
-      setFeedback('Legacy retention settings are read-only after Jobs migration. Manage canonical retention from Canonical Jobs.');
+      setFeedback('Legacy retention settings are read-only after Jobs migration. Manage canonical retention from Jobs.');
     } catch (reason) {
       setError(errMsg(reason));
     } finally {

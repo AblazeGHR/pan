@@ -1,3 +1,4 @@
+from tests.support.legacy_action_source import LegacySource
 """P3 Group fixed releases, atomic reference updates and canonical invocation."""
 import asyncio
 import copy
@@ -281,7 +282,7 @@ def test_legacy_json_group_preview_only_preserves_bytes(action_http, tmp_path, m
     from tests.test_action_groups import api_action
     _, service = action_http
     monkeypatch.setattr(store, 'root', lambda: tmp_path / 'legacy')
-    legacy = store.Store()
+    legacy = LegacySource()
     legacy.put('actions', api_action('old'))
     legacy.put('groups', {'id': 'legacy_tools', 'name': 'Legacy tools', 'action_ids': ['old']})
     before = legacy.path.read_bytes()
@@ -343,7 +344,7 @@ def test_legacy_writer_cannot_shadow_canonical_group(action_http, tmp_path, monk
     monkeypatch.setattr(group_catalog, 'canonical_path', lambda: service.creators.path)
     first = install(service)
     put(Groups(service), first)
-    legacy = store.Store()
+    legacy = LegacySource()
     legacy.put('actions', api_action('old'))
     before = legacy.path.read_bytes()
     with pytest.raises(ValueError, match='canonical-owned'):

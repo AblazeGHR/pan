@@ -111,7 +111,7 @@ export function CanonicalActionPanel({
     } catch (caught) {
       if (active.current) {
         if (definitelyRejected(caught)) setPending(null);
-        setError(`${canonicalError(caught)}。响应不明时请查询原操作。`);
+        setError(`${canonicalError(caught)}.Query the original operation if the response is unknown.`);
       }
     } finally {
       lock.current = false;
@@ -148,16 +148,16 @@ export function CanonicalActionPanel({
           </Badge>
           <span className="ml-auto">
             <Button size="sm" onClick={onClose}>
-              返回列表
+              Back to list
             </Button>
           </span>
         </div>
         <p className="break-all font-mono text-[11px] text-text-tertiary">
           {canonicalId}
-          {row.legacyId && row.legacyId !== canonicalId ? ` · 旧别名 ${row.legacyId}` : ''}
+          {row.legacyId && row.legacyId !== canonicalId ? ` · Legacy alias ${row.legacyId}` : ''}
         </p>
 
-        <Field label="查看版本" hint="切换版本只改变查看对象；Group、Job 与已有 Run 保持原固定引用。">
+        <Field label="View version" hint="Switching versions changes the view. Groups, Jobs and existing Runs keep their fixed references.">
           <select
             aria-label="Action version"
             className={inputClass}
@@ -189,13 +189,13 @@ export function CanonicalActionPanel({
           return draft && onEditForm ? (
             <div className="rounded-lg border border-border-default p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold">结构化编辑</h3>
+                <h3 className="text-sm font-semibold">Structured editor</h3>
                 <span className="text-[11px] text-text-tertiary">
-                  用原快捷表单编辑可表达字段；保存生成新版本，发布仍需显式操作。
+                  Edit supported fields using the form. Save creates a new version; publication is explicit.
                 </span>
                 <span className="ml-auto">
                   <Button size="sm" variant="primary" onClick={() => onEditForm(draft)}>
-                    用表单编辑
+                    Edit with form
                   </Button>
                 </span>
               </div>
@@ -217,7 +217,7 @@ export function CanonicalActionPanel({
         )}
 
         <div className="space-y-3 rounded-lg border border-border-default p-3">
-          <h3 className="text-sm font-semibold">固定版本发布与调用</h3>
+          <h3 className="text-sm font-semibold">Fixed version publication and invocation</h3>
           <div className="flex flex-wrap gap-2">
             {['publish', 'enable', 'disable'].map((operation) => (
               <Button key={operation} size="sm" disabled={busy || !!pending} onClick={() => void mutate(operation)}>
@@ -232,7 +232,7 @@ export function CanonicalActionPanel({
               }
               onClick={() => void mutate('invoke')}
             >
-              运行固定版本
+              Run fixed version
             </Button>
           </div>
           {Object.entries(obj(obj(definition.inputSchema).properties)).map(([name, schema]) => (
@@ -242,8 +242,8 @@ export function CanonicalActionPanel({
               hint={
                 Array.isArray(obj(definition.inputSchema).required) &&
                 (obj(definition.inputSchema).required as unknown[]).includes(name)
-                  ? '必填'
-                  : '可选'
+                  ? 'Required'
+                  : 'Optional'
               }
             >
               <TypedValue
@@ -259,7 +259,7 @@ export function CanonicalActionPanel({
             </Field>
           ))}
           <details>
-            <summary className="cursor-pointer text-xs text-text-secondary">完整参数 JSON（含额外声明字段）</summary>
+            <summary className="cursor-pointer text-xs text-text-secondary">Full arguments JSON (including declared extra fields)</summary>
             <textarea
               aria-label="Invocation arguments JSON"
               className={`${inputClass} min-h-24 font-mono`}
@@ -269,11 +269,11 @@ export function CanonicalActionPanel({
                 try {
                   const value: unknown = JSON.parse(event.target.value);
                   if (!value || typeof value !== 'object' || Array.isArray(value))
-                    throw new Error('参数必须是 JSON 对象');
+                    throw new Error('Arguments must be a JSON object');
                   setArguments(value as JsonObject);
                   setArgumentError('');
                 } catch {
-                  setArgumentError('参数必须是有效的 JSON 对象；当前文本尚未提交。');
+                  setArgumentError('Arguments must be a valid JSON object. The current text has not been submitted.');
                 }
               }}
             />
@@ -285,17 +285,17 @@ export function CanonicalActionPanel({
         {pending && (
           <div role="status" className="space-y-2 text-xs">
             <p className="break-all">
-              原请求 {pending.requestKey} · {receipt?.status ?? 'unknown'}。仅查询，不自动重放。
+              Original request {pending.requestKey} · {receipt?.status ?? 'unknown'}.Query only. No automatic replay.
             </p>
             <Button size="sm" disabled={busy} onClick={() => void lookup()}>
-              查询原操作
+              Query original operation
             </Button>
           </div>
         )}
         {receipt && (
           <details className="rounded border border-border-default p-2 text-xs">
             <summary className="cursor-pointer">
-              调用状态：{receipt.result?.status === 'uncertain' ? 'unknown' : receipt.status} ·{' '}
+              Invocation status:{receipt.result?.status === 'uncertain' ? 'unknown' : receipt.status} ·{' '}
               {String(receipt.result?.status ?? '')}
             </summary>
             <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-all text-[11px]">

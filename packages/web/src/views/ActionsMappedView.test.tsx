@@ -27,15 +27,15 @@ afterEach(cleanup);
 it('opens the full mapped definition through the old Edit entry and keeps its observed CAS on refresh', async () => {
   render(<LegacyActionsView />);
   await screen.findByText('Old alias');
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Old alias' }));
-  fireEvent.click(screen.getByRole('button', { name: '编辑为新草稿版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit as a new draft version' }));
   const text = screen.getByRole('textbox', { name: 'Action definition' });
   const edited = { ...definition, name: 'Edited full series' };
   expect(JSON.parse((text as HTMLTextAreaElement).value)).toEqual(definition);
   fireEvent.change(text, { target: { value: JSON.stringify(edited) } });
   registry.canonicalActions!.old_alias!.object.revision = 8;
   useActionRegistryStore.setState({ registry: structuredClone(registry) });
-  fireEvent.click(screen.getByRole('button', { name: '保存草稿版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft version' }));
   await waitFor(() => expect(canonicalRequest).toHaveBeenCalled());
   const [path, method, body] = vi.mocked(canonicalRequest).mock.calls.find(
     ([value]) => value === 'jobs/actions/action_original',
@@ -49,9 +49,9 @@ it('opens the full mapped definition through the old Edit entry and keeps its ob
 it('retains the existing discard confirmation for unsaved multi-command text', async () => {
   render(<LegacyActionsView />);
   await screen.findByText('Old alias');
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Old alias' }));
-  fireEvent.click(screen.getByRole('button', { name: '编辑为新草稿版本' }));
-  fireEvent.click(screen.getByRole('button', { name: '返回旧目录' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Edit as a new draft version' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Back to catalog' }));
   expect((await screen.findByRole('dialog')).textContent).toContain('Discard unsaved changes?');
   // Opening the discard guard must not write; the additive catalog read is allowed.
   expect(

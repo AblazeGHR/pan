@@ -3300,36 +3300,11 @@ def pan_handbook() -> dict:
 def action_drafts(operation: str = 'list', kind: str = 'actions', item: dict | None = None,
                   item_id: str | None = None, expected_revision: int | None = None,
                   request_key: str | None = None) -> dict:
-    """List Action/Group sources or put/delete a draft. kind is actions or groups.
+    """Read preserved Action/Group sources. Legacy put/delete are retired.
 
-    Omit item.id to create with a server-generated stable ID; the response item
-    contains that ID. Supply the original item.id to update; renaming keeps it.
-    Explicit valid IDs remain supported. Do not replay an unconfirmed creation.
-    Optional request_key names the outer canonical operation after writer
-    handoff; retain it and query the original operation after response loss.
-    Action fields: optional id, name, description, enabled (forced false for agents),
-    effect (read/write_local/write_external/high_risk), output_format (json/text),
-    input_schema (object, additionalProperties false), execution.
-    API execution: {kind: api, method: GET, path: /api/sessions|/api/models|/api/workspaces}.
-    Command execution: {kind: command, executable: absolute file, cwd: absolute dir,
-    args: string array, timeout_sec: 1..30}. A scalar {field} occupies one whole argv.
-    Session Operation execution: {kind: session_operation, operation: pause_everything,
-    selector: {mode: explicit, ids: [...]}, {mode: event, path: payload.sessionIds}, or
-    {mode: query, query: Predicate}}. Predicate: {and: [...]}/{or: [...]}/{not: ...}
-    or {field, op, value}. Fields id/name/adapter (string), managedBy (string|null),
-    readonlySession/pinned (boolean), workspaceIds (string array). eq/ne exact;
-    scalar in uses a nonempty typed list; workspaceIds.contains exact element;
-    name.contains nonempty case-sensitive literal substring. No script/SQL/regex,
-    dotted fields or implicit match-all. Limits depth/nodes/candidates/results:
-    8/64/2048/256, operand arrays 128, text 512 code points; overflow fails.
-    Targets freeze at execution start. Draft cannot execute; user-enabled Trigger
-    automation uses this type; legacy Group build/provider rejects it. Backend
-    template/schema: GET /api/actions/session-operation-template.
-    Group fields: optional id, name, action_ids. IDs use lowercase letters/digits/underscores.
-    User enables Actions and builds Groups in the core Actions Panel. This tool
-    cannot build, unbuild, enable, or execute a draft. Built tools use generic plugins.
-
-    完整编排流程见 /pan skill。
+    Create and manage Actions with canonical Action definition tools and Groups
+    with /api/action-groups. New definitions never write legacy JSON. Unknown
+    outcomes must be queried by their original operation identity.
     """
     if operation == 'list':
         return _api('GET', '/api/actions')

@@ -101,7 +101,7 @@ afterEach(cleanup);
 async function openMapped() {
   render(<LegacyActionsView />);
   await screen.findByText('Old alias');
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Old alias' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Inspect Old alias' }));
 }
 
 it('duplicates a mapped advanced Action with the complete canonical definition', async () => {
@@ -172,8 +172,8 @@ it('keeps an uncertain lifecycle request query-only and never resends it', async
   expect(
     (screen.getByRole('button', { name: 'Disable canonical Action' }) as HTMLButtonElement).disabled,
   ).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: '查询原生命周期操作' }));
-  await screen.findByText(/操作状态：completed/);
+  fireEvent.click(screen.getByRole('button', { name: 'Query original lifecycle operation' }));
+  await screen.findByText(/Operation status:completed/);
   const writes = vi
     .mocked(canonicalRequest)
     .mock.calls.filter(([, method]) => method === 'POST' || method === 'DELETE');
@@ -191,7 +191,7 @@ it('shows permission denial without retrying and preserves the draft reason', as
   });
   await openMapped();
   fireEvent.click(screen.getByRole('button', { name: 'Disable canonical Action' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('没有执行此操作的权限');
+  expect((await screen.findByRole('alert')).textContent).toContain('Permission denied');
   expect(
     (screen.getByRole('button', { name: 'Disable canonical Action' }) as HTMLButtonElement).disabled,
   ).toBe(false);
@@ -235,10 +235,10 @@ it('creates a new advanced canonical Action from the old entry without a legacy 
   render(<LegacyActionsView />);
   await screen.findByText('Old alias');
   fireEvent.click(screen.getByRole('button', { name: 'New advanced Action' }));
-  fireEvent.click(screen.getByRole('button', { name: '新建统一 Action' }));
+  fireEvent.click(screen.getByRole('button', { name: 'New definition' }));
   const text = await screen.findByRole('textbox', { name: 'Action definition' });
   fireEvent.change(text, { target: { value: JSON.stringify(definition) } });
-  fireEvent.click(screen.getByRole('button', { name: '保存草稿版本' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft version' }));
   await waitFor(() => expect(canonicalRequest).toHaveBeenCalled());
   const write = vi.mocked(canonicalRequest).mock.calls.find(
     ([path, method]) => path === 'jobs/actions' && method === 'POST',

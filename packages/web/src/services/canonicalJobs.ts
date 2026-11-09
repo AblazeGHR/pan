@@ -34,29 +34,29 @@ export function definitionOf(kind: CanonicalKind, item: CanonicalObject): JsonOb
   );
 }
 export const canonicalErrorMessages: Record<string, string> = {
-  invalid_schema: '定义或参数格式无效，请检查字段。',
-  invalid_condition: '条件表达式无效。',
-  unsupported_operation: '当前对象不支持此操作。',
-  unauthenticated: '授权已失效，请重新登录。',
-  authorization_denied: '没有执行此操作的权限；草稿已保留。',
-  not_found: '对象不存在或不可见。',
-  revision_conflict: '版本冲突。请刷新比较后重新打开编辑；草稿已保留。',
-  idempotency_conflict: '请求身份与原请求不一致，请查询原操作。',
-  reference_conflict: '引用不存在或版本不匹配。',
-  pending_publication: '引用尚未发布。',
-  reconciliation_required: '效果不确定，需要人工核对；不可自动重试。',
-  not_retryable: '当前 Run 不满足重试条件。',
-  cancellation_window_closed: 'Run 已结束，无法取消。',
-  capability_unsupported: '当前平台或执行器不支持此能力（unsupported）。',
-  unsupported_schema_version: '当前服务不支持此 schema 版本（unsupported）。',
-  capacity_exceeded: '容量已满，请稍后刷新。',
-  provider_unavailable: '执行器或来源暂不可用。',
-  storage_unavailable: '存储暂不可用。',
+  invalid_schema: 'Invalid definition or arguments. Check the fields.',
+  invalid_condition: 'Invalid condition expression.',
+  unsupported_operation: 'This operation is unavailable for this object.',
+  unauthenticated: 'Authorization expired. Sign in again.',
+  authorization_denied: 'Permission denied. Your draft is preserved.',
+  not_found: 'Object missing or inaccessible.',
+  revision_conflict: 'Revision conflict. Refresh, compare and reopen the editor. Your draft is preserved.',
+  idempotency_conflict: 'Request identity conflict. Query the original operation.',
+  reference_conflict: 'Reference missing or revision mismatch.',
+  pending_publication: 'Reference is not published.',
+  reconciliation_required: 'The effect is uncertain. Verify manually; do not retry automatically.',
+  not_retryable: 'This Run cannot be retried.',
+  cancellation_window_closed: 'Run Already finished; cancellation is unavailable.',
+  capability_unsupported: 'This capability is unsupported by the platform or executor.',
+  unsupported_schema_version: 'This schema version is unsupported by the service.',
+  capacity_exceeded: 'Capacity reached. Refresh later.',
+  provider_unavailable: 'Executor or source is unavailable.',
+  storage_unavailable: 'Storage is unavailable.',
 };
 export function canonicalError(error: unknown): string {
   if (error instanceof ApiRequestError)
-    return `${canonicalErrorMessages[error.code ?? ''] ?? (error.status === 422 ? '当前服务不支持此能力（unsupported）。' : error.status === 403 ? canonicalErrorMessages.authorization_denied : error.message)} [${error.code ?? error.status}]`;
-  return error instanceof Error ? error.message : '请求失败。';
+    return `${canonicalErrorMessages[error.code ?? ''] ?? (error.status === 422 ? 'This capability is unsupported by the service.' : error.status === 403 ? canonicalErrorMessages.authorization_denied : error.message)} [${error.code ?? error.status}]`;
+  return error instanceof Error ? error.message : 'Request failed.';
 }
 const part = encodeURIComponent;
 const pageQuery = (cursor?: string | null) =>
